@@ -33,6 +33,10 @@ export interface Ctx {
   color: boolean;
   /** Let a launched agent write straight to the terminal instead of being captured. */
   inherit: boolean;
+  /** A person is at the keyboard: the command was typed into a real terminal, not run by a program. */
+  tty?: boolean;
+  /** The command comes from the Spool page, on a click the human made there. */
+  human?: boolean;
 }
 
 export interface UserConfig {

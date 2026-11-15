@@ -65,6 +65,12 @@ test('the gate is a choice: off unless a project turns it on, and it can be turn
   assert.equal(s.json('show', parked).item.state, 'ready');
   assert.match(s.item(parked), /moved to build \(was on hold: just an idea\)/);
   assert.match(s.fails('build'), /what to build is missing/);
+
+  // Work that is reopened is new work to the gate: it waits to be moved to build again.
+  s.sp('start', parked);
+  s.sp('done', parked, '-m', 'Built');
+  s.sp('edit', parked, '--reopen');
+  assert.equal(s.json('show', parked).item.state, 'proposed');
   s.cleanup();
 });
 
@@ -124,5 +130,55 @@ test('a sprint is a named set of work with no dates: fill it, play it, and it en
   assert.match(s.sp('done', coins, '-m', 'Outlined'), /Sprint finished: Polish\. Everything in it is done\./);
   assert.match(s.sp('list', '-k', 'sprint', '--all'), /Polish {2}· done · 2 of 2 done/);
   assert.match(s.fails('edit', later, '--sprint', 'Polish'), /Polish is finished/);
+  s.cleanup();
+});
+
+test('a locked gate: an agent cannot move work to build; a person at a terminal can', () => {
+  const s = new Sandbox();
+  const made = s.sp('init', '--name', 'skyhop', '--lock');
+  assert.match(made, /The build gate is on[\s\S]*It is locked: moving work to build takes you, on the Spool page or at your own terminal\. An agent is refused\./);
+  assert.equal(JSON.parse(s.read('.spool/config.json')).gate, 'locked');
+
+  const jump = s.id('task', 'Tighten the jump arc', '-s', 's');
+  const parked = s.id('task', 'A Grand Prix mode', '--hold', 'just an idea');
+  assert.equal(s.json('show', jump).item.state, 'proposed', 'locked is the gate, and more');
+
+  // Every command that starts work is refused when a program runs it, whatever it calls itself.
+  const refused = /spool build is the human's alone in skyhop: its gate is locked[\s\S]*do not look for a way round/;
+  assert.match(s.fails('build', jump), refused);
+  assert.match(s.fails('build', jump, '--as', 'human'), refused);
+  assert.match(s.exec(['build', jump], { env: { SPOOL_ACTOR: 'human' } }).err, refused);
+  assert.match(s.fails('release', parked), /spool release is the human's alone/);
+  s.sp('sprint', 'Polish');
+  s.sp('edit', jump, '--sprint', 'Polish');
+  assert.match(s.fails('play', 'Polish'), /spool play is the human's alone/);
+  assert.equal(s.json('show', jump).item.state, 'proposed', 'nothing moved');
+
+  // An agent can still do everything that does not start work: file, size, sort, take things out of build.
+  s.sp('edit', jump, '--size', 'm');
+  s.sp('capture', 'the coins are hard to see');
+
+  // The same commands, typed by a person at their own terminal, go through.
+  const typed = s.exec(['build', jump], { tty: true });
+  assert.equal(typed.code, 0, typed.err);
+  assert.equal(s.json('show', jump).item.state, 'ready');
+  assert.equal(s.exec(['release', parked], { tty: true }).code, 0);
+  s.sp('propose', jump);
+  assert.equal(s.exec(['play', 'Polish'], { tty: true }).code, 0);
+  assert.equal(s.json('show', jump).item.state, 'ready');
+  assert.ok(s.sp('next', '--claim').startsWith(jump), 'and an agent builds what a person moved');
+  s.cleanup();
+});
+
+test('locking is one step up from the gate, and init --gate never undoes it', () => {
+  const s = spool();
+  const open = s.id('task', 'Queued before any gate');
+  assert.match(s.sp('build', open), /^In build:/, 'with no lock, an agent passes on the human\'s word as before');
+  assert.match(s.sp('init', '--lock'), /It is locked/);
+  assert.deepEqual(JSON.parse(s.read('.spool/config.json')), { version: 1, name: 'demo', gate: 'locked' });
+  s.sp('init', '--gate');
+  assert.equal(JSON.parse(s.read('.spool/config.json')).gate, 'locked');
+  const later = s.id('task', 'Filed after the lock');
+  assert.match(s.fails('build', later), /its gate is locked/);
   s.cleanup();
 });

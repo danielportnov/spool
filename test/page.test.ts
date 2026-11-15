@@ -212,6 +212,35 @@ test('the page shows the spool as a board, and what is done on it is saved to th
   }
 });
 
+test('where the gate is locked, the page is where work is moved to build', async () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop', '--lock');
+  const jump = s.id('task', 'Tighten the jump arc');
+  s.sp('sprint', 'Polish');
+  s.sp('edit', jump, '--sprint', 'Polish');
+  assert.match(s.fails('build', jump), /its gate is locked/);
+
+  const { child, url } = await startPage(s, '--port', String(45000 + (process.pid % 2000)));
+  try {
+    const token = /const TOKEN = '([\w-]{20,})';/.exec(await (await fetch(url)).text())![1]!;
+    const post = (action: string, body: unknown) =>
+      fetch(`${url}api/${action}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': token }, body: JSON.stringify(body) });
+    assert.equal(((await (await fetch(`${url}api/board`)).json()) as { locked: boolean }).locked, true);
+
+    // A click on the page is the human: play on a thread, and play on a sprint, both go through.
+    assert.equal((await post('move', { id: jump, to: 'build' })).status, 200);
+    assert.equal(s.json('show', jump).item.state, 'ready');
+    s.sp('propose', jump);
+    const sprint = s.json('list', '-k', 'sprint').items[0].id;
+    assert.equal((await post('play', { id: sprint })).status, 200);
+    assert.equal(s.json('show', jump).item.state, 'ready');
+    assert.match(s.item(jump), /human: moved to build with the sprint Polish/);
+  } finally {
+    child.kill();
+    s.cleanup();
+  }
+});
+
 test('the page says so where there is no spool', () => {
   const s = new Sandbox();
   assert.match(s.fails('page', '--no-open'), /no \.spool|spool init/i);

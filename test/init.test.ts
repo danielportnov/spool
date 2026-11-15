@@ -189,6 +189,8 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   assert.match(loop, /\*\*Nothing is built unless the human has moved it to build\.\*\*/);
   assert.match(loop, /You never move a thread to build yourself, whatever\nit is and whoever thought of it\./);
   assert.match(loop, /\*\*Nothing in build\?\*\* Do not build\./);
+  assert.match(loop, /\*\*Where the gate is locked,\*\* `spool build`, `spool play` and `spool release`\nrefuse you outright[\s\S]*Do not look for a way round it: that refusal is the point\./);
+  assert.match(shipped('spool-init'), /Offer the lock once[\s\S]*Their choice; do not pick for them\./);
   assert.match(loop, /\| "build 3", "go on that one", "yes, do it" \| `spool build <t-id>` \|/);
   assert.match(loop, /Never guess a go, an answer or an approval\. If their reply does not plainly\nsay it, ask in one line\./);
   // A procedure that keeps recurring is one of those ideas: offered, never written unasked, and a no is kept.

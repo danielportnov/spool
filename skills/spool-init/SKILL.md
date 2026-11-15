@@ -35,6 +35,11 @@ Get this project from nothing to agents working it, in one short conversation.
    `--gate` turns the build gate on: every new thread starts as proposed, and
    nothing is built until they move it to build. Tell them so in a line.
 
+   Offer the lock once, in a line: with `spool init --lock`, moving work to
+   build takes them in person, on the Spool page or at their own terminal, and
+   an agent that tries is refused. Without it, an agent passes their word on
+   when they say "build that" in a chat. Their choice; do not pick for them.
+
    `spool init` takes the folder as a path or by name, and is safe to get
    wrong: where a spool exists it changes nothing and says "already set up".
    If you see that, step 3 applies.

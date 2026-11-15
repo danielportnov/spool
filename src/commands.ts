@@ -181,6 +181,26 @@ function versionOf(v: unknown): string | undefined {
   return given;
 }
 
+/**
+ * The lock. Where a project's gate is locked, the commands that start work are
+ * the human's in fact and not only by convention: they run from a terminal a
+ * person is sitting at, or from the Spool page on a click, and nowhere else.
+ *
+ * It stops an agent starting work by mistake, or on its own reading of what
+ * the human meant. It is not a security boundary: a program running as the
+ * user can do whatever the user can. What it changes is that getting past it
+ * takes a deliberate act, where before it took none.
+ */
+function byTheHuman(call: Call, spools: Spool[], verb: string): void {
+  if (call.ctx.tty || call.ctx.human) return;
+  const locked = spools.find((s) => s.config.gate === 'locked');
+  if (!locked) return;
+  throw new SpoolError(
+    `spool ${verb} is the human's alone in ${locked.name}: its gate is locked`,
+    'They do it on the Spool page (spool page), or type it in their own terminal. Give them the thread\'s link and stop; do not look for a way round.',
+  );
+}
+
 /** A sprint by its id or by its name, as a person would say it: "sprint 2", "Polish". */
 function sprintBy(ws: Workspace, ref: string): Item {
   const named = ws.items.filter((i) => i.kind === 'sprint' && i.status !== 'dropped' && i.title.toLowerCase() === ref.trim().toLowerCase());
@@ -617,6 +637,7 @@ export const COMMANDS: Command[] = [
       const { ws, p, actor } = call;
       if (!call.args.length) throw new SpoolError('what to release is missing', 'See what is parked: spool list -s held');
       const tasks = call.args.map((ref) => ws.get(ref, 'task'));
+      byTheHuman(call, tasks.map((t) => t.spool), 'release');
       for (const t of tasks) if (!t.hold) throw new SpoolError(`${t.id} is not on hold`);
       for (const t of tasks) {
         addLog(t, actor, `released from hold (was: ${t.hold})`, ws.now());
@@ -634,9 +655,11 @@ export const COMMANDS: Command[] = [
     summary: 'Move proposed work to build: it may be built now, in its turn',
     human: true,
     write: true,
-    run({ ws, args, actor, p }) {
+    run(call) {
+      const { ws, args, actor, p } = call;
       if (!args.length) throw new SpoolError('what to build is missing', 'spool build <t-id>');
       const tasks = args.map((ref) => ws.get(ref, 'task'));
+      byTheHuman(call, tasks.map((t) => t.spool), 'build');
       for (const t of tasks) {
         const state = taskState(ws, t);
         if (state === 'done' || state === 'dropped') throw new SpoolError(`${t.id} is already ${state}`);
@@ -681,9 +704,11 @@ export const COMMANDS: Command[] = [
     summary: 'Start a sprint: everything in it moves to build',
     human: true,
     write: true,
-    run({ ws, args, actor, p }) {
+    run(call) {
+      const { ws, args, actor, p } = call;
       if (!args.length) throw new SpoolError('which sprint is missing', 'spool play <sprint id or name>');
       const sprint = sprintBy(ws, args.join(' '));
+      byTheHuman(call, [sprint.spool], 'play');
       if (sprint.status === 'done') throw new SpoolError(`${sprint.title} is finished`);
       const inIt = sprintTasks(ws, sprint);
       if (!inIt.length) throw new SpoolError(`${sprint.title} is empty`, `Put work in it first: spool edit <t-id> --sprint ${sprint.id}`);
@@ -1134,7 +1159,8 @@ export const COMMANDS: Command[] = [
       if (call.opts.reopen) {
         if (item.kind !== 'task' && item.kind !== 'note') throw new SpoolError('only tasks and notes can be reopened');
         if (!isClosed(item)) throw new SpoolError(`${item.id} is already open`);
-        item.status = item.kind === 'task' ? 'open' : 'new';
+        // Reopened work is new work as far as the gate goes: it waits to be moved to build again.
+        item.status = item.kind === 'task' ? (item.spool.config.gate ? 'proposed' : 'open') : 'new';
         item.by = item.kind === 'task' ? undefined : item.by;
         item.reviewed = undefined;
         changed.push('reopened');
@@ -1517,7 +1543,7 @@ export const COMMANDS: Command[] = [
   {
     name: 'init',
     group: 'setup',
-    usage: 'init [<folder>] [--name <name>] [--about <one line>] [--gate] [--share] [--no-agents-file] [--refresh]',
+    usage: 'init [<folder>] [--name <name>] [--about <one line>] [--gate | --lock] [--share] [--no-agents-file] [--refresh]',
     summary: 'Start a spool here, or in a folder named here, ignored by git unless --share; does nothing where one exists',
     options: {
       name: { type: 'string' },
@@ -1526,6 +1552,7 @@ export const COMMANDS: Command[] = [
       refresh: { type: 'boolean' },
       share: { type: 'boolean' },
       gate: { type: 'boolean' },
+      lock: { type: 'boolean' },
     },
     bare({ ctx, args, opts, p }) {
       // A folder may be named the way a person says it: "sky hop" finds games/sky_hop.
@@ -1543,7 +1570,7 @@ export const COMMANDS: Command[] = [
       const fresh = !fs.existsSync(path.join(dir, 'config.json'));
       // Run by accident where a spool exists, this changes nothing. --refresh is the deliberate version:
       // after an upgrade, it brings the agents' pointer up to date and puts back anything missing.
-      if (!fresh && !opts.refresh && !opts.share && !opts.gate) {
+      if (!fresh && !opts.refresh && !opts.share && !opts.gate && !opts.lock) {
         const name = readConfig(root).name ?? path.basename(root);
         return {
           text: [
@@ -1558,10 +1585,12 @@ export const COMMANDS: Command[] = [
         const config: Config = { version: 1, name: str(opts.name) ?? path.basename(root) };
         if (str(opts.about)) config.about = str(opts.about);
         if (opts.gate) config.gate = true;
+        if (opts.lock) config.gate = 'locked';
         write(path.join(dir, 'config.json'), `${JSON.stringify(config, null, 2)}\n`);
-      } else if (opts.gate && !readConfig(root).gate) {
-        // Turning the gate on for a project that has a spool: one key, nothing else touched.
-        write(path.join(dir, 'config.json'), `${JSON.stringify({ ...readConfig(root), gate: true }, null, 2)}\n`, true);
+      } else if ((opts.lock && readConfig(root).gate !== 'locked') || (opts.gate && !readConfig(root).gate)) {
+        // Turning the gate on, or locking it, for a project that has a spool: one key, nothing else touched.
+        // --gate never loosens a lock; taking a lock off is done by hand, in the file, by a person.
+        write(path.join(dir, 'config.json'), `${JSON.stringify({ ...readConfig(root), gate: opts.lock ? 'locked' : true }, null, 2)}\n`, true);
       }
       write(path.join(dir, 'policy.md'), DEFAULT_POLICY);
       // An existing .gitignore is someone's choice and is kept; --share is the one thing that rewrites it.
@@ -1588,8 +1617,11 @@ export const COMMANDS: Command[] = [
       if (wrote.length) out.push(...wrote.map((f) => p.dim(`  wrote ${f}`)));
       if (fresh && parent) out.push(`It sits under ${path.basename(parent)} and shows up there as a project.`);
       const local = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8').split('\n').includes('*');
-      if (config.gate && (fresh || opts.gate)) {
+      if (config.gate && (fresh || opts.gate || opts.lock)) {
         out.push('The build gate is on: new work starts as proposed, and nothing is built until you move it to build.');
+      }
+      if (config.gate === 'locked' && (fresh || opts.lock)) {
+        out.push('It is locked: moving work to build takes you, on the Spool page or at your own terminal. An agent is refused.');
       }
       if (fresh || opts.share) {
         out.push(

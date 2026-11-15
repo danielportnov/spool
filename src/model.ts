@@ -84,10 +84,15 @@ export interface Config {
   /** One pick in this many goes to large work, however many quick wins are waiting. Default 4. */
   largeEvery?: number;
   /**
-   * The build gate. When true, every new task starts proposed, and nothing is
+   * The build gate. When on, every new task starts proposed, and nothing is
    * built until the human moves it to build. `spool init --gate` turns it on.
+   *
+   * 'locked' goes one step further (`spool init --lock`): the commands that
+   * start work are refused unless a person ran them, at their own terminal or
+   * from the Spool page. An agent told "build that" in a chat can no longer do
+   * it itself; it hands the human the page.
    */
-  gate?: boolean;
+  gate?: boolean | 'locked';
 }
 
 export interface Item {

@@ -125,6 +125,8 @@ interface Board {
   project: string;
   version: string;
   gate: boolean;
+  /** Only a person can move work to build: an agent is refused. */
+  locked: boolean;
   /** Every tag and version in use, to offer when the human types one. */
   tags: string[];
   versions: string[];
@@ -275,6 +277,7 @@ export function board(ws: Workspace, project?: string): Board {
     project: spool.name,
     version: projectVersion(spool.root),
     gate: !!spool.config.gate,
+    locked: spool.config.gate === 'locked',
     tags: [...new Set(all.flatMap((t) => t.tags))].sort(),
     versions: [...new Set(all.map((t) => t.version ?? '').filter(Boolean))].sort().reverse(),
     history: done.filter((t) => t.reviewed).length,
@@ -313,6 +316,8 @@ function act(ctx: Ctx, argv: string[]): { ok: boolean; text: string; data: unkno
   const code = run(['--json', ...argv], {
     ...ctx,
     env: { ...ctx.env, SPOOL_ACTOR: 'human' },
+    // Everything the page does is a click a person made on it.
+    human: true,
     out: (line) => out.push(line),
     err: (line) => err.push(line),
     stdin: () => '',

@@ -214,6 +214,12 @@ two". Their word in chat is `spool build <t-id>`; "not yet" is
 `spool propose <t-id>`. You never move a thread to build yourself, whatever
 it is and whoever thought of it.
 
+**Where the gate is locked,** `spool build`, `spool play` and `spool release`
+refuse you outright: only a person can run them, on the page or at their own
+terminal. Told "build that" in the chat? Say you cannot, give them the
+thread's place on the page (the page's address, then `#<t-id>`), and they
+press ▶. Do not look for a way round it: that refusal is the point.
+
 Repeat until `spool next --claim` says nothing is ready:
 
 1. `spool next --claim` hands you the next thread in build, and its brief. It

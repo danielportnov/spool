@@ -159,5 +159,6 @@ if (isMain()) {
     lines: (each) => void readline.createInterface({ input: process.stdin, crlfDelay: Infinity }).on('line', each),
     color: !!process.stdout.isTTY && !process.env.NO_COLOR,
     inherit: true,
+    tty: !!process.stdin.isTTY && !!process.stdout.isTTY,
   });
 }

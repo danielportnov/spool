@@ -21,6 +21,8 @@ export interface Out {
 export interface RunOptions {
   env?: Record<string, string>;
   stdin?: string;
+  /** Run it as a person at their own terminal would: the lock lets it through. */
+  tty?: boolean;
 }
 
 export class Sandbox {
@@ -59,6 +61,7 @@ export class Sandbox {
       lines: (each) => (options.stdin ?? '').split('\n').forEach((line) => each(line)),
       color: false,
       inherit: false,
+      tty: options.tty,
     });
     return { code, out: out.join('\n'), err: err.join('\n') };
   }

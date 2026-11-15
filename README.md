@@ -124,6 +124,11 @@ Two threads land in the backlog, in your words. Nothing is built until you move 
 
 **Nothing is built unless you put it in Build.** That is the contract.
 
+Want that enforced, not just promised? `spool init --lock`. Then the commands that start work run
+only for a person: a click on the page, or your own terminal. An agent that tries is refused, so
+"build that" in a chat gets you a link to press ▶ on. It stops an agent starting work by mistake or
+on its own reading of you; it is not a wall against a program running as you.
+
 ## The page
 
 ```bash
