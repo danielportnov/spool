@@ -2,6 +2,14 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.13.0 · 2026-11-15
+
+- Each column on the board sorts and filters by itself, and remembers it.
+- Dragging works. It never had: cards were not marked draggable in a way browsers accept.
+- An add is never lost: the page recovers when its server restarts, and puts your words back in the
+  box if a save fails.
+- The page is tested in real Chrome on every `npm test`: clicking, typing and dragging.
+
 ## 0.12.1 · 2026-11-15
 
 - The Backlog view shows as soon as you click it.
