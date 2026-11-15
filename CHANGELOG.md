@@ -2,6 +2,16 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.10.0 · 2026-11-15
+
+- Spool page: click a card and it opens as a ticket. Your words, the description, the agent's
+  response and the full activity on one side; status, priority, difficulty, tags and version on the
+  other, all editable.
+- Tags and versions on threads (`--tag`, `--version`). Click one on a card to narrow the board to it.
+- Finished threads end with **Mark as complete**: your approval of the change.
+- Threads show which agent built them. Agents sign their work with `--as`.
+- The page header shows the repo name and its version, and nothing else.
+
 ## 0.9.0 · 2026-11-15
 
 - Spool page: **+ Add** at the foot of Proposed and Build puts a new thread in that column. The add
