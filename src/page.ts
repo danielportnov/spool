@@ -124,13 +124,16 @@ interface Board {
   /** Every tag and version in use, to offer when the human types one. */
   tags: string[];
   versions: string[];
+  /** How many finished threads the human has marked complete, shown or not. */
+  history: number;
   columns: Record<Column, Card[]>;
   also: { assumptions: number; skills: number; inbox: number };
 }
 
 const DIFFICULTY = { xs: 'Tiny', s: 'Small', m: 'Medium', l: 'Large', xl: 'Huge' } as const;
 const URGENCY = ['Urgent', 'High', 'Normal', 'Someday'] as const;
-const DONE_SHOWN = 12;
+/** Finished work is kept for good. The page carries what is still to check, and the most recent of the rest as history. */
+const HISTORY_SHOWN = 60;
 
 /** Which column a thread sits in. On hold is the human saying not yet, so it sits with what is not in build. */
 function columnOf(state: string): Column | null {
@@ -254,7 +257,9 @@ export function board(ws: Workspace, project?: string): Board {
   const done = tasks(ws, spool)
     .filter((t) => t.status === 'done')
     .sort((a, b) => b.updated.localeCompare(a.updated));
-  for (const t of done.slice(0, DONE_SHOWN)) {
+  // What the human has not looked at yet comes first, all of it; what they marked complete is history.
+  const shown = [...done.filter((t) => !t.reviewed), ...done.filter((t) => t.reviewed).slice(0, HISTORY_SHOWN)];
+  for (const t of shown) {
     columns.done.push(card(ws, t, null, `${age(t.updated, ws.now())} ago${t.summary ? ` · ${oneLine(t.summary, 160)}` : ''}`, 'done'));
   }
   const queue = review(ws, spool);
@@ -265,6 +270,7 @@ export function board(ws: Workspace, project?: string): Board {
     gate: !!spool.config.gate,
     tags: [...new Set(all.flatMap((t) => t.tags))].sort(),
     versions: [...new Set(all.map((t) => t.version ?? '').filter(Boolean))].sort().reverse(),
+    history: done.filter((t) => t.reviewed).length,
     columns,
     also: { assumptions: queue.assumptions.length, skills: queue.skills.length, inbox: queue.inbox.length },
   };
@@ -306,8 +312,19 @@ type Body = Record<string, unknown>;
 const text = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 /** What the page can do. Each is the command a person would have typed. */
-function change(ctx: Ctx, action: string, body: Body): { ok: boolean; text: string } {
+function change(ctx: Ctx, action: string, body: Body, project?: string): { ok: boolean; text: string } {
   const id = text(body.id);
+  if (action === 'complete-all') {
+    // Every finished thread still to check, approved in one go. Only threads: the calls agents made are not swept in.
+    const ws = Workspace.open(ctx.cwd, ctx.now);
+    let ids: string[];
+    try {
+      ids = review(ws, project ? ws.project(project) : ws.home).shipped.map((t) => t.id);
+    } finally {
+      ws.close();
+    }
+    return ids.length ? act(ctx, ['approve', ...ids]) : { ok: true, text: 'Nothing left to check.' };
+  }
   if (action === 'move') {
     const to = text(body.to);
     if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
@@ -411,7 +428,7 @@ export function startPage(ctx: Ctx, options: { port?: number; project?: string }
           } catch {
             return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'not JSON' }));
           }
-          const result = change(ctx, url.pathname.slice('/api/'.length), body);
+          const result = change(ctx, url.pathname.slice('/api/'.length), body, options.project);
           send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify(result));
         });
         return;
@@ -521,6 +538,12 @@ const PAGE = String.raw`<!doctype html>
   .openit { background: none; border: 0; padding: 0; margin-top: 8px; color: var(--soft); font-size: 13px; }
   .openit:hover { color: var(--ink); }
   .chip.ok { color: var(--go); }
+  .tick { margin-left: auto; flex: none; width: 28px; height: 28px; padding: 0; border-radius: 50%; color: var(--go); font-weight: 700; }
+  .tick:hover { background: var(--go); border-color: var(--go); color: #fff; }
+  .foot { width: 100%; margin-bottom: 8px; }
+  .history { background: none; border: 0; padding: 6px; color: var(--soft); font-size: 13px; width: 100%; text-align: left; }
+  .history:hover { color: var(--ink); }
+  .card.past { opacity: .7; }
   .chip.check { color: var(--warn); }
   #veil { position: fixed; inset: 0; background: rgba(0,0,0,.35); }
   #thread { position: fixed; top: 5vh; left: 50%; transform: translateX(-50%); width: min(1000px, 96vw); max-height: 90vh; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow-y: auto; padding: 22px 24px 26px; box-shadow: 0 24px 64px rgba(0,0,0,.3); }
@@ -598,13 +621,15 @@ const COLUMNS = [
   ['proposed', '🟠 Proposed', 'Nothing here is built. Drag a thread to Build, or press ▶.'],
   ['build', '🟢 Build', 'Agents take these in order, top first.'],
   ['building', '🔵 Building', 'An agent has it now.'],
-  ['done', '✅ Done', 'Most recent first.'],
+  ['done', '✅ Done', 'For you to check.'],
 ];
 let last = '';
 let busy = false;
 // The thread that is open, if one is, and notes begun but not yet added.
 let openId = null;
 const drafts = new Map();
+// Completed threads are history: kept, and out of the way until asked for.
+let showHistory = false;
 // The tag or version the board is narrowed to, as { kind: 'tag' | 'version', value }.
 let only = null;
 const SIZES = [['xs', 'Tiny'], ['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Huge']];
@@ -664,10 +689,11 @@ function cardNode(c, column) {
     c.suggested && el('span', { class: 'chip ai', title: c.suggested }, '✨ AI suggested'),
     c.version && el('span', { class: 'chip tag', title: 'Show only this version', onclick: () => narrow('version', c.version) }, 'v' + c.version),
     c.tags.map((t) => el('span', { class: 'chip tag', title: 'Show only this tag', onclick: () => narrow('tag', t) }, '#' + t)));
-  const node = el('div', { class: 'card', draggable: movable, 'data-id': c.id,
+  const node = el('div', { class: 'card' + (c.complete ? ' past' : ''), draggable: movable, 'data-id': c.id,
     ondragstart: (e) => { e.dataTransfer.setData('text/plain', c.id + ' ' + column); node.classList.add('dragging'); busy = true; },
     ondragend: () => { node.classList.remove('dragging'); busy = false; } },
-    el('div', { class: 'top' }, c.n != null && el('span', { class: 'n' }, c.n), el('span', { class: 'title', onclick: () => openThread(c.id) }, c.title)),
+    el('div', { class: 'top' }, c.n != null && el('span', { class: 'n' }, c.n), el('span', { class: 'title', onclick: () => openThread(c.id) }, c.title),
+      c.done && !c.complete && el('button', { class: 'tick', title: 'Mark as complete', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓')),
     chips,
     c.note && el('div', { class: 'note' }, c.note));
 
@@ -842,7 +868,10 @@ function draw(b) {
   filter.hidden = !only;
   if (only) filter.replaceChildren('Showing only ', el('button', { onclick: () => narrow(only.kind, only.value) }, (only.kind === 'tag' ? '#' : 'v') + only.value + '  ✕'));
   main.replaceChildren(...COLUMNS.map(([key, name, hint]) => {
-    const cards = b.columns[key].filter(shows);
+    const every = b.columns[key].filter(shows);
+    // Done shows what is still for them to check. What they marked complete is history, a click away.
+    const past = key === 'done' ? every.filter((c) => c.complete) : [];
+    const cards = key === 'done' ? every.filter((c) => !c.complete) : every;
     const drop = key === 'proposed' || key === 'build';
     return el('section', { 'data-column': key,
       ondragover: (e) => { if (drop) { e.preventDefault(); e.currentTarget.classList.add('over'); } },
@@ -855,7 +884,12 @@ function draw(b) {
         post('move', { id, to: key }, key === 'build' ? 'In build' : 'Back to proposed');
       } },
       el('h2', {}, el('b', {}, name), el('span', {}, String(cards.length))),
-      cards.length ? cards.map((c) => cardNode(c, key)) : el('div', { class: 'empty' }, hint),
+      cards.length ? cards.map((c) => cardNode(c, key)) : el('div', { class: 'empty' }, key === 'done' ? 'Nothing left to check.' : hint),
+      key === 'done' && cards.length > 1 && el('button', { class: 'foot go', onclick: () => post('complete-all', {}, 'All marked as complete') }, '✓ Mark all ' + cards.length + ' as complete'),
+      key === 'done' && b.history > 0 && el('button', { class: 'history', onclick: () => { showHistory = !showHistory; last = ''; load(true); } },
+        (showHistory ? '▾ Hide history' : '▸ History') + ' · ' + b.history + ' complete'),
+      key === 'done' && showHistory && past.map((c) => cardNode(c, key)),
+      key === 'done' && showHistory && b.history > past.length && !only && el('div', { class: 'empty' }, '+ ' + (b.history - past.length) + ' older'),
       drop && addNode(key));
   }));
   const box = document.querySelector('.adding textarea');

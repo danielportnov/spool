@@ -147,6 +147,20 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.deepEqual(followUp.thread.cameFrom, [{ id: coins, title: 'Make coins readable at sunset' }]);
     assert.match(html, /Mark as complete/);
 
+    // Finished work is kept. One call marks everything still to check as complete, and only threads.
+    const mute = s.id('task', 'A mute button');
+    s.sp('build', mute);
+    s.sp('start', mute);
+    s.sp('done', mute, '-m', 'Mute is in settings');
+    s.sp('assume', 'Where does mute live?', '--chose', 'Settings', '--why', 'it is where sound is');
+    b = await board();
+    assert.deepEqual([b.columns.done.filter((c: any) => !c.complete).map((c: any) => c.id), b.history], [[mute], 1]);
+    assert.equal((await post('complete-all', {})).status, 200);
+    b = await board();
+    assert.deepEqual([b.columns.done.filter((c: any) => !c.complete).length, b.history, b.columns.done.length], [0, 2, 2], 'kept as history, not removed');
+    assert.equal(s.json('review').assumptions.length, 1, 'a call an agent made is not swept in with the threads');
+    assert.match(html, /Mark all ' \+ cards\.length \+ ' as complete/);
+
     // An audit's report is read on its ticket, in full.
     const audit = s.id('audit', 'How does it feel to a new player?');
     s.sp('build', audit);
