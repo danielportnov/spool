@@ -467,6 +467,7 @@ const PAGE = String.raw`<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spool</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧶%3C/text%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #f6f5f2; --panel: #ffffff; --ink: #1d1c1a; --soft: #6f6c66; --line: #e4e1da;
@@ -825,7 +826,8 @@ function drawThread(b) {
 
 function draw(b) {
   document.getElementById('project').textContent = b.project;
-  document.title = '🧶 ' + b.project;
+  // The yarn is the tab's icon, so the title is the project's name alone.
+  document.title = b.project;
   document.getElementById('where').textContent = b.version ? 'v' + b.version : '';
   // The header is the project's name and its version. One thing is still worth a line: a project
   // where the gate is off, because there the board cannot promise that nothing builds by itself.

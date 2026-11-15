@@ -39,7 +39,8 @@ test('the page shows the spool as a board, and what is done on it is saved to th
   try {
     // The page carries the token its own buttons need; nothing else on the machine is told it.
     const html = await (await fetch(url)).text();
-    assert.match(html, /<title>Spool<\/title>/);
+    assert.match(html, /<title>Spool<\/title>\n<link rel="icon" href="data:image\/svg\+xml,[^"]*🧶/, 'the yarn is the page\'s icon');
+    assert.doesNotMatch(html, /document\.title = '🧶/);
     const token = /const TOKEN = '([\w-]{20,})';/.exec(html)![1]!;
     const board = async () => (await (await fetch(`${url}api/board`)).json()) as Record<string, any>;
     const post = (action: string, body: unknown, headers: Record<string, string> = { 'x-spool-token': token }) =>
