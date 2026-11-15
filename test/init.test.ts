@@ -190,6 +190,9 @@ test('the loop skill is simple: show the spool ranked, chip away, say when it is
   // Its own ideas go in the spool as AI suggested, and wait for a yes.
   assert.match(loop, /### Add your own ideas[\s\S]*spool task "<the idea>" --suggested "<why[^"]*>" --size <size>[\s\S]*nobody starts it, you\n {2}included, until the human says yes/);
   assert.match(loop, /\| 4 \| \*\*<feature>\*\* \| Small \| Normal \| ✨ AI suggested: <why>\. Say yes and it joins the order\. \|/);
+  // A procedure that keeps recurring is one of those ideas: offered, never written unasked, and a no is kept.
+  assert.match(loop, /### Add your own ideas[\s\S]*\*\*A procedure agents keep working out again is an idea too\.\*\*\n`spool skills --suggest` lists steps that recur across finished threads[\s\S]*It matches words, not meaning, so read the threads first[\s\S]*Their no is\n {2}remembered/);
+  assert.match(loop, /### Skills[\s\S]*`spool done` says when the steps\nyou just took match earlier finished threads with no skill for them[\s\S]*is the human's call:\n`spool skills --suggest` prints the line that offers it/);
   assert.match(loop, /\*\*They can steer at any time,\*\*/);
   assert.match(loop, /The order is read again every time/);
 

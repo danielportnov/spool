@@ -114,6 +114,20 @@ obvious, something that will break, a quick win nobody asked for:
 - Their yes: `spool release <t-id>`, and it joins the order. Their no:
   `spool drop <t-id> -m "<their words>"`.
 
+**A procedure agents keep working out again is an idea too.**
+`spool skills --suggest` lists steps that recur across finished threads with
+no skill for them: the threads each was seen in, the words they share, and
+the line that offers it, a thread named "Write down how we <the procedure> as
+a skill".
+
+- It matches words, not meaning, so read the threads first. One procedure,
+  done over and over? Offer it, named as they would say it, with the steps as
+  its spec. It counts as one of your three.
+- Only the same subject, or `spool skills` already has it? Offer it and
+  `spool drop <t-id> -m "<why>"` it yourself, so it is not raised again.
+- Their yes makes writing it down a thread like any other. Their no is
+  remembered: that procedure is never offered again.
+
 ## Show the spool
 
 The list is the one thing the human reads, so it has to tell them at a glance
@@ -394,6 +408,13 @@ will come up again, with no skill for it? Write it down:
     EOF
 
 It works immediately, and the human sees it in their review.
+
+Spool watches for the ones nobody wrote down: `spool done` says when the steps
+you just took match earlier finished threads with no skill for them. It only
+sees shared words, so whether that is a skill is the human's call:
+`spool skills --suggest` prints the line that offers it. Run it now, with the
+steps as its spec while you still know them. On their yes, writing the skill
+is a thread, `--from` every thread it was seen in.
 
 ### The human's verbs
 

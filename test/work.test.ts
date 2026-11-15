@@ -214,6 +214,7 @@ test('the protocols teach sizing, audits and plans to both roles', () => {
   assert.match(worker, /\*\*A plan\.\*\* Work out how\. Do not build it here/);
   assert.match(worker, /### Size: how much would have to change\n\n`xs` a line or a value/);
   assert.match(worker, /one\npick in four to large work/);
+  assert.match(worker, /`spool done` says when the steps\nyou just took match earlier finished threads[\s\S]*`spool skills --suggest` prints the line that offers it/);
   const recorder = s.sp('prime', 'recorder');
   assert.match(recorder, /\| a look and a report \| `spool audit "<what to examine, and through whose eyes>"/);
   assert.match(recorder, /\| something big or open \| `spool plan "<the objective>"/);
