@@ -36,6 +36,11 @@ Get this project from nothing to agents working it, in one short conversation.
    wrong: where a spool exists it changes nothing and says "already set up".
    If you see that, step 3 applies.
 
+   The queue is private by default: git ignores everything under `.spool/`,
+   because it is working state for agents and holds the human's words exactly
+   as they said them. Tell them so in a line. Only if they ask to share the
+   queue with a team, or to keep its history in git: `spool init --refresh --share`.
+
    A folder holding several projects? Set up the folder, then offer to set up
    each project inside it that has its own repository or README. Ask before
    setting up more than the one they named.

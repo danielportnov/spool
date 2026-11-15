@@ -91,6 +91,22 @@ export interface Command {
 
 // ------------------------------------------------------------------ helpers
 
+/**
+ * `.spool/.gitignore`. The queue is working state for agents, and it holds what
+ * the human said word for word, so by default git ignores all of it: the `*`
+ * covers every file in the directory, this one included. Sharing the queue is
+ * a choice someone makes on purpose, by deleting that line or with `--share`.
+ */
+const QUEUE_SHARED = '.lock\n*.tmp\n';
+const QUEUE_LOCAL = `# Spool's queue is working state for agents: what you said, word for word, and
+# the tasks and decisions that came of it. By default git ignores all of it,
+# this file included, so none of it is committed or pushed.
+#
+# To keep the queue in git instead, for a team or for its history, delete the
+# "*" line below, or run:  spool init --refresh --share
+${QUEUE_SHARED}*
+`;
+
 const PROJECT: Options = { project: { type: 'string', short: 'P' } };
 const MESSAGE: Options = { message: { type: 'string', short: 'm' } };
 const BODY: Options = { body: { type: 'string', short: 'b' } };
@@ -1283,13 +1299,14 @@ export const COMMANDS: Command[] = [
   {
     name: 'init',
     group: 'setup',
-    usage: 'init [<folder>] [--name <name>] [--about <one line>] [--no-agents-file] [--refresh]',
-    summary: 'Start a spool in this directory, or in a folder named here; does nothing where one exists',
+    usage: 'init [<folder>] [--name <name>] [--about <one line>] [--share] [--no-agents-file] [--refresh]',
+    summary: 'Start a spool here, or in a folder named here, ignored by git unless --share; does nothing where one exists',
     options: {
       name: { type: 'string' },
       about: { type: 'string' },
       'no-agents-file': { type: 'boolean' },
       refresh: { type: 'boolean' },
+      share: { type: 'boolean' },
     },
     bare({ ctx, args, opts, p }) {
       // A folder may be named the way a person says it: "sky hop" finds games/sky_hop.
@@ -1307,7 +1324,7 @@ export const COMMANDS: Command[] = [
       const fresh = !fs.existsSync(path.join(dir, 'config.json'));
       // Run by accident where a spool exists, this changes nothing. --refresh is the deliberate version:
       // after an upgrade, it brings the agents' pointer up to date and puts back anything missing.
-      if (!fresh && !opts.refresh) {
+      if (!fresh && !opts.refresh && !opts.share) {
         const name = readConfig(root).name ?? path.basename(root);
         return {
           text: [
@@ -1324,7 +1341,8 @@ export const COMMANDS: Command[] = [
         write(path.join(dir, 'config.json'), `${JSON.stringify(config, null, 2)}\n`);
       }
       write(path.join(dir, 'policy.md'), DEFAULT_POLICY);
-      write(path.join(dir, '.gitignore'), '.lock\n*.tmp\n');
+      // An existing .gitignore is someone's choice and is kept; --share is the one thing that rewrites it.
+      write(path.join(dir, '.gitignore'), opts.share ? QUEUE_SHARED : QUEUE_LOCAL, !!opts.share);
       fs.mkdirSync(path.join(dir, 'items'), { recursive: true });
       const config = readConfig(root);
       const spool: Spool = { root, dir, name: config.name ?? path.basename(root), home: true, config };
@@ -1346,6 +1364,14 @@ export const COMMANDS: Command[] = [
       ];
       if (wrote.length) out.push(...wrote.map((f) => p.dim(`  wrote ${f}`)));
       if (fresh && parent) out.push(`It sits under ${path.basename(parent)} and shows up there as a project.`);
+      const local = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8').split('\n').includes('*');
+      if (fresh || opts.share) {
+        out.push(
+          local
+            ? `The queue stays on this machine: git ignores ${SPOOL_DIR}/.  ${p.dim('(spool init --refresh --share keeps it in git)')}`
+            : `The queue is kept in git with the rest of the project: ${SPOOL_DIR}/ is not ignored.`,
+        );
+      }
       const skills = installedIn(userSkillsDir(ctx)) || installedIn(skillsDir(spool));
       if (!skills) out.push('', 'The Spool skills are not installed for your agent yet. Once per machine:  spool install');
       if (fresh) {
@@ -1358,7 +1384,7 @@ export const COMMANDS: Command[] = [
           `  ${path.join(SPOOL_DIR, 'policy.md')} says what agents may decide without you — worth two minutes.`,
         );
       }
-      return { text: out.join('\n'), data: { root, created: fresh, wrote, skills } };
+      return { text: out.join('\n'), data: { root, created: fresh, wrote, skills, shared: !local } };
     },
   },
   {

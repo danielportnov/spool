@@ -75,6 +75,8 @@ Then, in your agent, in any project:
 From a folder of projects, name the one you mean, however you would say it: `/spool-init sky hop`
 sets up `games/sky_hop`. Run it where Spool is already set up and it changes nothing, and says so.
 
+The queue it creates stays on your machine. Git ignores `.spool/` unless you ask for it to be shared.
+
 ## What it looks like
 
 > **You:** /spool-recorder
@@ -375,7 +377,10 @@ Four kinds of item — `note` (what you said, verbatim), `task` (with its type a
 graph: `spool graph` draws it, and because the links are `[[wikilinks]]` the folder opens as an
 Obsidian vault.
 
-- **Git is the history.** One small file per item diffs and merges cleanly.
+- **Private by default.** `spool init` has git ignore everything under `.spool/`. The queue is working
+  state for agents, and it holds what you said word for word, so none of it is committed or pushed
+  unless you choose that: `spool init --share`, or delete one line of `.spool/.gitignore`.
+- **Shared, git is the history.** One small file per item diffs and merges cleanly.
 - **Ids are random** (`t-hcta`), so two agents or two branches adding items never collide.
 - **Agents never write these files.** They use verbs — `ask`, `assume`, `done` — and the CLI enforces
   what may follow what, so no agent can leave the queue in a shape the next one can't read.
@@ -481,7 +486,7 @@ These are the verbs the skills run. They are here for reference, and for buildin
 | Set up | |
 | --- | --- |
 | `spool install [--here \| --dir path] [--force]` | Put the skills where your agent finds them |
-| `spool init [folder] [--name n] [--about line] [--refresh]` | Start a spool here or in a named folder; a no-op where one exists, unless `--refresh` |
+| `spool init [folder] [--name n] [--about line] [--share] [--refresh]` | Start a spool here or in a named folder, ignored by git unless `--share`; a no-op where one exists, unless `--refresh` |
 | `spool loop [--watch s] [--agent cmd]` | Work the queue with no chat |
 
 Every command takes `--json`, `-C <dir>` and `--as <name>`. Errors say what to do instead.

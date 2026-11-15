@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { type Sandbox, spool } from './helpers.ts';
 
+/** A project whose queue is kept in git, which is where undoing code and keeping the queue could collide. */
 function repo(): Sandbox {
   const s = spool();
+  s.sp('init', '--share');
   s.gitInit();
   s.write('physics.txt', 'gravity = 9.8\njump = 5\n');
   s.commitAll('init');

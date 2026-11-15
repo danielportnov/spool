@@ -11,7 +11,8 @@ test('init lays down the store, the policy and a pointer for agents', () => {
   assert.match(out, /Spool is set up in demo\./);
   assert.deepEqual(JSON.parse(s.read('.spool/config.json')), { version: 1, name: 'demo', about: 'A demo project' });
   assert.match(s.read('.spool/policy.md'), /## Go ahead and assume[\s\S]*## Ask first[\s\S]*## Never/);
-  assert.equal(s.read('.spool/.gitignore'), '.lock\n*.tmp\n');
+  assert.match(s.read('.spool/.gitignore'), /^# Spool's queue is working state for agents[\s\S]*\n\.lock\n\*\.tmp\n\*\n$/);
+  assert.match(out, /The queue stays on this machine: git ignores \.spool\/\./);
 
   // The pointer sends any agent to the skills, and one with no skills to the CLI's copy of the rules.
   assert.match(s.read('AGENTS.md'), /<!-- spool:start -->[\s\S]*\/spool-help[\s\S]*spool prime[\s\S]*<!-- spool:end -->/);
@@ -51,6 +52,38 @@ test('init run again by accident changes nothing, and says so', () => {
   assert.match(s.sp('init', '--refresh'), /^demo: refreshed\.\n {2}wrote CLAUDE\.md/);
   assert.equal(s.read('CLAUDE.md').match(/spool:start/g)!.length, 1);
   assert.equal(s.read('.spool/policy.md'), 'My policy.');
+  s.cleanup();
+});
+
+test('the queue is ignored by git unless someone chooses to share it', () => {
+  const s = new Sandbox();
+  s.gitInit();
+  s.write('game.js', 'let gravity = 9.8;\n');
+  s.sp('init', '--name', 'demo');
+  s.sp('capture', 'the jump feels floaty');
+  s.sp('task', 'Tighten the jump arc');
+  const untracked = () => s.git('status', '--porcelain', '--untracked-files=all').split('\n').map((l) => l.slice(3)).filter(Boolean).sort();
+
+  // By default nothing under .spool/ can be committed, even by `git add -A`: not the notes, not the config.
+  assert.deepEqual(untracked(), ['AGENTS.md', 'game.js']);
+  s.git('add', '-A');
+  assert.equal(s.git('ls-files', '.spool'), '');
+
+  // Sharing is deliberate, and sticks: a later refresh does not hide the queue again.
+  const shared = s.sp('init', '--share');
+  assert.match(shared, /The queue is kept in git with the rest of the project/);
+  assert.equal(s.read('.spool/.gitignore'), '.lock\n*.tmp\n');
+  assert.ok(untracked().some((f) => f.startsWith('.spool/items/n-')), 'now the queue shows up');
+  assert.ok(untracked().includes('.spool/config.json'));
+  s.sp('init', '--refresh');
+  assert.equal(s.read('.spool/.gitignore'), '.lock\n*.tmp\n');
+  assert.equal(s.json('init', '--refresh').shared, true);
+
+  // Or chosen from the start.
+  const team = new Sandbox();
+  assert.match(team.sp('init', '--share'), /Spool is set up in[\s\S]*The queue is kept in git/);
+  assert.equal(team.read('.spool/.gitignore'), '.lock\n*.tmp\n');
+  team.cleanup();
   s.cleanup();
 });
 

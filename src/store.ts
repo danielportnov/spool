@@ -8,7 +8,8 @@
  *
  * Writes are atomic (temp file + rename) and serialised by a lock file per
  * spool, so several agents and a recorder can work the same queue at once.
- * History is git's job: every item is a small file that diffs cleanly.
+ * The queue is ignored by git unless a project chooses to share it; shared,
+ * history is git's job, and every item is a small file that diffs cleanly.
  */
 
 import * as fs from 'node:fs';
