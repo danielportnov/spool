@@ -22,7 +22,7 @@ What they can do on it:
 | Drag a thread 🧵 to **Build**, or press ▶ | It may be built now, in its turn. This is the only way anything gets built. |
 | **Not yet**, or drag it back | Back to proposed. Nothing builds it. |
 | A note on a thread | It lands on that thread, in their words. |
-| The box at the top | A new idea goes into the spool 🧶; the loop files it as threads on its next run. |
+| **+ Add** at the foot of Proposed or Build | A new thread in that column, named from their first line, with all their words kept on it. Added under Build, it is in build. |
 | An answer button on a question | The thread it was holding up can move again. |
 
 The page says so if the build gate is off in this project, which means new

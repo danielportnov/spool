@@ -65,6 +65,21 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.equal((await post('note', { text: 'add a mute button to settings' })).status, 200);
     assert.match(s.sp('inbox'), /add a mute button to settings/);
 
+    // + Add at the foot of a column makes a thread in that column: named from the first line, all the words kept.
+    assert.equal((await post('add', { to: 'proposed', text: 'A daily challenge level\nwith its own leaderboard' })).status, 200);
+    assert.equal((await post('add', { to: 'build', text: 'Fix the typo on the title screen' })).status, 200);
+    b = await board();
+    const daily = b.columns.proposed.find((c: any) => c.title === 'A daily challenge level');
+    assert.ok(daily, 'added under Proposed, it is proposed');
+    assert.match(s.item(daily.id), /> A daily challenge level\n> with its own leaderboard\n> — \[\[n-/);
+    const typo = b.columns.build.find((c: any) => c.title === 'Fix the typo on the title screen');
+    assert.ok(typo, 'added under Build, it is in build');
+    assert.match(s.item(typo.id), /human: moved to build/);
+    assert.equal((await post('add', { to: 'done', text: 'x' })).status, 400);
+    assert.equal((await post('add', { to: 'build', text: '  ' })).status, 400);
+    assert.doesNotMatch(html, /Add to the spool|id="idea"/, 'no add box at the top');
+    assert.match(html, /'\+ Add'/);
+
     // An answer unblocks the thread it was holding.
     assert.equal((await post('answer', { id: question, choice: '2' })).status, 200);
     assert.equal(s.json('show', question).item.choice, 'Teal');

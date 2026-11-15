@@ -4,12 +4,13 @@
  * `spool page` starts a small server on this machine and opens a kanban board
  * of every thread: proposed, build, building, done. It is where the human
  * plans and steers. They drag a thread into build, or press play on it, and
- * that is the only way anything gets built; they write a note on a thread and
- * it lands there in their words; they answer a question and work moves again.
+ * that is the only way anything gets built; they add a thread at the foot of a
+ * column; they write a note on a thread and it lands there in their words;
+ * they answer a question and work moves again.
  * Agents read the same spool and keep working while the page is open.
  *
  * Everything the page does is an ordinary command run in-process, as the
- * human: `build`, `propose`, `capture`, `file`, `answer`. So the page can do
+ * human: `build`, `propose`, `capture`, `task`, `file`, `answer`. So the page can do
  * nothing the command line cannot, and every rule the commands enforce holds
  * here too.
  *
@@ -175,6 +176,23 @@ function change(ctx: Ctx, action: string, body: Body): { ok: boolean; text: stri
     if (to === 'proposed') return act(ctx, ['propose', id]);
     return { ok: false, text: 'a thread can be moved to build, or back to proposed' };
   }
+  if (action === 'add') {
+    const words = text(body.text);
+    const to = text(body.to);
+    if (!words) return { ok: false, text: 'say what to add' };
+    if (to !== 'proposed' && to !== 'build') return { ok: false, text: 'a thread can be added to proposed, or to build' };
+    // Their words are kept whole as the note; the thread's name is the first line of them.
+    const captured = act(ctx, ['capture', '--', words]);
+    const note = (captured.data as { note?: { id?: string } } | null)?.note?.id;
+    if (!captured.ok || !note) return { ok: false, text: captured.text || 'it could not be saved' };
+    const filed = act(ctx, ['task', '--from', note, '--', oneLine(words.split('\n')[0]!, 110)]);
+    const task = (filed.data as { task?: { id?: string; status?: string } } | null)?.task;
+    if (!filed.ok || !task?.id) return { ok: false, text: filed.text || 'it could not be filed' };
+    // Adding it under Build is the human putting it in build; under Proposed it waits, gate or no gate.
+    if (to === 'build' && task.status === 'proposed') return act(ctx, ['build', task.id]);
+    if (to === 'proposed' && task.status !== 'proposed') return act(ctx, ['propose', task.id]);
+    return { ok: true, text: '' };
+  }
   if (action === 'note') {
     const words = text(body.text);
     if (!words) return { ok: false, text: 'the note is empty' };
@@ -302,8 +320,10 @@ const PAGE = String.raw`<!doctype html>
   header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding: 18px 20px 6px; }
   h1 { font-size: 20px; margin: 0; font-weight: 650; }
   .where { color: var(--soft); }
-  .idea { display: flex; gap: 8px; flex: 1 1 320px; }
-  .idea input { flex: 1; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); font: inherit; }
+  .add { width: 100%; text-align: left; border-style: dashed; background: transparent; color: var(--soft); }
+  .add:hover { color: var(--ink); }
+  .adding textarea { margin-top: 0; background: var(--panel); }
+  .adding .acts { margin-top: 6px; }
   button { font: inherit; cursor: pointer; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 6px 11px; }
   button:hover { border-color: var(--soft); }
   button.go { background: var(--go); border-color: var(--go); color: #fff; font-weight: 600; }
@@ -343,10 +363,6 @@ const PAGE = String.raw`<!doctype html>
 <header>
   <h1>🧶 <span id="project">Spool</span></h1>
   <span class="where" id="where"></span>
-  <form class="idea" id="idea">
-    <input id="ideaText" placeholder="Say what you want added, and where" autocomplete="off">
-    <button>Add to the spool</button>
-  </form>
 </header>
 <div class="rule" id="rule"></div>
 <main id="board"></main>
@@ -363,6 +379,9 @@ let last = '';
 let busy = false;
 const open = new Set();
 const drafts = new Map();
+// The column whose "+ Add" is open, and what has been typed into it so far.
+let adding = null;
+let addDraft = '';
 
 const el = (tag, attrs = {}, ...kids) => {
   const node = document.createElement(tag);
@@ -466,12 +485,40 @@ function draw(b) {
         post('move', { id, to: key }, key === 'build' ? 'In build' : 'Back to proposed');
       } },
       el('h2', {}, el('b', {}, name), el('span', {}, String(cards.length))),
-      cards.length ? cards.map((c) => cardNode(c, key)) : el('div', { class: 'empty' }, hint));
+      cards.length ? cards.map((c) => cardNode(c, key)) : el('div', { class: 'empty' }, hint),
+      drop && addNode(key));
   }));
+  const box = document.querySelector('.adding textarea');
+  if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
 }
 
-async function load() {
-  if (busy || document.activeElement?.tagName === 'TEXTAREA') return;
+// "+ Add" at the foot of a column: a thread added there starts in that column.
+function addNode(column) {
+  if (adding !== column) {
+    return el('button', { class: 'add', onclick: () => { adding = column; addDraft = ''; last = ''; load(true); } }, '+ Add');
+  }
+  const close = () => { adding = null; addDraft = ''; last = ''; load(true); };
+  const save = async () => {
+    const words = addDraft.trim();
+    if (!words) return;
+    adding = null;
+    addDraft = '';
+    await post('add', { text: words, to: column }, column === 'build' ? 'Added to build' : 'Added as proposed');
+  };
+  const box = el('textarea', { placeholder: column === 'build' ? 'What should be built?' : 'What do you want added?',
+    oninput: (e) => { addDraft = e.target.value; },
+    onkeydown: (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
+      if (e.key === 'Escape') close();
+    } });
+  box.value = addDraft;
+  return el('div', { class: 'adding' }, box,
+    el('div', { class: 'acts' }, el('button', { class: 'go', onclick: save }, 'Add'), el('button', { onclick: close }, 'Cancel')));
+}
+
+async function load(now) {
+  // Never redraw under someone's typing; opening or closing "+ Add" is the one redraw that is asked for.
+  if (!now && (busy || document.activeElement?.tagName === 'TEXTAREA')) return;
   try {
     const text = await (await fetch('/api/board')).text();
     if (text === last) return;
@@ -482,12 +529,6 @@ async function load() {
   }
 }
 
-document.getElementById('idea').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const box = document.getElementById('ideaText');
-  if (!box.value.trim()) return;
-  if (await post('note', { text: box.value }, 'Added. The loop files it as threads on its next run.')) box.value = '';
-});
 load();
 setInterval(load, 3000);
 </script>

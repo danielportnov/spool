@@ -67,8 +67,8 @@ A small server on your own machine opens a board in your browser:
 | Not built. Yours to move. | Agents take these in order. | An agent has it now. | Most recent first. |
 
 Drag a thread into Build, or press ▶. Write a note on a thread and it lands there in your words.
-Answer a question with one button. Type an idea in the box at the top and the loop files it as
-threads. Agents keep working while it is open, and the board shows threads move as they do.
+Answer a question with one button. **+ Add** at the foot of Proposed or Build puts a new thread in
+that column. Agents keep working while it is open, and the board shows threads move as they do.
 
 The page listens on `127.0.0.1` only and nothing leaves your machine.
 
