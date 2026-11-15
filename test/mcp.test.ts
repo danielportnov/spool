@@ -143,8 +143,9 @@ test('feedback becomes finished, approved work without a shell', () => {
   assert.equal(note.by, 'human');
   assert.ok(s.item(note.id).includes(words), 'the words are on disk exactly as said');
 
-  const task = call(s, 'spool_task', { args: ['Tighten the jump arc'], from: [note.id], size: 's', priority: 1 }).data.task;
+  const task = call(s, 'spool_task', { args: ['Tighten the jump arc'], from: [note.id], size: 's', priority: 1, hold: null, as: '' }).data.task;
   assert.equal(task.priority, 1, 'a number is taken where the command line takes a string');
+  assert.equal(task.state, 'ready', 'and an option left null or empty was not given');
   assert.deepEqual(task.from, [note.id]);
   assert.equal(s.json('show', note.id).item.status, 'filed');
 

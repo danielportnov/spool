@@ -77,7 +77,7 @@ export interface Result {
 export interface Command {
   name: string;
   aliases?: string[];
-  /** 'setup' is for a person at their own machine: those verbs start programs or write outside the queue, so `spool mcp` does not offer them. */
+  /** 'setup' is for a person at their own machine: those verbs start programs or write wherever they are pointed, so `spool mcp` does not offer them. */
   group: 'you' | 'agents' | 'see' | 'setup';
   usage: string;
   summary: string;

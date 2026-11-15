@@ -7,11 +7,11 @@
  * `--json`. There is no second list of verbs here, and no second set of rules.
  *
  * The set-up verbs are left out: `loop` starts agents, `install` and `init`
- * write outside the queue, and this server is not a tool of itself. What is
- * offered keeps the line drawn in `context.ts`. A call cannot name a working
- * directory, cannot pass a flag the tool does not list, and where the command
- * line would read a file it gives the text instead, so nothing a caller sends
- * reaches outside the tree the server was started in.
+ * write wherever they are pointed, and this server is not a tool of itself.
+ * What is offered keeps the line drawn in `context.ts`. A call cannot name a
+ * working directory, cannot pass a flag the tool does not list, and where the
+ * command line would read a file it gives the text instead, so nothing a
+ * caller sends reaches outside the tree the server was started in.
  *
  * The protocol is written out by hand, like everything else here:
  * newline-delimited JSON-RPC 2.0. It speaks both eras of MCP. From 2026-07-28
@@ -114,7 +114,8 @@ function argvFor(c: Command, tool: Tool, input: Json): { argv: string[]; stdin: 
   let stdin = '';
   for (const [key, value] of Object.entries(input)) {
     const option = c.options?.[key];
-    if (value === null || value === undefined) continue;
+    // A model fills in what it has nothing to say about with null or "": both mean the option was not given.
+    if (value === null || value === undefined || value === '') continue;
     if (!Object.hasOwn(tool.inputSchema.properties, key)) {
       throw new SpoolError(`${tool.name} takes no "${key}"`, `It takes: ${Object.keys(tool.inputSchema.properties).join(', ')}`);
     }
