@@ -6,6 +6,16 @@
  *   decision  a question and, eventually, its answer    open | assumed → decided | dropped
  *   skill     a procedure an agent wrote down           active | dropped
  *
+ * Not all work is a change to the code. A task has a type, which says what
+ * finishing it produces:
+ *
+ *   change    commits                                   (the default)
+ *   audit     a report, and its findings filed as tasks
+ *   plan      a plan, and its parts filed as tasks
+ *
+ * and a size, xs to xl, which says how much would have to change. Size is what
+ * lets the queue favour quick wins without starving the large work.
+ *
  * Items point at each other: `from` is provenance (a task from a note, rework
  * from a decision, a skill from the task that taught it) and `needs` is what
  * must be settled first. Together they make the store a small typed graph.
@@ -26,6 +36,12 @@ export const KINDS: Record<Kind, { prefix: string; statuses: readonly string[]; 
 };
 
 export const KIND_NAMES = Object.keys(KINDS) as Kind[];
+
+export const SIZES = ['xs', 's', 'm', 'l', 'xl'] as const;
+export type Size = (typeof SIZES)[number];
+
+export const TYPES = ['change', 'audit', 'plan'] as const;
+export type WorkType = (typeof TYPES)[number];
 
 /** One project's `.spool/` directory. */
 export interface Spool {
@@ -54,6 +70,8 @@ export interface Config {
   ignore?: string[];
   /** Where new skills are written, relative to the project. Default `.claude/skills`. */
   skillsDir?: string;
+  /** One pick in this many goes to large work, however many quick wins are waiting. Default 4. */
+  largeEvery?: number;
 }
 
 export interface Item {
@@ -63,8 +81,14 @@ export interface Item {
   status: string;
   /** Tasks: 0 (drop everything) to 3 (someday). */
   priority?: number;
+  /** Tasks: how much would have to change. Unsized work is treated as medium. */
+  size?: Size;
+  /** Tasks: what finishing produces. Absent means a change. */
+  type?: WorkType;
   created: string;
   updated: string;
+  /** Tasks: when it was last claimed. The scheduler reads these to pace large work. */
+  started?: string;
   /** Who holds it: the claimer of a task, the chooser of a decision, the author of a skill. */
   by?: string;
   /** Ids that must be settled before this task is ready. */
@@ -106,8 +130,11 @@ const FIELDS: readonly (readonly [string, FieldType])[] = [
   ['title', 'string'],
   ['status', 'string'],
   ['priority', 'int'],
+  ['size', 'string'],
+  ['type', 'string'],
   ['created', 'string'],
   ['updated', 'string'],
+  ['started', 'string'],
   ['by', 'string'],
   ['needs', 'tokens'],
   ['from', 'tokens'],
@@ -182,6 +209,9 @@ export function deserialize(text: string, spool: Spool): Item {
   if (!spec.statuses.includes(item.status)) {
     throw new Error(`a ${item.kind} cannot be "${item.status}" (expected ${spec.statuses.join(', ')})`);
   }
+  if (item.size && !SIZES.includes(item.size)) throw new Error(`size "${item.size}" must be one of ${SIZES.join(', ')}`);
+  if (item.type && !TYPES.includes(item.type)) throw new Error(`type "${item.type}" must be one of ${TYPES.join(', ')}`);
+  if (item.type === 'change') item.type = undefined;
   item.updated ||= item.created;
   item.extra = [...fm.raw].filter(([key]) => !OWNED.has(key)).map(([, lines]) => lines);
   item.body = fm.body.trim();
@@ -213,7 +243,7 @@ export function joinBody(main: string, log: string[]): string {
 
 export function addLog(item: Item, actor: string, text: string, now: Date): void {
   const { main, log } = splitBody(item.body);
-  const stamp = timestamp(now).replace('T', ' ').replace(/:\d\dZ$/, 'Z');
+  const stamp = timestamp(now).replace('T', ' ').replace(/:\d\d\.\d+Z$/, 'Z');
   log.push(`- ${stamp} ${actor}: ${text.replace(/\s+/g, ' ').trim()}`);
   item.body = joinBody(main, log);
 }
@@ -229,13 +259,27 @@ export function appendMain(item: Item, block: string): void {
 
 // ------------------------------------------------------------------- misc
 
+/** To the millisecond: agents file things in bursts, and creation order is the order everything is listed in. */
 export function timestamp(date: Date): string {
-  return date.toISOString().replace(/\.\d+Z$/, 'Z');
+  return date.toISOString();
 }
 
-/** Settled items no longer hold anything up. */
+export function isPlan(item: Item | undefined): item is Item {
+  return !!item && item.kind === 'task' && item.type === 'plan';
+}
+
+/**
+ * Settled items no longer hold anything up. A plan is the exception that makes
+ * plans useful: work that `needs` one waits until the human has approved it.
+ */
 export function isSettled(item: Item): boolean {
+  if (isPlan(item) && item.status === 'done') return !!item.reviewed;
   return ['done', 'decided', 'assumed', 'dropped', 'filed'].includes(item.status);
+}
+
+/** Where the report of an audit or plan is kept: beside the items, named for its task. */
+export function reportFile(item: Item): string {
+  return `${item.spool.dir}/reports/${item.id}.md`;
 }
 
 export function isClosed(item: Item): boolean {

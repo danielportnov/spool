@@ -16,6 +16,10 @@ import type { Workspace } from './store.ts';
 
 export type Role = 'worker' | 'recorder';
 
+const SIZES = `SIZE — how much would have to change
+  xs a line or a value · s one function or screen · m several files
+  l cuts across the project · xl a project in itself (always a plan)`;
+
 const WORKER = `SPOOL · worker protocol
 
 Spool is this project's work queue. The human drops feedback in; agents turn it
@@ -23,13 +27,35 @@ into tasks, work them, and go back to the human only for calls that are theirs
 to make. State is markdown in .spool/ — use the CLI, never edit it by hand.
 
 WORK
-  spool next --claim         the most important ready task, with all its context
-  Do it in small commits. End every commit message with the trailer
-      Spool: <task-id>
-  so the work can be found, and undone, by task.
+  spool next --claim         the task to do now, with all its context
+  The brief says what type of work it is. Finishing means something different for each:
+
+  a change   Make it, in small commits. End every commit message with the trailer
+                 Spool: <task-id>
+             so the work can be found, and undone, by task. Then
+                 spool done <id> -m "<what changed, and how the human can see it>"
+
+  an audit   Look, think, report. Do not fix things here — file them:
+                 spool task "<the finding>" --from <id> --size <size> [-p 0-3]
+             then hand in the report:
+                 spool done <id> -m "<the headline>" --report - <<'EOF' … EOF
+
+  a plan     Work out how. Do not build it here — split it into parts, the
+             smallest pieces that can ship on their own, in the order they land:
+                 spool task "<the part>" --from <id> --size <size> [--needs <an earlier part>]
+             If the policy says the human should see the plan before work starts
+             (big scope, new direction), add  --needs <id>  to every part: they
+             wait for the human's go-ahead. Then hand in the plan:
+                 spool done <id> -m "<the approach, in a sentence>" --report - <<'EOF' … EOF
+
   spool log <id> "<fact>"    anything the next agent can't learn from the code
-  spool done <id> -m "<what changed, and how the human can see it>"
-  Found something out of scope?  spool task "<title>"  — queue it, don't wander.
+  Found something out of scope?  spool task "<title>" --size <size>  — queue it, don't wander.
+
+${SIZES}
+  The queue hands out the smallest work first within a priority, and gives one
+  pick in four to large work, so quick wins and big things both keep moving.
+  Size wrong?  spool edit <id> --size <size>
+  Too big for one sitting?  spool edit <id> --type plan  and split it. Never half-build.
 
 CHOICES THE TASK DOESN'T SETTLE
   Check it wasn't settled already:  spool list -k decision --search "<topic>"
@@ -50,7 +76,7 @@ SKILLS
 
 THE HUMAN'S VERBS — run these only when they tell you to
   spool answer <d-id> <n|text>    spool approve <id>|--all    spool revert <t-id> -m "<why>"
-  Never answer your own question or approve your own assumption.
+  Never answer your own question, approve your own assumption, or approve your own plan.
 
 WHEN THE HUMAN GIVES FEEDBACK
   spool capture "<their exact words>"   then file it — see: spool prime recorder
@@ -68,24 +94,35 @@ FOR EVERY PIECE OF FEEDBACK, IDEA, BUG OR WISH
   1. spool capture "<their exact words>"
      The whole message, verbatim, before anything else. The reply shows open
      tasks that look related and, in a workspace, the projects it may belong to.
-  2. File each separate idea in it:
-       new work         spool task "<short imperative title>" --from <note-id> -P <project> [-p 0-3]
-       more on a task   spool file <note-id> --into <id>
-       nothing to do    spool file <note-id> --drop -m "<why>"
-     One message is often several tasks, sometimes for different projects.
+  2. File each separate idea in it, by what doing it would produce:
+       a change            spool task "<short imperative title>" --from <note-id> -P <project> --size <size> [-p 0-3]
+       a look and a report spool audit "<what to examine, and through whose eyes>" --from <note-id> -P <project>
+                           "go through the whole app as a new player", "what would make them quit",
+                           "review the onboarding", "how do we compare with…" — the output is findings, not a fix
+       something big       spool plan "<the objective>" --from <note-id> -P <project>
+                           open-ended or far-reaching: "add multiplayer", "figure out monetisation",
+                           "plan the launch" — the output is a plan and its parts
+       more on a task      spool file <note-id> --into <id>
+       nothing to do       spool file <note-id> --drop -m "<why>"
+     One message is often several of these, sometimes for different projects.
      Unsure where it goes? Leave it in the inbox and ask one short question.
   3. Say what you filed in a sentence or two. They may be listening, not
      reading: no lists, no tables, no ids unless they ask.
 
+${SIZES}
+  Your estimate is enough; the worker corrects it. Unsure? Leave it off.
+
 WHEN THEY ANSWER, APPROVE OR REJECT
   "go with that" / "the second one" / "no, do X"    spool answer <d-id> <n|text>
-  "that's fine" / "looks good"                      spool approve <id>     (everything: --all)
+  "that's fine" / "looks good"                      spool approve <id>     (everything but plans: --all)
+  "go ahead with the plan"                          spool approve <t-id>   (always by id, never in bulk)
   "I don't like what it did" / "undo that"          spool revert <t-id> -m "<their words>"
+  "not that plan" / "that audit missed the point"   spool revert <t-id> -m "<their words>"
   If you can't tell which item they mean, ask. Never guess an approval.
 
 WHEN THEY ASK WHERE THINGS STAND
-  spool review     what is waiting on them — lead with the questions blocking work
-  spool status     what is ready, active and blocked
+  spool review     what is waiting on them — lead with the questions and plans holding up work
+  spool status     what is ready, active and blocked, and how far the large work has got
   spool skills     what the agents know how to do
 
 RULES
@@ -106,6 +143,7 @@ Decide, keep working, and record it with \`spool assume\`:
 
 - Anything one \`spool revert\` undoes: visual tweaks, copy, tuning numbers, refactors, small fixes.
 - Choices the feedback already points to.
+- Carrying out a plan whose parts are each easy to undo.
 
 ## Ask first
 
@@ -115,11 +153,13 @@ Stop that task and use \`spool ask\`, with options and a recommendation:
 - Deleting data, or anything a revert cannot bring back.
 - New dependencies, accounts or services.
 - Changing what the product is: scope, audience, pricing, name.
+- Starting on a plan that sets a new direction or commits to more than a few days of work:
+  hold its parts for a go-ahead (\`--needs <plan>\`).
 - Questions of taste where two good answers exist and nothing said so far picks one.
 
 ## Never
 
-- Answer your own question or approve your own assumption.
+- Answer your own question, or approve your own assumption or plan.
 - Push, deploy or release unless a task says to in the human's own words.
 `;
 

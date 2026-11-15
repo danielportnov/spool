@@ -8,6 +8,11 @@ from your phone, by voice. A *recorder* agent files it. *Worker* agents take it 
 clock. When a worker reaches a choice, it either makes the call and leaves a receipt, or asks you and
 gets on with something else. Anything it ships can be taken back with one command.
 
+Not everything you say is "change this". "Play the whole thing as a new player and tell me what would
+make them quit" is an audit; "we need multiplayer" is a plan. Spool treats both as first-class work
+that ends in sized, ordinary tasks — and schedules those so quick wins land first while the large
+things keep moving.
+
 ```mermaid
 flowchart LR
   you(["You"]) -- "the jump feels floaty" --> rec["Recorder"]
@@ -30,10 +35,10 @@ You say something. The recorder captures your words exactly and splits them into
 
 ```console
 $ spool capture "the jump feels floaty, and I can barely see the coins at sunset"
-n-5exe captured in skyhop's inbox.
+n-jzbk captured in skyhop's inbox.
 
-$ spool task "Tighten the jump arc" --from n-5exe -p 1
-$ spool task "Make coins readable at sunset" --from n-5exe
+$ spool task "Tighten the jump arc" --from n-jzbk --size s -p 1
+$ spool task "Make coins readable at sunset" --from n-jzbk --size s
 ```
 
 Workers pick those up with `spool next --claim`, commit with a `Spool: <task-id>` trailer, and report
@@ -42,20 +47,20 @@ back. One made a call on its own; one needs yours. Hours later, this is everythi
 ```console
 $ spool review
 NEEDS YOU  work is stopped on these
-  d-bfm2  Coins at sunset: outline them, or change their colour?  · blocks 1 task
+  d-vvn7  Coins at sunset: outline them, or change their colour?  · blocks 1 task
       1) Dark outline  ← recommended
       2) Shift coins to teal while the sun is low
       An outline works on every background; teal changes the look of the game
-      spool answer d-bfm2 1
+      spool answer d-vvn7 1
 
 WENT AHEAD  approve, or say what you want instead
-  d-xbye  How should the jump be tightened?
+  d-bnw7  How should the jump be tightened?
       chose: Raise gravity 9.8 → 12, keep the height
       Shorter hang time without changing what the player can reach
-      spool approve d-xbye   ·   spool answer d-xbye "<what you want>"
+      spool approve d-bnw7   ·   spool answer d-bnw7 "<what you want>"
 
 SHIPPED  nothing to do unless you dislike it
-  t-whnb  Tighten the jump arc  · 1 commit
+  t-hcta  Tighten the jump arc  · 1 commit
       Gravity 9.8 → 12. The jump lands about 20% sooner — try the first level.
       spool revert <id> -m "<why>"
 
@@ -65,14 +70,14 @@ all good?  spool approve --all   (2 items)
 You answer the question with a number, try the build, and don't like the jump:
 
 ```console
-$ spool answer d-bfm2 1
-d-bfm2 decided: Dark outline
+$ spool answer d-vvn7 1
+d-vvn7 decided: Dark outline
 Now ready:
-  ○ t-w48r  p2  Make coins readable at sunset
+  ○ t-2r3q  p2 S  Make coins readable at sunset
 
-$ spool revert t-whnb -m "too heavy now. I wanted snappy, not heavy"
-t-whnb reverted — 1 commit(s) undone in one new commit.
-  dropped the assumption behind it: d-xbye Raise gravity 9.8 → 12, keep the height
+$ spool revert t-hcta -m "too heavy now. I wanted snappy, not heavy"
+t-hcta reverted — 1 commit(s) undone in one new commit.
+  dropped the assumption behind it: d-bnw7 Raise gravity 9.8 → 12, keep the height
 It is back in the queue at p1 with your reason attached.
 ```
 
@@ -113,6 +118,85 @@ Finished work is a third lane: it needs nothing from you unless you dislike it.
 Where the line falls is written in `.spool/policy.md` — plain prose, yours to edit, read by every
 worker before it starts. The default lets agents assume anything one revert undoes, and makes them ask
 before spending money, publishing, deleting, adding dependencies, or deciding matters of taste.
+
+### Not everything is a task
+
+Feedback from real use is a fire hose, and much of it is not a specific change. A task has a **type**,
+which says what finishing it produces:
+
+| Type | You say something like | Finishing it produces |
+| --- | --- | --- |
+| `change` | "the jump feels floaty" | commits |
+| `audit` | "play the whole thing as a new player and tell me what would make them quit" | a report, and each finding filed as its own task |
+| `plan` | "we need online multiplayer" | a plan, and its parts filed as tasks |
+
+The recorder picks the type when it files what you said, and the worker's brief spells out what done
+means for it. An audit does not fix what it finds and a plan does not build: each turns one open-ended
+ask into sized, ordinary tasks that the queue already knows how to handle.
+
+```console
+$ spool audit "Play the whole game as a new player: what would make them quit?" --from n-9c4c
+  ○ t-h3pr  p2 M  audit: Play the whole game as a new player: what would make them quit?
+$ spool plan "Add online multiplayer" --from n-9c4c
+  ○ t-f9j8  p2 XL  plan: Add online multiplayer
+```
+
+Workers pick both up like anything else. When they are finished:
+
+```console
+$ spool review
+PLANS  the parts wait for your go-ahead
+  t-f9j8  Add online multiplayer  · 3 parts
+      Two-player races over a relay server; no accounts in the first version.
+        M   Relay server and a connection test
+        S   Lobby screen
+        L   Matchmaking by skill
+      read .spool/reports/t-f9j8.md
+      spool approve t-f9j8   ·   spool revert t-f9j8 -m "<what to change>"
+
+SHIPPED  nothing to do unless you dislike it
+  t-h3pr  audit: Play the whole game as a new player: what would make them quit?
+      Most new players would quit at the first boss: it needs a move the game never teaches.
+      read .spool/reports/t-h3pr.md  · 3 findings filed
+      spool revert <id> -m "<why>"
+```
+
+The audit's three findings are already in the queue. The plan is holding its parts: a part filed with
+`--needs <plan>` waits for your go-ahead, and the policy says when that is warranted — a new direction,
+or more than a few days of work. A plan is never swept up by `approve --all`. Send one back with
+`spool revert` and its unstarted parts go with it.
+
+### Quick wins first, large work always moving
+
+Every task has a **size**, `xs` to `xl`: how much would have to change. The recorder estimates it and
+the worker corrects it. The scheduler turns it into an order:
+
+- **Priority first.** It is your urgency; a p1 never waits behind p2 quick wins.
+- **Then the smallest.** Quick wins are the cheapest progress there is.
+- **One pick in four goes to large work** — an `l` task, or a part of a plan — however many small
+  things are waiting. (`largeEvery` in `.spool/config.json`.)
+- **Nothing `xl` is built in one go.** It is filed as a plan, and its parts are what get built.
+
+```console
+$ spool approve t-f9j8
+$ spool status
+for you: 1 shipped  → spool review
+
+skyhop  6 ready · 0 active · 2 blocked · 2 done
+  ○ t-67vb  p1 M  The first boss is a difficulty wall
+  ○ t-ezh3  p2 M  Relay server and a connection test
+  ○ t-raka  p2 XS  Coin magnet radius is too small
+  ○ t-vj9n  p2 S  Pause button overlaps the score
+  ○ t-rzs5  p2 S  The tutorial never explains the double jump
+  ○ t-gz7d  p2 L  Nothing to spend coins on after level 3
+  … 2 more — spool list -P skyhop
+  ◧ t-f9j8  XL  Add online multiplayer  · 0/3 parts done
+```
+
+That list is the order `spool next` will hand the work out: the urgent finding, then the first part of
+the multiplayer plan taking its turn, then the quick wins smallest first. The last line is the large
+work itself, whose progress is simply its parts. Whose turn it is comes from timestamps on the tasks;
+there is no counter to keep.
 
 ### Everything can be taken back
 
@@ -170,36 +254,38 @@ instant; there is no second field to forget to update, and no state to repair.
 
 ```markdown
 ---
-id: t-whnb
+id: t-hcta
 kind: task
 title: Tighten the jump arc
 status: open
 priority: 1
-created: 2026-11-15T17:11:14Z
-updated: 2026-11-15T17:11:15Z
-from: [n-5exe]
+size: s
+created: 2026-11-15T17:23:03.569Z
+updated: 2026-11-15T17:23:04.286Z
+started: 2026-11-15T17:23:03.711Z
+from: [n-jzbk]
 ---
 
 > the jump feels floaty, and I can barely see the coins at sunset
-> — [[n-5exe]], 2026-11-15
+> — [[n-jzbk]], 2026-11-15
 
 > too heavy now. I wanted snappy, not heavy
 > — on reverting the first attempt, 2026-11-15
 
 ## Log
-- 2026-11-15 17:11Z claude: started
-- 2026-11-15 17:11Z claude: assumed d-xbye: How should the jump be tightened? → Raise gravity 9.8 → 12, keep the height
-- 2026-11-15 17:11Z claude: done: Gravity 9.8 → 12. The jump lands about 20% sooner — try the first level.
-- 2026-11-15 17:11Z human: reverted 1 commit(s): too heavy now. I wanted snappy, not heavy
+- 2026-11-15 17:23Z claude: started
+- 2026-11-15 17:23Z claude: assumed d-bnw7: How should the jump be tightened? → Raise gravity 9.8 → 12, keep the height
+- 2026-11-15 17:23Z claude: done: Gravity 9.8 → 12. The jump lands about 20% sooner — try the first level.
+- 2026-11-15 17:23Z human: reverted 1 commit(s): too heavy now. I wanted snappy, not heavy
 ```
 
-Four kinds of item — `note` (what you said, verbatim), `task`, `decision`, `skill` — linked by `from`
-(where it came from) and `needs` (what must be settled first). That makes the store a small typed
+Four kinds of item — `note` (what you said, verbatim), `task` (with its type and size), `decision`,
+`skill` — linked by `from` (where it came from) and `needs` (what must be settled first). That makes the store a small typed
 graph: `spool graph` draws it, and because the links are `[[wikilinks]]` the folder opens as an
 Obsidian vault.
 
 - **Git is the history.** One small file per item diffs and merges cleanly.
-- **Ids are random** (`t-whnb`), so two agents or two branches adding items never collide.
+- **Ids are random** (`t-hcta`), so two agents or two branches adding items never collide.
 - **Agents never write these files.** They use verbs — `ask`, `assume`, `done` — and the CLI enforces
   what may follow what, so no agent can leave the queue in a shape the next one can't read.
 - **Fields Spool doesn't own are kept.** Add `tags:` in your editor and they survive every rewrite.
@@ -269,8 +355,8 @@ does the same thing.
 | `spool capture <words…>` | Drop feedback in, exactly as said |
 | `spool review` | Everything waiting on you, most blocking first |
 | `spool answer <d-id> <n \| text>` | Answer a question, or overrule an assumption |
-| `spool approve <id…> \| --all` | Accept an agent's call, finished work, or a new skill |
-| `spool revert <t-id> [-m why]` | Undo a task's commits and reopen it with your reason |
+| `spool approve <id…> \| --all` | Accept an agent's call, finished work or a new skill; give a plan its go-ahead |
+| `spool revert <t-id> [-m why]` | Undo a task's commits, or send back a plan or audit, and reopen it with your reason |
 
 | Agents | |
 | --- | --- |
@@ -278,8 +364,9 @@ does the same thing.
 | `spool next [--claim]` | The most important ready task, with all its context |
 | `spool ask <question> --option … [--recommend n] [--for t-id]` | Put a call to the human |
 | `spool assume <question> --chose … [--why …] [--for t-id]` | Record a call you made |
-| `spool done <t-id> -m <summary> [--skill name]` | Finish, and record how to undo it |
-| `spool task <title> [--from id] [--needs id] [-p 0-3]` | Queue a piece of work |
+| `spool done <t-id> -m <summary> [--report file\|-] [--skill name]` | Finish: record how to undo a change, or hand in a report |
+| `spool task <title> [-s xs…xl] [-p 0-3] [--from id] [--needs id]` | Queue a change |
+| `spool audit <what to examine>` · `spool plan <objective>` | Queue a look-and-report, or something big |
 | `spool file <n-id> --into <id> \| --drop` | Attach a note to existing work, or set it aside |
 | `spool log <id> <text>` | Leave a note for whoever comes next |
 | `spool skill add <name> -d <when to use it> -b <steps>` | Write a procedure down |
@@ -288,7 +375,7 @@ does the same thing.
 | See | |
 | --- | --- |
 | `spool status` | What is ready, active, blocked and waiting on you |
-| `spool list [-k kind] [-s state] [--search words]` | Find items, closed ones included |
+| `spool list [-k kind] [-s state] [-t type] [--size sizes] [--search words]` | Find items, closed ones included |
 | `spool show <id>` · `inbox` · `skills` | One item · unfiled feedback · every skill |
 | `spool graph` | The items and their links, as Mermaid |
 | `spool check` | Validate the store: bad files, dangling links, cycles |

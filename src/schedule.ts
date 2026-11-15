@@ -5,17 +5,34 @@
  * Nothing is cached and nothing is stored, so there is no state to repair.
  */
 
-import { type Item, isSettled } from './model.ts';
+import { type Item, isPlan, isSettled } from './model.ts';
 import type { Workspace } from './store.ts';
 
 export type TaskState = 'ready' | 'blocked' | 'active' | 'stale' | 'done' | 'dropped';
 
-/** The unsettled items a task is waiting on. Unknown ids do not block; `spool check` flags them. */
+/** Tasks that came from `item`: the parts of a plan, the findings of an audit. */
+export function children(ws: Workspace, item: Item): Item[] {
+  return ws.items.filter((i) => i.kind === 'task' && i.from.includes(item.id));
+}
+
+/** The plans a task is a part of. */
+export function plansOf(ws: Workspace, task: Item): Item[] {
+  return task.from.map((id) => ws.find(id)).filter(isPlan);
+}
+
+/**
+ * The unsettled items a task is waiting on: everything it `needs`, and any plan
+ * it is a part of that is still being written. Unknown ids do not block;
+ * `spool check` flags them.
+ */
 export function blockers(ws: Workspace, task: Item): Item[] {
   const out: Item[] = [];
   for (const id of task.needs) {
     const dep = ws.find(id);
     if (dep && !isSettled(dep)) out.push(dep);
+  }
+  for (const plan of plansOf(ws, task)) {
+    if ((plan.status === 'open' || plan.status === 'active') && !out.includes(plan)) out.push(plan);
   }
   return out;
 }
@@ -44,25 +61,68 @@ export function stateOf(ws: Workspace, item: Item): string {
   return item.kind === 'task' ? taskState(ws, item) : item.status;
 }
 
-function byUrgency(a: Item, b: Item): number {
-  return (a.priority ?? 2) - (b.priority ?? 2) || a.created.localeCompare(b.created) || a.id.localeCompare(b.id);
-}
-
 export function tasks(ws: Workspace, project?: string): Item[] {
   const spool = project ? ws.project(project) : undefined;
   return ws.items.filter((i) => i.kind === 'task' && (!spool || i.spool === spool));
 }
 
-/** Tasks a worker could pick up now, most urgent first. */
+const EFFORT = { xs: 0, s: 1, m: 2, l: 3, xl: 4 } as const;
+
+/** How much work picking this up is. Writing a plan is quick whatever the size of the thing planned. */
+export function effort(task: Item): number {
+  return task.type === 'plan' ? EFFORT.s : EFFORT[task.size ?? 'm'];
+}
+
+/** Large work: big on its own, or a part of something that needed a plan. */
+export function isLarge(ws: Workspace, task: Item): boolean {
+  if (plansOf(ws, task).length) return true;
+  return task.type !== 'plan' && (task.size === 'l' || task.size === 'xl');
+}
+
+/**
+ * Tasks a worker could pick up now, in the order they will be picked.
+ *
+ * Priority comes first: it is the human's urgency. Within a priority the
+ * smallest goes first, because quick wins are the cheapest progress there is —
+ * except that one pick in `largeEvery` goes to large work, so a flood of small
+ * things can never starve it. Whose turn it is comes from the `started` stamps
+ * on the tasks themselves; there is no counter to keep. The list is the whole
+ * sequence played forward, so what `status` shows is what `next` will do.
+ */
 export function ready(ws: Workspace, project?: string): Item[] {
-  return tasks(ws, project)
-    .filter((t) => ['ready', 'stale'].includes(taskState(ws, t)))
-    .sort(byUrgency);
+  const scope = tasks(ws, project);
+  const every = Math.max(1, ws.home.config.largeEvery ?? 4);
+  let quickRun = 0;
+  for (const t of scope.filter((t) => t.started).sort((a, b) => b.started!.localeCompare(a.started!))) {
+    if (isLarge(ws, t)) break;
+    quickRun++;
+  }
+  const pool = scope.filter((t) => ['ready', 'stale'].includes(taskState(ws, t)));
+  const large = new Map(pool.map((t) => [t.id, isLarge(ws, t)]));
+  const order: Item[] = [];
+  while (pool.length) {
+    const largeTurn = quickRun >= every - 1;
+    const lane = (t: Item) => (large.get(t.id) === largeTurn ? 0 : 1);
+    pool.sort(
+      (a, b) =>
+        (a.priority ?? 2) - (b.priority ?? 2) ||
+        lane(a) - lane(b) ||
+        effort(a) - effort(b) ||
+        a.created.localeCompare(b.created) ||
+        a.id.localeCompare(b.id),
+    );
+    const next = pool.shift()!;
+    order.push(next);
+    quickRun = large.get(next.id) ? 0 : quickRun + 1;
+  }
+  return order;
 }
 
 export interface Review {
   /** Open questions, the one holding up the most work first. */
   questions: Item[];
+  /** Finished plans whose parts are waiting for a go-ahead. */
+  plans: Item[];
   /** Calls an agent made and acted on. */
   assumptions: Item[];
   /** Finished work the human has not acknowledged, newest first. */
@@ -81,15 +141,18 @@ export function review(ws: Workspace, project?: string): Review {
     const deps = dependents(ws, d).filter((t) => !isSettled(t));
     return deps.length * 10 - Math.min(...deps.map((t) => t.priority ?? 2), 3);
   };
+  const gating = (i: Item) =>
+    isPlan(i) && i.status === 'done' && !i.reviewed && dependents(ws, i).some((t) => t.status === 'open' || t.status === 'active');
   return {
     questions: items
       .filter((i) => i.kind === 'decision' && i.status === 'open')
       .sort((a, b) => weight(b) - weight(a) || a.created.localeCompare(b.created)),
+    plans: items.filter(gating).sort((a, b) => a.created.localeCompare(b.created)),
     assumptions: items
       .filter((i) => i.kind === 'decision' && i.status === 'assumed')
       .sort((a, b) => a.created.localeCompare(b.created)),
     shipped: items
-      .filter((i) => i.kind === 'task' && i.status === 'done' && !i.reviewed)
+      .filter((i) => i.kind === 'task' && i.status === 'done' && !i.reviewed && !gating(i))
       .sort((a, b) => b.updated.localeCompare(a.updated)),
     skills: items.filter((i) => i.kind === 'skill' && i.status === 'active' && !i.reviewed),
     inbox: items.filter((i) => i.kind === 'note' && i.status === 'new').sort((a, b) => a.created.localeCompare(b.created)),

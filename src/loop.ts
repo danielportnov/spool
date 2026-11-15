@@ -16,7 +16,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import type { Bare, Result } from './commands.ts';
 import { notify, userConfig } from './context.ts';
-import { type Item, SpoolError, addLog } from './model.ts';
+import { type Item, SpoolError, addLog, timestamp } from './model.ts';
 import { prime } from './prime.ts';
 import { brief, itemLine, paint } from './render.ts';
 import { ready, review } from './schedule.ts';
@@ -74,6 +74,7 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
       if (task) {
         task.status = 'active';
         task.by = 'loop';
+        task.started = timestamp(ws.now());
         addLog(task, 'loop', `handed to \`${agent}\``, ws.now());
         ws.save(task);
         prompt = `${PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${brief(ws, task, paint(false))}\n`;

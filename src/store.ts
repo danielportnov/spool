@@ -149,6 +149,8 @@ export class Workspace {
       ws.close();
       throw error;
     }
+    // Ids are random, so file order means nothing. Creation order is the one every listing shares.
+    ws.items.sort((a, b) => a.created.localeCompare(b.created) || a.id.localeCompare(b.id));
     return ws;
   }
 

@@ -16,13 +16,19 @@ import {
   type Item,
   type Kind,
   KIND_NAMES,
+  SIZES,
+  type Size,
   type Spool,
   SpoolError,
+  TYPES,
+  type WorkType,
   addLog,
   appendMain,
   isClosed,
+  isPlan,
   oneLine,
   overlap,
+  reportFile,
   setMain,
   splitBody,
   timestamp,
@@ -40,7 +46,7 @@ import {
   skillsText,
   statusText,
 } from './render.ts';
-import { blockers, dependents, findCycle, ready, review, stateOf, taskState } from './schedule.ts';
+import { blockers, children, dependents, findCycle, ready, review, stateOf, taskState } from './schedule.ts';
 import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, writeSkill } from './skills.ts';
 import { SPOOL_DIR, type Workspace, findHome, readConfig, skillsDir } from './store.ts';
 
@@ -116,6 +122,77 @@ function priorityOf(v: unknown): number | undefined {
   return Number(m[1]);
 }
 
+const SIZE_WORDS: Record<string, Size> = {
+  tiny: 'xs',
+  xsmall: 'xs',
+  'extra-small': 'xs',
+  small: 's',
+  medium: 'm',
+  large: 'l',
+  xlarge: 'xl',
+  'extra-large': 'xl',
+  huge: 'xl',
+};
+const SIZE_GUIDE = 'xs a line or a value · s one function or screen · m several files · l cuts across the project · xl a project in itself';
+
+function sizeOf(v: unknown): Size | undefined {
+  if (typeof v !== 'string') return undefined;
+  const key = v.trim().toLowerCase().replace(/[\s_]+/g, '-');
+  const size = (SIZES as readonly string[]).includes(key) ? (key as Size) : SIZE_WORDS[key];
+  if (!size) throw new SpoolError(`size "${v}" must be one of ${SIZES.join(', ')}`, SIZE_GUIDE);
+  return size;
+}
+
+function typeOf(v: unknown): WorkType | undefined {
+  if (typeof v !== 'string') return undefined;
+  const type = TYPES.find((t) => t === v.trim().toLowerCase());
+  if (!type) throw new SpoolError(`type "${v}" must be one of ${TYPES.join(', ')}`, 'change makes commits · audit makes a report and findings · plan makes a plan and its parts');
+  return type;
+}
+
+/** Queue a piece of work: a change, an audit or a plan. */
+function fileWork(call: Call, preset?: WorkType): Result {
+  const { ws, p } = call;
+  const title = words(call, call.args, 'the title', 'spool task "Shorten the jump hang time"');
+  const from = many(call.opts.from).map((ref) => ws.get(ref));
+  const needs = many(call.opts.needs).map((ref) => ws.get(ref));
+  const size = sizeOf(call.opts.size);
+  let type = preset ?? typeOf(call.opts.type) ?? 'change';
+  // Nothing extra-large is built in one go. It is planned, and the plan's parts are what get built.
+  const promoted = type === 'change' && size === 'xl';
+  if (promoted) type = 'plan';
+  // Findings and parts land beside the audit or plan they came from unless told otherwise.
+  const spool = str(call.opts.project) ? ws.project(str(call.opts.project)) : (from.find((i) => i.kind === 'task')?.spool ?? ws.home);
+  const quotes = from.filter((i) => i.kind === 'note').map(quoteNote);
+  const task = ws.create(spool, 'task', {
+    title: oneLine(title, 120),
+    priority: priorityOf(call.opts.priority) ?? 2,
+    size,
+    type: type === 'change' ? undefined : type,
+    from: uniq(from.map((i) => i.id)),
+    needs: uniq(needs.map((i) => i.id)),
+    body: [...quotes, bodyOf(call)].filter(Boolean).join('\n\n'),
+  });
+  for (const note of from) {
+    if (note.kind === 'note' && note.status === 'new') {
+      note.status = 'filed';
+      ws.save(note);
+    }
+  }
+  const out = [`Queued in ${spool.name}:`, `  ${itemLine(ws, task, p, false)}`];
+  if (promoted) out.push('Extra-large work starts as a plan, so this was queued as one: it gets split into parts, and the parts get built.');
+  return { text: out.join('\n'), data: { task: itemJson(ws, task, true) } };
+}
+
+const WORK: Options = {
+  priority: { type: 'string', short: 'p' },
+  size: { type: 'string', short: 's' },
+  from: { type: 'string', multiple: true },
+  needs: { type: 'string', multiple: true },
+  body: { type: 'string', short: 'b' },
+  project: { type: 'string', short: 'P' },
+};
+
 function first(call: Call, what: string, kind?: Kind): Item {
   const ref = call.args[0];
   if (!ref) throw new SpoolError(`${what} is missing`);
@@ -186,6 +263,7 @@ function claim(call: Call, task: Item, force: boolean): void {
   }
   task.status = 'active';
   task.by = actor;
+  task.started = timestamp(ws.now());
   addLog(task, actor, state === 'stale' ? 'picked up after the last claim went quiet' : 'started', ws.now());
   ws.save(task);
 }
@@ -322,7 +400,7 @@ export const COMMANDS: Command[] = [
     name: 'approve',
     group: 'you',
     usage: 'approve <id…> | --all [-P <project>]',
-    summary: "Accept an agent's call, finished work, or a new skill",
+    summary: "Accept an agent's call, finished work or a new skill; give a plan its go-ahead",
     human: true,
     write: true,
     options: { all: { type: 'boolean', short: 'a' }, ...PROJECT },
@@ -352,17 +430,17 @@ export const COMMANDS: Command[] = [
         item.reviewed = now;
         ws.save(item);
       }
-      return {
-        text: `Approved ${targets.length}:\n${targets.map((i) => `  ${itemLine(ws, i, p)}`).join('\n')}`,
-        data: { approved: targets.map((i) => i.id) },
-      };
+      const ready = uniq(targets.flatMap((i) => freed(ws, i)));
+      const out = [`Approved ${targets.length}:`, ...targets.map((i) => `  ${itemLine(ws, i, p)}`)];
+      if (ready.length) out.push('Now ready:', ...ready.map((t) => `  ${itemLine(ws, t, p)}`));
+      return { text: out.join('\n'), data: { approved: targets.map((i) => i.id), unblocked: ready.map((t) => t.id) } };
     },
   },
   {
     name: 'revert',
     group: 'you',
     usage: 'revert <t-id> [-m <why>] [--drop]',
-    summary: "Undo a task's commits and reopen it with your reason",
+    summary: "Undo a task's commits (or send back a plan or audit) and reopen it with your reason",
     human: true,
     write: true,
     options: { ...MESSAGE, drop: { type: 'boolean' } },
@@ -404,6 +482,14 @@ export const COMMANDS: Command[] = [
       }
       t.needs = t.needs.filter((id) => !voided.some((d) => d.id === id));
 
+      // A plan or an audit that is sent back takes its unstarted parts and findings with it.
+      const orphans = t.type ? children(ws, t).filter((k) => k.status === 'open') : [];
+      for (const k of orphans) {
+        k.status = 'dropped';
+        addLog(k, actor, `dropped: ${t.id}, the ${t.type} it came from, was sent back`, ws.now());
+        ws.save(k);
+      }
+
       t.status = call.opts.drop ? 'dropped' : 'open';
       t.by = undefined;
       t.summary = undefined;
@@ -422,8 +508,9 @@ export const COMMANDS: Command[] = [
       }
       for (const s of skipped) out.push(p.dim(`  left ${s.sha.slice(0, 7)} alone: ${s.why}`));
       for (const d of voided) out.push(p.dim(`  dropped the assumption behind it: ${d.id} ${oneLine(d.choice ?? d.title, 60)}`));
+      if (orphans.length) out.push(p.dim(`  dropped ${orphans.length} unstarted ${t.type === 'plan' ? 'part(s)' : 'finding(s)'} that came from it`));
       if (!call.opts.drop) out.push(`It is back in the queue at p${t.priority}${why ? ' with your reason attached' : ''}.`);
-      return { text: out.join('\n'), data: { task: itemJson(ws, t), reverted, skipped, voided: voided.map((d) => d.id) } };
+      return { text: out.join('\n'), data: { task: itemJson(ws, t), reverted, skipped, voided: voided.map((d) => d.id), orphans: orphans.map((k) => k.id) } };
     },
   },
 
@@ -569,23 +656,43 @@ export const COMMANDS: Command[] = [
   {
     name: 'done',
     group: 'agents',
-    usage: 'done <t-id> -m <what changed> [--commit <ref>…] [--skill <name>…]',
-    summary: 'Finish a task and record how to undo it',
+    usage: 'done <t-id> -m <what changed> [--report <file>|-] [--commit <ref>…] [--skill <name>…]',
+    summary: 'Finish a task: record how to undo a change, or hand in the report of an audit or plan',
     write: true,
     options: {
       ...MESSAGE,
       commit: { type: 'string', multiple: true },
       skill: { type: 'string', multiple: true },
+      report: { type: 'string' },
     },
     run(call) {
       const { ws, p, actor } = call;
       const t = first(call, 'which task', 'task');
       if (isClosed(t)) throw new SpoolError(`${t.id} is already ${t.status}`);
+      const type = t.type ?? 'change';
       const summary = (str(call.opts.message) ?? call.args.slice(1).join(' ')).replace(/\s+/g, ' ').trim();
       if (!summary) {
         throw new SpoolError(
           'the summary is missing',
           `The human reads it in their review: spool done ${t.id} -m "<what changed, and how to see it>"`,
+        );
+      }
+
+      // An audit or a plan is finished by what it found, written down where the human can read it.
+      const reportPath = reportFile(t);
+      const reportArg = str(call.opts.report);
+      let report: string | undefined;
+      if (reportArg) {
+        try {
+          report = reportArg === '-' ? call.ctx.stdin() : fs.readFileSync(path.resolve(call.ctx.cwd, reportArg), 'utf8');
+        } catch {
+          throw new SpoolError(`cannot read the report at ${reportArg}`);
+        }
+        if (!report.trim()) throw new SpoolError('the report is empty');
+      } else if (type !== 'change' && !fs.existsSync(reportPath)) {
+        throw new SpoolError(
+          `${type === 'audit' ? 'an audit' : 'a plan'} is finished by its report`,
+          `spool done ${t.id} -m "<the headline>" --report - <<'EOF' … EOF      (or --report <file>)`,
         );
       }
 
@@ -621,6 +728,10 @@ export const COMMANDS: Command[] = [
         ws.save(ledger);
       }
 
+      if (report !== undefined) {
+        fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+        fs.writeFileSync(reportPath, `${report.trim()}\n`);
+      }
       t.status = 'done';
       t.summary = summary;
       t.commits = [...commits];
@@ -628,51 +739,60 @@ export const COMMANDS: Command[] = [
       addLog(t, actor, `done: ${summary}`, ws.now());
       ws.save(t);
 
-      const ready = freed(ws, t);
+      const kids = children(ws, t).filter((k) => k.status !== 'dropped');
+      const gated = kids.filter((k) => k.needs.includes(t.id) && k.status === 'open');
+      const ready = uniq([...dependents(ws, t), ...kids]).filter((r) => taskState(ws, r) === 'ready');
       const out = [`${p.bold(t.id)} done.`];
+      if (fs.existsSync(reportPath)) out.push(p.dim(`  ${type === 'plan' ? 'plan' : 'report'}  ${path.relative(t.spool.root, reportPath)}`));
+      if (type === 'audit') out.push(p.dim(`  ${kids.length} finding(s) filed from it`));
+      let told = false;
+      if (type === 'plan') {
+        if (!kids.length) out.push(p.yellow(`  No parts were filed from it. A plan is carried out by its parts: spool task "<part>" --from ${t.id}`));
+        else out.push(p.dim(`  ${kids.length} part(s) filed from it`));
+        if (gated.length) {
+          told = notify(call.ctx, 'plan', `A plan is waiting for your go-ahead: ${t.title}`, t);
+          out.push(`  ${gated.length} of them wait for the human's go-ahead${told ? ', and the human was notified' : ''}: spool approve ${t.id}`);
+        }
+      }
       if (commits.size) out.push(p.dim(`  ${commits.size} commit(s) on record — spool revert ${t.id} would undo them`));
-      else if (root) out.push(p.yellow(`  No commits found for it. Without the "Spool: ${t.id}" trailer or --commit, it cannot be reverted.`));
+      else if (root && type === 'change') {
+        out.push(p.yellow(`  No commits found for it. Without the "Spool: ${t.id}" trailer or --commit, it cannot be reverted.`));
+      }
       if (ready.length) out.push('Now ready:', ...ready.map((r) => `  ${itemLine(ws, r, p)}`));
       out.push(p.dim('  A procedure worth keeping? spool skill add <name> -d "<when to use it>" --from ' + t.id + ' -b -'));
-      return { text: out.join('\n'), data: { task: itemJson(ws, t), unblocked: ready.map((r) => r.id) } };
+      return {
+        text: out.join('\n'),
+        data: { task: itemJson(ws, t), unblocked: ready.map((r) => r.id), children: kids.map((k) => k.id), notified: told },
+      };
     },
   },
   {
     name: 'task',
     aliases: ['add'],
     group: 'agents',
-    usage: 'task <title…> [-p 0-3] [--from <id>…] [--needs <id>…] [-b <body>] [-P <project>]',
-    summary: 'Queue a piece of work',
+    usage: 'task <title…> [-s xs|s|m|l|xl] [-p 0-3] [-t change|audit|plan] [--from <id>…] [--needs <id>…] [-b <body>] [-P <project>]',
+    summary: 'Queue a change',
     write: true,
-    options: {
-      priority: { type: 'string', short: 'p' },
-      from: { type: 'string', multiple: true },
-      needs: { type: 'string', multiple: true },
-      ...BODY,
-      ...PROJECT,
-    },
-    run(call) {
-      const { ws, p } = call;
-      const title = words(call, call.args, 'the title', 'spool task "Shorten the jump hang time"');
-      const from = many(call.opts.from).map((ref) => ws.get(ref));
-      const needs = many(call.opts.needs).map((ref) => ws.get(ref));
-      const spool = ws.project(str(call.opts.project));
-      const quotes = from.filter((i) => i.kind === 'note').map(quoteNote);
-      const task = ws.create(spool, 'task', {
-        title: oneLine(title, 120),
-        priority: priorityOf(call.opts.priority) ?? 2,
-        from: uniq(from.map((i) => i.id)),
-        needs: uniq(needs.map((i) => i.id)),
-        body: [...quotes, bodyOf(call)].filter(Boolean).join('\n\n'),
-      });
-      for (const note of from) {
-        if (note.kind === 'note' && note.status === 'new') {
-          note.status = 'filed';
-          ws.save(note);
-        }
-      }
-      return { text: `Queued in ${spool.name}:\n  ${itemLine(ws, task, p, false)}`, data: { task: itemJson(ws, task, true) } };
-    },
+    options: { ...WORK, type: { type: 'string', short: 't' } },
+    run: (call) => fileWork(call),
+  },
+  {
+    name: 'audit',
+    group: 'agents',
+    usage: 'audit <what to examine, and through whose eyes…> [-s size] [-p 0-3] [--from <id>…] [-P <project>]',
+    summary: 'Queue a look-and-report: its output is a report and findings',
+    write: true,
+    options: { ...WORK },
+    run: (call) => fileWork(call, 'audit'),
+  },
+  {
+    name: 'plan',
+    group: 'agents',
+    usage: 'plan <the objective…> [-s size] [-p 0-3] [--from <id>…] [-P <project>]',
+    summary: 'Queue something big or open: its output is a plan and its parts',
+    write: true,
+    options: { ...WORK },
+    run: (call) => fileWork(call, 'plan'),
   },
   {
     name: 'file',
@@ -711,12 +831,14 @@ export const COMMANDS: Command[] = [
   {
     name: 'edit',
     group: 'agents',
-    usage: 'edit <id> [--title <t>] [-p 0-3] [-b <body>] [--needs <id>…|none] [--reopen]',
+    usage: 'edit <id> [--title <t>] [-p 0-3] [-s size] [-t type] [-b <body>] [--needs <id>…|none] [--reopen]',
     summary: 'Change an item',
     write: true,
     options: {
       title: { type: 'string' },
       priority: { type: 'string', short: 'p' },
+      size: { type: 'string', short: 's' },
+      type: { type: 'string', short: 't' },
       needs: { type: 'string', multiple: true },
       reopen: { type: 'boolean' },
       ...BODY,
@@ -734,6 +856,17 @@ export const COMMANDS: Command[] = [
         if (item.kind !== 'task') throw new SpoolError('only tasks have a priority');
         item.priority = priority;
         changed.push(`priority p${priority}`);
+      }
+      const size = sizeOf(call.opts.size);
+      const type = typeOf(call.opts.type);
+      if ((size || type) && item.kind !== 'task') throw new SpoolError('only tasks have a size and a type');
+      if (size) {
+        item.size = size;
+        changed.push(`size ${size}`);
+      }
+      if (type) {
+        item.type = type === 'change' ? undefined : type;
+        changed.push(`type ${type}`);
       }
       const body = bodyOf(call);
       if (body !== undefined) {
@@ -886,11 +1019,13 @@ export const COMMANDS: Command[] = [
     name: 'list',
     aliases: ['ls'],
     group: 'see',
-    usage: 'list [-k <kind>] [-s <state>] [--search <words>] [-P <project>] [--all]',
+    usage: 'list [-k <kind>] [-s <state>] [-t <type>] [--size <sizes>] [--search <words>] [-P <project>] [--all]',
     summary: 'Find items; closed ones too with --all or --search',
     options: {
       kind: { type: 'string', short: 'k' },
       status: { type: 'string', short: 's' },
+      type: { type: 'string', short: 't' },
+      size: { type: 'string' },
       search: { type: 'string' },
       all: { type: 'boolean', short: 'a' },
       ...PROJECT,
@@ -903,6 +1038,12 @@ export const COMMANDS: Command[] = [
         const kind = KIND_NAMES.find((k) => k === want || `${k}s` === want || k[0] === want);
         if (!kind) throw new SpoolError(`no kind "${opts.kind}"`, `Kinds: ${KIND_NAMES.join(', ')}`);
         items = items.filter((i) => i.kind === kind);
+      }
+      const type = typeOf(opts.type);
+      if (type) items = items.filter((i) => i.kind === 'task' && (i.type ?? 'change') === type);
+      if (str(opts.size)) {
+        const sizes = many(opts.size).map((v) => sizeOf(v));
+        items = items.filter((i) => i.kind === 'task' && sizes.includes(i.size));
       }
       const search = str(opts.search);
       const status = str(opts.status)?.toLowerCase();
