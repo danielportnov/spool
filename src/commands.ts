@@ -169,6 +169,7 @@ function fileWork(call: Call, preset?: WorkType): Result {
     priority: priorityOf(call.opts.priority) ?? 2,
     size,
     type: type === 'change' ? undefined : type,
+    hold: str(call.opts.hold)?.replace(/\s+/g, ' ').trim(),
     from: uniq(from.map((i) => i.id)),
     needs: uniq(needs.map((i) => i.id)),
     body: [...quotes, bodyOf(call)].filter(Boolean).join('\n\n'),
@@ -191,6 +192,7 @@ const WORK: Options = {
   needs: { type: 'string', multiple: true },
   body: { type: 'string', short: 'b' },
   project: { type: 'string', short: 'P' },
+  hold: { type: 'string' },
 };
 
 function first(call: Call, what: string, kind?: Kind): Item {
@@ -252,6 +254,9 @@ function claim(call: Call, task: Item, force: boolean): void {
   const { ws, actor } = call;
   const state = taskState(ws, task);
   if (state === 'done' || state === 'dropped') throw new SpoolError(`${task.id} is already ${state}`);
+  if (state === 'held') {
+    throw new SpoolError(`${task.id} is on hold: ${task.hold}`, `Only the human releases it: spool release ${task.id}`);
+  }
   if (state === 'blocked') {
     throw new SpoolError(
       `${task.id} is blocked on ${blockers(ws, task).map((b) => b.id).join(', ')}`,
@@ -514,6 +519,27 @@ export const COMMANDS: Command[] = [
     },
   },
 
+  {
+    name: 'release',
+    group: 'you',
+    usage: 'release <t-id…>',
+    summary: 'Take work off hold: it may start now',
+    human: true,
+    write: true,
+    run(call) {
+      const { ws, p, actor } = call;
+      if (!call.args.length) throw new SpoolError('what to release is missing', 'See what is parked: spool list -s held');
+      const tasks = call.args.map((ref) => ws.get(ref, 'task'));
+      for (const t of tasks) if (!t.hold) throw new SpoolError(`${t.id} is not on hold`);
+      for (const t of tasks) {
+        addLog(t, actor, `released from hold (was: ${t.hold})`, ws.now());
+        t.hold = undefined;
+        ws.save(t);
+      }
+      return { text: `Released:\n${tasks.map((t) => `  ${itemLine(ws, t, p)}`).join('\n')}`, data: { released: tasks.map((t) => itemJson(ws, t)) } };
+    },
+  },
+
   // ---- the agents' side ----------------------------------------------------
   {
     name: 'prime',
@@ -770,7 +796,7 @@ export const COMMANDS: Command[] = [
     name: 'task',
     aliases: ['add'],
     group: 'agents',
-    usage: 'task <title…> [-s xs|s|m|l|xl] [-p 0-3] [-t change|audit|plan] [--from <id>…] [--needs <id>…] [-b <body>] [-P <project>]',
+    usage: 'task <title…> [-s xs|s|m|l|xl] [-p 0-3] [-t change|audit|plan] [--hold <why>] [--from <id>…] [--needs <id>…] [-b <body>] [-P <project>]',
     summary: 'Queue a change',
     write: true,
     options: { ...WORK, type: { type: 'string', short: 't' } },
@@ -924,6 +950,32 @@ export const COMMANDS: Command[] = [
       }
       if (ready.length) out.push('Now ready:', ...uniq(ready).map((t) => `  ${itemLine(ws, t, p)}`));
       return { text: `Dropped:\n${out.join('\n')}`, data: { dropped: items.map((i) => i.id), unblocked: uniq(ready).map((t) => t.id) } };
+    },
+  },
+  {
+    name: 'hold',
+    group: 'agents',
+    usage: 'hold <t-id…> -m <why>',
+    summary: 'Park work the human does not want started yet; only they release it',
+    write: true,
+    options: { ...MESSAGE },
+    run(call) {
+      const { ws, p, actor } = call;
+      const why = str(call.opts.message)?.replace(/\s+/g, ' ').trim();
+      if (!call.args.length) throw new SpoolError('what to hold is missing');
+      if (!why) throw new SpoolError('the reason is missing', 'Say why, in the human\'s words if you can: spool hold <id> -m "<why>"');
+      const tasks = call.args.map((ref) => ws.get(ref, 'task'));
+      for (const t of tasks) if (isClosed(t)) throw new SpoolError(`${t.id} is already ${t.status}`);
+      for (const t of tasks) {
+        t.hold = why;
+        if (t.status === 'active') {
+          t.status = 'open';
+          t.by = undefined;
+        }
+        addLog(t, actor, `put on hold: ${why}`, ws.now());
+        ws.save(t);
+      }
+      return { text: `On hold:\n${tasks.map((t) => `  ${itemLine(ws, t, p)}`).join('\n')}`, data: { held: tasks.map((t) => itemJson(ws, t)) } };
     },
   },
   {

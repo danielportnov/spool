@@ -8,7 +8,7 @@
 import { type Item, isPlan, isSettled } from './model.ts';
 import type { Workspace } from './store.ts';
 
-export type TaskState = 'ready' | 'blocked' | 'active' | 'stale' | 'done' | 'dropped';
+export type TaskState = 'ready' | 'held' | 'blocked' | 'active' | 'stale' | 'done' | 'dropped';
 
 /** Tasks that came from `item`: the parts of a plan, the findings of an audit. */
 export function children(ws: Workspace, item: Item): Item[] {
@@ -48,6 +48,7 @@ function leaseMs(task: Item): number {
 
 export function taskState(ws: Workspace, task: Item): TaskState {
   if (task.status === 'done' || task.status === 'dropped') return task.status;
+  if (task.hold) return 'held';
   if (blockers(ws, task).length) return 'blocked';
   if (task.status === 'active') {
     // A claim nobody has touched for a lease is assumed abandoned and offered again.

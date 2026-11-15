@@ -22,6 +22,10 @@
  *
  * "Blocked" is not a status. It is computed from `needs` every time, so it
  * cannot go stale: answer a question and everything behind it is ready.
+ *
+ * "On hold" is different: it is the human saying not yet. An idea to keep but
+ * not start, work parked behind a launch. It waits for their word and asks
+ * nothing of them in the meantime.
  */
 
 import { flowStrings, flowTokens, parseFrontmatter, quote } from './frontmatter.ts';
@@ -91,6 +95,8 @@ export interface Item {
   started?: string;
   /** Who holds it: the claimer of a task, the chooser of a decision, the author of a skill. */
   by?: string;
+  /** Tasks: why this is parked. A task on hold is never handed out; only the human releases it. */
+  hold?: string;
   /** Ids that must be settled before this task is ready. */
   needs: string[];
   /** Ids this item came from. */
@@ -136,6 +142,7 @@ const FIELDS: readonly (readonly [string, FieldType])[] = [
   ['updated', 'string'],
   ['started', 'string'],
   ['by', 'string'],
+  ['hold', 'string'],
   ['needs', 'tokens'],
   ['from', 'tokens'],
   ['options', 'strings'],

@@ -220,3 +220,40 @@ test('the protocols teach sizing, audits and plans to both roles', () => {
   assert.match(recorder, /"go ahead with the plan" {26}spool approve <t-id>/);
   s.cleanup();
 });
+
+test('work on hold is never handed out, and only the human releases it', () => {
+  const s = spool();
+  const idea = s.id('plan', 'A Grand Prix mode', '-s', 'l', '--hold', 'just an idea; try it on its own branch when I say');
+  const parked = s.id('task', 'Rivals lean in', '-s', 'm');
+  const normal = s.id('task', 'Fix the typo', '-s', 'xs');
+  s.sp('start', parked);
+  assert.match(s.fails('hold', parked), /the reason is missing/);
+  s.sp('hold', parked, '-m', 'the launch comes first');
+
+  // Parking releases the claim; the task keeps its place but cannot be picked or started.
+  const held = s.json('show', parked).item;
+  assert.equal(held.state, 'held');
+  assert.equal(held.status, 'open');
+  assert.equal(held.by, undefined);
+  assert.match(s.item(idea), /^hold: just an idea; try it on its own branch when I say$/m);
+  assert.deepEqual(picks(s, 1), [normal]);
+  assert.equal(s.json('next').task, null);
+  assert.match(s.sp('next'), /2 tasks on hold — spool list -s held/);
+  assert.match(s.fails('start', idea), /is on hold: just an idea[\s\S]*Only the human releases it: spool release/);
+  assert.match(s.sp('status'), /2 on hold/);
+  assert.match(s.sp('list', '-s', 'held'), /⏸ .*Rivals lean in  · on hold: the launch comes first/);
+  assert.equal(s.sp('review'), 'Nothing is waiting on you.', 'parked work asks nothing of the human');
+
+  // A dependant of parked work waits for it like any other.
+  const after = s.id('task', 'Tune the leaning', '--needs', parked);
+  assert.deepEqual(s.json('show', after).item.blockedBy, [parked]);
+
+  assert.match(s.fails('release', normal), /is not on hold/);
+  const released = s.exec(['release', parked, idea]);
+  assert.equal(released.code, 0, released.err);
+  assert.equal(s.json('show', parked).item.state, 'ready');
+  assert.match(s.item(parked), /human: released from hold \(was: the launch comes first\)/);
+  assert.doesNotMatch(s.item(parked), /^hold:/m);
+  assert.match(s.sp('prime', 'recorder'), /--hold "<their words>"/);
+  s.cleanup();
+});

@@ -37,6 +37,7 @@ const MARK: Record<string, string> = {
   active: '▶',
   stale: '▷',
   blocked: '◌',
+  held: '⏸',
   done: '✓',
   dropped: '✗',
   open: '?',
@@ -90,6 +91,7 @@ export function itemLine(ws: Workspace, item: Item, p: Paint, showProject = true
   const notes: string[] = [];
   if (item.kind === 'task') {
     if (state === 'blocked') notes.push(`needs ${blockers(ws, item).map((b) => b.id).join(', ')}`);
+    if (state === 'held') notes.push(`on hold: ${oneLine(item.hold ?? '', 60)}`);
     if (state === 'active') notes.push(`${item.by ?? 'someone'}, ${age(item.updated, ws.now())}`);
     if (state === 'stale') notes.push(`${item.by ?? 'someone'} went quiet ${age(item.updated, ws.now())} ago`);
     if (state === 'done' || state === 'dropped') notes.push(awaitsGoAhead(ws, item) ? 'awaiting go-ahead' : state);
@@ -112,6 +114,7 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
     `${p.bold(task.id)}  ${tag(task)}  ${p.bold(`${task.type ? `${task.type}: ` : ''}${task.title}`)}`,
     p.dim(`${task.spool.name} · work in ${task.spool.root}`),
   ];
+  if (task.hold) out.push(p.yellow(`ON HOLD — ${task.hold}. Do not start it; only the human releases it.`));
   if (main) out.push('', main);
 
   // What finishing means depends on the type of work, so the brief says it outright.
@@ -206,6 +209,7 @@ export function statusText(ws: Workspace, p: Paint, project?: string): string {
       `${count('ready') + count('stale')} ready`,
       `${count('active')} active`,
       `${count('blocked')} blocked`,
+      ...(count('held') ? [`${count('held')} on hold`] : []),
       `${count('done')} done`,
     ];
     out.push('', `${p.bold(spool.name)}  ${p.dim(counts.join(' · '))}`);
@@ -380,6 +384,8 @@ export function nothingReady(ws: Workspace, project?: string): string {
   if (onHuman.length) out.push(`  ${plural(onHuman.length, 'task')} waiting on the human — spool review`);
   if (blocked.length - onHuman.length) out.push(`  ${plural(blocked.length - onHuman.length, 'task')} waiting on other tasks`);
   if (active.length) out.push(`  ${plural(active.length, 'task')} being worked`);
+  const held = all.filter((t) => taskState(ws, t) === 'held').length;
+  if (held) out.push(`  ${plural(held, 'task')} on hold — spool list -s held`);
   const inbox = review(ws, project).inbox.length;
   if (inbox) out.push(`  ${inbox} unfiled in the inbox — spool inbox`);
   if (out.length === 1 && !ready(ws, project).length) out.push('  The queue is empty.');

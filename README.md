@@ -198,6 +198,13 @@ the multiplayer plan taking its turn, then the quick wins smallest first. The la
 work itself, whose progress is simply its parts. Whose turn it is comes from timestamps on the tasks;
 there is no counter to keep.
 
+### Not yet is a state
+
+Some of what you say is an idea to keep, not work to start: "maybe eight racers, but don't build it
+yet", or everything that isn't the launch. That work goes **on hold** with your reason attached. It
+stays in the queue, is never handed to a worker, and — unlike a question — asks nothing of you until
+you say `spool release`.
+
 ### Everything can be taken back
 
 Agents end each commit message with `Spool: <task-id>`. That one line ties work to the task that asked
@@ -357,6 +364,7 @@ does the same thing.
 | `spool answer <d-id> <n \| text>` | Answer a question, or overrule an assumption |
 | `spool approve <id…> \| --all` | Accept an agent's call, finished work or a new skill; give a plan its go-ahead |
 | `spool revert <t-id> [-m why]` | Undo a task's commits, or send back a plan or audit, and reopen it with your reason |
+| `spool release <t-id…>` | Take work off hold: it may start now |
 
 | Agents | |
 | --- | --- |
@@ -370,6 +378,7 @@ does the same thing.
 | `spool file <n-id> --into <id> \| --drop` | Attach a note to existing work, or set it aside |
 | `spool log <id> <text>` | Leave a note for whoever comes next |
 | `spool skill add <name> -d <when to use it> -b <steps>` | Write a procedure down |
+| `spool hold <t-id…> -m <why>` | Park work the human doesn't want started yet |
 | `spool start` · `edit` · `drop` | Claim, change, abandon |
 
 | See | |

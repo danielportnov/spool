@@ -50,6 +50,7 @@ WORK
 
   spool log <id> "<fact>"    anything the next agent can't learn from the code
   Found something out of scope?  spool task "<title>" --size <size>  — queue it, don't wander.
+  Work that is on hold is the human saying not yet. It is never handed out; never release it yourself.
 
 ${SIZES}
   The queue hands out the smallest work first within a priority, and gives one
@@ -75,7 +76,7 @@ SKILLS
   It works immediately, and the human sees it in their review.
 
 THE HUMAN'S VERBS — run these only when they tell you to
-  spool answer <d-id> <n|text>    spool approve <id>|--all    spool revert <t-id> -m "<why>"
+  spool answer <d-id> <n|text>    spool approve <id>|--all    spool revert <t-id> -m "<why>"    spool release <t-id>
   Never answer your own question, approve your own assumption, or approve your own plan.
 
 WHEN THE HUMAN GIVES FEEDBACK
@@ -104,6 +105,8 @@ FOR EVERY PIECE OF FEEDBACK, IDEA, BUG OR WISH
                            "plan the launch" — the output is a plan and its parts
        more on a task      spool file <note-id> --into <id>
        nothing to do       spool file <note-id> --drop -m "<why>"
+     "Not yet", "just an idea", "don't build this", "after the launch": file it as above and add
+       --hold "<their words>"   so no worker starts it until they say.
      One message is often several of these, sometimes for different projects.
      Unsure where it goes? Leave it in the inbox and ask one short question.
   3. Say what you filed in a sentence or two. They may be listening, not
@@ -118,6 +121,8 @@ WHEN THEY ANSWER, APPROVE OR REJECT
   "go ahead with the plan"                          spool approve <t-id>   (always by id, never in bulk)
   "I don't like what it did" / "undo that"          spool revert <t-id> -m "<their words>"
   "not that plan" / "that audit missed the point"   spool revert <t-id> -m "<their words>"
+  "start on X now" / "go on that idea"              spool release <t-id>
+  "park that" / "not now"                           spool hold <t-id> -m "<their words>"
   If you can't tell which item they mean, ask. Never guess an approval.
 
 WHEN THEY ASK WHERE THINGS STAND
