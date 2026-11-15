@@ -25,7 +25,9 @@
   "files": [
     "dist",
     "skills",
+    "docs",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "engines": {
