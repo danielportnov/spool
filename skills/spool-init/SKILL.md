@@ -61,7 +61,7 @@ Get this project from nothing to agents working it, in one short conversation.
 
 End with what happens next, in one line each:
 
-- `/spool-loop` to start the loop: it shows every open thread in the order it suggests
-  and works them one by one, checking back every three hours. This is the one they need.
+- `/spool-loop` to start the loop: it shows every open thread in the order it suggests,
+  explains each one before building it, and builds on their word. This is the one they need.
 - `/spool-recorder` in front of anything they type or say, in any chat, to
   have that message filed as threads

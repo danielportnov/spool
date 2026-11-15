@@ -20,7 +20,7 @@ test('init lays down the store, the policy and a pointer for agents', () => {
 
   // What comes next is said to an agent, not typed here. The skills are per machine, not per project.
   assert.match(out, /skills are not installed for your agent yet[\s\S]*spool install/);
-  assert.match(out, /Next, in your agent[\s\S]*\/spool-loop {7}the loop: it shows you every open thread in the order it suggests, then works them one by one[\s\S]*\/spool-recorder/);
+  assert.match(out, /Next, in your agent[\s\S]*\/spool-loop {7}the loop: it shows you every open thread, talks the next one through, and builds it on your word[\s\S]*\/spool-recorder/);
   assert.equal(s.exists('.claude'), false);
   s.cleanup();
 });
@@ -155,10 +155,11 @@ test('the loop skill is simple: show the spool ranked, chip away, say when it is
   const loop = shipped('spool-loop');
   const headings = [...loop.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
   assert.deepEqual(headings, [
-    'How it was called', 'Start', 'The schedule', 'Put the spool in order', 'Show the spool', 'Chip away',
+    'How it was called', 'Start', 'The schedule', 'Put the spool in order', 'Show the spool', 'Talk it through, then build',
     'When nothing is left that can move', 'Reaching them', 'Working a thread',
   ]);
-  assert.match(loop, /1\. \*\*Show the spool:\*\*[\s\S]*2\. \*\*Chip away:\*\*[\s\S]*3\. \*\*Say when it is done:\*\*/);
+  assert.match(loop, /\*\*you hold the context, you explain, they\ndecide, you build\.\*\*/);
+  assert.match(loop, /1\. \*\*Show the spool:\*\*[\s\S]*2\. \*\*Talk the next thread through, then build it:\*\*[\s\S]*3\. \*\*Say when it is done:\*\*/);
 
   // The schedule is one job that checks back in: no budget, no deadline, no timers.
   assert.match(loop, /The schedule is only a check back in\.[\s\S]*There is no budget to fill and no deadline to hit/);
@@ -178,9 +179,15 @@ test('the loop skill is simple: show the spool ranked, chip away, say when it is
   assert.match(loop, /xs Tiny · s Small · m Medium · l Large · xl Huge/);
   assert.match(loop, /p0 Urgent · p1 High · p2 Normal · p3 Someday/);
 
-  // It starts without being told, says its plan before each thread, and can be steered at any time.
-  assert.match(loop, /Then start on thread 1, in the same message\. Do not ask whether to begin\./);
-  assert.match(loop, /🧵 Starting thread 1 — <name>\.\n {7}Plan: [^\n]*\n {7}Steer me any time\.\n\n {3}Then start, straight away\. No timer, and no waiting for a yes\./);
+  // Before each thread, a talk in plain words; the human's word is the only gate; steering any time.
+  assert.match(loop, /Write for someone who knows nothing about the project/);
+  assert.match(loop, /🧵 Next: thread 1 — <name>\.\n {7}What it is: [^\n]*\n {7}Why now: [^\n]*\n {7}My plan: [^\n]*\n {7}Go\? Or change it, or pick another\./);
+  assert.match(loop, /\*\*Wait for their word\.\*\* This is the human in the loop, and the only gate/);
+  assert.match(loop, /The chat is not the\nrecord: the spool is\./);
+
+  // Its own ideas go in the spool as AI suggested, and wait for a yes.
+  assert.match(loop, /### Add your own ideas[\s\S]*spool task "<the idea>" --suggested "<why[^"]*>" --size <size>[\s\S]*nobody starts it, you\n {2}included, until the human says yes/);
+  assert.match(loop, /\| ✨ \| \*\*<feature>\*\* \| Small \| Normal \| AI suggested: <why>\. Say yes and it joins the list\. \|/);
   assert.match(loop, /\*\*They can steer at any time,\*\*/);
   assert.match(loop, /The order is read again every time/);
 
@@ -188,12 +195,13 @@ test('the loop skill is simple: show the spool ranked, chip away, say when it is
   assert.match(loop, /### A version for what shipped[\s\S]*Once per run[\s\S]*minor, 0\.3\.2 → 0\.4\.0[\s\S]*A major, or the first 1\.0,\n {3}is the human's call[\s\S]*`CHANGELOG\.md`[\s\S]*`git tag -a v<x\.y\.z>[\s\S]*The tag stays on this machine/);
 
   // It reaches the human through the harness's own notifications, and only when they would act.
-  assert.match(loop, /## Reaching them[\s\S]*\*\*It is done:\*\*[\s\S]*\*\*Nothing can move without them:\*\*[\s\S]*\*\*A question stops a thread\*\*[\s\S]*`PushNotification`/);
+  assert.match(loop, /## Reaching them[\s\S]*\*\*A thread is ready for their word\*\*[\s\S]*\*\*It is done:\*\*[\s\S]*\*\*Nothing can move without them:\*\*[\s\S]*\*\*A question stops a thread\*\*[\s\S]*`PushNotification`/);
 
   // Every way in is covered by the description an agent matches on, and every skill agrees on the default.
-  assert.match(String(parseFrontmatter(loop).data.get('description')), /ranked in the order you suggest[\s\S]*without waiting[\s\S]*three unless told otherwise[\s\S]*\/spool-loop \[hours\]/);
+  assert.match(String(parseFrontmatter(loop).data.get('description')), /ranked in the order you suggest[\s\S]*AI suggested[\s\S]*building it on their word[\s\S]*three unless told otherwise[\s\S]*\/spool-loop \[hours\]/);
   assert.match(shipped('spool-help'), /`\/spool-loop \[hours\]` \| The main one\. It shows you every open thread/);
   assert.match(shipped('spool-init'), /`\/spool-loop` to start the loop: it shows every open thread in the order it suggests/);
+  assert.match(shipped('spool-recorder'), /\*\*Give each thread its spec\*\*[\s\S]*What: [^\n]*\n {7}Why: [^\n]*\n {7}Done when: /);
 });
 
 test('the recorder records one message, and decides the split and the size itself', () => {

@@ -4,8 +4,8 @@
 
 Spool is a handful of agent skills, and a small CLI underneath them, that keep coding agents working
 on a project by themselves. Two commands: `/spool-init` once, then `/spool-loop`. The *loop* shows you
-every open thread in the order it suggests, then works them one by one, and tells you when it is done
-or needs you. You steer, add ideas, and go back to your day. A
+every open thread in the order it suggests, talks you through the next one in plain words, builds it
+on your word, and comes back with the next. You need to know nothing: it holds the context. A
 *recorder* takes ideas the moment you have them — while playing the build, from your phone, by voice.
 When an agent reaches a choice, it either makes the call and leaves a receipt, or asks you and gets on
 with something else. Anything it ships can be taken back in a sentence.
@@ -41,7 +41,7 @@ You use Spool by talking to your agent. Three skills, and one that lists them:
 | Skill | What it does | Use it |
 | --- | --- | --- |
 | `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
-| `/spool-loop [hours]` | **The main one.** It shows you every open thread 🧵 in the spool 🧶, ranked in the order it suggests, then works them one by one, telling you its plan as it starts each. It notifies you when it is done or needs you, and checks back every `hours` (3 unless you say) for anything new | once, and leave the chat open; steer it any time |
+| `/spool-loop [hours]` | **The main one.** It shows you every open thread 🧵 in the spool 🧶, ranked in the order it suggests, with its own ideas marked ✨ AI suggested. Then it takes them one at a time: it explains the thread in plain words and its plan, you say go (or change it, or pick another), and it builds. It notifies you when it is done or needs you, and checks back every `hours` (3 unless you say) for anything new | once, and leave the chat open |
 | `/spool-recorder <what, and where>` | Put it in front of anything you type or say: that one message is filed as threads 🧵, and the chat carries on as it was | whenever you have feedback or an idea |
 | `/spool-overview [project]` | The whole spool 🧶, every thread 🧵 colour-coded: needs you, blocked, in progress, ready, on hold | any time |
 | `/spool-help` | This table, and what to do next here | when you forget |
@@ -51,17 +51,21 @@ that matter; the rest are for looking closer.
 
 ### What the loop does
 
-The same three things, every time it runs:
+You should be able to know nothing about the project and still run it well: the loop holds the
+context, explains, and builds; you decide. The same three things, every time it runs:
 
 1. **Shows the spool.** One table, the same layout each time: every open thread, numbered in the
    order it suggests doing them, with its difficulty and priority, and a note where something needs
-   you. Above it, what got done since last time.
-2. **Chips away.** It starts on thread 1 without being told. As it starts each thread it says what
-   the thread is and what it plans to do, then gets on with it. Steer it at any point: a comment on
-   the thread in hand changes it at once, and "do that one first" reorders the list.
-3. **Says when it is done.** It notifies you when the list is finished, when nothing can move without
-   you, or when a question stops one thread while the others carry on. What shipped gets a version:
-   a bump, a changelog entry and a tag that stays on your machine.
+   you. Its own ideas are in there too, marked ✨ **AI suggested**: they wait for your yes. Above the
+   table, what got done since last time.
+2. **Talks the next thread through, then builds it.** Before each thread it says what it is, in
+   plain words, why it is next, and what it plans to do. That talk is where you are in the loop: say
+   go, change the plan, or pick another. Then it builds, ticks the thread off, and comes back with
+   the next one. What you agreed is written on the thread, so the context lives in the spool and not
+   in your head.
+3. **Says when it is done.** It notifies you when a thread is ready for your word and you are away,
+   when the list is finished, or when nothing can move without you. What shipped gets a version: a
+   bump, a changelog entry and a tag that stays on your machine.
 
 The schedule is only a check back in. Every few hours the loop looks at the spool again, ranks in
 anything new or more pressing, shows the list and carries on. There is no session to fill and no
@@ -112,30 +116,31 @@ In another chat, or the same one later:
 
 > **You:** /spool-loop
 >
-> **Agent:** **🧶 Sky Hop** · 3 threads open, 1 needs you
+> **Agent:** **🧶 Sky Hop** · 3 threads open, 1 needs you, 1 idea of mine
 >
 > | # | 🧵 Thread | Difficulty | Priority | Note |
 > | --- | --- | --- | --- | --- |
 > | 1 | **Tighter jump** | Small | High | |
 > | 2 | **Pause button over the score** | Tiny | Normal | |
 > | 🔴 | **Coins readable at sunset** | Small | High | Needs you: **a** dark outline · **b** teal. I'd pick **a**. |
+> | ✨ | **Remember the last level** | Small | Normal | AI suggested: the game always reopens on level one. Say yes and it joins the list. |
 >
-> I'll check back every three hours; keep this chat open.
+> 🧵 Next: thread 1 — Tighter jump.<br>
+> What it is: the jump hangs in the air too long, so landing on small platforms is guesswork.<br>
+> Why now: it is the thing you said bothers you most.<br>
+> My plan: shorten the hang at the top of the jump; you'll feel it on the first level.<br>
+> Go? Or change it, or pick another.
 >
-> 🧵 Starting thread 1 — Tighter jump.<br>
-> Plan: raise gravity and shorten the hang at the top of the arc; you'll feel it on the first level.<br>
-> Steer me any time.
+> **You:** go. snappy, not heavy. a for the coins. and yes to remembering the level
 >
-> **You:** a. and snappy, not heavy
->
-> **Agent:** Outline it is; coins are thread 3 now. Jump: keeping gravity, cutting the hang time
-> instead, so it snaps without feeling heavy.
+> **Agent:** Snappy, not heavy: I'll cut the hang time and leave gravity alone. Coins get the outline,
+> and both are in the list now. Building the jump.
 >
 > **Agent:** ✅ Thread 1 — Tighter jump: try the first level.<br>
-> 🧵 Starting thread 2 — Pause button…
+> 🧵 Next: thread 2 — Coins readable at sunset…
 
-Later, with you somewhere else, a notification: *Spool is done: 3 threads shipped, v0.4.0. Nothing
-left to do.*
+With you somewhere else, a notification instead: *Spool: thread 3 is ready to start, the pause
+button. Say go.*
 
 At any point, `/spool-overview` shows where everything stands:
 
@@ -457,7 +462,8 @@ repository and running `spool` in it cannot run that repository's code.
 
 **Notifications.** In a chat, the loop reaches you through your harness's own notifications (in
 Claude Code, on your desktop, and on your phone when Remote Control is connected), with nothing to set
-up: when the list is done, when nothing can move without you, and when a question stops a thread.
+up: when a thread is ready for your word, when the list is done, when nothing can move without you, and
+when a question stops a thread.
 For the no-chat runner, or anywhere else, set a command and Spool runs it when a worker asks you
 something, or when the loop runs dry with questions outstanding. Details arrive in `SPOOL_EVENT`, `SPOOL_TITLE`, `SPOOL_ID` and
 `SPOOL_PROJECT`:
@@ -509,7 +515,7 @@ These are the verbs the skills run. They are here for reference, and for buildin
 | `spool ask <question> --option … [--recommend n] [--for t-id]` | Put a call to the human |
 | `spool assume <question> --chose … [--why …] [--for t-id]` | Record a call you made |
 | `spool done <t-id> -m <summary> [--report file\|-] [--skill name]` | Finish: record how to undo a change, or hand in a report |
-| `spool task <title> [-s xs…xl] [-p 0-3] [--from id] [--needs id]` | Queue a change |
+| `spool task <title> [-s xs…xl] [-p 0-3] [--from id] [--needs id] [--suggested why]` | Queue a change; `--suggested` files an agent's own idea, which waits for your yes |
 | `spool audit <what to examine>` · `spool plan <objective>` | Queue a look-and-report, or something big |
 | `spool file <n-id> --into <id> \| --drop` | Attach a note to existing work, or set it aside |
 | `spool log <id> <text>` | Leave a note for whoever comes next |

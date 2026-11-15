@@ -41,7 +41,7 @@ says there is no `.spool/` here, tell them to run `/spool-init`, and stop.
 
    | It is | Run |
    | --- | --- |
-   | a change | `spool task "<short imperative title>" --from <note-id> -P <project> --size <size> [-p 0-3]` |
+   | a change | `spool task "<short imperative title>" --from <note-id> -P <project> --size <size> [-p 0-3] -b "<its spec>"` |
    | a look and a report | `spool audit "<what to examine, and through whose eyes>" --from <note-id> -P <project>` |
    | something big or open | `spool plan "<the objective>" --from <note-id> -P <project>` |
    | more on an existing thread | `spool file <note-id> --into <id>` |
@@ -55,7 +55,18 @@ says there is no `.spool/` here, tell them to run `/spool-init`, and stop.
    "Not yet", "just an idea", "don't build this", "after the launch": file it
    as above and add `--hold "<their words>"`, so no worker starts it until they say.
 
-3. Say what you made of it in a sentence or two: how many threads 🧵, what
+3. **Give each thread its spec**, in its body (`-b`), so whoever works it
+   needs nothing but the thread, and the human never has to explain it twice:
+
+       What: <the feature or the fix, in plain words>
+       Why: <the reason they gave, or the problem it solves>
+       Done when: <what they will be able to see or do>
+
+   Keep their specifics: names, numbers, examples. Do not invent requirements
+   to fill a gap. A gap is a question:
+   `spool ask "<the question>" --option "<A>" --option "<B>" --recommend <n> --for <t-id>`.
+
+4. Say what you made of it in a sentence or two: how many threads 🧵, what
    each is, and which project's spool 🧶 they went into. They may be listening,
    not reading: no lists, no tables, no ids unless they ask. Then stop
    recording.
