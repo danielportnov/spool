@@ -15,19 +15,21 @@ Show this table as it is:
 | Skill | What it does | Use it |
 | --- | --- | --- |
 | `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
+| `/spool-loop [hours]` | The main one. Every `hours` (3 unless you say) it sizes and orders the docket, checks in with you on what to do next, asks what it needs up front, then works until the next check-in | once, and leave the chat open |
 | `/spool-recorder` | Turns a chat into the recorder: talk or type, and everything is filed as work | whenever you have feedback or an idea |
-| `/spool-loop [hours]` | Agents work the docket until nothing can move without you, and come back every `hours` | to get work going, and keep it going |
-| `/spool-blockers` | Walks you through what agents need from you: questions, go-aheads, anything to undo | when the loop says it is waiting on you |
+| `/spool-blockers` | Walks you through what agents need from you: questions, go-aheads, anything to undo | to clear everything waiting on you in one go |
 | `/spool-overview [project]` | The whole docket, colour-coded: needs you, blocked, in progress, ready, on hold | any time |
 
-The flow: **init** once, **recorder** to fill the docket, **loop** to work it,
-**blockers** when it needs you. **Overview** shows where things stand.
+The flow: **init** once, then **loop**, and that is it. The loop checks in
+every few hours; they answer, reprioritise, add ideas, and go back to their
+day. **Recorder** is for pouring ideas in at any time. The other two are for
+looking closer.
 
 Then add one line on what to do next here. Check with `spool status`; don't guess:
 
 - `spool` is not installed, or there is no `.spool/` here: "Start with `/spool-init`."
-- the docket is empty: "`/spool-recorder` and tell it what you want."
-- questions or plans are waiting on them: "`/spool-blockers` first: work is stopped on you."
-- work is ready: "`/spool-loop 2` sets agents on it now and every two hours."
+- anything else: "`/spool-loop` starts the loop: a check-in now and every three hours,
+  work in between. `/spool-loop 1` for every hour." If the docket is empty, add
+  that the first check-in will ask what they want built.
 
 Only if they ask about the command line: `spool help` lists the engine's verbs.

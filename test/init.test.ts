@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { SKILL_NAMES, shipped } from '../src/builtin.ts';
+import { COMMANDS } from '../src/commands.ts';
 import { parseFrontmatter } from '../src/frontmatter.ts';
 import { Sandbox } from './helpers.ts';
 
@@ -19,7 +20,7 @@ test('init lays down the store, the policy and a pointer for agents', () => {
 
   // What comes next is said to an agent, not typed here. The skills are per machine, not per project.
   assert.match(out, /skills are not installed for your agent yet[\s\S]*spool install/);
-  assert.match(out, /Next, in your agent[\s\S]*\/spool-recorder[\s\S]*\/spool-loop 2[\s\S]*\/spool-blockers/);
+  assert.match(out, /Next, in your agent[\s\S]*\/spool-loop {7}the loop: it checks in with you now and every three hours[\s\S]*\/spool-recorder/);
   assert.equal(s.exists('.claude'), false);
   s.cleanup();
 });
@@ -127,7 +128,7 @@ test('init can leave the agents file alone', () => {
 });
 
 test('the shipped skills are valid Agent Skills, and few', () => {
-  assert.deepEqual([...SKILL_NAMES], ['spool-help', 'spool-init', 'spool-recorder', 'spool-loop', 'spool-blockers', 'spool-overview']);
+  assert.deepEqual([...SKILL_NAMES], ['spool-help', 'spool-init', 'spool-loop', 'spool-recorder', 'spool-blockers', 'spool-overview']);
   for (const name of SKILL_NAMES) {
     const skill = parseFrontmatter(shipped(name));
     assert.equal(skill.data.get('name'), name);
@@ -138,6 +139,36 @@ test('the shipped skills are valid Agent Skills, and few', () => {
   }
   // The help skill lists every skill a person uses.
   for (const name of SKILL_NAMES) assert.ok(shipped('spool-help').includes(`\`/${name}`) || name === 'spool-help');
+});
+
+test('every command a skill tells an agent to run exists', () => {
+  const known = new Set(['help', ...COMMANDS.flatMap((c) => [c.name, ...(c.aliases ?? [])])]);
+  for (const name of SKILL_NAMES) {
+    // In backticks or in an indented example: `spool done <id>`, never the word in a sentence.
+    for (const [, verb] of shipped(name).matchAll(/(?:`|^ {4,})spool ([a-z][a-z-]*)/gm)) {
+      assert.ok(known.has(verb!), `${name} names \`spool ${verb}\`, which is not a command`);
+    }
+  }
+});
+
+test('the loop skill is a cycle: take stock, check in, work, wrap up', () => {
+  const loop = shipped('spool-loop');
+  const headings = [...loop.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
+  assert.deepEqual(headings, ['How it was called', 'Start', 'The schedule', 'Take stock', 'Check in', 'Work', 'Wrap up', 'Working a task']);
+
+  // Three hours unless told otherwise, and the schedule's own prompt can never set a second schedule.
+  assert.match(loop, /\| `\/spool-loop` \| Start the loop, a cycle every 3 hours\./);
+  assert.match(loop, /recurring, every `<hours>` hours[\s\S]*`\/spool-loop again`/);
+  assert.match(loop, /\| `\/spool-loop again` \|[^\n]*The human never types this\./);
+
+  // Questions are found before the work starts, and the human gets a window that closes by itself.
+  assert.match(loop, /## Take stock[\s\S]*spool edit <id> --size <size>[\s\S]*spool edit <id> -p <0-3>[\s\S]*ask today what is theirs to decide/);
+  assert.match(loop, /## Check in[\s\S]*one-shot[\s\S]*`\/spool-loop go`[\s\S]*Nobody replies/);
+
+  // Every way in is covered by the description an agent matches on, and every skill agrees on the default.
+  assert.match(String(parseFrontmatter(loop).data.get('description')), /three unless told otherwise[\s\S]*\/spool-loop \[hours\]/);
+  assert.match(shipped('spool-help'), /`\/spool-loop \[hours\]` \| The main one\. Every `hours` \(3 unless you say\)/);
+  assert.match(shipped('spool-init'), /`\/spool-loop` to start the loop: it checks in now and every three hours/);
 });
 
 test('install puts the skills where the agent finds them, and keeps the ones you edited', () => {

@@ -61,6 +61,6 @@ Get this project from nothing to agents working it, in one short conversation.
 
 End with what happens next, in one line each:
 
-- `/spool-recorder` to talk, and have everything they say filed
-- `/spool-loop 2` to set agents working now and every two hours
-- `/spool-blockers` when agents need them
+- `/spool-loop` to start the loop: it checks in now and every three hours, and
+  works in between. This is the one they need.
+- `/spool-recorder` to talk at any time, and have everything they say filed

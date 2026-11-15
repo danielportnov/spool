@@ -3,11 +3,12 @@
 **You talk. Agents turn it into work, keep working, and come back only for the calls that are yours.**
 
 Spool is a handful of agent skills, and a small CLI underneath them, that keep coding agents working
-on a project by themselves. You say what you want the moment you have it — while playing the build,
-from your phone, by voice. A *recorder* files it. A *loop* works it, task after task, and stops only
-when nothing can move without you. When an agent reaches a choice, it either makes the call and leaves
-a receipt, or asks you and gets on with something else. Anything it ships can be taken back in a
-sentence.
+on a project by themselves. Two commands: `/spool-init` once, then `/spool-loop`. Every few hours the
+*loop* sizes up the docket, tells you what it plans to do next, asks everything it needs in one go, and
+then works until the next check-in. You answer, reprioritise, add ideas, and go back to your day. A
+*recorder* takes ideas the moment you have them — while playing the build, from your phone, by voice.
+When an agent reaches a choice, it either makes the call and leaves a receipt, or asks you and gets on
+with something else. Anything it ships can be taken back in a sentence.
 
 Not everything you say is "change this". "Play the whole thing as a new player and tell me what would
 make them quit" is an audit; "we need multiplayer" is a plan. Spool treats both as first-class work
@@ -37,13 +38,27 @@ You use Spool by talking to your agent. Five skills, and one that lists them:
 | Skill | What it does | Use it |
 | --- | --- | --- |
 | `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
+| `/spool-loop [hours]` | **The main one.** Every `hours` (3 unless you say) it sizes and orders the docket, checks in with you on what to do next, asks what it needs up front, then works until the next check-in | once, and leave the chat open |
 | `/spool-recorder` | Turns a chat into the recorder: talk or type, and everything is filed as work | whenever you have feedback or an idea |
-| `/spool-loop [hours]` | Agents work the docket until nothing can move without you, and come back every `hours` | to get work going, and keep it going |
-| `/spool-blockers` | Walks you through what agents need from you: questions, go-aheads, anything to undo | when the loop says it is waiting on you |
+| `/spool-blockers` | Walks you through what agents need from you: questions, go-aheads, anything to undo | to clear everything waiting on you in one go |
 | `/spool-overview [project]` | The whole docket, colour-coded: needs you, blocked, in progress, ready, on hold | any time |
 | `/spool-help` | This table, and what to do next here | when you forget |
 
-**init** once, **recorder** to fill the docket, **loop** to work it, **blockers** when it needs you.
+**init** once, then **loop**, and that is the whole workflow. The loop and the recorder are the two
+that matter; the rest are for looking closer.
+
+### A cycle of the loop
+
+`/spool-loop` starts a recurring job in the chat. Each time it comes round:
+
+1. **Take stock.** Unfiled feedback is filed, unsized work is sized, work too big to build is turned
+   into a plan, and the docket is put in order.
+2. **Check in.** One short message: what shipped since last time, what it needs from you, what it
+   will do this cycle, and "anything to add, drop or move?" It reads ahead through the work it has
+   lined up, so the questions arrive now and not two hours in.
+3. **Wait ten minutes.** Reply and it takes every part of what you say: answers, a new order, new
+   ideas. Say nothing and it starts on the line-up it proposed.
+4. **Work** until the next cycle is due, or nothing can move without you.
 
 They are plain [Agent Skills](https://agentskills.io) in [`skills/`](skills): read them, edit them.
 The `spool` command is the engine they run. It holds the queue, the lock, the scheduler and the undo —
@@ -87,21 +102,27 @@ The queue it creates stays on your machine. Git ignores `.spool/` unless you ask
 
 In another chat, or the same one later:
 
-> **You:** /spool-loop 2
+> **You:** /spool-loop
 >
-> **Agent:** *(works both)* The jump is tighter — gravity 9.8 → 12, try the first level. One thing
-> needs you: how to make the coins readable. I'll look again in two hours.
+> **Agent:** I'll check in every three hours; keep this chat open. This cycle: tighten the jump, then
+> the coins. One question first — at sunset, should coins get a dark outline, or shift to teal? I'd
+> outline them: it works on every background, and teal changes the look of the game. Anything to add
+> or move? I start at 2:10 with this unless you say otherwise.
 >
-> **You:** /spool-blockers
+> **You:** outline. and do the coins first
 >
-> **Agent:** One question, holding up one task. At sunset, should coins get a dark outline, or shift to
-> teal? The agent recommends the outline: it works on every background, and teal changes the look of
-> the game.
+> **Agent:** Outline, coins first, then the jump. Starting now; back at 5.
+
+Three hours later, with you somewhere else:
+
+> **Agent:** Since last time: coins have a dark outline at sunset, and the jump is tighter — gravity
+> 9.8 → 12, try the first level. Nothing needs you. This cycle: the pause button that overlaps the
+> score. Anything to add or move?
 >
-> **You:** outline. and the jump is too heavy now, I wanted snappy, not heavy
+> **You:** the jump is too heavy now, I wanted snappy, not heavy
 >
-> **Agent:** Outline it is, and that task is ready again. I've undone the jump change and put it back
-> at the front of the queue with your words attached.
+> **Agent:** I've undone the jump change and put it at the front of the queue with your words
+> attached. That first, then the pause button.
 
 At any point, `/spool-overview` shows where everything stands:
 
@@ -309,8 +330,9 @@ exact words, works out which project and which task they belong to, and files th
 work. That is `/spool-recorder`, and its scope is wherever you start it: one repository, or a folder
 of them.
 
-**Workers** take tasks off the queue, and `/spool-loop` is a worker that keeps taking them. It ends a
-pass only when nothing is ready, and a question on one task never stops the rest.
+**Workers** take tasks off the queue, and `/spool-loop` is a worker that keeps taking them, cycle
+after cycle. It also keeps the docket in order — sizing, ordering, filing what is unfiled — and it is
+the one that checks in with you. A question on one task never stops the rest.
 
 The rules for both are written once, in those two skills. An agent whose harness has no skills gets
 the same text from the engine, so any agent that can run a command can play either role:
@@ -425,10 +447,12 @@ runs dry with questions outstanding. Details arrive in `SPOOL_EVENT`, `SPOOL_TIT
 { "notify": "curl -s -d \"$SPOOL_TITLE\" https://ntfy.sh/your-private-topic" }
 ```
 
-**The loop, in a chat.** `/spool-loop 2` works the docket now and every two hours after, using your
-harness's own scheduler (in Claude Code, `/loop`). A pass takes the next task, does it, hands it in and
-takes the next, until nothing is ready. A pass that finds nothing costs one command, so it is cheap to
-leave running: answer a question from your phone, and the next pass picks the work up.
+**The loop, in a chat.** `/spool-loop` runs a cycle now and every three hours after; `/spool-loop 1`
+makes it every hour, and `/spool-loop stop` ends it. It is a real recurring job in your harness's own
+scheduler (in Claude Code, the one behind `/loop`), so it lives in that chat: keep the chat open and
+the machine awake. Claude Code ends a recurring job after 7 days; `/spool-loop` starts it again. A
+cycle that finds nothing it can move says what it is waiting on and ends, so it is cheap to leave
+running: answer a question from your phone, and the next cycle picks the work up.
 
 **The loop, with no chat.** The engine has a runner of its own. It contains no agent and doesn't care
 which one you use: `spool loop` claims the next ready task, starts your agent in that task's project

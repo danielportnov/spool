@@ -1378,9 +1378,8 @@ export const COMMANDS: Command[] = [
         out.push(
           '',
           'Next, in your agent. You should not need this command line again.',
-          '  /spool-recorder   talk or type; everything you say is filed as work',
-          '  /spool-loop 2     agents work the docket now, and every two hours',
-          '  /spool-blockers   answer what they need from you',
+          '  /spool-loop       the loop: it checks in with you now and every three hours, and works in between',
+          '  /spool-recorder   talk or type at any time; everything you say is filed as work',
           `  ${path.join(SPOOL_DIR, 'policy.md')} says what agents may decide without you — worth two minutes.`,
         );
       }

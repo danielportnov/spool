@@ -54,5 +54,5 @@ When everything left is fine by them ("all good", "looks fine"):
 ## Then
 
 Say what their answers unblocked; `spool answer` prints what is now ready. If a
-loop is scheduled, it picks the work up on its next pass. If not, offer
+loop is running, it picks the work up at its next cycle. If not, offer
 `/spool-loop`.

@@ -2,9 +2,9 @@
  * The skills Spool ships: how people use it.
  *
  * Spool is driven by talking to an agent, and the skills in `skills/` are the
- * whole of that surface: one to set a project up, one to record, one to work
- * the docket, one to clear what is waiting on the human, one to see it all,
- * and one that lists the rest. The CLI is what those skills run.
+ * whole of that surface: one to set a project up, the loop that works it, one
+ * to record, one to clear what is waiting on the human, one to see it all, and
+ * one that lists the rest. The CLI is what those skills run.
  *
  * They are ordinary Agent Skills, plain SKILL.md files, so they can be read on
  * GitHub and edited in place. `spool install` copies them to where the harness
@@ -30,8 +30,8 @@ import { SpoolError } from './model.ts';
 export const SKILL_NAMES = [
   'spool-help',
   'spool-init',
-  'spool-recorder',
   'spool-loop',
+  'spool-recorder',
   'spool-blockers',
   'spool-overview',
 ] as const;
