@@ -2,6 +2,12 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.9.0 · 2026-11-15
+
+- Spool page: **+ Add** at the foot of Proposed and Build puts a new thread in that column. The add
+  box at the top is gone.
+- A new README: short, quickstart first. The long version is in `docs/how-it-works.md`.
+
 ## 0.8.0 · 2026-11-15
 
 - The Spool page: `spool page` or `/spool-page` opens a board of every thread in four columns —
