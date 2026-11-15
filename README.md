@@ -2,11 +2,12 @@
 
 **You talk. Agents turn it into work, keep working, and come back only for the calls that are yours.**
 
-Spool is a small CLI that keeps a work queue inside your repository, as plain markdown shaped for
-coding agents to read and write. You give feedback the moment you have it — while playing the build,
-from your phone, by voice. A *recorder* agent files it. *Worker* agents take it from there, around the
-clock. When a worker reaches a choice, it either makes the call and leaves a receipt, or asks you and
-gets on with something else. Anything it ships can be taken back with one command.
+Spool is a handful of agent skills, and a small CLI underneath them, that keep coding agents working
+on a project by themselves. You say what you want the moment you have it — while playing the build,
+from your phone, by voice. A *recorder* files it. A *loop* works it, task after task, and stops only
+when nothing can move without you. When an agent reaches a choice, it either makes the call and leaves
+a receipt, or asks you and gets on with something else. Anything it ships can be taken back in a
+sentence.
 
 Not everything you say is "change this". "Play the whole thing as a new player and tell me what would
 make them quit" is an audit; "we need multiplayer" is a plan. Spool treats both as first-class work
@@ -17,9 +18,9 @@ things keep moving.
 flowchart LR
   you(["You"]) -- "the jump feels floaty" --> rec["Recorder"]
   rec -- "files it" --> q[(".spool/")]
-  q -- "next task" --> w["Workers"]
+  q -- "next task" --> w["The loop"]
   w -- "commits" --> code[("your code")]
-  w -- "questions · receipts · new skills" --> rev["spool review"]
+  w -- "questions · receipts · new skills" --> rev["Blockers"]
   rev --> you
   you -- "answer · approve · revert" --> q
 ```
@@ -29,7 +30,102 @@ sitting at a keyboard approving things. Spool is built on one idea — **your at
 resource** — and spends it only on judgment. No daemon, no database, no account, no runtime
 dependencies.
 
+## The skills
+
+You use Spool by talking to your agent. Five skills, and one that lists them:
+
+| Skill | What it does | Use it |
+| --- | --- | --- |
+| `/spool-init` | Sets Spool up in this folder or repo | once per project |
+| `/spool-recorder` | Turns a chat into the recorder: talk or type, and everything is filed as work | whenever you have feedback or an idea |
+| `/spool-loop [hours]` | Agents work the docket until nothing can move without you, and come back every `hours` | to get work going, and keep it going |
+| `/spool-blockers` | Walks you through what agents need from you: questions, go-aheads, anything to undo | when the loop says it is waiting on you |
+| `/spool-overview [project]` | The whole docket, colour-coded: needs you, blocked, in progress, ready, on hold | any time |
+| `/spool-help` | This table, and what to do next here | when you forget |
+
+**init** once, **recorder** to fill the docket, **loop** to work it, **blockers** when it needs you.
+
+They are plain [Agent Skills](https://agentskills.io) in [`skills/`](skills): read them, edit them.
+The `spool` command is the engine they run. It holds the queue, the lock, the scheduler and the undo —
+the parts that must not be improvised — and once it is installed you should rarely type it.
+
+## Install
+
+Node 20 or newer. Not on npm yet; install from GitHub, which builds from source:
+
+```bash
+npm install -g github:danielportnov/spool
+```
+
+```bash
+spool install
+```
+
+`spool install` copies the skills to `~/.claude/skills`, where Claude Code finds them from every
+project. Use `--dir <path>` for another harness's skills directory, or `--here` to check them into one
+project for a team. Run it again after upgrading: copies you have not edited are refreshed, and ones
+you have are kept.
+
+Then, in your agent, in any project:
+
+```
+/spool-init
+```
+
 ## What it looks like
+
+> **You:** /spool-recorder
+>
+> **You:** the jump feels floaty, and I can barely see the coins at sunset
+>
+> **Recorder:** Filed two things for Sky Hop: tighten the jump, and make the coins readable at sunset.
+
+In another chat, or the same one later:
+
+> **You:** /spool-loop 2
+>
+> **Agent:** *(works both)* The jump is tighter — gravity 9.8 → 12, try the first level. One thing
+> needs you: how to make the coins readable. I'll look again in two hours.
+>
+> **You:** /spool-blockers
+>
+> **Agent:** One question, holding up one task. At sunset, should coins get a dark outline, or shift to
+> teal? The agent recommends the outline: it works on every background, and teal changes the look of
+> the game.
+>
+> **You:** outline. and the jump is too heavy now, I wanted snappy, not heavy
+>
+> **Agent:** Outline it is, and that task is ready again. I've undone the jump change and put it back
+> at the front of the queue with your words attached.
+
+At any point, `/spool-overview` shows where everything stands:
+
+```console
+skyhop  4 open · 1 on hold · 2 done
+
+🔴 NEEDS YOU  1
+  Coins at sunset: outline them, or change their colour?  · a question · blocks 1 task
+
+🟣 BREAK DOWN  1
+  plan: Add online multiplayer  · not planned yet: an agent will plan it, or talk it through first
+
+🟡 BLOCKED  1
+  Make coins readable at sunset  · waiting on your answer: “Coins at sunset: outline them, or change…”
+
+🔵 IN PROGRESS  1
+  Tighten the jump arc  · claude, 5m
+
+🟢 READY  1
+  1. Pause button overlaps the score
+
+⚪ ON HOLD  1
+  A Grand Prix mode  · “just an idea; try it when I say”
+```
+
+### Underneath
+
+Every line of that conversation was a verb on the queue. The rest of this page shows that layer —
+what agents run and what they read — because it is where the guarantees are.
 
 You say something. The recorder captures your words exactly and splits them into work:
 
@@ -67,7 +163,7 @@ SHIPPED  nothing to do unless you dislike it
 all good?  spool approve --all   (2 items)
 ```
 
-You answer the question with a number, try the build, and don't like the jump:
+You answer the question, try the build, and don't like the jump:
 
 ```console
 $ spool answer d-vvn7 1
@@ -84,23 +180,6 @@ It is back in the queue at p1 with your reason attached.
 The code is back where it was, the task is back at the front of the queue, and the next agent to pick
 it up is briefed with both things you said.
 
-## Install
-
-Node 20 or newer. Not on npm yet; install from GitHub, which builds from source:
-
-```bash
-npm install -g github:danielportnov/spool
-```
-
-```bash
-cd your-project
-spool init
-```
-
-`init` creates `.spool/`, writes two [Agent Skills](#skills-compound) (`spool` and `recorder`) where
-your harness will find them, and adds a short pointer to `CLAUDE.md` or `AGENTS.md`. From then on,
-any agent that opens the project knows the queue exists and how to use it.
-
 ## The ideas
 
 ### Every interruption has to earn your attention
@@ -110,8 +189,8 @@ is the whole product:
 
 | The choice is… | The agent runs | What happens | What you do |
 | --- | --- | --- | --- |
-| easily undone, and within policy | `spool assume` | It decides and keeps working. The call is on record. | Approve in one command — or say what you wanted, and the rework is queued for you. |
-| yours to make | `spool ask` | That task stops; every other task continues. You get a notification with options and a recommendation. | Answer with a number. |
+| easily undone, and within policy | `spool assume` | It decides and keeps working. The call is on record. | Say it's fine — or say what you wanted, and the rework is queued for you. |
+| yours to make | `spool ask` | That task stops; every other task continues. You get a notification with options and a recommendation. | Answer in a word. |
 
 Finished work is a third lane: it needs nothing from you unless you dislike it.
 
@@ -203,13 +282,13 @@ there is no counter to keep.
 Some of what you say is an idea to keep, not work to start: "maybe eight racers, but don't build it
 yet", or everything that isn't the launch. That work goes **on hold** with your reason attached. It
 stays in the queue, is never handed to a worker, and — unlike a question — asks nothing of you until
-you say `spool release`.
+you say go.
 
 ### Everything can be taken back
 
 Agents end each commit message with `Spool: <task-id>`. That one line ties work to the task that asked
-for it and, unlike a recorded hash, survives a rebase. `spool revert <task>` finds those commits and
-undoes them in a single new commit. It is designed for a repository that is in use:
+for it and, unlike a recorded hash, survives a rebase. "Undo that" becomes `spool revert <task>`, which
+finds those commits and undoes them in a single new commit. It is designed for a repository that is in use:
 
 - It reverses only the files that task's commits changed, and only those files need to be clean. An
   agent halfway through something else is not in the way.
@@ -222,20 +301,22 @@ undoes them in a single new commit. It is designed for a repository that is in u
 
 The **recorder** is a chat you leave open — a mid-sized model is plenty. You dictate; it captures your
 exact words, works out which project and which task they belong to, and files them. It never does the
-work. In Claude Code, type `/recorder`. Anywhere else, start a session with the role's instructions:
+work. That is `/spool-recorder`, and its scope is wherever you start it: one repository, or a folder
+of them.
+
+**Workers** take tasks off the queue, and `/spool-loop` is a worker that keeps taking them. It ends a
+pass only when nothing is ready, and a question on one task never stops the rest.
+
+The rules for both are written once, in those two skills. An agent whose harness has no skills gets
+the same text from the engine, so any agent that can run a command can play either role:
 
 ```bash
 claude --model sonnet "$(spool prime recorder)"
 ```
 
-**Workers** take tasks off the queue. `spool prime` teaches the protocol to any agent in any harness
-with one command, so the rules live in one versioned place rather than in a prompt you maintain.
-
-The recorder's scope is wherever you start it: one repository, or a folder of them.
-
 ### Skills compound
 
-When an agent works out a multi-step procedure — shipping a beta, regenerating assets — it can write
+Spool's own skills are how you use it. Agents can add more. When an agent works out a multi-step procedure — shipping a beta, regenerating assets — it can write
 it down as a standard `SKILL.md`, which your harness loads natively from then on. Spool adds the part
 the format lacks, a ledger:
 
@@ -336,9 +417,14 @@ runs dry with questions outstanding. Details arrive in `SPOOL_EVENT`, `SPOOL_TIT
 { "notify": "curl -s -d \"$SPOOL_TITLE\" https://ntfy.sh/your-private-topic" }
 ```
 
-**The loop.** Spool contains no agent and doesn't care which one you use. `spool loop` claims the next
-ready task, starts your agent in that task's project with the protocol and the brief on stdin, and
-looks at the queue again when it exits:
+**The loop, in a chat.** `/spool-loop 2` works the docket now and every two hours after, using your
+harness's own scheduler (in Claude Code, `/loop`). A pass takes the next task, does it, hands it in and
+takes the next, until nothing is ready. A pass that finds nothing costs one command, so it is cheap to
+leave running: answer a question from your phone, and the next pass picks the work up.
+
+**The loop, with no chat.** The engine has a runner of its own. It contains no agent and doesn't care
+which one you use: `spool loop` claims the next ready task, starts your agent in that task's project
+with the rules and the brief on stdin, and looks at the queue again when it exits:
 
 ```bash
 spool loop                 # until nothing is ready
@@ -350,14 +436,13 @@ spool loop --agent 'claude -p --permission-mode acceptEdits --allowedTools "Bash
 The default agent is `claude -p`; anything that reads a prompt on stdin works. What the agent is
 allowed to do is your harness's business, not Spool's. A task the agent finishes is done; one it asks
 a question on waits for you; one it walks away from is released and not retried until something
-changes. The lock is never held while an agent runs.
+changes. The lock is never held while an agent runs, and each task gets a fresh agent.
 
-You don't need the runner: inside any agent session, "work the Spool queue until nothing is ready"
-does the same thing.
+## The engine
 
-## Commands
+These are the verbs the skills run. They are here for reference, and for building on.
 
-| You | |
+| The human's verbs — agents run them on your word | |
 | --- | --- |
 | `spool capture <words…>` | Drop feedback in, exactly as said |
 | `spool review` | Everything waiting on you, most blocking first |
@@ -366,9 +451,9 @@ does the same thing.
 | `spool revert <t-id> [-m why]` | Undo a task's commits, or send back a plan or audit, and reopen it with your reason |
 | `spool release <t-id…>` | Take work off hold: it may start now |
 
-| Agents | |
+| Working the queue | |
 | --- | --- |
-| `spool prime [worker\|recorder]` | Print the protocol for a role |
+| `spool prime [worker\|recorder] [--context]` | A role's rules and this project now; `--context` for just the project |
 | `spool next [--claim]` | The most important ready task, with all its context |
 | `spool ask <question> --option … [--recommend n] [--for t-id]` | Put a call to the human |
 | `spool assume <question> --chose … [--why …] [--for t-id]` | Record a call you made |
@@ -381,22 +466,30 @@ does the same thing.
 | `spool hold <t-id…> -m <why>` | Park work the human doesn't want started yet |
 | `spool start` · `edit` · `drop` | Claim, change, abandon |
 
-| See | |
+| Seeing | |
 | --- | --- |
 | `spool status` | What is ready, active, blocked and waiting on you |
+| `spool overview [project]` | A project's whole docket under six colours |
 | `spool list [-k kind] [-s state] [-t type] [--size sizes] [--search words]` | Find items, closed ones included |
 | `spool show <id>` · `inbox` · `skills` | One item · unfiled feedback · every skill |
 | `spool graph` | The items and their links, as Mermaid |
 | `spool check` | Validate the store: bad files, dangling links, cycles |
 
+| Set up | |
+| --- | --- |
+| `spool install [--here \| --dir path] [--force]` | Put the skills where your agent finds them |
+| `spool init [--name n] [--about line]` | Start a spool in this directory (`/spool-init` does this) |
+| `spool loop [--watch s] [--agent cmd]` | Work the queue with no chat |
+
 Every command takes `--json`, `-C <dir>` and `--as <name>`. Errors say what to do instead.
 
 ## Prior art
 
-[OpenSpec](https://github.com/Fission-AI/OpenSpec) showed how well a small CLI over plain files works
-as the interface between people and coding agents, and Spool borrows that shape. Where spec-first
-tools begin with a proposal you write before the work, Spool begins with what you say after using the
-thing — and treats the question "does this need the human?" as the central design problem.
+[OpenSpec](https://github.com/Fission-AI/OpenSpec) showed how well a few agent skills over a small CLI
+and plain files work as the interface between people and coding agents, and Spool borrows that shape.
+Where spec-first tools begin with a proposal you write before the work, Spool begins with what you say
+after using the thing, and optimises the loop that follows: how long agents can keep working before
+they need you, and how little of you it takes when they do.
 
 ## Roadmap
 
