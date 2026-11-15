@@ -1,21 +1,24 @@
 ---
 name: spool-loop
-description: Run the Spool loop, the main way a project gets worked - show every open thread in the spool ranked in the order you suggest, add your own ideas as AI suggested, then take the threads one at a time, talking each through in plain words for someone who knows nothing about the project and building it on their word, notify the user when it is done or needs them, and check back every few hours (three unless told otherwise) for anything new or more pressing. Use for /spool-loop [hours], or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "keep going", "what's next - do it", asks you to work unattended, or asks "where do things stand", "what's in the spool", "what needs me", "what's blocked", "catch me up" or "what did the agents do".
+description: Run the Spool loop, the main way a project gets worked - show every open thread in the spool, add your own ideas as AI suggested, build the threads the user has moved to build (on the Spool page, or by saying so) one by one and nothing else, notify the user when build is empty or something needs them, and check back every few hours (three unless told otherwise) for anything new or more pressing. Use for /spool-loop [hours], or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "keep going", "what's next - do it", asks you to work unattended, or asks "where do things stand", "what's in the spool", "what needs me", "what's blocked", "catch me up" or "what did the agents do".
 ---
 
 # Spool loop
 
 The loop is simple on purpose. The human should be able to know nothing about
-the project and still run it well: **you hold the context, you explain, they
-decide, you build.** Every time it runs, it does the same three things:
+the project and still run it well: **you hold the context, you propose, they
+decide what is built, you build it.** Every time it runs, it does the same
+three things:
 
-1. **Show the spool:** every open thread, ranked in the order you suggest
-   doing them, with your own ideas added as "AI suggested".
-2. **Talk the next thread through, then build it:** what it is, in plain
-   words, and your plan. That talk is where the human is in the loop: they
-   say go, change it, or pick another. Then you build, and come back with the next.
-3. **Say when it is done:** notify the human when nothing is left that can
-   move, or when something needs them.
+1. **Show the spool:** every open thread, what is in build and what is only
+   proposed, with your own ideas added as "AI suggested".
+2. **Build what is in build:** the threads the human has moved there, one by
+   one, in order. Nothing else. They move threads on the Spool page
+   (`spool page`) or by telling you.
+3. **Say when it is done:** notify the human when build is empty, or when
+   something needs them.
+
+Be brief in the chat. The page holds the detail.
 
 The schedule is only a check back in. Every few hours, look at the spool
 again: is there something new, or more pressing? Rank it in, show the list,
@@ -47,7 +50,7 @@ That is all of it. The schedule calls the plain `/spool-loop` too.
    No `.spool/` here? Tell them in a line, set it up now by the `spool-init`
    skill, then carry on from here.
 2. Make sure the schedule is set. See "The schedule".
-3. Put the spool in order, show it, and talk the first thread through.
+3. Put the spool in order, show it, and build what is in build.
 
 ## The schedule
 
@@ -106,12 +109,12 @@ obvious, something that will break, a quick win nobody asked for:
 
     spool task "<the idea>" --suggested "<why, in a line they would agree with>" --size <size> -b "<its spec>"
 
-- It is filed as **AI suggested** and waits under ✨: nobody starts it, you
-  included, until the human says yes.
+- It is filed as proposed and marked **AI suggested**: nobody starts it, you
+  included, until the human moves it to build.
 - Things the product should have, in their terms. Not chores for yourself.
 - A few good ones: three a run at most, and none that is already there
   (`spool list --search "<words>"`).
-- Their yes: `spool release <t-id>`, and it joins the order. Their no:
+- Their yes: `spool build <t-id>`. Their no:
   `spool drop <t-id> -m "<their words>"`.
 
 ## Show the spool
@@ -143,89 +146,71 @@ nothing else, and never renumber. Above it, add what got done:
 | 1 | **<feature being built>** | Large | Normal | 🔵 Being built now |
 | 2 | **<feature, in a few words>** | Small | High | |
 | 3 | **<feature>** | Medium | High | 🔴 Needs you: <the question> **a** <option> · **b** <option>. I'd pick **a**. |
-| 4 | **<feature>** | Small | Normal | ✨ AI suggested: <why>. Say yes and it joins the order. |
-| 5 | **<feature>** | Tiny | Normal | ⚪ On hold: "<their words>" |
+| 4 | **<feature>** | Small | Normal | 🟠 Proposed |
+| 5 | **<feature>** | Small | Normal | 🟠 Proposed · ✨ AI suggested: <why> |
+| 6 | **<feature>** | Tiny | Normal | ⚪ On hold: "<their words>" |
 ```
 
 **Every open thread has a row and a number**, so they can point at any of
-them: "do 4", "yes to 6", "drop 9". First what is being built, then what comes
-next in the order you will take it, then what cannot move and why.
+them: "build 4", "yes to 6", "drop 9". First what is being built, then what is
+in build in the order you will take it, then what is only proposed.
 
 | Column | Says |
 | --- | --- |
 | # | a number for every thread, yours to point at |
 | Difficulty | from its size: Tiny · Small · Medium · Large · Huge |
 | Priority | Urgent · High · Normal · Someday |
-| Note | 🔵 being built · 🔴 needs you, with the question and its options · 🟡 waiting on something · ✨ AI suggested · ⚪ on hold. Empty when it is simply next. |
+| Note | 🔵 being built · 🔴 needs you, with the question and its options · 🟡 waiting on something · 🟠 proposed, not in build · ✨ AI suggested · ⚪ on hold. Empty when it is in build and simply next. |
 
-Then talk thread 1 through, in the same message.
+End with one line: the page has the detail and is where they move threads (`spool page`).
 
-## Talk it through, then build
+## Build what is in build
 
-One thread at a time, until `spool next` says nothing is ready:
+**Nothing is built unless the human has moved it to build.** They do that on
+the Spool page, or by telling you: "build 3", "go on the jump", "do the first
+two". Their word in chat is `spool build <t-id>`; "not yet" is
+`spool propose <t-id>`. You never move a thread to build yourself, whatever
+it is and whoever thought of it.
 
-1. `spool next` shows the next thread and its brief, without claiming it. Add
-   `-P <project>` if they asked for one project only.
-2. **Talk it through.** Write for someone who knows nothing about the project
-   and has thirty seconds: no file names, no jargon, nothing they would have
-   to look up.
+Repeat until `spool next --claim` says nothing is ready:
 
-       🧵 Next: thread 1 — <name>.
-       What it is: <the feature or the fix, in plain words>.
-       Why now: <why it is next>.
-       My plan: <what you will build or change, and how they will see it>.
-       Go? Or change it, or pick another.
+1. `spool next --claim` hands you the next thread in build, and its brief. It
+   never hands out a proposed one. Add `-P <project>` if they asked for one
+   project only.
+2. Say what you are starting, in one line: "🧵 Starting thread 2 — <name>:
+   <your plan, in a line>."
+3. Build it, by the rules in "Working a thread". They can steer while you work.
+4. Hand it in with `spool done`, or leave it waiting on a question with
+   `spool ask`. Tick it off in a line: "✅ Thread 2 — <name>: <what they can
+   see now>."
 
-   A choice inside it that is theirs to make goes here too, with your
-   recommendation, so it is settled before you start and not halfway through.
-3. **Wait for their word.** This is the human in the loop, and the only gate:
-   nothing is built before they have had this talk. End your turn.
-   - "go", "yes": `spool start <t-id>`, and build.
-   - they change the plan: say it back in a line, record it
-     (`spool log <t-id> "plan: <what was agreed>"`), `spool start <t-id>`, and build.
-   - "not that one", "skip it": talk the next thread through instead; "not
-     now" is a hold.
-   - they pick another: talk that one through.
-   - nobody there: notify them, by "Reaching them", and wait. The next check
-     back in shows the list again.
-   **One go can cover several.** "Go on 1 to 3", "do all the small ones",
-   "all of the AI ones": that is their word for every thread they named.
-   - Write it on each one, so it outlasts this chat:
-     `spool log <t-id> "approved ahead by the human: <their words>"`.
-   - Build them in order, back to back. Before each, one line in place of
-     the full talk: "🧵 Starting thread 2 — <name>: <your plan, in a line>."
-   - Stop for a full talk before the first thread they did not name.
-   - A thread whose log says it was approved ahead needs no new talk, at a
-     check back in or in a new chat: carry on with it.
-4. **Build it,** by the rules in "Working a thread". They can still steer
-   while you work.
-5. Hand it in with `spool done`, or leave it waiting on a question with
-   `spool ask`. Tick it off in a line: "✅ Thread 1 — <name>: <what they can
-   see now>." Then straight on to the next thread's talk.
+Then take the next one. The order is read again every time, so a thread they
+moved to build while you worked comes up in its turn. A question about one
+thread is never a reason to stop: put it through `spool ask` and take the next.
 
-**You hold the context, so put it where it lasts.** What was agreed in the
-talk goes on the thread (`spool log`), what they said goes in their words
-(`spool capture`, then `spool file <note-id> --into <t-id>`), and anything the
-next agent could not learn from the code goes there too. The chat is not the
+**Nothing in build?** Do not build. Say which two or three proposed threads
+you would build first and why, a line each, for someone who knows nothing
+about the project; point them at the page (`spool page`); notify them, by
+"Reaching them"; and end the turn.
+
+**You hold the context, so put it where it lasts.** What they tell you about
+a thread goes on it in their words (`spool capture`, then
+`spool file <note-id> --into <t-id>`), and anything the next agent could not
+learn from the code goes there too (`spool log`). The chat is not the
 record: the spool is.
-
-The order is read again every time, so a thread that became more pressing
-while you worked comes up next: say so in a line when the order changes. A
-question about one thread is never a reason to stop: put it through
-`spool ask` and talk the next thread through.
 
 **They can steer at any time,** and a comment on the thread in hand changes
 it at once: adjust the plan, say what changed in a line, carry on. Everything
-else they say, at the talk or in the middle of a build, take every part of it:
+else they say, take every part of it:
 
 | They say | Run |
 | --- | --- |
+| "build 3", "go on that one", "yes, do it" | `spool build <t-id>` |
+| "not yet", "take that out of build" | `spool propose <t-id>` |
 | an answer: "the second one", "a", "no, do X" | `spool answer <d-id> <n or their words>` |
 | "do X first", "that one can wait" | `spool edit <id> -p <0-3>` |
-| "skip that", "not now", "park that" | `spool hold <t-id> -m "<their words>"` |
-| "start on X", about a thread on hold | `spool release <t-id>` |
-| "yes, add that", about an AI-suggested thread | `spool release <t-id>` |
-| "no", about an AI-suggested thread | `spool drop <t-id> -m "<their words>"` |
+| "park that until the launch" | `spool hold <t-id> -m "<their words>"` |
+| "drop that", "no", about any thread | `spool drop <t-id> -m "<their words>"` |
 | "go ahead with the plan" | `spool approve <t-id>`, always by id, one plan at a time |
 | "not that plan", "that audit missed the point" | `spool revert <t-id> -m "<their words>"` |
 | "undo that", "I don't like it" | `spool revert <t-id> -m "<their words>"` |
@@ -235,9 +220,9 @@ else they say, at the talk or in the middle of a build, take every part of it:
 | "drop that skill" | `spool drop <s-id>` |
 | anything new: an idea, a bug, a wish | `spool capture "<their exact words>"`, then file it |
 
-Never guess an answer or an approval; if you can't tell which thread they
-mean, or whether that was a yes, ask. Their words are the record: pass what
-they said through, don't tidy it into your own.
+Never guess a go, an answer or an approval. If their reply does not plainly
+say it, ask in one line. Their words are the record: pass what they said
+through, don't tidy it into your own.
 
 If your harness has subagents, give each thread to a fresh one with the brief
 and the "Working a thread" rules, one at a time, and in the background where
@@ -288,8 +273,8 @@ The human is usually somewhere else, and a notification is how the loop gets
 them back. Each one costs them their attention, so send only what they would
 act on, at these moments:
 
-- **A thread is ready for their word** and they are not here: "Spool: thread
-  2 is ready to start, a snappier jump. Say go."
+- **Build is empty** and threads are proposed: "Spool: nothing in build.
+  I'd build the jump next. Move it to build on the page."
 - **It is done:** the list is finished. "Spool is done: 4 threads shipped,
   v0.5.0. Nothing left to do."
 - **Nothing can move without them:** "Spool is waiting on you: 2 questions.

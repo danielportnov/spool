@@ -12,6 +12,7 @@ import { RETIRED, installSkills, installedIn, userSkillsDir } from './builtin.ts
 import { type Ctx, notify } from './context.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
 import { runLoop } from './loop.ts';
+import { servePage } from './page.ts';
 import { serve } from './mcp.ts';
 import {
   type Config,
@@ -194,20 +195,26 @@ function fileWork(call: Call, preset?: WorkType): Result {
     priority: priorityOf(call.opts.priority) ?? 2,
     size,
     type: type === 'change' ? undefined : type,
-    // An agent's own idea waits for a yes: on hold, like anything else the human has not asked to start.
-    hold: str(call.opts.hold)?.replace(/\s+/g, ' ').trim() ?? (suggested ? 'AI suggested: waiting for your yes' : undefined),
+    // An agent's own idea waits for a yes. Where the gate is on, everything does: it starts proposed.
+    // Where it is off, the idea goes on hold, like anything else the human has not asked to start.
+    hold: str(call.opts.hold)?.replace(/\s+/g, ' ').trim() ?? (suggested && !spool.config.gate ? 'AI suggested: waiting for your yes' : undefined),
     suggested,
     from: uniq(from.map((i) => i.id)),
     needs: uniq(needs.map((i) => i.id)),
     body: [...quotes, bodyOf(call)].filter(Boolean).join('\n\n'),
   });
+  if (spool.config.gate) {
+    task.status = 'proposed';
+    ws.save(task);
+  }
   for (const note of from) {
     if (note.kind === 'note' && note.status === 'new') {
       note.status = 'filed';
       ws.save(note);
     }
   }
-  const out = [`Queued in ${spool.name}:`, `  ${itemLine(ws, task, p, false)}`];
+  const out = [`${spool.config.gate ? 'Proposed' : 'Queued'} in ${spool.name}:`, `  ${itemLine(ws, task, p, false)}`];
+  if (spool.config.gate) out.push(p.dim(`  It is built only once the human moves it to build: spool build ${task.id}`));
   if (promoted) out.push('Extra-large work starts as a plan, so this was queued as one: it gets split into parts, and the parts get built.');
   return { text: out.join('\n'), data: { task: itemJson(ws, task, true) } };
 }
@@ -282,6 +289,9 @@ function claim(call: Call, task: Item, force: boolean): void {
   const { ws, actor } = call;
   const state = taskState(ws, task);
   if (state === 'done' || state === 'dropped') throw new SpoolError(`${task.id} is already ${state}`);
+  if (state === 'proposed') {
+    throw new SpoolError(`${task.id} is proposed, not in build`, `Only the human moves it to build: spool build ${task.id}`);
+  }
   if (state === 'held') {
     throw new SpoolError(`${task.id} is on hold: ${task.hold}`, `Only the human releases it: spool release ${task.id}`);
   }
@@ -565,6 +575,56 @@ export const COMMANDS: Command[] = [
         ws.save(t);
       }
       return { text: `Released:\n${tasks.map((t) => `  ${itemLine(ws, t, p)}`).join('\n')}`, data: { released: tasks.map((t) => itemJson(ws, t)) } };
+    },
+  },
+
+  {
+    name: 'build',
+    group: 'you',
+    usage: 'build <t-id…>',
+    summary: 'Move proposed work to build: it may be built now, in its turn',
+    human: true,
+    write: true,
+    run({ ws, args, actor, p }) {
+      if (!args.length) throw new SpoolError('what to build is missing', 'spool build <t-id>');
+      const tasks = args.map((ref) => ws.get(ref, 'task'));
+      for (const t of tasks) {
+        const state = taskState(ws, t);
+        if (state === 'done' || state === 'dropped') throw new SpoolError(`${t.id} is already ${state}`);
+        if (state === 'active') throw new SpoolError(`${t.id} is being built already`);
+      }
+      for (const t of tasks) {
+        // Moving something to build is the human saying start: it clears a hold as well.
+        if (t.status !== 'proposed' && !t.hold) continue;
+        addLog(t, actor, t.hold ? `moved to build (was on hold: ${t.hold})` : 'moved to build', ws.now());
+        if (t.status === 'proposed') t.status = 'open';
+        t.hold = undefined;
+        ws.save(t);
+      }
+      return { text: `In build:\n${tasks.map((t) => `  ${itemLine(ws, t, p)}`).join('\n')}`, data: { build: tasks.map((t) => itemJson(ws, t)) } };
+    },
+  },
+  {
+    name: 'propose',
+    group: 'you',
+    usage: 'propose <t-id…>',
+    summary: 'Take work out of build, back to proposed: nothing builds it until you say',
+    human: true,
+    write: true,
+    run({ ws, args, actor, p }) {
+      if (!args.length) throw new SpoolError('what to move back is missing', 'spool propose <t-id>');
+      const tasks = args.map((ref) => ws.get(ref, 'task'));
+      for (const t of tasks) {
+        if (t.status === 'done' || t.status === 'dropped') throw new SpoolError(`${t.id} is already ${t.status}`);
+        if (t.status === 'active') throw new SpoolError(`${t.id} is being built by ${t.by ?? 'someone'}`, 'Let it finish, or drop it: spool drop');
+      }
+      for (const t of tasks) {
+        if (t.status === 'proposed') continue;
+        t.status = 'proposed';
+        addLog(t, actor, 'moved back to proposed', ws.now());
+        ws.save(t);
+      }
+      return { text: `Proposed:\n${tasks.map((t) => `  ${itemLine(ws, t, p)}`).join('\n')}`, data: { proposed: tasks.map((t) => itemJson(ws, t)) } };
     },
   },
 
@@ -1125,6 +1185,7 @@ export const COMMANDS: Command[] = [
               blocked: json(d.blocked),
               active: json(d.active),
               ready: json(d.ready),
+              proposed: json(d.proposed),
               suggested: json(d.suggested),
               held: json(d.held),
               done: d.done,
@@ -1313,7 +1374,7 @@ export const COMMANDS: Command[] = [
   {
     name: 'init',
     group: 'setup',
-    usage: 'init [<folder>] [--name <name>] [--about <one line>] [--share] [--no-agents-file] [--refresh]',
+    usage: 'init [<folder>] [--name <name>] [--about <one line>] [--gate] [--share] [--no-agents-file] [--refresh]',
     summary: 'Start a spool here, or in a folder named here, ignored by git unless --share; does nothing where one exists',
     options: {
       name: { type: 'string' },
@@ -1321,6 +1382,7 @@ export const COMMANDS: Command[] = [
       'no-agents-file': { type: 'boolean' },
       refresh: { type: 'boolean' },
       share: { type: 'boolean' },
+      gate: { type: 'boolean' },
     },
     bare({ ctx, args, opts, p }) {
       // A folder may be named the way a person says it: "sky hop" finds games/sky_hop.
@@ -1338,7 +1400,7 @@ export const COMMANDS: Command[] = [
       const fresh = !fs.existsSync(path.join(dir, 'config.json'));
       // Run by accident where a spool exists, this changes nothing. --refresh is the deliberate version:
       // after an upgrade, it brings the agents' pointer up to date and puts back anything missing.
-      if (!fresh && !opts.refresh && !opts.share) {
+      if (!fresh && !opts.refresh && !opts.share && !opts.gate) {
         const name = readConfig(root).name ?? path.basename(root);
         return {
           text: [
@@ -1352,7 +1414,11 @@ export const COMMANDS: Command[] = [
       if (fresh) {
         const config: Config = { version: 1, name: str(opts.name) ?? path.basename(root) };
         if (str(opts.about)) config.about = str(opts.about);
+        if (opts.gate) config.gate = true;
         write(path.join(dir, 'config.json'), `${JSON.stringify(config, null, 2)}\n`);
+      } else if (opts.gate && !readConfig(root).gate) {
+        // Turning the gate on for a project that has a spool: one key, nothing else touched.
+        write(path.join(dir, 'config.json'), `${JSON.stringify({ ...readConfig(root), gate: true }, null, 2)}\n`, true);
       }
       write(path.join(dir, 'policy.md'), DEFAULT_POLICY);
       // An existing .gitignore is someone's choice and is kept; --share is the one thing that rewrites it.
@@ -1379,6 +1445,9 @@ export const COMMANDS: Command[] = [
       if (wrote.length) out.push(...wrote.map((f) => p.dim(`  wrote ${f}`)));
       if (fresh && parent) out.push(`It sits under ${path.basename(parent)} and shows up there as a project.`);
       const local = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8').split('\n').includes('*');
+      if (config.gate && (fresh || opts.gate)) {
+        out.push('The build gate is on: new work starts as proposed, and nothing is built until you move it to build.');
+      }
       if (fresh || opts.share) {
         out.push(
           local
@@ -1392,7 +1461,8 @@ export const COMMANDS: Command[] = [
         out.push(
           '',
           'Next, in your agent. You should not need this command line again.',
-          '  /spool-loop       the loop: it shows you every open thread, talks the next one through, and builds it on your word',
+          '  /spool-page       the board: every thread, and where you move the ones you want built into build',
+          '  /spool-loop       the loop: it builds what is in build, thread after thread, and tells you when it needs you',
           '  /spool-record     put it in front of anything you type or say, and that message is filed as threads',
           `  ${path.join(SPOOL_DIR, 'policy.md')} says what agents may decide without you — worth two minutes.`,
         );
@@ -1450,6 +1520,14 @@ export const COMMANDS: Command[] = [
       ...PROJECT,
     },
     bare: (call) => runLoop(call),
+  },
+  {
+    name: 'page',
+    group: 'setup',
+    usage: 'page [--port <n>] [--no-open] [-P <project>]',
+    summary: 'Open the Spool page: the board where the human moves work to build, adds notes and answers',
+    options: { port: { type: 'string' }, 'no-open': { type: 'boolean' }, ...PROJECT },
+    bare: (call) => servePage(call),
   },
   {
     name: 'mcp',

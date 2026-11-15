@@ -8,7 +8,7 @@
 import { type Item, type Spool, isPlan, isSettled } from './model.ts';
 import type { Workspace } from './store.ts';
 
-export type TaskState = 'ready' | 'held' | 'blocked' | 'active' | 'stale' | 'done' | 'dropped';
+export type TaskState = 'proposed' | 'ready' | 'held' | 'blocked' | 'active' | 'stale' | 'done' | 'dropped';
 
 /** Tasks that came from `item`: the parts of a plan, the findings of an audit. */
 export function children(ws: Workspace, item: Item): Item[] {
@@ -48,6 +48,8 @@ function leaseMs(task: Item): number {
 
 export function taskState(ws: Workspace, task: Item): TaskState {
   if (task.status === 'done' || task.status === 'dropped') return task.status;
+  // Proposed is the gate: it has not been moved to build, so nothing else about it matters yet.
+  if (task.status === 'proposed') return 'proposed';
   if (task.hold) return 'held';
   if (blockers(ws, task).length) return 'blocked';
   if (task.status === 'active') {
@@ -177,6 +179,8 @@ export interface Docket {
   active: Item[];
   /** In the order it will be picked. */
   ready: Item[];
+  /** Not in build: waiting for the human to move them there. Most urgent first. */
+  proposed: Item[];
   /** Ideas agents added by themselves: on hold until the human says yes. */
   suggested: Item[];
   held: Item[];
@@ -194,7 +198,7 @@ export function docket(ws: Workspace, spool: Spool): Docket {
   const queue = review(ws, spool);
   const mine = tasks(ws, spool);
   const big = (t: Item) => t.type === 'plan' || t.size === 'xl';
-  const live = mine.filter((t) => !['done', 'dropped', 'held'].includes(taskState(ws, t)));
+  const live = mine.filter((t) => !['done', 'dropped', 'held', 'proposed'].includes(taskState(ws, t)));
   const rest = live.filter((t) => !big(t));
   const state = (t: Item) => taskState(ws, t);
   return {
@@ -204,6 +208,9 @@ export function docket(ws: Workspace, spool: Spool): Docket {
     blocked: rest.filter((t) => state(t) === 'blocked'),
     active: rest.filter((t) => state(t) === 'active' || state(t) === 'stale'),
     ready: ready(ws, spool).filter((t) => !big(t) && state(t) === 'ready'),
+    proposed: mine
+      .filter((t) => state(t) === 'proposed')
+      .sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2) || effort(a) - effort(b) || a.created.localeCompare(b.created)),
     suggested: mine.filter((t) => state(t) === 'held' && !!t.suggested),
     held: mine.filter((t) => state(t) === 'held' && !t.suggested),
     done: mine.filter((t) => t.status === 'done').length,

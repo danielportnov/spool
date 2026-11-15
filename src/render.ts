@@ -37,6 +37,7 @@ export function paint(on: boolean): Paint {
 }
 
 const MARK: Record<string, string> = {
+  proposed: '◇',
   ready: '○',
   active: '▶',
   stale: '▷',
@@ -95,6 +96,7 @@ export function itemLine(ws: Workspace, item: Item, p: Paint, showProject = true
   const notes: string[] = [];
   if (item.kind === 'task') {
     if (state === 'blocked') notes.push(`needs ${blockers(ws, item).map((b) => b.id).join(', ')}`);
+    if (state === 'proposed') notes.push(item.suggested ? 'proposed · AI suggested' : 'proposed');
     if (state === 'held') notes.push(`on hold: ${oneLine(item.hold ?? '', 60)}`);
     if (state === 'active') notes.push(`${item.by ?? 'someone'}, ${age(item.updated, ws.now())}`);
     if (state === 'stale') notes.push(`${item.by ?? 'someone'} went quiet ${age(item.updated, ws.now())} ago`);
@@ -118,6 +120,7 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
     `${p.bold(task.id)}  ${tag(task)}  ${p.bold(`${task.type ? `${task.type}: ` : ''}${task.title}`)}`,
     p.dim(`${task.spool.name} · work in ${task.spool.root}`),
   ];
+  if (task.status === 'proposed') out.push(p.yellow('PROPOSED — not in build. Do not start it; only the human moves it to build.'));
   if (task.hold) out.push(p.yellow(`ON HOLD — ${task.hold}. Do not start it; only the human releases it.`));
   if (main) out.push('', main);
 
@@ -260,6 +263,7 @@ function docketText(ws: Workspace, d: Docket, p: Paint): string {
   const open = d.breakDown.length + d.blocked.length + d.active.length + d.ready.length;
   const facts = [
     `${plural(open, 'thread')} open`,
+    ...(d.proposed.length ? [`${d.proposed.length} proposed`] : []),
     ...(d.suggested.length ? [`${d.suggested.length} suggested`] : []),
     ...(d.held.length ? [`${d.held.length} on hold`] : []),
     `${d.done} done`,
@@ -299,6 +303,7 @@ function docketText(ws: Workspace, d: Docket, p: Paint): string {
     return row(t, [taskState(ws, t) === 'stale' ? `${who} went quiet ${when} ago` : `${who}, ${when}`]);
   }, list('active'));
   group('🟢', p.green('READY'), d.ready, (t, i) => row(t, [], `${i + 1}. `), list('ready'));
+  group('🟠', 'PROPOSED', d.proposed, (t) => row(t, [...(t.suggested ? [`✨ AI suggested: “${oneLine(t.suggested, 60)}”`] : []), 'move it to build to start it']), list('proposed'));
   group('✨', 'AI SUGGESTED', d.suggested, (t) => row(t, [`“${oneLine(t.suggested ?? '', 70)}”`, 'say yes and it joins the list']), list('held'));
   group('⚪', 'ON HOLD', d.held, (t) => row(t, [`“${oneLine(t.hold ?? '', 60)}”`]), list('held'));
 
@@ -362,6 +367,9 @@ export function tableRows(ws: Workspace, d: Docket): TableRow[] {
   }
   const waiting = mine.filter((t) => state(t) === 'blocked').map((t) => ({ item: t, ...waitNote(ws, t) }));
   rows.push(...waiting.filter((r) => r.mark === '🔴'), ...waiting.filter((r) => r.mark !== '🔴'));
+  for (const t of d.proposed) {
+    rows.push({ item: t, mark: '🟠', note: t.suggested ? `Proposed · ✨ AI suggested: ${oneLine(t.suggested, 100)}` : 'Proposed' });
+  }
   for (const t of d.suggested) rows.push({ item: t, mark: '✨', note: `AI suggested: ${oneLine(t.suggested ?? '', 110)}. Say yes and it joins the order.` });
   for (const t of d.held) rows.push({ item: t, mark: '⚪', note: `On hold: “${oneLine(t.hold ?? '', 80)}”` });
   return rows.map((r, i) => ({ n: i + 1, ...r }));
@@ -377,7 +385,8 @@ function tableText(ws: Workspace, d: Docket): string {
   const cell = (text: string) => text.replace(/\|/g, '\\|');
   const needs = rows.filter((r) => r.mark === '🔴').length;
   const facts = [
-    `${plural(rows.length - d.suggested.length - d.held.length, 'thread')} open`,
+    `${plural(rows.length - d.proposed.length - d.suggested.length - d.held.length, 'thread')} in build`,
+    ...(d.proposed.length ? [`${d.proposed.length} proposed`] : []),
     ...(needs ? [`${needs} ${needs === 1 ? 'needs' : 'need'} you`] : []),
     ...(d.suggested.length ? [`${d.suggested.length} AI suggested`] : []),
     ...(d.held.length ? [`${d.held.length} on hold`] : []),
@@ -412,7 +421,7 @@ export function overviewTable(ws: Workspace, spools: Spool[]): string {
 export function overviewText(ws: Workspace, spools: Spool[], p: Paint): string {
   const dockets = spools.map((s) => docket(ws, s));
   const busy = (d: Docket) =>
-    d.needsYou.length + d.breakDown.length + d.blocked.length + d.active.length + d.ready.length + d.suggested.length + d.held.length > 0 ||
+    d.needsYou.length + d.breakDown.length + d.blocked.length + d.active.length + d.ready.length + d.proposed.length + d.suggested.length + d.held.length > 0 ||
     Object.values(d.also).some(Boolean);
   const shown = dockets.length > 1 ? dockets.filter(busy) : dockets;
   const quiet = dockets.filter((d) => !shown.includes(d));
@@ -577,6 +586,8 @@ export function nothingReady(ws: Workspace, project?: string): string {
   if (active.length) out.push(`  ${plural(active.length, 'task')} being worked`);
   const held = all.filter((t) => taskState(ws, t) === 'held').length;
   if (held) out.push(`  ${plural(held, 'task')} on hold — spool list -s held`);
+  const proposed = all.filter((t) => taskState(ws, t) === 'proposed').length;
+  if (proposed) out.push(`  ${plural(proposed, 'task')} proposed — nothing builds them until the human moves them to build`);
   const inbox = review(ws, project).inbox.length;
   if (inbox) out.push(`  ${inbox} unfiled in the inbox — spool inbox`);
   if (out.length === 1 && !ready(ws, project).length) out.push('  The queue is empty.');

@@ -23,6 +23,10 @@
  * "Blocked" is not a status. It is computed from `needs` every time, so it
  * cannot go stale: answer a question and everything behind it is ready.
  *
+ * "Proposed" is a status, and it is the gate. In a project that has the gate
+ * on, every new task starts proposed and no agent can claim it: only the human
+ * moves it to build. That is how they decide what gets built.
+ *
  * "On hold" is different: it is the human saying not yet. An idea to keep but
  * not start, work parked behind a launch. It waits for their word and asks
  * nothing of them in the meantime.
@@ -34,7 +38,7 @@ export type Kind = 'note' | 'task' | 'decision' | 'skill';
 
 export const KINDS: Record<Kind, { prefix: string; statuses: readonly string[]; initial: string }> = {
   note: { prefix: 'n', statuses: ['new', 'filed', 'dropped'], initial: 'new' },
-  task: { prefix: 't', statuses: ['open', 'active', 'done', 'dropped'], initial: 'open' },
+  task: { prefix: 't', statuses: ['proposed', 'open', 'active', 'done', 'dropped'], initial: 'open' },
   decision: { prefix: 'd', statuses: ['open', 'assumed', 'decided', 'dropped'], initial: 'open' },
   skill: { prefix: 's', statuses: ['active', 'dropped'], initial: 'active' },
 };
@@ -76,6 +80,11 @@ export interface Config {
   skillsDir?: string;
   /** One pick in this many goes to large work, however many quick wins are waiting. Default 4. */
   largeEvery?: number;
+  /**
+   * The build gate. When true, every new task starts proposed, and nothing is
+   * built until the human moves it to build. `spool init --gate` turns it on.
+   */
+  gate?: boolean;
 }
 
 export interface Item {

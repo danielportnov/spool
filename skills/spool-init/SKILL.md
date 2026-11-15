@@ -30,7 +30,10 @@ Get this project from nothing to agents working it, in one short conversation.
    that folder's README or code. Do not ask for them. That line is how feedback
    gets routed to the right project.
 
-       spool init [<folder>] --name "<name>" --about "<what this project is, in one line>"
+       spool init [<folder>] --name "<name>" --about "<what this project is, in one line>" --gate
+
+   `--gate` turns the build gate on: every new thread starts as proposed, and
+   nothing is built until they move it to build. Tell them so in a line.
 
    `spool init` takes the folder as a path or by name, and is safe to get
    wrong: where a spool exists it changes nothing and says "already set up".
@@ -61,7 +64,9 @@ Get this project from nothing to agents working it, in one short conversation.
 
 End with what happens next, in one line each:
 
-- `/spool-loop` to start the loop: it shows every open thread in the order it suggests,
-  explains each one before building it, and builds on their word. This is the one they need.
+- `/spool-loop` to start the loop: it builds what they have moved to build, one
+  thread after another, and tells them when it is done or needs them.
 - `/spool-record` in front of anything they type or say, in any chat, to
   have that message filed as threads
+- `/spool-page` for the board: where they see every thread and move the ones
+  they want built into build

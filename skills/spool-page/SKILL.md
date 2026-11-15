@@ -1,0 +1,32 @@
+---
+name: spool-page
+description: Open the Spool page - a board in the browser with every thread of this project's spool in four columns (proposed, build, building, done), where the user drags threads into build or presses play, adds notes and answers questions. Use for /spool-page, or when the user says "open the spool page", "open the board", "show me the board", "let me see the spool", or wants to plan or move threads around.
+---
+
+# Spool page
+
+The page is where the human plans and steers. Everything long lives there, so
+the chat can stay short.
+
+1. Run `spool page` in the background: it is a small server on their machine
+   and has to keep running. It prints the page's address and opens it in their
+   browser. If your harness has a browser pane, open the address there and
+   add `--no-open`. No `.spool/` here? Tell them to run `/spool-init`, and stop.
+2. Give them the address, and say in one line what the board is for. Then stop:
+   do not describe the board in the chat. They can see it.
+
+What they can do on it:
+
+| On the page | What it does |
+| --- | --- |
+| Drag a thread 🧵 to **Build**, or press ▶ | It may be built now, in its turn. This is the only way anything gets built. |
+| **Not yet**, or drag it back | Back to proposed. Nothing builds it. |
+| A note on a thread | It lands on that thread, in their words. |
+| The box at the top | A new idea goes into the spool 🧶; the loop files it as threads on its next run. |
+| An answer button on a question | The thread it was holding up can move again. |
+
+The page says so if the build gate is off in this project, which means new
+threads go straight to build. Offer to turn it on: `spool init --gate`.
+
+Agents keep working while the page is open, and it shows threads move as they do.
+`spool page -P <project>` shows one project of a folder of them.

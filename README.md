@@ -3,9 +3,9 @@
 **You talk. Agents turn it into work, keep working, and come back only for the calls that are yours.**
 
 Spool is a handful of agent skills, and a small CLI underneath them, that keep coding agents working
-on a project by themselves. Two commands: `/spool-init` once, then `/spool-loop`. The *loop* shows you
-every open thread in the order it suggests, talks you through the next one in plain words, builds it
-on your word, and comes back with the next. You need to know nothing: it holds the context. A
+on a project by themselves. `/spool-init` once, then `/spool-loop`. Agents propose; you decide what
+gets built by moving it to build on the *page*; the *loop* builds exactly that, thread after thread,
+and tells you when it is done or needs you. You need to know nothing: it holds the context. A
 *recorder* takes ideas the moment you have them — while playing the build, from your phone, by voice.
 When an agent reaches a choice, it either makes the call and leaves a receipt, or asks you and gets on
 with something else. Anything it ships can be taken back in a sentence.
@@ -36,38 +36,57 @@ dependencies.
 
 ## The skills
 
-You use Spool by talking to your agent. There are three skills:
+You use Spool by talking to your agent. There are four skills:
 
 | Skill | What it does | Use it |
 | --- | --- | --- |
 | `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
-| `/spool-loop [hours]` | **The main one.** It shows you every open thread 🧵 in the spool 🧶, ranked in the order it suggests, with its own ideas marked ✨ AI suggested. Then it takes them one at a time: it explains the thread in plain words and its plan, you say go (or change it, or pick another), and it builds. It notifies you when it is done or needs you, and checks back every `hours` (3 unless you say) for anything new | once, and leave the chat open |
+| `/spool-loop [hours]` | **The main one.** It builds the threads 🧵 you have moved to build, one after another, and nothing else. It shows you the spool 🧶, adds its own ideas as ✨ AI suggested, notifies you when build is empty or it needs you, and checks back every `hours` (3 unless you say) | once, and leave the chat open |
+| `/spool-page` | Opens the board: every thread in four columns, proposed, build, building, done. Drag a thread to build or press ▶, add notes, answer questions | whenever you want to plan or steer |
 | `/spool-record <what, and where>` | Put it in front of anything you type or say: that one message is filed as threads 🧵, and the chat carries on as it was | whenever you have feedback or an idea |
 
-**init** once, then **loop**, and that is the whole workflow. **record** is for adding to the spool
-whenever something comes to mind.
+**init** once, then **loop**. **page** is where you decide what gets built, and **record** is for
+adding to the spool whenever something comes to mind.
+
+### Nothing is built until you say
+
+Every new thread starts as **proposed**. An agent can file it, size it, suggest it, and explain why,
+but no agent can start it. It is built only when you move it to **build**: by dragging it there on
+the page, pressing ▶, or telling your agent "build that one". That is the whole gate.
+
+### The Spool page
+
+```bash
+spool page
+```
+
+A small server on your own machine opens a board in your browser:
+
+| 🟠 Proposed | 🟢 Build | 🔵 Building | ✅ Done |
+| --- | --- | --- | --- |
+| Not built. Yours to move. | Agents take these in order. | An agent has it now. | Most recent first. |
+
+Drag a thread into Build, or press ▶. Write a note on a thread and it lands there in your words.
+Answer a question with one button. Type an idea in the box at the top and the loop files it as
+threads. Agents keep working while it is open, and the board shows threads move as they do.
+
+The page listens on `127.0.0.1` only and nothing leaves your machine.
 
 ### What the loop does
 
-You should be able to know nothing about the project and still run it well: the loop holds the
-context, explains, and builds; you decide. The same three things, every time it runs:
+The same three things, every time it runs:
 
-1. **Shows the spool.** One table, the same layout each time: every open thread, numbered in the
-   order it suggests doing them, with its difficulty and priority, and a note where something needs
-   you. Its own ideas are in there too, marked ✨ **AI suggested**: they wait for your yes. Above the
-   table, what got done since last time.
-2. **Talks the next thread through, then builds it.** Before each thread it says what it is, in
-   plain words, why it is next, and what it plans to do. That talk is where you are in the loop: say
-   go, change the plan, or pick another. One go can cover several ("go on 1 to 3"), and it builds
-   those back to back. Then it ticks the thread off and comes back with the next one. What you agreed is written on the thread, so the context lives in the spool and not
-   in your head.
-3. **Says when it is done.** It notifies you when a thread is ready for your word and you are away,
-   when the list is finished, or when nothing can move without you. What shipped gets a version: a
+1. **Shows the spool.** One table, the same layout each time: every open thread, numbered, with its
+   difficulty and priority, what is in build and what is only proposed. Its own ideas are in there
+   too, marked ✨ **AI suggested**.
+2. **Builds what is in build.** One thread after another, in order, a line as it starts each and a
+   line as it finishes. Nothing that is only proposed is ever built. Steer it at any point.
+3. **Says when it is done.** It notifies you when build is empty, when nothing can move without you,
+   or when a question stops one thread while the others carry on. What shipped gets a version: a
    bump, a changelog entry and a tag that stays on your machine.
 
-The schedule is only a check back in. Every few hours the loop looks at the spool again, ranks in
-anything new or more pressing, shows the list and carries on. There is no session to fill and no
-deadline: the list is the plan.
+The schedule is only a check back in. Every few hours the loop looks at the spool again and carries
+on with whatever you have moved to build since.
 
 They are plain [Agent Skills](https://agentskills.io) in [`skills/`](skills): read them, edit them.
 The `spool` command is the engine they run. It holds the queue, the lock, the scheduler and the undo —
@@ -114,31 +133,25 @@ In another chat, or the same one later:
 
 > **You:** /spool-loop
 >
-> **Agent:** **🧶 Sky Hop** · 3 threads open, 1 needs you, 1 idea of mine
+> **Agent:** **🧶 Sky Hop** · 1 thread in build · 2 proposed
 >
 > | # | 🧵 Thread | Difficulty | Priority | Note |
 > | --- | --- | --- | --- | --- |
 > | 1 | **Tighter jump** | Small | High | |
-> | 2 | **Pause button over the score** | Tiny | Normal | |
-> | 🔴 | **Coins readable at sunset** | Small | High | Needs you: **a** dark outline · **b** teal. I'd pick **a**. |
-> | ✨ | **Remember the last level** | Small | Normal | AI suggested: the game always reopens on level one. Say yes and it joins the list. |
+> | 2 | **Coins readable at sunset** | Tiny | Normal | 🟠 Proposed |
+> | 3 | **Remember the last level** | Small | Normal | 🟠 Proposed · ✨ AI suggested: the game always reopens on level one |
 >
-> 🧵 Next: thread 1 — Tighter jump.<br>
-> What it is: the jump hangs in the air too long, so landing on small platforms is guesswork.<br>
-> Why now: it is the thing you said bothers you most.<br>
-> My plan: shorten the hang at the top of the jump; you'll feel it on the first level.<br>
-> Go? Or change it, or pick another.
+> 🧵 Starting thread 1 — Tighter jump: shorten the hang at the top; you'll feel it on the first level.
 >
-> **You:** go. snappy, not heavy. a for the coins. and yes to remembering the level
+> **You:** snappy, not heavy. and build 2
 >
-> **Agent:** Snappy, not heavy: I'll cut the hang time and leave gravity alone. Coins get the outline,
-> and both are in the list now. Building the jump.
+> **Agent:** Snappy: cutting the hang time, leaving gravity alone. Coins are in build.
 >
 > **Agent:** ✅ Thread 1 — Tighter jump: try the first level.<br>
-> 🧵 Next: thread 2 — Coins readable at sunset…
+> 🧵 Starting thread 2 — Coins readable at sunset…
 
-With you somewhere else, a notification instead: *Spool: thread 3 is ready to start, the pause
-button. Say go.*
+With you somewhere else, a notification: *Spool: nothing in build. I'd build "remember the last
+level" next. Move it to build on the page.*
 
 Underneath, the engine keeps every thread under a colour. This is what an agent reads
 (`spool overview`), and what the loop's table is made from:
@@ -537,7 +550,8 @@ These are the verbs the skills run. They are here for reference, and for buildin
 | `spool ask <question> --option … [--recommend n] [--for t-id]` | Put a call to the human |
 | `spool assume <question> --chose … [--why …] [--for t-id]` | Record a call you made |
 | `spool done <t-id> -m <summary> [--report file\|-] [--skill name]` | Finish: record how to undo a change, or hand in a report |
-| `spool task <title> [-s xs…xl] [-p 0-3] [--from id] [--needs id] [--suggested why]` | Queue a change; `--suggested` files an agent's own idea, which waits for your yes |
+| `spool task <title> [-s xs…xl] [-p 0-3] [--from id] [--needs id] [--suggested why]` | File a change: proposed where the gate is on; `--suggested` marks an agent's own idea |
+| `spool build <t-id…>` · `spool propose <t-id…>` | Yours: move work to build, or back to proposed |
 | `spool audit <what to examine>` · `spool plan <objective>` | Queue a look-and-report, or something big |
 | `spool file <n-id> --into <id> \| --drop` | Attach a note to existing work, or set it aside |
 | `spool log <id> <text>` | Leave a note for whoever comes next |
@@ -559,6 +573,7 @@ These are the verbs the skills run. They are here for reference, and for buildin
 | `spool install [--here \| --dir path] [--force]` | Put the skills where your agent finds them |
 | `spool init [folder] [--name n] [--about line] [--share] [--refresh]` | Start a spool here or in a named folder, ignored by git unless `--share`; a no-op where one exists, unless `--refresh` |
 | `spool loop [--watch s] [--agent cmd]` | Work the queue with no chat |
+| `spool page [--port n] [--no-open]` | Open the Spool page: the board where you move work to build |
 | `spool mcp [-C dir]` | Serve the verbs as MCP tools over stdio, for agents with no shell |
 
 Every command takes `--json`, `-C <dir>` and `--as <name>`. Errors say what to do instead.

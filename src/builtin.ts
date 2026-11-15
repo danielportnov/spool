@@ -2,8 +2,9 @@
  * The skills Spool ships: how people use it.
  *
  * Spool is driven by talking to an agent, and the skills in `skills/` are the
- * whole of that surface, and there are three: one to set a project up, the
- * loop that shows the spool and works it, and one to record what the human says. The CLI is what those skills run.
+ * whole of that surface, and there are four: one to set a project up, the
+ * loop that builds what is in build, one to record what the human says, and
+ * one to open the page where they decide what gets built. The CLI is what those skills run.
  *
  * They are ordinary Agent Skills, plain SKILL.md files, so they can be read on
  * GitHub and edited in place. `spool install` copies them to where the harness
@@ -26,7 +27,7 @@ import { parseFrontmatter } from './frontmatter.ts';
 import { SpoolError } from './model.ts';
 
 /** In the order someone meets them. */
-export const SKILL_NAMES = ['spool-init', 'spool-loop', 'spool-record'] as const;
+export const SKILL_NAMES = ['spool-init', 'spool-loop', 'spool-record', 'spool-page'] as const;
 export type SkillName = (typeof SKILL_NAMES)[number];
 
 /**
@@ -37,7 +38,7 @@ export type SkillName = (typeof SKILL_NAMES)[number];
 export const RETIRED: Record<string, string> = {
   'spool-blockers': 'the loop lists what needs you every time it runs: /spool-loop',
   'spool-overview': 'the loop shows the whole spool every time it runs: /spool-loop',
-  'spool-help': 'there are three skills now: /spool-init, /spool-loop and /spool-record',
+  'spool-help': 'the skills are few now: /spool-init, /spool-loop, /spool-record and /spool-page',
   'spool-recorder': 'renamed: /spool-record',
 };
 

@@ -84,7 +84,7 @@ test('--table prints the loop’s list: every open thread numbered, in the order
   s.sp('start', jump);
 
   const out = s.sp('overview', '--table').split('\n');
-  assert.equal(out[0], '**🧶 demo** · 4 threads open · 1 needs you · 1 AI suggested · 1 on hold · 0 done');
+  assert.equal(out[0], '**🧶 demo** · 4 threads in build · 1 needs you · 1 AI suggested · 1 on hold · 0 done');
   assert.deepEqual(out.slice(2, 4), ['| # | 🧵 Thread | Difficulty | Priority | Note |', '| --- | --- | --- | --- | --- |']);
   assert.deepEqual(out.slice(4), [
     '| 1 | **Tighten the jump arc** | Small | High | 🔵 Being built now |',
