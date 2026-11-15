@@ -185,15 +185,45 @@ take the next thread.
 
 ## Wrap up
 
-A few plain lines, the first that applies first:
+First give what shipped a version: see "A version for what shipped". Then a
+few plain lines, the first that applies first:
 
 - what is waiting on them, as a count, and that `/spool-blockers` walks through it;
 - the proposal, with what shipped ticked off and how they can see each thing;
+- the new version, if there is one;
 - when you will be back.
 
 No ids and no tables unless they ask. Then end the turn, and keep the schedule:
 answers and new feedback arrive between cycles, and the next one picks them
 up. A cycle that finds nothing it can move says what it is waiting on, and ends.
+
+### A version for what shipped
+
+A cycle that shipped a change ends by giving the project a new version, so
+"it broke in 0.4" means something to everyone. Once per cycle, after the last
+thread, for each project that shipped a change. A cycle of only audits and
+plans changes no version.
+
+1. **Find the version** where the project already keeps it: `package.json`,
+   `Cargo.toml`, `pyproject.toml`, `pubspec.yaml`, `app.json`, an Xcode
+   `MARKETING_VERSION`, a `VERSION` file. It keeps none? Start a `VERSION`
+   file at `0.1.0`.
+2. **Bump it.** Something a user can newly see or do: minor, 0.3.2 → 0.4.0.
+   Only fixes and tidying: patch, 0.3.2 → 0.3.3. A major, or the first 1.0,
+   is the human's call: `spool ask`. Use the project's own tool where it has
+   one (`npm version minor --no-git-tag-version`), so lockfiles follow.
+3. **Write the changelog.** `CHANGELOG.md`, newest first: the version, the
+   date, and one line for each thread shipped since the last version, in the
+   human's terms. `git log <last tag>..HEAD` shows what shipped, yours and
+   anyone else's.
+4. **Commit and tag.** One commit, `Version <x.y.z>`, holding only the version
+   and the changelog; then `git tag -a v<x.y.z> -m "<x.y.z>"`, in the style of
+   the tags already there. No `Spool:` trailer: a version is not a thread, and
+   undoing a thread never takes a version back.
+
+The tag stays on this machine. Pushing it, publishing a package and making a
+release are the human's calls, in their words. If the policy says this project
+is not versioned, skip all of this.
 
 ## Reaching them
 

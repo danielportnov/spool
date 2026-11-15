@@ -170,6 +170,9 @@ test('the loop skill is a cycle: take stock, check in, work, wrap up', () => {
   assert.match(loop, /\*\*A spool 🧶 holds threads 🧵\.\*\*/);
   assert.match(loop, /\*\*1\. 🧶 The spool\.\*\*[\s\S]*\*\*2\. 🎯 The proposal\.\*\*[\s\S]*In the\nnext `<hours>` hours I propose to ship[\s\S]*\*\*3\. ❓ Questions\.\*\*/);
 
+  // What shipped gets a version: bumped, written up and tagged, and never pushed.
+  assert.match(loop, /### A version for what shipped[\s\S]*Once per cycle[\s\S]*minor, 0\.3\.2 → 0\.4\.0[\s\S]*A major, or the first 1\.0,\n {3}is the human's call[\s\S]*`CHANGELOG\.md`[\s\S]*`git tag -a v<x\.y\.z>[\s\S]*The tag stays on this machine/);
+
   // It reaches the human through the harness's own notifications, and only when they would act.
   assert.match(loop, /## Reaching them[\s\S]*A check-in is posted[\s\S]*A question stops a thread mid-cycle[\s\S]*Nothing can move without them[\s\S]*`PushNotification`/);
 

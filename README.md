@@ -63,6 +63,8 @@ that matter; the rest are for looking closer.
 3. **Wait ten minutes.** Reply and it takes every part of what you say: answers, a different set of
    threads, new ideas. Say nothing and it starts on its proposal.
 4. **Work** until the next cycle is due, or nothing can move without you.
+5. **Version** what shipped: one bump per cycle (minor for something new, patch for fixes), a
+   changelog entry, and a tag. The tag stays on your machine; pushing and releasing are yours.
 
 They are plain [Agent Skills](https://agentskills.io) in [`skills/`](skills): read them, edit them.
 The `spool` command is the engine they run. It holds the queue, the lock, the scheduler and the undo —
