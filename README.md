@@ -494,6 +494,29 @@ allowed to do is your harness's business, not Spool's. A task the agent finishes
 a question on waits for you; one it walks away from is released and not retried until something
 changes. The lock is never held while an agent runs, and each task gets a fresh agent.
 
+**MCP, for an agent with no shell.** A chat app on your phone cannot run a command. `spool mcp` gives
+it the same verbs as [Model Context Protocol](https://modelcontextprotocol.io) tools: `spool_capture`,
+`spool_review`, `spool_answer` and the rest, one tool per command, each answering with the JSON that
+command returns under `--json`. Point your MCP client at it, and at the project:
+
+```json
+{
+  "mcpServers": {
+    "spool": { "command": "spool", "args": ["mcp", "-C", "/path/to/your/project"] }
+  }
+}
+```
+
+Now "what needs me?" and "outline it, and undo the jump change" work from wherever you are, on the
+same spool 🧶 your agents are working, thread 🧵 by thread.
+
+The server runs over stdio and works in that one project. A tool call cannot name another directory,
+and where a command would read a file the tool takes the text instead. The set-up verbs are not
+offered at all: `loop` starts programs, and `install` and `init` write wherever they are pointed. The
+tools that act in your name — capture, answer, approve, revert, release — say so, and tell the agent
+to call them only on your word. It speaks the current MCP revision, 2026-07-28, and the earlier ones
+that open with a handshake.
+
 ## The engine
 
 These are the verbs the skills run. They are here for reference, and for building on.
@@ -536,6 +559,7 @@ These are the verbs the skills run. They are here for reference, and for buildin
 | `spool install [--here \| --dir path] [--force]` | Put the skills where your agent finds them |
 | `spool init [folder] [--name n] [--about line] [--share] [--refresh]` | Start a spool here or in a named folder, ignored by git unless `--share`; a no-op where one exists, unless `--refresh` |
 | `spool loop [--watch s] [--agent cmd]` | Work the queue with no chat |
+| `spool mcp [-C dir]` | Serve the verbs as MCP tools over stdio, for agents with no shell |
 
 Every command takes `--json`, `-C <dir>` and `--as <name>`. Errors say what to do instead.
 
@@ -552,7 +576,6 @@ they need you, and how little of you it takes when they do.
 Spool is developed with Spool; the queue is in [`.spool/`](.spool/items). Clone it and run
 `spool status`. Next up:
 
-- **MCP server** — the same verbs as tools, for agents with no shell.
 - **Memory** — free-standing facts linked into the graph and recalled into briefs by following edges.
 - **Skill suggestions** — notice procedures that recur across finished tasks and propose them.
 - **Obsidian** — a vault that opens with a useful graph view out of the box.
@@ -569,7 +592,7 @@ npm run check     # tsc
 npm run build     # dist/
 ```
 
-The source is twelve small files with no runtime dependencies; [`src/model.ts`](src/model.ts) is the
+The source is fourteen small files with no runtime dependencies; [`src/model.ts`](src/model.ts) is the
 schema and [`src/prime.ts`](src/prime.ts) is the protocol. Commands take their working directory,
 environment and clock as arguments, so the tests drive the real CLI in-process against temp
 directories, including real git repositories and stand-in agents.

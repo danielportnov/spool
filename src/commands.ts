@@ -12,6 +12,7 @@ import { RETIRED, installSkills, installedIn, userSkillsDir } from './builtin.ts
 import { type Ctx, notify } from './context.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
 import { runLoop } from './loop.ts';
+import { serve } from './mcp.ts';
 import {
   type Config,
   type Item,
@@ -78,6 +79,7 @@ export interface Result {
 export interface Command {
   name: string;
   aliases?: string[];
+  /** 'setup' is for a person at their own machine: those verbs start programs or write wherever they are pointed, so `spool mcp` does not offer them. */
   group: 'you' | 'agents' | 'see' | 'setup';
   usage: string;
   summary: string;
@@ -86,6 +88,8 @@ export interface Command {
   /** Changes the store, so it runs under the lock. */
   write?: boolean;
   options?: Options;
+  /** The option that names a file to read. A caller with no files (`spool mcp`) gives the text instead. */
+  reads?: string;
   run?: (call: Call) => Result;
   /** For commands that manage the workspace themselves. */
   bare?: (call: Bare) => Result;
@@ -717,6 +721,7 @@ export const COMMANDS: Command[] = [
       skill: { type: 'string', multiple: true },
       report: { type: 'string' },
     },
+    reads: 'report',
     run(call) {
       const { ws, p, actor } = call;
       const t = first(call, 'which task', 'task');
@@ -1445,5 +1450,12 @@ export const COMMANDS: Command[] = [
       ...PROJECT,
     },
     bare: (call) => runLoop(call),
+  },
+  {
+    name: 'mcp',
+    group: 'setup',
+    usage: 'mcp',
+    summary: 'Serve the verbs as MCP tools over stdio, for agents with no shell',
+    bare: (call) => serve(call),
   },
 ];
