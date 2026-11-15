@@ -4,11 +4,14 @@
 
 Spool is a handful of agent skills, and a small CLI underneath them, that keep coding agents working
 on a project by themselves. Two commands: `/spool-init` once, then `/spool-loop`. Every few hours the
-*loop* sizes up the docket, tells you what it plans to do next, asks everything it needs in one go, and
-then works until the next check-in. You answer, reprioritise, add ideas, and go back to your day. A
+*loop* shows you the spool, proposes what to ship next, asks everything it needs in one go, and then
+works until the next check-in. You answer, reprioritise, add ideas, and go back to your day. A
 *recorder* takes ideas the moment you have them — while playing the build, from your phone, by voice.
 When an agent reaches a choice, it either makes the call and leaves a receipt, or asks you and gets on
 with something else. Anything it ships can be taken back in a sentence.
+
+**A spool 🧶 holds threads 🧵.** Each project's queue of work is its spool, and each piece of work in
+it is a thread. (The commands agents type call a thread a task: `spool task`.)
 
 Not everything you say is "change this". "Play the whole thing as a new player and tell me what would
 make them quit" is an audit; "we need multiplayer" is a plan. Spool treats both as first-class work
@@ -38,10 +41,10 @@ You use Spool by talking to your agent. Five skills, and one that lists them:
 | Skill | What it does | Use it |
 | --- | --- | --- |
 | `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
-| `/spool-loop [hours]` | **The main one.** Every `hours` (3 unless you say) it sizes and orders the docket, checks in with you on what to do next, asks what it needs up front, then works until the next check-in | once, and leave the chat open |
+| `/spool-loop [hours]` | **The main one.** Every `hours` (3 unless you say) it shows you the spool 🧶, proposes which threads 🧵 to ship next, asks what it needs up front, then works until the next check-in | once, and leave the chat open |
 | `/spool-recorder` | Turns a chat into the recorder: talk or type, and everything is filed as work | whenever you have feedback or an idea |
 | `/spool-blockers` | Walks you through what agents need from you: questions, go-aheads, anything to undo | to clear everything waiting on you in one go |
-| `/spool-overview [project]` | The whole docket, colour-coded: needs you, blocked, in progress, ready, on hold | any time |
+| `/spool-overview [project]` | The whole spool 🧶, every thread 🧵 colour-coded: needs you, blocked, in progress, ready, on hold | any time |
 | `/spool-help` | This table, and what to do next here | when you forget |
 
 **init** once, then **loop**, and that is the whole workflow. The loop and the recorder are the two
@@ -51,13 +54,14 @@ that matter; the rest are for looking closer.
 
 `/spool-loop` starts a recurring job in the chat. Each time it comes round:
 
-1. **Take stock.** Unfiled feedback is filed, unsized work is sized, work too big to build is turned
-   into a plan, and the docket is put in order.
-2. **Check in.** One short message: what shipped since last time, what it needs from you, what it
-   will do this cycle, and "anything to add, drop or move?" It reads ahead through the work it has
-   lined up, so the questions arrive now and not two hours in.
-3. **Wait ten minutes.** Reply and it takes every part of what you say: answers, a new order, new
-   ideas. Say nothing and it starts on the line-up it proposed.
+1. **Take stock.** Unfiled feedback is filed, unsized threads are sized, anything too big to build is
+   turned into a plan, and the spool is put in order.
+2. **Check in.** One message in three parts: 🧶 the whole spool, every thread under its colour, with
+   what shipped since last time; 🎯 the proposal, a numbered list of what it intends to ship before
+   the next check-in; ❓ the questions. It reads ahead through the threads it proposes, so the
+   questions arrive now and not two hours in.
+3. **Wait ten minutes.** Reply and it takes every part of what you say: answers, a different set of
+   threads, new ideas. Say nothing and it starts on its proposal.
 4. **Work** until the next cycle is due, or nothing can move without you.
 
 They are plain [Agent Skills](https://agentskills.io) in [`skills/`](skills): read them, edit them.
@@ -104,48 +108,59 @@ In another chat, or the same one later:
 
 > **You:** /spool-loop
 >
-> **Agent:** I'll check in every three hours; keep this chat open. This cycle: tighten the jump, then
-> the coins. One question first — at sunset, should coins get a dark outline, or shift to teal? I'd
-> outline them: it works on every background, and teal changes the look of the game. Anything to add
-> or move? I start at 2:10 with this unless you say otherwise.
+> **Agent:** I'll check in every three hours; keep this chat open.
 >
-> **You:** outline. and do the coins first
+> **🧶 Sky Hop — 3 threads open**
 >
-> **Agent:** Outline, coins first, then the jump. Starting now; back at 5.
+> 🔴 **Needs you** · ❓ Coins at sunset: a dark outline, or teal?<br>
+> 🟡 **Blocked** · 🧵 Make coins readable at sunset — waiting on that answer<br>
+> 🟢 **Ready** · 🧵 Tighten the jump · 🧵 Pause button overlaps the score
+>
+> **🎯 In the next 3 hours I propose to ship:**
+> 1. 🧵 Tighten the jump — you'll feel it on the first level
+> 2. 🧵 Make coins readable at sunset — once you answer
+> 3. 🧵 The pause button
+>
+> **❓ 1.** Coins at sunset: **a** dark outline, **b** teal? I'd pick **a**: it works on every
+> background. I start at 2:10 with this unless you say otherwise.
+>
+> **You:** 1a. and do the coins first
+>
+> **Agent:** 1. coins, 2. jump, 3. pause button. Starting now; back at 5.
 
 Three hours later, with you somewhere else:
 
-> **Agent:** Since last time: coins have a dark outline at sunset, and the jump is tighter — gravity
-> 9.8 → 12, try the first level. Nothing needs you. This cycle: the pause button that overlaps the
-> score. Anything to add or move?
+> **Agent:** **🧶 Sky Hop** · ✅ **Shipped** · 🧵 coins have a dark outline at sunset · 🧵 the jump is
+> tighter — gravity 9.8 → 12, try the first level · 🧵 the pause button sits under the score.
+> Nothing else is open. **🎯** Nothing to propose: tell me what's next.
 >
 > **You:** the jump is too heavy now, I wanted snappy, not heavy
 >
-> **Agent:** I've undone the jump change and put it at the front of the queue with your words
-> attached. That first, then the pause button.
+> **Agent:** I've undone the jump change and put that thread back at the front of the spool with your
+> words attached. **🎯** This loop: 1. 🧵 a snappier jump.
 
 At any point, `/spool-overview` shows where everything stands:
 
 ```console
-skyhop  4 open · 1 on hold · 2 done
+🧶 skyhop  4 threads open · 1 on hold · 2 done
 
 🔴 NEEDS YOU  1
-  Coins at sunset: outline them, or change their colour?  · a question · blocks 1 task
+  ❓ Coins at sunset: outline them, or change their colour?  · a question · blocks 1 thread
 
 🟣 BREAK DOWN  1
-  plan: Add online multiplayer  · not planned yet: an agent will plan it, or talk it through first
+  🧵 plan: Add online multiplayer  · not planned yet: an agent will plan it, or talk it through first
 
 🟡 BLOCKED  1
-  Make coins readable at sunset  · waiting on your answer: “Coins at sunset: outline them, or change…”
+  🧵 Make coins readable at sunset  · waiting on your answer: “Coins at sunset: outline them, or change…”
 
 🔵 IN PROGRESS  1
-  Tighten the jump arc  · claude, 5m
+  🧵 Tighten the jump arc  · claude, 5m
 
 🟢 READY  1
-  1. Pause button overlaps the score
+  1. 🧵 Pause button overlaps the score
 
 ⚪ ON HOLD  1
-  A Grand Prix mode  · “just an idea; try it when I say”
+  🧵 A Grand Prix mode  · “just an idea; try it when I say”
 ```
 
 ### Underneath
@@ -331,7 +346,7 @@ work. That is `/spool-recorder`, and its scope is wherever you start it: one rep
 of them.
 
 **Workers** take tasks off the queue, and `/spool-loop` is a worker that keeps taking them, cycle
-after cycle. It also keeps the docket in order — sizing, ordering, filing what is unfiled — and it is
+after cycle. It also keeps the spool in order — sizing, ordering, filing what is unfiled — and it is
 the one that checks in with you. A question on one task never stops the rest.
 
 The rules for both are written once, in those two skills. An agent whose harness has no skills gets
@@ -501,7 +516,7 @@ These are the verbs the skills run. They are here for reference, and for buildin
 | Seeing | |
 | --- | --- |
 | `spool status` | What is ready, active, blocked and waiting on you |
-| `spool overview [project]` | A project's whole docket under six colours |
+| `spool overview [project]` | A project's whole spool 🧶, each thread 🧵 under one of six colours |
 | `spool list [-k kind] [-s state] [-t type] [--size sizes] [--search words]` | Find items, closed ones included |
 | `spool show <id>` · `inbox` · `skills` | One item · unfiled feedback · every skill |
 | `spool graph` | The items and their links, as Mermaid |

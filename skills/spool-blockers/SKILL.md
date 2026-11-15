@@ -1,16 +1,16 @@
 ---
 name: spool-blockers
-description: Walk the user through everything agents need from them on the Spool docket - open questions, plans waiting for a go-ahead, calls agents made on their own, finished work to accept or undo - take their answers in plain words and unblock the work. Use for /spool-blockers, or when the user asks "what needs me", "what's blocked", "what do you need from me", "catch me up", "what did the agents do", or answers, approves or rejects something an agent did.
+description: Walk the user through everything agents need from them on a project's spool - open questions, plans waiting for a go-ahead, calls agents made on their own, finished work to accept or undo - take their answers in plain words and unblock the work. Use for /spool-blockers, or when the user asks "what needs me", "what's blocked", "what do you need from me", "catch me up", "what did the agents do", or answers, approves or rejects something an agent did.
 ---
 
 # Spool blockers
 
-Agents work the docket on their own and stop only for calls that belong to the
-human. This is where the human makes those calls. Your job is to spend as
+Agents work a project's spool 🧶 on their own, thread 🧵 by thread, and stop
+only for calls that belong to the human. This is where the human makes those calls. Your job is to spend as
 little of their attention as possible: put each call in front of them ready to
 answer, take the answer in their words, and get work moving again.
 
-`spool` is your tool for the docket. The human never types it, and you never
+`spool` is your tool for the spool. The commands call a thread a task. The human never types it, and you never
 edit `.spool/` by hand.
 
 Run `spool review` (`-P <project>` if they named one). If it says there is no

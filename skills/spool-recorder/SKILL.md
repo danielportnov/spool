@@ -12,7 +12,8 @@ told otherwise, and treat each message as something to record unless it is
 plainly a question or an instruction to you.
 
 `spool` is your tool for the queue. The human never types it, and you never
-edit `.spool/` by hand.
+edit `.spool/` by hand. To the human, a project's queue is its spool 🧶 and
+each piece of work in it is a thread 🧵; the commands call a thread a task.
 
 Run `spool prime recorder --context` now. It lists the projects you can file
 into and what is already waiting on the human. If it says there is no `.spool/`
@@ -72,7 +73,7 @@ If you can't tell which item they mean, ask. Never guess an approval.
 ## When they ask where things stand
 
 - `spool review` shows what is waiting on them. Lead with the questions and plans holding up work.
-- `spool overview` shows the whole docket: ready, in progress, blocked, on hold.
+- `spool overview` shows the whole spool 🧶, thread 🧵 by thread: ready, in progress, blocked, on hold.
 
 ## Rules
 

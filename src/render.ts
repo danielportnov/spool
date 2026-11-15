@@ -191,7 +191,7 @@ export function statusText(ws: Workspace, p: Paint, project?: string): string {
   const waiting: string[] = [];
   if (queue.questions.length) {
     const held = new Set(queue.questions.flatMap((d) => dependents(ws, d).filter((t) => !isSettled(t)).map((t) => t.id)));
-    waiting.push(p.yellow(`${plural(queue.questions.length, 'question')} blocking ${plural(held.size, 'task')}`));
+    waiting.push(p.yellow(`${plural(queue.questions.length, 'question')} blocking ${plural(held.size, 'thread')}`));
   }
   if (queue.plans.length) waiting.push(p.yellow(`${plural(queue.plans.length, 'plan')} awaiting your go-ahead`));
   if (queue.assumptions.length) waiting.push(plural(queue.assumptions.length, 'assumption'));
@@ -205,7 +205,7 @@ export function statusText(ws: Workspace, p: Paint, project?: string): string {
   for (const spool of spools) {
     const mine = tasks(ws).filter((t) => t.spool === spool);
     if (!mine.length) {
-      out.push('', `${p.bold(spool.name)}  ${p.dim('no tasks yet')}`);
+      out.push('', `${p.bold(spool.name)}  ${p.dim('no threads yet')}`);
       continue;
     }
     const count = (state: string) => mine.filter((t) => taskState(ws, t) === state).length;
@@ -248,17 +248,19 @@ export function waitingOn(ws: Workspace, task: Item): string {
 const OVERVIEW_MAX = 8;
 
 /**
- * One project's docket as a short list under six coloured dots. The dots are
- * emoji on purpose: an agent relaying this into a chat gets no terminal
- * colours, and the colour is what lets a person read the list at a glance.
+ * One project's spool 🧶 as a short list of threads 🧵 under six coloured dots.
+ * A spool holds threads: that is the picture people are given, so it is what
+ * this prints. The dots and marks are emoji on purpose: an agent relaying this
+ * into a chat gets no terminal colours, and the colour is what lets a person
+ * read the list at a glance. A question is not a thread, and is marked ❓.
  */
 function docketText(ws: Workspace, d: Docket, p: Paint): string {
   const open = d.breakDown.length + d.blocked.length + d.active.length + d.ready.length;
-  const facts = [`${open} open`, ...(d.held.length ? [`${d.held.length} on hold`] : []), `${d.done} done`];
-  const out = [`${p.bold(d.spool.name)}  ${p.dim(facts.join(' · '))}`];
+  const facts = [`${plural(open, 'thread')} open`, ...(d.held.length ? [`${d.held.length} on hold`] : []), `${d.done} done`];
+  const out = [`🧶 ${p.bold(d.spool.name)}  ${p.dim(facts.join(' · '))}`];
   const tagOf = (t: Item) => (t.kind === 'task' ? [tag(t)] : []);
   const row = (item: Item, notes: string[], lead = '') =>
-    `  ${lead}${item.kind === 'task' && item.type ? `${item.type}: ` : ''}${oneLine(item.title, 84)}${p.dim(`  · ${[...notes, ...tagOf(item), item.id].join(' · ')}`)}`;
+    `  ${lead}${item.kind === 'task' ? '🧵' : '❓'} ${item.kind === 'task' && item.type ? `${item.type}: ` : ''}${oneLine(item.title, 84)}${p.dim(`  · ${[...notes, ...tagOf(item), item.id].join(' · ')}`)}`;
   const group = (dot: string, title: string, items: Item[], line: (item: Item, i: number) => string, more: string) => {
     if (!items.length) return;
     out.push('', `${dot} ${p.bold(title)}  ${p.dim(String(items.length))}`);
@@ -270,7 +272,7 @@ function docketText(ws: Workspace, d: Docket, p: Paint): string {
   group('🔴', p.red('NEEDS YOU'), d.needsYou, (i) => {
     if (i.kind === 'decision') {
       const held = dependents(ws, i).filter((t) => !isSettled(t)).length;
-      return row(i, [held ? `a question · blocks ${plural(held, 'task')}` : 'a question']);
+      return row(i, [held ? `a question · blocks ${plural(held, 'thread')}` : 'a question']);
     }
     const parts = children(ws, i).filter((k) => k.status !== 'dropped').length;
     return row(i, [`${plural(parts, 'part')} ${parts === 1 ? 'waits' : 'wait'} for your go-ahead`]);
@@ -291,7 +293,7 @@ function docketText(ws: Workspace, d: Docket, p: Paint): string {
   group('🟢', p.green('READY'), d.ready, (t, i) => row(t, [], `${i + 1}. `), list('ready'));
   group('⚪', 'ON HOLD', d.held, (t) => row(t, [`“${oneLine(t.hold ?? '', 60)}”`]), list('held'));
 
-  if (out.length === 1) out.push(p.dim('  nothing open'));
+  if (out.length === 1) out.push(p.dim('  no threads open'));
   const also = [
     ...(d.also.assumptions ? [plural(d.also.assumptions, 'call') + ' agents made'] : []),
     ...(d.also.shipped ? [`${d.also.shipped} shipped`] : []),
@@ -302,7 +304,7 @@ function docketText(ws: Workspace, d: Docket, p: Paint): string {
   return out.join('\n');
 }
 
-/** The docket of one project, or of every project that has anything on it. */
+/** The spool of one project, or of every project that has anything on it. */
 export function overviewText(ws: Workspace, spools: Spool[], p: Paint): string {
   const dockets = spools.map((s) => docket(ws, s));
   const busy = (d: Docket) =>
@@ -323,7 +325,7 @@ export function reviewText(ws: Workspace, queue: Review, p: Paint): string {
     out.push(p.bold(p.yellow('NEEDS YOU')) + p.dim('  work is stopped on these'));
     for (const d of queue.questions) {
       const held = dependents(ws, d).filter((t) => !isSettled(t));
-      out.push(`  ${p.bold(d.id)}  ${d.title}${held.length ? p.dim(`  · blocks ${plural(held.length, 'task')}`) : ''}${where(d)}`);
+      out.push(`  ${p.bold(d.id)}  ${d.title}${held.length ? p.dim(`  · blocks ${plural(held.length, 'thread')}`) : ''}${where(d)}`);
       d.options.forEach((o, i) => out.push(`      ${i + 1}) ${o}${d.recommend === i + 1 ? p.dim('  ← recommended') : ''}`));
       const why = splitBody(d.body).main.split('\n')[0];
       if (why && !why.startsWith('For [[')) out.push(p.dim(`      ${oneLine(why, 110)}`));

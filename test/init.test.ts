@@ -154,7 +154,7 @@ test('every command a skill tells an agent to run exists', () => {
 test('the loop skill is a cycle: take stock, check in, work, wrap up', () => {
   const loop = shipped('spool-loop');
   const headings = [...loop.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
-  assert.deepEqual(headings, ['How it was called', 'Start', 'The schedule', 'Take stock', 'Check in', 'Work', 'Wrap up', 'Working a task']);
+  assert.deepEqual(headings, ['How it was called', 'Start', 'The schedule', 'Take stock', 'Check in', 'Work', 'Wrap up', 'Working a thread']);
 
   // Three hours unless told otherwise, and the schedule's own prompt can never set a second schedule.
   assert.match(loop, /\| `\/spool-loop` \| Start the loop, a cycle every 3 hours\./);
@@ -166,9 +166,13 @@ test('the loop skill is a cycle: take stock, check in, work, wrap up', () => {
   assert.match(loop, /## Take stock[\s\S]*spool edit <id> --size <size>[\s\S]*spool edit <id> -p <0-3>[\s\S]*ask today what is theirs to decide/);
   assert.match(loop, /## Check in[\s\S]*one-shot[\s\S]*`\/spool-loop go`[\s\S]*Nobody replies/);
 
+  // The check-in shows the whole spool, then a proposal nobody can miss, then the questions.
+  assert.match(loop, /\*\*A spool 🧶 holds threads 🧵\.\*\*/);
+  assert.match(loop, /\*\*1\. 🧶 The spool\.\*\*[\s\S]*\*\*2\. 🎯 The proposal\.\*\*[\s\S]*In the\nnext `<hours>` hours I propose to ship[\s\S]*\*\*3\. ❓ Questions\.\*\*/);
+
   // Every way in is covered by the description an agent matches on, and every skill agrees on the default.
-  assert.match(String(parseFrontmatter(loop).data.get('description')), /three unless told otherwise[\s\S]*\/spool-loop \[hours\]/);
-  assert.match(shipped('spool-help'), /`\/spool-loop \[hours\]` \| The main one\. Every `hours` \(3 unless you say\)/);
+  assert.match(String(parseFrontmatter(loop).data.get('description')), /three unless told otherwise[\s\S]*a proposal of what to ship[\s\S]*\/spool-loop \[hours\]/);
+  assert.match(shipped('spool-help'), /`\/spool-loop \[hours\]` \| The main one\. Every `hours` \(3 unless you say\) it shows you the spool/);
   assert.match(shipped('spool-init'), /`\/spool-loop` to start the loop: it checks in now and every three hours/);
 });
 

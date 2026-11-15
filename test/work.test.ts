@@ -222,7 +222,7 @@ test('the protocols teach sizing, audits and plans to both roles', () => {
   // With --context a worker gets the policy and the state of the queue, and none of the rules.
   const context = s.sp('prime', 'worker', '--context');
   assert.match(context, /^POLICY \(\.spool\/policy\.md\)[\s\S]*## Ask first[\s\S]*NOW {2}\d+ ready/);
-  assert.doesNotMatch(context, /Working a task/);
+  assert.doesNotMatch(context, /Working a thread/);
   s.cleanup();
 });
 

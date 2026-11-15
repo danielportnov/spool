@@ -145,7 +145,7 @@ export function prime(ws: Workspace, role: Role, contextOnly = false): string {
     parts.push(`${map(ws)}\n`);
     return parts.join('\n');
   }
-  if (!contextOnly) parts.push(WORKER, `${section('spool-loop', 'Working a task')}\n`);
+  if (!contextOnly) parts.push(WORKER, `${section('spool-loop', 'Working a thread')}\n`);
   const policy = path.join(ws.home.dir, 'policy.md');
   const text = fs.existsSync(policy) ? fs.readFileSync(policy, 'utf8').trim() : DEFAULT_POLICY.trim();
   parts.push(`POLICY (${path.relative(ws.home.root, policy) || policy})\n\n${text}\n`);

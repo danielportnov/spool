@@ -1092,7 +1092,7 @@ export const COMMANDS: Command[] = [
     aliases: ['ov'],
     group: 'see',
     usage: 'overview [<project>]',
-    summary: 'A project\'s whole docket under six colours: needs you, break down, blocked, in progress, ready, on hold',
+    summary: 'A project\'s whole spool 🧶, each thread 🧵 under one of six colours: needs you, break down, blocked, in progress, ready, on hold',
     options: { ...PROJECT },
     run({ ws, p, args, opts }) {
       const ref = str(opts.project) ?? str(args.join(' ').trim());

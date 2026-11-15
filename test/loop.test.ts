@@ -27,7 +27,7 @@ test('the loop hands each ready task to the agent until none are left', () => {
   // The agent was given the protocol, the policy and the task — everything it needs, on stdin.
   const prompt = fs.readFileSync(path.join(s.root, 'last-prompt.txt'), 'utf8');
   assert.match(prompt, /unattended/);
-  assert.match(prompt, /# Spool · worker protocol[\s\S]*## Working a task/);
+  assert.match(prompt, /# Spool · worker protocol[\s\S]*## Working a thread/);
   assert.doesNotMatch(prompt, /## The schedule|## Check in|CronCreate|\/spool-loop/, 'an unattended agent is given one task, not the cycle');
   assert.match(prompt, /## Ask first/);
   assert.match(prompt, new RegExp(`YOUR TASK\\n\\n${normal}  p2  Normal`));

@@ -66,7 +66,7 @@ test('the view is scoped to where you stand', () => {
   // Items are found from the top wherever they live, and a question lands beside its task.
   const question = s.id('ask', 'Which font?', '--option', 'Serif', '--option', 'Sans', '--for', gameTask);
   assert.ok(game.exists(`.spool/items/${question}.md`));
-  assert.match(s.sp('status'), /1 question blocking 1 task/);
+  assert.match(s.sp('status'), /1 question blocking 1 thread/);
   s.cleanup();
 });
 
