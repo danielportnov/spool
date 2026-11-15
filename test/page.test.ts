@@ -28,6 +28,7 @@ function startPage(s: Sandbox, ...args: string[]): Promise<{ child: ChildProcess
 test('the page shows the spool as a board, and what is done on it is saved to the spool', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop', '--gate');
+  s.write('package.json', JSON.stringify({ name: 'skyhop', version: '1.4.2' }));
   const jump = s.id('task', 'Tighten the jump arc', '-s', 's', '-p', '1');
   const coins = s.id('task', 'Make coins readable at sunset', '-s', 'xs');
   s.sp('build', coins);
@@ -46,7 +47,7 @@ test('the page shows the spool as a board, and what is done on it is saved to th
 
     // Four columns, each thread in the one that says where it stands, numbered as the loop numbers them.
     let b = await board();
-    assert.deepEqual([b.project, b.gate], ['skyhop', true]);
+    assert.deepEqual([b.project, b.gate, b.version], ['skyhop', true, '1.4.2'], 'the version is the project\'s own');
     assert.deepEqual(Object.keys(b.columns), ['proposed', 'build', 'building', 'done']);
     assert.deepEqual(b.columns.proposed.map((c: any) => [c.n, c.id, c.title, c.difficulty, c.priority]), [[2, jump, 'Tighten the jump arc', 'Small', 'High']]);
     assert.deepEqual(b.columns.build.map((c: any) => [c.n, c.id]), [[1, coins]]);
@@ -78,8 +79,17 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.equal((await post('add', { to: 'done', text: 'x' })).status, 400);
     assert.equal((await post('add', { to: 'build', text: '  ' })).status, 400);
     assert.doesNotMatch(html, /Add to the spool|id="idea"/, 'no add box at the top');
-    assert.doesNotMatch(html, /also waiting for a look|Nothing is built until you move it to Build|id="where"/, 'the header is the name alone');
+    assert.doesNotMatch(html, /also waiting for a look|Nothing is built until you move it to Build/, 'the header is the name and the version');
     assert.match(html, /'\+ Add'/);
+
+    // A card opens as its thread: their words, each step and who took it, and what was asked along the way.
+    b = await board();
+    const coinsThread = b.columns.build.find((c: any) => c.id === coins).thread;
+    assert.deepEqual(coinsThread.said.map((x: any) => x.text), ['two pixels, not one -- and "bold"']);
+    assert.match(coinsThread.said[0].note, /^n-/);
+    assert.deepEqual(coinsThread.steps.map((x: any) => x.who), ['human', 'agent']);
+    assert.match(coinsThread.steps[0].what, /^moved to build$/);
+    assert.deepEqual(coinsThread.questions.map((q: any) => [q.id, q.status]), [[question, 'open']]);
 
     // An answer unblocks the thread it was holding.
     assert.equal((await post('answer', { id: question, choice: '2' })).status, 200);
@@ -87,6 +97,19 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     b = await board();
     assert.equal(b.columns.build[0].question, null);
     assert.equal(b.also.inbox, 1);
+
+    // Finished work shows who built it, and "Mark as complete" is the human approving it.
+    s.sp('start', coins, '--as', 'Claude Fable 5.2');
+    s.sp('done', coins, '-m', 'Coins have a teal rim at sunset', '--as', 'Claude Fable 5.2');
+    b = await board();
+    const shipped = b.columns.done.find((c: any) => c.id === coins);
+    assert.deepEqual([shipped.done, shipped.complete, shipped.thread.by, shipped.thread.summary], [true, false, 'Claude Fable 5.2', 'Coins have a teal rim at sunset']);
+    assert.deepEqual(shipped.thread.steps.slice(-2).map((x: any) => [x.who, x.what]), [['Claude Fable 5.2', 'started'], ['Claude Fable 5.2', 'done: Coins have a teal rim at sunset']]);
+    assert.equal((await post('complete', { id: coins })).status, 200);
+    assert.ok(s.json('show', coins).item.reviewed, 'approved, as the human');
+    assert.equal((await board()).columns.done.find((c: any) => c.id === coins).complete, true);
+    assert.equal((await post('complete', { id: jump })).status, 400, 'only finished work can be marked complete');
+    assert.match(html, /Mark as complete/);
 
     // It refuses what it should: no token, a name that is not this machine, a move it does not offer.
     assert.equal((await post('move', { id: jump, to: 'build' }, {})).status, 403);

@@ -21,7 +21,9 @@ What they can do on it:
 | --- | --- |
 | Drag a thread 🧵 to **Build**, or press ▶ | It may be built now, in its turn. This is the only way anything gets built. |
 | **Not yet**, or drag it back | Back to proposed. Nothing builds it. |
+| Open a card | Its thread: what they said, what was done and by which agent, and everything that happened. |
 | A note on a thread | It lands on that thread, in their words. |
+| **Mark as complete**, at the foot of a finished thread | They have looked at the change and approve it. |
 | **+ Add** at the foot of Proposed or Build | A new thread in that column, named from their first line, with all their words kept on it. Added under Build, it is in build. |
 | An answer button on a question | The thread it was holding up can move again. |
 

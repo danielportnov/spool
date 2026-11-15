@@ -191,6 +191,11 @@ Repeat until `spool next --claim` says nothing is ready:
 1. `spool next --claim` hands you the next thread in build, and its brief. It
    never hands out a proposed one. Add `-P <project>` if they asked for one
    project only.
+
+   **Sign your work.** Add `--as "<your model's name>"`, as in
+   `--as "Claude Fable 5.2"`, to every command you run on a thread: `next
+   --claim`, `start`, `log`, `ask`, `assume`, `done`. The page shows the
+   human who built each thread, and "an agent" tells them nothing.
 2. Say what you are starting, in one line: "🧵 Starting thread 2 — <name>:
    <your plan, in a line>."
 3. Build it, by the rules in "Working a thread". They can steer while you work.

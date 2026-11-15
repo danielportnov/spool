@@ -211,6 +211,8 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   const page = shipped('spool-page');
   assert.match(page, /Run `spool page` in the background[\s\S]*do not describe the board in the chat/);
   assert.match(page, /This is the only way anything gets built\./);
+  assert.match(page, /\*\*Mark as complete\*\*, at the foot of a finished thread/);
+  assert.match(loop, /\*\*Sign your work\.\*\* Add `--as "<your model's name>"`/);
 });
 
 test('the recorder records one message, and decides the split and the size itself', () => {

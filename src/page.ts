@@ -5,12 +5,15 @@
  * of every thread: proposed, build, building, done. It is where the human
  * plans and steers. They drag a thread into build, or press play on it, and
  * that is the only way anything gets built; they add a thread at the foot of a
- * column; they write a note on a thread and it lands there in their words;
- * they answer a question and work moves again.
+ * column; they open a card and read its thread: what they asked, what was done
+ * and by which agent, and everything that happened in between; they write a
+ * note on it and it lands there in their words; they answer a question and
+ * work moves again; and they mark finished work complete when they have
+ * looked at it.
  * Agents read the same spool and keep working while the page is open.
  *
  * Everything the page does is an ordinary command run in-process, as the
- * human: `build`, `propose`, `capture`, `task`, `file`, `answer`. So the page can do
+ * human: `build`, `propose`, `capture`, `task`, `file`, `answer`, `approve`. So the page can do
  * nothing the command line cannot, and every rule the commands enforce holds
  * here too.
  *
@@ -21,15 +24,16 @@
 
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import * as fs from 'node:fs';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { version } from './builtin.ts';
+import * as path from 'node:path';
 import { run } from './cli.ts';
 import type { Bare, Result } from './commands.ts';
 import type { Ctx } from './context.ts';
 import { type Item, SpoolError, oneLine, splitBody } from './model.ts';
 import { age, tableRows } from './render.ts';
-import { blockers, docket, review, taskState, tasks } from './schedule.ts';
+import { blockers, children, docket, review, taskState, tasks } from './schedule.ts';
 import { Workspace } from './store.ts';
 
 type Column = 'proposed' | 'build' | 'building' | 'done';
@@ -46,9 +50,27 @@ interface Card {
   /** What the human needs to know about it right now, if anything. */
   note: string;
   suggested: string;
-  spec: string;
-  log: string[];
+  /** Shipped, and whether the human has marked it complete. */
+  done: boolean;
+  complete: boolean;
+  thread: Thread;
   question: { id: string; title: string; options: string[]; recommend: number | null } | null;
+}
+
+/** A card opened up: what was asked, what was done about it and by whom, and where it came from. */
+interface Thread {
+  /** The human's own words, each as they said it. */
+  said: { text: string; note: string; on: string }[];
+  spec: string;
+  /** Everything that happened to it, oldest first. */
+  steps: { at: string; who: string; what: string }[];
+  /** Who built it, as they signed themselves. */
+  by: string;
+  summary: string;
+  commits: string[];
+  cameFrom: { id: string; title: string }[];
+  parts: { id: string; title: string; state: string }[];
+  questions: { id: string; title: string; status: string; choice: string }[];
 }
 
 interface Board {
@@ -72,6 +94,42 @@ function columnOf(state: string): Column | null {
   return null;
 }
 
+/** A thread's body is the human's words, quoted and signed, around whatever spec was written for it. */
+function readBody(main: string): { said: Thread['said']; spec: string } {
+  const said: Thread['said'] = [];
+  const spec: string[] = [];
+  for (const block of main.split(/\n\s*\n/)) {
+    const lines = block.split('\n');
+    if (!lines.every((l) => l.startsWith('>'))) {
+      spec.push(block);
+      continue;
+    }
+    const words = lines.map((l) => l.replace(/^> ?/, ''));
+    const signed = /^— \[\[(n-[a-z0-9]+)\]\], (\d{4}-\d\d-\d\d)$/.exec(words.at(-1) ?? '');
+    said.push({ text: (signed ? words.slice(0, -1) : words).join('\n').trim(), note: signed?.[1] ?? '', on: signed?.[2] ?? '' });
+  }
+  return { said, spec: spec.join('\n\n').trim() };
+}
+
+function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Thread {
+  const steps = log.map((line) => {
+    const parsed = /^- (\d{4}-\d\d-\d\d \d\d:\d\dZ) (.+?): (.*)$/.exec(line);
+    return parsed ? { at: parsed[1]!, who: parsed[2]!, what: parsed[3]! } : { at: '', who: '', what: line.replace(/^- /, '') };
+  });
+  const from = task.from.map((id) => ws.find(id)).filter((i): i is Item => !!i && i.kind !== 'note');
+  const asked = task.needs.map((id) => ws.find(id)).filter((i): i is Item => !!i && i.kind === 'decision');
+  return {
+    ...readBody(main),
+    steps,
+    by: task.by ?? '',
+    summary: task.summary ?? '',
+    commits: task.commits.map((c) => c.slice(0, 7)),
+    cameFrom: from.map((i) => ({ id: i.id, title: i.title })),
+    parts: children(ws, task).map((k) => ({ id: k.id, title: k.title, state: taskState(ws, k) })),
+    questions: asked.map((d) => ({ id: d.id, title: d.title, status: d.status, choice: d.choice ?? '' })),
+  };
+}
+
 function card(ws: Workspace, task: Item, n: number | null, note: string): Card {
   const { main, log } = splitBody(task.body);
   const asked = blockers(ws, task).find((b) => b.kind === 'decision' && b.status === 'open');
@@ -85,13 +143,26 @@ function card(ws: Workspace, task: Item, n: number | null, note: string): Card {
     type: task.type ?? 'change',
     note,
     suggested: task.suggested ?? '',
-    spec: main,
-    log: log
-      .map((l) => l.replace(/^- /, '').trim())
-      .filter(Boolean)
-      .slice(-6),
+    done: task.status === 'done',
+    complete: task.status === 'done' && !!task.reviewed,
+    thread: threadOf(ws, task, main, log),
     question: asked ? { id: asked.id, title: asked.title, options: asked.options, recommend: asked.recommend ?? null } : null,
   };
+}
+
+/** The project's own version, where it keeps one in a place Spool knows; otherwise none is shown. */
+function projectVersion(root: string): string {
+  try {
+    const found = (JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { version?: unknown }).version;
+    if (typeof found === 'string') return found;
+  } catch {
+    // No package.json, or not one with a version: try the plain file.
+  }
+  try {
+    return fs.readFileSync(path.join(root, 'VERSION'), 'utf8').trim().split('\n')[0] ?? '';
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -124,7 +195,7 @@ export function board(ws: Workspace, project?: string): Board {
   const queue = review(ws, spool);
   return {
     project: spool.name,
-    version: version(),
+    version: projectVersion(spool.root),
     gate: !!spool.config.gate,
     columns,
     also: { assumptions: queue.assumptions.length, skills: queue.skills.length, inbox: queue.inbox.length },
@@ -202,6 +273,11 @@ function change(ctx: Ctx, action: string, body: Body): { ok: boolean; text: stri
     const note = (captured.data as { note?: { id?: string } } | null)?.note?.id;
     if (!captured.ok || !note) return { ok: false, text: captured.text || 'the note could not be saved' };
     return id ? act(ctx, ['file', note, '--into', id]) : { ok: true, text: '' };
+  }
+  if (action === 'complete') {
+    // "Mark as complete" is the human saying the change is good: the same as approving it.
+    if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
+    return act(ctx, ['approve', id]);
   }
   if (action === 'answer') {
     const choice = text(body.choice);
@@ -327,6 +403,7 @@ const PAGE = String.raw`<!doctype html>
   button:hover { border-color: var(--soft); }
   button.go { background: var(--go); border-color: var(--go); color: #fff; font-weight: 600; }
   @media (prefers-color-scheme: dark) { button.go { color: #052e16; } }
+  .where { color: var(--soft); }
   .rule { padding: 0 20px 12px; color: var(--soft); font-size: 13px; }
   main { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 14px; padding: 0 20px 32px; align-items: start; overflow-x: auto; }
   section { background: var(--chip); border-radius: 14px; padding: 10px; min-height: 160px; border: 2px solid transparent; }
@@ -353,6 +430,28 @@ const PAGE = String.raw`<!doctype html>
   pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 6px 0; }
   textarea { width: 100%; min-height: 54px; margin-top: 6px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); color: var(--ink); font: inherit; resize: vertical; }
   .empty { color: var(--soft); font-size: 13px; padding: 8px 6px; }
+  .title { cursor: pointer; }
+  .title:hover { text-decoration: underline; }
+  .openit { background: none; border: 0; padding: 0; margin-top: 8px; color: var(--soft); font-size: 13px; }
+  .openit:hover { color: var(--ink); }
+  .chip.ok { color: var(--go); }
+  .chip.check { color: var(--warn); }
+  #veil { position: fixed; inset: 0; background: rgba(0,0,0,.35); }
+  #thread { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 18px 20px 28px; box-shadow: -12px 0 32px rgba(0,0,0,.18); }
+  #thread h2 { font-size: 18px; margin: 0 34px 4px 0; overflow-wrap: anywhere; }
+  #thread h3 { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); margin: 22px 0 8px; }
+  #thread .x { position: absolute; top: 14px; right: 16px; }
+  .said { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; margin: 0 0 10px; }
+  .who { font-size: 12px; color: var(--soft); margin-bottom: 2px; }
+  .step { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 5px 0; font-size: 13px; border-top: 1px solid var(--line); }
+  .step .at { color: var(--soft); font-variant-numeric: tabular-nums; }
+  .step b { font-weight: 600; }
+  .step.you b { color: var(--accent); }
+  .reply { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--bg); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .finish { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .finish button { width: 100%; padding: 10px; font-size: 15px; }
+  .finish .ok { color: var(--go); font-weight: 600; }
   #said { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   #said.on { opacity: 1; }
   @media (max-width: 900px) { main { grid-template-columns: repeat(4, 82vw); } }
@@ -361,9 +460,12 @@ const PAGE = String.raw`<!doctype html>
 <body>
 <header>
   <h1>🧶 <span id="project">Spool</span></h1>
+  <span class="where" id="where"></span>
 </header>
 <div class="rule" id="rule"></div>
 <main id="board"></main>
+<div id="veil" hidden></div>
+<aside id="thread" hidden></aside>
 <div id="said"></div>
 <script>
 const TOKEN = '__TOKEN__';
@@ -375,7 +477,8 @@ const COLUMNS = [
 ];
 let last = '';
 let busy = false;
-const open = new Set();
+// The thread that is open, if one is, and notes begun but not yet added.
+let openId = null;
 const drafts = new Map();
 // The column whose "+ Add" is open, and what has been typed into it so far.
 let adding = null;
@@ -420,6 +523,7 @@ async function post(action, body, done) {
 function cardNode(c, column) {
   const movable = column === 'proposed' || column === 'build';
   const chips = el('div', { class: 'chips' },
+    c.done && el('span', { class: 'chip ' + (c.complete ? 'ok' : 'check') }, c.complete ? '✓ Complete' : 'For you to check'),
     c.type !== 'change' && el('span', { class: 'chip' }, c.type),
     c.difficulty && el('span', { class: 'chip' }, c.difficulty),
     column !== 'done' && el('span', { class: 'chip' + (c.urgent ? ' hot' : '') }, c.priority),
@@ -427,7 +531,7 @@ function cardNode(c, column) {
   const node = el('div', { class: 'card', draggable: movable, 'data-id': c.id,
     ondragstart: (e) => { e.dataTransfer.setData('text/plain', c.id + ' ' + column); node.classList.add('dragging'); busy = true; },
     ondragend: () => { node.classList.remove('dragging'); busy = false; } },
-    el('div', { class: 'top' }, c.n != null && el('span', { class: 'n' }, c.n), el('span', { class: 'title' }, c.title)),
+    el('div', { class: 'top' }, c.n != null && el('span', { class: 'n' }, c.n), el('span', { class: 'title', onclick: () => openThread(c.id) }, c.title)),
     chips,
     c.note && el('div', { class: 'note' }, c.note));
 
@@ -439,28 +543,87 @@ function cardNode(c, column) {
   if (column === 'proposed') node.append(el('div', { class: 'acts' }, el('button', { class: 'go', onclick: () => post('move', { id: c.id, to: 'build' }, 'In build: ' + c.title) }, '▶ Build')));
   if (column === 'build') node.append(el('div', { class: 'acts' }, el('button', { onclick: () => post('move', { id: c.id, to: 'proposed' }, 'Back to proposed') }, 'Not yet')));
 
-  const more = el('details', { ontoggle: (e) => (e.target.open ? open.add(c.id) : open.delete(c.id)) },
-    el('summary', {}, 'Details and notes'),
-    c.suggested && el('pre', {}, 'Why the agent suggests it: ' + c.suggested),
-    c.spec && el('pre', {}, c.spec),
-    c.log.length > 0 && el('pre', {}, c.log.join('\n')));
-  if (open.has(c.id)) more.open = true;
-  if (column !== 'done') {
-    const box = el('textarea', { placeholder: 'A note on this thread, in your words', oninput: (e) => drafts.set(c.id, e.target.value) });
-    box.value = drafts.get(c.id) || '';
-    more.append(box, el('button', { onclick: async () => {
-      if (!box.value.trim()) return;
-      if (await post('note', { id: c.id, text: box.value }, 'Note added')) drafts.delete(c.id);
-    } }, 'Add note'));
-  }
-  node.append(more);
+  const steps = c.thread.steps.length;
+  node.append(el('button', { class: 'openit', onclick: () => openThread(c.id) }, 'Open thread' + (steps ? ' · ' + steps + (steps === 1 ? ' step' : ' steps') : '')));
   return node;
 }
+
+// ---- a card opened up: what was asked, what was done and by whom, and how it got here
+
+const whoIs = (who) => (who === 'human' ? 'You' : who === 'agent' ? 'An agent' : who === 'loop' ? 'The loop' : who || 'Someone');
+const when = (at) => (at ? at.slice(5, 10).replace('-', '/') + ' ' + at.slice(11, 16) : '');
+
+function openThread(id) { openId = id; last = ''; load(true); }
+function closeThread() { openId = null; last = ''; load(true); }
+
+function threadNode(c) {
+  const t = c.thread;
+  const box = el('textarea', { placeholder: 'Reply on this thread, in your words', oninput: (e) => drafts.set(c.id, e.target.value) });
+  box.value = drafts.get(c.id) || '';
+  const lineage = [
+    ...t.cameFrom.map((f) => 'Came out of: ' + f.title),
+    ...t.parts.map((p) => 'Part: ' + p.title + ' (' + p.state + ')'),
+    ...t.questions.map((q) => 'Asked: ' + q.title + (q.choice ? ' → ' + q.choice : ' → not answered yet')),
+  ];
+  return [
+    el('button', { class: 'x', onclick: closeThread, title: 'Close' }, '✕'),
+    el('h2', {}, (c.n != null ? c.n + ' · ' : '') + c.title),
+    el('div', { class: 'chips' },
+      c.done && el('span', { class: 'chip ' + (c.complete ? 'ok' : 'check') }, c.complete ? '✓ Complete' : 'For you to check'),
+      c.type !== 'change' && el('span', { class: 'chip' }, c.type),
+      c.difficulty && el('span', { class: 'chip' }, c.difficulty),
+      el('span', { class: 'chip' + (c.urgent ? ' hot' : '') }, c.priority),
+      c.suggested && el('span', { class: 'chip ai' }, '✨ AI suggested')),
+
+    t.said.length > 0 && el('h3', {}, 'What you said'),
+    t.said.map((s) => el('div', { class: 'said' }, el('div', { class: 'who' }, 'You' + (s.on ? ' · ' + s.on : '')), el('pre', {}, s.text))),
+    c.suggested && [el('h3', {}, 'Why the agent suggested it'), el('pre', {}, c.suggested)],
+    t.spec && [el('h3', {}, 'The spec'), el('pre', {}, t.spec)],
+
+    c.done && [el('h3', {}, 'The response'),
+      el('div', { class: 'reply' },
+        el('div', { class: 'who' }, '🤖 Built by ' + whoIs(t.by)),
+        el('pre', {}, t.summary || 'No summary was left.'),
+        t.commits.length > 0 && el('div', { class: 'mono' }, (t.commits.length === 1 ? 'commit ' : 'commits ') + t.commits.join(' · ')))],
+    c.question && [el('h3', {}, 'Waiting on you'), el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title),
+      c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '',
+        onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)))],
+
+    t.steps.length > 0 && el('h3', {}, 'Everything that happened'),
+    t.steps.map((s) => el('div', { class: 'step' + (s.who === 'human' ? ' you' : '') },
+      el('span', { class: 'at' }, when(s.at)), el('span', {}, el('b', {}, whoIs(s.who)), ' ' + s.what))),
+    lineage.length > 0 && [el('h3', {}, 'Where it came from, and what came of it'), lineage.map((l) => el('div', { class: 'note' }, l))],
+
+    el('h3', {}, 'Add to this thread'),
+    box,
+    el('button', { onclick: async () => {
+      if (!box.value.trim()) return;
+      if (await post('note', { id: c.id, text: box.value }, 'Added to the thread')) drafts.delete(c.id);
+    } }, 'Add note'),
+
+    c.done && el('div', { class: 'finish' }, c.complete
+      ? el('div', { class: 'ok' }, '✓ Complete. You approved this change.')
+      : el('button', { class: 'go', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓ Mark as complete')),
+  ];
+}
+
+function drawThread(b) {
+  const pane = document.getElementById('thread');
+  const veil = document.getElementById('veil');
+  const c = openId && Object.values(b.columns).flat().find((x) => x.id === openId);
+  pane.hidden = veil.hidden = !c;
+  if (!c) { openId = null; return; }
+  const at = pane.scrollTop;
+  pane.replaceChildren(...threadNode(c).flat(3).filter(Boolean));
+  pane.scrollTop = at;
+}
+
 
 function draw(b) {
   document.getElementById('project').textContent = b.project;
   document.title = '🧶 ' + b.project;
-  // The header is the project's name and nothing else. One thing is still worth a line: a project
+  document.getElementById('where').textContent = b.version ? 'v' + b.version : '';
+  // The header is the project's name and its version. One thing is still worth a line: a project
   // where the gate is off, because there the board cannot promise that nothing builds by itself.
   const rule = document.getElementById('rule');
   rule.textContent = b.gate ? '' : 'The build gate is off in this project: new threads go straight to Build.';
@@ -485,6 +648,7 @@ function draw(b) {
   }));
   const box = document.querySelector('.adding textarea');
   if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
+  drawThread(b);
 }
 
 // "+ Add" at the foot of a column: a thread added there starts in that column.
@@ -524,6 +688,8 @@ async function load(now) {
   }
 }
 
+document.getElementById('veil').addEventListener('click', closeThread);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openId && !adding) closeThread(); });
 load();
 setInterval(load, 3000);
 </script>
