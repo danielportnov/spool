@@ -1,6 +1,6 @@
 ---
 name: spool-loop
-description: Run the Spool loop, the main way a project gets worked - show every open thread in the spool, add your own ideas as AI suggested, build the threads the user has moved to build (on the Spool page, or by saying so) one by one and nothing else, notify the user when build is empty or something needs them, and check back every few hours (three unless told otherwise) for anything new or more pressing. Use for /spool-loop [hours], or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "keep going", "what's next - do it", asks you to work unattended, or asks "where do things stand", "what's in the spool", "what needs me", "what's blocked", "catch me up" or "what did the agents do".
+description: Run the Spool loop, the main way a project gets worked - show every open thread in the spool, add your own ideas as AI suggested, build the threads the user has moved to build (on the Spool page, or by saying so) one by one and nothing else, notify the user when build is empty or something needs them, then watch the spool and start again the moment a thread is moved to build, with a timed check back (three hours unless told otherwise) only where the harness cannot watch. Use for /spool-loop [hours], or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "keep going", "what's next - do it", asks you to work unattended, or asks "where do things stand", "what's in the spool", "what needs me", "what's blocked", "catch me up" or "what did the agents do".
 ---
 
 # Spool loop
@@ -20,10 +20,10 @@ three things:
 
 Be brief in the chat. The page holds the detail.
 
-The schedule is only a check back in. Every few hours, look at the spool
-again: is there something new, or more pressing? Rank it in, show the list,
-carry on. There is no budget to fill and no deadline to hit: the list is the
-plan, and you work down it until it is empty.
+The loop does not run on a clock. It watches the spool, and wakes the moment
+the human moves a thread to build or writes on one. There is no budget to
+fill and no deadline to hit: build is the plan, and you work it until it is
+empty, then listen for more. The schedule is only a check back in.
 
 **A spool 🧶 holds threads 🧵.** A project's queue of work is its spool, and
 each piece of work in it is a thread. Say it that way to the human, with the
@@ -37,11 +37,11 @@ edit `.spool/` by hand.
 
 | Called as | Means |
 | --- | --- |
-| `/spool-loop` | Show the spool and work it, and check back every 3 hours. Already running in this chat? Keep its schedule, show the spool and carry on. |
-| `/spool-loop <hours>` | The same, checking back every `<hours>` hours. Already running? Change it to that. |
-| `/spool-loop stop` | Cancel the schedule, say so, and end. |
+| `/spool-loop` | Show the spool, build what is in build, then watch the spool for more. Where the harness cannot watch, check back every 3 hours. Already running in this chat? Show the spool and carry on. |
+| `/spool-loop <hours>` | The same, with a timed check back every `<hours>` hours: for a harness that cannot watch, or as a second line of defence. Already scheduled? Change it to that. |
+| `/spool-loop stop` | Stop the watch, cancel any schedule, say so, and end. |
 
-That is all of it. The schedule calls the plain `/spool-loop` too.
+That is all of it. A schedule calls the plain `/spool-loop` too.
 
 ## Start
 
@@ -49,12 +49,40 @@ That is all of it. The schedule calls the plain `/spool-loop` too.
    what is ready. Read the policy: it decides what you may settle yourself.
    No `.spool/` here? Tell them in a line, set it up now by the `spool-init`
    skill, then carry on from here.
-2. Make sure the schedule is set. See "The schedule".
-3. Put the spool in order, show it, and build what is in build.
+2. Put the spool in order, show it, and build what is in build.
+3. When build is empty, watch the spool. See "Watch the spool". Only where
+   you cannot, or a number of hours was given, set the schedule: "The schedule".
+
+## Watch the spool
+
+`spool watch` stays up and prints a line the moment the human gives you
+something to do, and nothing otherwise:
+
+    build: t-4kq7 Tighter jump                          it can be built now
+    reply: t-4kq7 Tighter jump — "snappy, not heavy"    they wrote on a thread
+    unfiled: n-9wxa "add a mute button to settings"     a note nobody has filed
+
+- **In Claude Code:** when build is empty, start the `Monitor` tool with the
+  command `spool watch`, the longest timeout it allows, and a description
+  like "Spool: work for the loop". Then end your turn. Each line wakes you.
+- **`build:`** They moved it to build, on the page or by an answer that freed
+  it. Build it, by "Build what is in build".
+- **`reply:`** Their words are on the thread. Building it? It steers you:
+  adjust, and say what changed. Otherwise leave it for whoever builds it.
+- **`unfiled:`** File it, by the `spool-record` skill's rules.
+- **The watch runs out** after a while, and the harness tells you. That is
+  the check back in: look once (`spool next`), then start it again. Keep
+  doing so until they say stop.
+- **One watch, and only while build is empty.** While you are building you
+  need none: `spool next --claim` reads the order fresh after every thread.
+- They said stop? End the watch (`TaskStop` in Claude Code), and say so.
+- No way to listen to a command in your harness? Use the schedule.
 
 ## The schedule
 
-The loop is one recurring job in this chat, set with your harness's scheduler.
+The fallback, for a harness that cannot watch, and the second line of defence
+where a number of hours was given. The loop is then one recurring job in this
+chat, set with your harness's scheduler.
 **One job, and nothing else:** no timers, no second job, no other prompt. It
 is a check back in, never a deadline.
 

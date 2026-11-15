@@ -570,6 +570,7 @@ These are the verbs the skills run. They are here for reference, and for buildin
 | `spool init [folder] [--name n] [--about line] [--share] [--refresh]` | Start a spool here or in a named folder, ignored by git unless `--share`; a no-op where one exists, unless `--refresh` |
 | `spool loop [--watch s] [--agent cmd]` | Work the queue with no chat |
 | `spool page [--port n] [--no-open]` | Open the Spool page: the board where you move work to build |
+| `spool watch [--interval ms]` | Stay up and print a line when work lands in build, you reply on a thread, or a note arrives |
 | `spool mcp [-C dir]` | Serve the verbs as MCP tools over stdio, for agents with no shell |
 
 Every command takes `--json`, `-C <dir>` and `--as <name>`. Errors say what to do instead.

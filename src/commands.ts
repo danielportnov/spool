@@ -13,6 +13,7 @@ import { type Ctx, notify } from './context.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
 import { runLoop } from './loop.ts';
 import { servePage } from './page.ts';
+import { watch } from './watch.ts';
 import { serve } from './mcp.ts';
 import {
   type Config,
@@ -1579,6 +1580,14 @@ export const COMMANDS: Command[] = [
     summary: 'Open the Spool page: the board where the human moves work to build, adds notes and answers',
     options: { port: { type: 'string' }, 'no-open': { type: 'boolean' }, ...PROJECT },
     bare: (call) => servePage(call),
+  },
+  {
+    name: 'watch',
+    group: 'setup',
+    usage: 'watch [--interval <ms>] [-P <project>]',
+    summary: 'Stay up and print a line when work lands in build, the human replies on a thread, or a note arrives',
+    options: { interval: { type: 'string' }, ...PROJECT },
+    bare: (call) => watch(call),
   },
   {
     name: 'mcp',

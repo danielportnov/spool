@@ -155,7 +155,7 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   const loop = shipped('spool-loop');
   const headings = [...loop.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
   assert.deepEqual(headings, [
-    'How it was called', 'Start', 'The schedule', 'Put the spool in order', 'Show the spool', 'Build what is in build',
+    'How it was called', 'Start', 'Watch the spool', 'The schedule', 'Put the spool in order', 'Show the spool', 'Build what is in build',
     'When nothing is left that can move', 'Reaching them', 'Working a thread',
   ]);
   assert.match(loop, /\*\*you hold the context, you propose, they\ndecide what is built, you build it\.\*\*/);
@@ -163,8 +163,12 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   assert.match(loop, /Be brief in the chat\. The page holds the detail\./);
 
   // The schedule is one job that checks back in: no budget, no deadline, no timers.
-  assert.match(loop, /The schedule is only a check back in\.[\s\S]*There is no budget to fill and no deadline to hit/);
-  assert.match(loop, /\| `\/spool-loop` \| Show the spool and work it, and check back every 3 hours\./);
+  assert.match(loop, /The loop does not run on a clock\. It watches the spool[\s\S]*There is no budget to\nfill and no deadline to hit[\s\S]*The schedule is only a check back in\./);
+  assert.match(loop, /\| `\/spool-loop` \| Show the spool, build what is in build, then watch the spool for more\. Where the harness cannot watch, check back every 3 hours\./);
+
+  // It reacts to the page: one watch while build is empty, and each line is something to do.
+  assert.match(loop, /## Watch the spool[\s\S]*build: t-4kq7 Tighter jump[\s\S]*start the `Monitor` tool with the\n {2}command `spool watch`[\s\S]*\*\*The watch runs out\*\*[\s\S]*\*\*One watch, and only while build is empty\.\*\*/);
+  assert.match(loop, /## The schedule\n\nThe fallback, for a harness that cannot watch/);
   assert.match(loop, /\*\*One job, and nothing else:\*\* no timers, no second job, no other prompt\./);
   assert.match(loop, /recurring,\n {2}every `<hours>` hours, with the prompt `\/spool-loop`\./);
   assert.doesNotMatch(loop, /spool-loop again|spool-loop go|one-shot|session|go-ahead for/);
@@ -204,13 +208,14 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   assert.match(loop, /## Reaching them[\s\S]*\*\*Build is empty\*\*[\s\S]*\*\*It is done:\*\*[\s\S]*\*\*Nothing can move without them:\*\*[\s\S]*\*\*A question stops a thread\*\*[\s\S]*`PushNotification`/);
 
   // Every way in is covered by the description an agent matches on, and the other skills agree.
-  assert.match(String(parseFrontmatter(loop).data.get('description')), /AI suggested[\s\S]*moved to build[\s\S]*and nothing else[\s\S]*three unless told otherwise[\s\S]*\/spool-loop \[hours\]/);
+  assert.match(String(parseFrontmatter(loop).data.get('description')), /AI suggested[\s\S]*moved to build[\s\S]*and nothing else[\s\S]*watch the spool[\s\S]*three hours unless told otherwise[\s\S]*\/spool-loop \[hours\]/);
   assert.match(shipped('spool-init'), /--gate[\s\S]*`\/spool-loop` to start the loop: it builds what they have moved to build/);
   assert.match(shipped('spool-record'), /\*\*Give each thread its spec\*\*[\s\S]*What: [^\n]*\n {7}Why: [^\n]*\n {7}Done when: /);
   assert.match(shipped('spool-record'), /A new thread is proposed, not started\./);
   const page = shipped('spool-page');
-  assert.match(page, /Run `spool page` in the background[\s\S]*do not describe the board in the chat/);
+  assert.match(page, /Run `spool page` in the background[\s\S]*Do not\n {3}describe the board in the chat/);
   assert.match(page, /This is the only way anything gets built\./);
+  assert.match(page, /\*\*Keep the board live\.\*\* Opening the page is starting the loop/);
   assert.match(page, /\*\*Mark as complete\*\*, at the foot of a finished thread/);
   assert.match(page, /Change a field on the ticket \| Its name, status, priority, difficulty, tags or version/);
   assert.match(loop, /5\. \*\*Stamp the threads\.\*\* `spool edit <t-id> --version <x\.y\.z>`/);

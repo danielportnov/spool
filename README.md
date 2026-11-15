@@ -19,8 +19,7 @@ Then in Claude Code, inside any project:
 
 ```
 /spool-init     set it up, once
-/spool-page     open the board and move a thread to Build
-/spool-loop     agents build what is in Build
+/spool-page     open the board, press ▶ on a thread, and it gets built
 ```
 
 That's the whole thing. Got an idea? Put this in front of it, typed or dictated:
@@ -64,7 +63,7 @@ Both pictures are a made-up project.
 
 ## While you're away
 
-- 🔁 The loop checks back every three hours (`/spool-loop 1` for hourly) and carries on with whatever is in Build.
+- ⚡ The loop watches the spool. Press ▶ on the page and it starts within seconds; no timer, nobody typing.
 - 🔔 It notifies you when Build is empty, or when it needs a call that is yours.
 - ❓ A question stops one thread, never the loop. It asks with options and a recommendation, and moves on.
 - 🧾 A call it makes by itself leaves a receipt you can overrule.
@@ -75,8 +74,8 @@ Both pictures are a made-up project.
 | | |
 | --- | --- |
 | `/spool-init` | Set Spool up in a repo, or in a folder of repos. Once. |
-| `/spool-page` | The board. Where you plan and decide what gets built. |
-| `/spool-loop` | The loop. Builds what is in Build, tells you when it's done. |
+| `/spool-page` | The board. Where you plan and decide what gets built. Opening it starts the loop. |
+| `/spool-loop` | The loop by itself, with no board: builds what is in Build, then watches for more. |
 | `/spool-record <idea>` | Files one message as threads. The chat carries on as it was. |
 
 ## Under the hood

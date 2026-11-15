@@ -12,8 +12,12 @@ the chat can stay short.
    and has to keep running. It prints the page's address and opens it in their
    browser. If your harness has a browser pane, open the address there and
    add `--no-open`. No `.spool/` here? Tell them to run `/spool-init`, and stop.
-2. Give them the address, and say in one line what the board is for. Then stop:
-   do not describe the board in the chat. They can see it.
+2. Give them the address, and say in one line what the board is for. Do not
+   describe the board in the chat. They can see it.
+3. **Keep the board live.** Opening the page is starting the loop: build what
+   is in Build, then watch the spool so the next thread they move there is
+   built the moment they move it. The `spool-loop` skill has the rules:
+   "Build what is in build" and "Watch the spool".
 
 What they can do on it:
 
