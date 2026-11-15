@@ -636,6 +636,7 @@ function say(words) {
 
 async function post(action, body, done) {
   busy = true;
+  say('Saving…');
   try {
     const res = await fetch('/api/' + action, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': TOKEN }, body: JSON.stringify(body) });
     const out = await res.json();
@@ -647,7 +648,9 @@ async function post(action, body, done) {
   } finally {
     busy = false;
     last = '';
-    load();
+    // Show what was just done at once. The box they typed in still has the focus, and waiting for
+    // it to lose it is what made adding feel stuck.
+    load(true);
   }
 }
 
@@ -902,7 +905,7 @@ if (/^#t-[a-z0-9]+$/.test(location.hash)) openId = location.hash.slice(1);
 document.getElementById('veil').addEventListener('click', closeThread);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openId && !adding && !document.activeElement?.isContentEditable) closeThread(); });
 load();
-setInterval(load, 3000);
+setInterval(load, 1500);
 </script>
 </body>
 </html>
