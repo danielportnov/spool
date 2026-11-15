@@ -537,6 +537,8 @@ const PAGE = String.raw`<!doctype html>
       --shadow: 0 1px 2px rgba(0, 0, 0, .5); }
   }
   * { box-sizing: border-box; }
+  /* Hidden means gone. Without this, a rule that sets display (the board's grid) keeps a hidden view on screen. */
+  [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
   button { font: inherit; cursor: pointer; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 5px 10px; }
   button:hover { border-color: var(--soft); }

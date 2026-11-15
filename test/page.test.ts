@@ -183,6 +183,7 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.equal((await post('drop-sprint', { id: laterSprint.id })).status, 200);
     assert.deepEqual((await board()).sprints.map((x: any) => x.name), ['Polish']);
     assert.match(html, /data-view="backlog">Backlog</);
+    assert.match(html, /\[hidden\] \{ display: none !important; \}/, 'the view that is not up is really gone, not left above the other');
     assert.match(html, /id="search"/);
 
     // An audit's report is read on its ticket, in full.
