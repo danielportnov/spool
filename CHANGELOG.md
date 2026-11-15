@@ -2,6 +2,18 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.4.0 · 2026-11-15
+
+- The loop's check-in is one fixed layout: where the project stands, what shipped, a table of the
+  whole spool (thread, status, difficulty, priority, what to talk through), what the loop recommends
+  for the session, and what needs talking through.
+- Nothing starts until you say go. The ten-minute timer is gone.
+- The loop sets exactly one scheduled job. `/spool-loop again` and `/spool-loop go` no longer exist.
+- `/spool-recorder <what, and where>` records the one message it is in front of; it no longer turns
+  the chat into a recorder.
+- `/spool-blockers` is removed: the loop's check-in walks you through everything waiting on you.
+  `spool install` takes the old copy away.
+
 ## 0.3.0 · 2026-11-15
 
 - `/spool-loop` is the main command: a cycle every three hours (or `/spool-loop <hours>`) that takes
