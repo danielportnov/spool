@@ -179,6 +179,13 @@ test('the loop skill is a cycle: take stock, check in, work, wrap up', () => {
   assert.match(shipped('spool-init'), /`\/spool-loop` to start the loop: it checks in now and every three hours/);
 });
 
+test('the recorder decides the split and the size itself', () => {
+  const recorder = shipped('spool-recorder');
+  assert.match(recorder, /## Splitting what they said[\s\S]*never ask them how to split[\s\S]*`--needs <the earlier thread>`[\s\S]*`--from <note-id>`\n {2}on each/);
+  assert.match(recorder, /Size every thread as you file it[\s\S]*Never ask them how\nbig something is\./);
+  assert.doesNotMatch(recorder, /Leave it off/, 'no thread is filed without a size');
+});
+
 test('install puts the skills where the agent finds them, and keeps the ones you edited', () => {
   const s = new Sandbox();
   const out = s.sp('install');

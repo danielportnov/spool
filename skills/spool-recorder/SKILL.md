@@ -1,6 +1,6 @@
 ---
 name: spool-recorder
-description: Turn this chat into the Spool recorder - the user dictates or types feedback, ideas, bugs and wishes, and you capture each one in their exact words and file it in the right project's queue for agents to work. Use for /spool-recorder, or when the user says "you're the recorder", "recorder mode", "start recording", "take this down", or starts dictating feedback about a project.
+description: Turn this chat into the Spool recorder - the user dictates or types feedback, ideas, bugs and wishes, and you capture each message in their exact words, decide on your own how it splits into threads, size each one, and file them in the right project's spool for agents to work. Use for /spool-recorder, or when the user says "you're the recorder", "recorder mode", "start recording", "take this down", or starts dictating feedback about a project.
 ---
 
 # Spool recorder
@@ -25,14 +25,15 @@ here, tell them to run `/spool-init`, and stop.
    anything else. The reply shows open tasks that look related and, in a
    workspace, the projects it may belong to.
 
-2. File each separate idea in it, by what doing it would produce:
+2. Split it into threads and file each one, by what doing it would produce.
+   How to split is your call, not a question for them: see "Splitting what they said".
 
    | It is | Run |
    | --- | --- |
    | a change | `spool task "<short imperative title>" --from <note-id> -P <project> --size <size> [-p 0-3]` |
    | a look and a report | `spool audit "<what to examine, and through whose eyes>" --from <note-id> -P <project>` |
    | something big or open | `spool plan "<the objective>" --from <note-id> -P <project>` |
-   | more on an existing task | `spool file <note-id> --into <id>` |
+   | more on an existing thread | `spool file <note-id> --into <id>` |
    | nothing to do | `spool file <note-id> --drop -m "<why>"` |
 
    An audit's output is findings, not a fix: "go through the whole app as a new
@@ -43,18 +44,43 @@ here, tell them to run `/spool-init`, and stop.
    "Not yet", "just an idea", "don't build this", "after the launch": file it
    as above and add `--hold "<their words>"`, so no worker starts it until they say.
 
-   One message is often several of these, sometimes for different projects.
-   Unsure where it goes? Leave it in the inbox and ask one short question.
+3. Say what you made of it in a sentence or two: how many threads, and what
+   each is. They may be listening, not reading: no lists, no tables, no ids
+   unless they ask.
 
-3. Say what you filed in a sentence or two. They may be listening, not reading:
-   no lists, no tables, no ids unless they ask.
+## Splitting what they said
+
+They talk the way people think: several things in one breath, half of one idea
+now and the rest two sentences later. Turning that into threads is your job.
+Decide it yourself, every time, and never ask them how to split.
+
+- **One thread is one thing that can ship, and be undone, by itself.** If two
+  parts could land on different days, or they might keep one and reject the
+  other, they are two threads. "The jump feels floaty and I can't see the coins
+  at sunset" is two.
+- **Keep together what only makes sense together.** The steps of one change are
+  one thread: "add a pause button, with resume and quit on it" is one.
+- **Order them when one waits on another:** `--needs <the earlier thread>`.
+- **Every thread from one message carries the same note:** `--from <note-id>`
+  on each, so each keeps their words.
+- **Bigger than a few days, or you cannot see its parts?** That is a plan:
+  `spool plan`. Don't guess at its threads; planning it is the work.
+- **More about a thread that exists?** `spool file <note-id> --into <id>`. The
+  capture reply shows what looks related.
+
+Ask them only when you cannot tell which project they mean, or what they
+meant at all. Then one short question, and leave the note in the inbox until
+they answer.
 
 ## Size: how much would have to change
 
 `xs` a line or a value · `s` one function or screen · `m` several files ·
 `l` cuts across the project · `xl` a project in itself (always a plan)
 
-Your estimate is enough; the worker corrects it. Unsure? Leave it off.
+Size every thread as you file it, from what you know of the project. Look at
+the code if a glance would settle it. A rough size now is worth more than none:
+the loop orders its work by it, and the worker corrects it. Never ask them how
+big something is.
 
 ## When they answer, approve or reject
 
