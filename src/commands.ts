@@ -8,7 +8,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ParseArgsConfig } from 'node:util';
-import { installSkills, installedIn, userSkillsDir } from './builtin.ts';
+import { RETIRED, installSkills, installedIn, userSkillsDir } from './builtin.ts';
 import { type Ctx, notify } from './context.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
 import { runLoop } from './loop.ts';
@@ -1407,7 +1407,16 @@ export const COMMANDS: Command[] = [
       const shown = home && dir.startsWith(home + path.sep) ? `~${dir.slice(home.length)}` : dir;
       const out = [`Spool skills in ${p.bold(shown)}`];
       for (const { name, outcome } of done) {
-        out.push(`  ${outcome.padEnd(9)}  ${name}${outcome === 'kept' ? p.dim('  · edited here, so left alone; --force replaces it') : ''}`);
+        const gone = RETIRED[name];
+        const note =
+          outcome === 'removed'
+            ? `retired: ${gone}`
+            : outcome !== 'kept'
+              ? ''
+              : gone
+                ? `retired (${gone}), but edited here, so left alone; --force removes it`
+                : 'edited here, so left alone; --force replaces it';
+        out.push(`  ${outcome.padEnd(9)}  ${name}${note ? p.dim(`  · ${note}`) : ''}`);
       }
       out.push('', 'In your agent:  /spool-help');
       return { text: out.join('\n'), data: { dir, skills: done } };

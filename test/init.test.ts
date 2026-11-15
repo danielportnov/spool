@@ -128,7 +128,7 @@ test('init can leave the agents file alone', () => {
 });
 
 test('the shipped skills are valid Agent Skills, and few', () => {
-  assert.deepEqual([...SKILL_NAMES], ['spool-help', 'spool-init', 'spool-loop', 'spool-recorder', 'spool-blockers', 'spool-overview']);
+  assert.deepEqual([...SKILL_NAMES], ['spool-help', 'spool-init', 'spool-loop', 'spool-recorder', 'spool-overview']);
   for (const name of SKILL_NAMES) {
     const skill = parseFrontmatter(shipped(name));
     assert.equal(skill.data.get('name'), name);
@@ -168,7 +168,7 @@ test('the loop skill is a cycle: take stock, check in, work, wrap up', () => {
 
   // The check-in shows the whole spool, then a proposal nobody can miss, then the questions.
   assert.match(loop, /\*\*A spool 🧶 holds threads 🧵\.\*\*/);
-  assert.match(loop, /\*\*1\. 🧶 The spool\.\*\*[\s\S]*\*\*2\. 🎯 The proposal\.\*\*[\s\S]*In the\nnext `<hours>` hours I propose to ship[\s\S]*\*\*3\. ❓ Questions\.\*\*/);
+  assert.match(loop, /\*\*1\. 🧶 The spool\.\*\*[\s\S]*\*\*2\. 🎯 The proposal\.\*\*[\s\S]*In the\nnext `<hours>` hours I propose to ship[\s\S]*\*\*3\. ❓ What needs them\.\*\*/);
 
   // What shipped gets a version: bumped, written up and tagged, and never pushed.
   assert.match(loop, /### A version for what shipped[\s\S]*Once per cycle[\s\S]*minor, 0\.3\.2 → 0\.4\.0[\s\S]*A major, or the first 1\.0,\n {3}is the human's call[\s\S]*`CHANGELOG\.md`[\s\S]*`git tag -a v<x\.y\.z>[\s\S]*The tag stays on this machine/);
@@ -212,7 +212,7 @@ test('install puts the skills where the agent finds them, and keeps the ones you
   // An edited skill is yours: it is left alone until you say otherwise.
   const loop = '.home/.claude/skills/spool-loop/SKILL.md';
   s.write(loop, s.read(loop).replace('# Spool loop', '# Spool loop, my way'));
-  assert.match(s.sp('install'), /kept {7}spool-loop {2}· edited here[\s\S]*current {4}spool-blockers/);
+  assert.match(s.sp('install'), /kept {7}spool-loop {2}· edited here[\s\S]*current {4}spool-overview/);
   assert.match(s.read(loop), /my way/);
   assert.match(s.sp('install', '--force'), /updated {4}spool-loop/);
   assert.doesNotMatch(s.read(loop), /my way/);
@@ -225,6 +225,31 @@ test('install puts the skills where the agent finds them, and keeps the ones you
   assert.match(s.sp('install'), /updated {4}spool-help/);
   assert.match(s.read(help), /^---\nname: spool-help/);
   s.cleanup();
+});
+
+test('install takes away a retired skill nobody edited, and the loop does its job', () => {
+  const s = new Sandbox();
+  const old = '.home/.claude/skills/spool-blockers/SKILL.md';
+  const body = '---\nname: spool-blockers\n---\n\n# Spool blockers\n';
+  const hash = createHash('sha256').update(body).digest('hex').slice(0, 12);
+  s.write(old, `${body}\n<!-- spool 0.2.0 · ${hash} · written by \`spool install\` -->\n`);
+  assert.match(s.sp('install'), /removed {4}spool-blockers {2}· retired: the loop does this at every check-in: \/spool-loop/);
+  assert.equal(s.exists('.home/.claude/skills/spool-blockers'), false);
+  assert.doesNotMatch(s.sp('install'), /spool-blockers/, 'gone, so nothing more to say');
+
+  // An edited copy is somebody's, and stays until they say otherwise.
+  s.write(old, `${body}\nMy own notes.\n`);
+  assert.match(s.sp('install'), /kept {7}spool-blockers {2}· retired \(the loop does this[^\n]*\), but edited here, so left alone; --force removes it/);
+  assert.ok(s.exists(old));
+  assert.match(s.sp('install', '--force'), /removed {4}spool-blockers/);
+  assert.equal(s.exists(old), false);
+
+  // What it did is in the loop's check-in, and no skill sends anyone to it.
+  const loop = shipped('spool-loop');
+  assert.match(loop, /Plans waiting for a go-ahead[\s\S]*Calls agents made on their own[\s\S]*New skills/);
+  assert.match(loop, /`spool approve --all`; it never covers plans/);
+  assert.match(loop, /Silence\napproves nothing/);
+  for (const name of SKILL_NAMES) assert.doesNotMatch(shipped(name), /spool-blockers/);
 });
 
 test('install can target a project, or any skills directory', () => {

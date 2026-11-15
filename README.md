@@ -24,7 +24,7 @@ flowchart LR
   rec -- "files it" --> q[(".spool/")]
   q -- "next task" --> w["The loop"]
   w -- "commits" --> code[("your code")]
-  w -- "questions · receipts · new skills" --> rev["Blockers"]
+  w -- "questions · receipts · new skills" --> rev["The check-in"]
   rev --> you
   you -- "answer · approve · revert" --> q
 ```
@@ -36,14 +36,13 @@ dependencies.
 
 ## The skills
 
-You use Spool by talking to your agent. Five skills, and one that lists them:
+You use Spool by talking to your agent. Three skills, and one that lists them:
 
 | Skill | What it does | Use it |
 | --- | --- | --- |
 | `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
-| `/spool-loop [hours]` | **The main one.** Every `hours` (3 unless you say) it shows you the spool 🧶, proposes which threads 🧵 to ship next, asks what it needs up front, then works until the next check-in | once, and leave the chat open |
+| `/spool-loop [hours]` | **The main one.** Every `hours` (3 unless you say) it shows you the spool 🧶, proposes which threads 🧵 to ship next, walks you through everything waiting on you, then works until the next check-in | once, and leave the chat open; again any time to check in now |
 | `/spool-recorder <what, and where>` | Put it in front of anything you type or say: that one message is filed as threads 🧵, and the chat carries on as it was | whenever you have feedback or an idea |
-| `/spool-blockers` | Walks you through what agents need from you: questions, go-aheads, anything to undo | to clear everything waiting on you in one go |
 | `/spool-overview [project]` | The whole spool 🧶, every thread 🧵 colour-coded: needs you, blocked, in progress, ready, on hold | any time |
 | `/spool-help` | This table, and what to do next here | when you forget |
 
@@ -58,8 +57,9 @@ that matter; the rest are for looking closer.
    turned into a plan, and the spool is put in order.
 2. **Check in.** One message in three parts: 🧶 the whole spool, every thread under its colour, with
    what shipped since last time; 🎯 the proposal, a numbered list of what it intends to ship before
-   the next check-in; ❓ the questions. It reads ahead through the threads it proposes, so the
-   questions arrive now and not two hours in.
+   the next check-in; ❓ everything waiting on you — questions, plans wanting a go-ahead, calls agents
+   made by themselves — each ready to answer in a word. It reads ahead through the threads it
+   proposes, so the questions arrive now and not two hours in.
 3. **Wait ten minutes.** Reply and it takes every part of what you say: answers, a different set of
    threads, new ideas. Say nothing and it starts on its proposal.
 4. **Work** until the next cycle is due, or nothing can move without you.

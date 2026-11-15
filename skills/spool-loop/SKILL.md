@@ -1,6 +1,6 @@
 ---
 name: spool-loop
-description: Run the Spool loop, the main way a project gets worked - every few hours (three unless told otherwise) take stock of the spool, size and order its threads, show the user the whole spool and a proposal of what to ship before the next check-in, ask everything up front, then work unattended until then. Use for /spool-loop [hours], or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "keep going", "what's next - do it", or asks you to work unattended.
+description: Run the Spool loop, the main way a project gets worked - every few hours (three unless told otherwise) take stock of the spool, size and order its threads, show the user the whole spool and a proposal of what to ship before the next check-in, walk them through everything waiting on them (questions, go-aheads, calls agents made, work to accept or undo), then work unattended until then. Use for /spool-loop [hours], or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "keep going", "what's next - do it", asks you to work unattended, or asks "what needs me", "what's blocked", "what do you need from me", "catch me up" or "what did the agents do".
 ---
 
 # Spool loop
@@ -27,7 +27,7 @@ edit `.spool/` by hand.
 
 | Called as | Means |
 | --- | --- |
-| `/spool-loop` | Start the loop, a cycle every 3 hours. Already running in this chat? Keep its schedule and run a cycle now. |
+| `/spool-loop` | Start the loop, a cycle every 3 hours. Already running in this chat? Keep its schedule and run a cycle now: this is also how the human clears what is waiting on them. |
 | `/spool-loop <hours>` | The same, every `<hours>` hours. Already running? Change it to that. |
 | `/spool-loop again` | The schedule firing: the next cycle is due. The human never types this. |
 | `/spool-loop go` | The check-in window closing: start work. The human never types this. |
@@ -125,9 +125,20 @@ what you are leaving for a later loop, and why. Then ask: take the proposal as
 it is, or say which threads they want instead. One word from them must be
 enough to accept it.
 
-**3. ❓ Questions.** Numbered, each with its options lettered, your
-recommendation and the reason in a line, so "1a, 2c" answers them all. Plans
-waiting for a go-ahead go here too. Nothing to ask? Say so.
+**3. ❓ What needs them.** Everything waiting on the human, most blocking
+first, each ready to answer in a word. Number them straight through, so
+"1a, 2 go ahead, the rest is fine" settles the lot. Nothing waiting? Say so.
+
+- **Questions.** Work is stopped on these. Each with its options lettered,
+  your recommendation and the reason in a line, and what it unblocks.
+- **Plans waiting for a go-ahead.** The approach in a sentence, and its parts.
+- **Calls agents made on their own.** Together, briefly: what was decided and
+  why. Would they change any?
+- **New skills** agents wrote down: the name, and what it is for.
+
+This is the only place the human is asked for anything, so nothing waiting on
+them is left out of it. Do not spend their attention twice: what they have
+already seen and let stand, say as a count, not again in full.
 
 End with the time you start on the proposal unless they say otherwise.
 
@@ -144,7 +155,12 @@ Then give them the window: ten minutes, less if they are plainly here.
 | They say | Run |
 | --- | --- |
 | an answer: "the second one", "1a", "no, do X" | `spool answer <d-id> <n or their words>` |
-| "go ahead with the plan" | `spool approve <t-id>`, always by id |
+| "go ahead with the plan" | `spool approve <t-id>`, always by id, one plan at a time |
+| "not that plan", "that audit missed the point" | `spool revert <t-id> -m "<their words>"` |
+| "that's fine", about a call an agent made, shipped work or a new skill | `spool approve <id>` |
+| "no, do X", about a call an agent made | `spool answer <d-id> "<their words>"`; the rework is queued |
+| "all good", "the rest is fine" | `spool approve --all`; it never covers plans |
+| "drop that skill" | `spool drop <s-id>` |
 | "do X first", "that one can wait" | `spool edit <id> -p <0-3>` |
 | "not now", "park that" | `spool hold <t-id> -m "<their words>"` |
 | "start on X", about a thread on hold | `spool release <t-id>` |
@@ -152,11 +168,13 @@ Then give them the window: ten minutes, less if they are plainly here.
 | anything new: an idea, a bug, a wish | `spool capture "<their exact words>"`, then file it |
 
 Never guess an answer or an approval; if you can't tell which thread they
-mean, ask. Then cancel the timer, say the proposal as it now stands, numbered,
+mean, or whether that was a yes, ask. Their words are the record: pass what
+they said through, don't tidy it into your own. Then cancel the timer, say the proposal as it now stands, numbered,
 and start work. `go` arriving after work has started means nothing: end the turn.
 
 **Nobody replies.** `go` arrives: work the proposal as you made it. Questions
-still open keep their threads waiting, and everything else moves.
+still open keep their threads waiting, and everything else moves. Silence
+approves nothing: calls, shipped work and plans wait for the next check-in.
 
 ## Work
 
@@ -188,7 +206,8 @@ take the next thread.
 First give what shipped a version: see "A version for what shipped". Then a
 few plain lines, the first that applies first:
 
-- what is waiting on them, as a count, and that `/spool-blockers` walks through it;
+- what is waiting on them, as a count: the next check-in walks through it, and
+  `/spool-loop` brings one now;
 - the proposal, with what shipped ticked off and how they can see each thing;
 - the new version, if there is one;
 - when you will be back.

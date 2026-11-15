@@ -2,9 +2,9 @@
  * The skills Spool ships: how people use it.
  *
  * Spool is driven by talking to an agent, and the skills in `skills/` are the
- * whole of that surface: one to set a project up, the loop that works it, one
- * to record, one to clear what is waiting on the human, one to see it all, and
- * one that lists the rest. The CLI is what those skills run.
+ * whole of that surface: one to set a project up, the loop that works it and
+ * checks in with the human, one to record, one to see it all, and one that
+ * lists the rest. The CLI is what those skills run.
  *
  * They are ordinary Agent Skills, plain SKILL.md files, so they can be read on
  * GitHub and edited in place. `spool install` copies them to where the harness
@@ -32,10 +32,18 @@ export const SKILL_NAMES = [
   'spool-init',
   'spool-loop',
   'spool-recorder',
-  'spool-blockers',
   'spool-overview',
 ] as const;
 export type SkillName = (typeof SKILL_NAMES)[number];
+
+/**
+ * Skills Spool used to ship, and where their job went. `spool install` takes
+ * away a copy nobody edited, so a command that no longer exists is not left
+ * sitting in the agent's list.
+ */
+export const RETIRED: Record<string, string> = {
+  'spool-blockers': 'the loop does this at every check-in: /spool-loop',
+};
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 
@@ -97,14 +105,24 @@ export function installedIn(dir: string): boolean {
   return fs.existsSync(path.join(dir, 'spool-loop', 'SKILL.md'));
 }
 
-export type Outcome = 'installed' | 'updated' | 'current' | 'kept';
+export type Outcome = 'installed' | 'updated' | 'current' | 'kept' | 'removed';
 
 /**
  * Copy the skills into a skills directory. A copy nobody has edited is brought
  * up to date; one somebody has edited is kept unless `force` says otherwise.
+ * A retired skill is removed on the same terms: only a copy Spool wrote and
+ * nobody has touched since, or any copy with `force`.
  */
-export function installSkills(dir: string, force = false): { name: SkillName; outcome: Outcome }[] {
-  return SKILL_NAMES.map((name) => {
+export function installSkills(dir: string, force = false): { name: string; outcome: Outcome }[] {
+  const retired = Object.keys(RETIRED).flatMap((name) => {
+    const file = path.join(dir, name, 'SKILL.md');
+    if (!fs.existsSync(file)) return [];
+    if (!untouched(fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n')) && !force) return [{ name, outcome: 'kept' as Outcome }];
+    fs.rmSync(file);
+    if (!fs.readdirSync(path.dirname(file)).length) fs.rmdirSync(path.dirname(file));
+    return [{ name, outcome: 'removed' as Outcome }];
+  });
+  const current = SKILL_NAMES.map((name): { name: string; outcome: Outcome } => {
     const file = path.join(dir, name, 'SKILL.md');
     const fresh = stamped(shipped(name));
     let outcome: Outcome = 'installed';
@@ -118,4 +136,5 @@ export function installSkills(dir: string, force = false): { name: SkillName; ou
     fs.writeFileSync(file, fresh);
     return { name, outcome };
   });
+  return [...current, ...retired];
 }
