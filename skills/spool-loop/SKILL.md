@@ -42,15 +42,20 @@ edit `.spool/` by hand.
 The loop is a real recurring job in this chat, set with your harness's scheduler.
 
 - **In Claude Code:** `CronList` shows whether a job for `/spool-loop again` is
-  already set. None? `CronCreate` one, recurring, every `<hours>` hours counted
-  from now, at a minute that is not :00 or :30, with the prompt
-  `/spool-loop again`. One at a different interval? `CronDelete` it and create
-  the new one. Never leave two.
-  The `loop` skill does the same thing: `/loop <hours>h /spool-loop again`.
+  already set. None? `CronCreate` one, recurring, every `<hours>` hours, with
+  the prompt `/spool-loop again`. One at a different interval? `CronDelete` it
+  and create the new one. Never leave two.
+- **The first return is a full interval away.** A cron's hours usually include
+  the one you are in, so pick a minute this hour has already passed, and not
+  :00 or :30: at 4:12, `7 1-23/3 * * *` first comes back after 7:07, where
+  minute 13 would come back at once. Read the next run in the tool's result.
+  Sooner than half an interval? Delete the job and set it again.
+- The `loop` skill sets the same job: `/loop <hours>h /spool-loop again`.
   If it runs the first firing at once, that is this cycle; do not run two.
-- Tell them once, in a line: when you will be back, that the loop lives in this
-  chat so the chat stays open and the machine awake, and how long the schedule
-  lasts (Claude Code ends one after 7 days). `/spool-loop` starts it again.
+- Tell them once, in a line: when you will be back, by the time the scheduler
+  gave and not the one you asked for; that the loop lives in this chat, so the
+  chat stays open and the machine awake; and how long the schedule lasts
+  (Claude Code ends one after 7 days). `/spool-loop` starts it again.
 - Called with `again` and the job is gone? It ran out. Run this cycle, and say
   in the wrap-up that it was the last.
 - No scheduler in your harness? Say so, run one cycle, and offer

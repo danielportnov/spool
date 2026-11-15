@@ -159,6 +159,7 @@ test('the loop skill is a cycle: take stock, check in, work, wrap up', () => {
   // Three hours unless told otherwise, and the schedule's own prompt can never set a second schedule.
   assert.match(loop, /\| `\/spool-loop` \| Start the loop, a cycle every 3 hours\./);
   assert.match(loop, /recurring, every `<hours>` hours[\s\S]*`\/spool-loop again`/);
+  assert.match(loop, /The first return is a full interval away[\s\S]*a minute this hour has already passed[\s\S]*Sooner than half an interval\? Delete the job/);
   assert.match(loop, /\| `\/spool-loop again` \|[^\n]*The human never types this\./);
 
   // Questions are found before the work starts, and the human gets a window that closes by itself.
