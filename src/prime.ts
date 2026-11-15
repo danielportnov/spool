@@ -3,7 +3,7 @@
  *
  * Spool has two roles. A recorder files one thing the human said, when they
  * ask for it to be recorded. A worker takes tasks off the queue and does them. The rules for both
- * are written once, in the skills Spool ships (`skills/spool-recorder` and
+ * are written once, in the skills Spool ships (`skills/spool-record` and
  * `skills/spool-loop`), and an agent whose harness loads skills has them
  * already. What a skill cannot hold is what is true of this project right
  * now: its autonomy policy, its projects, what is waiting. `spool prime
@@ -79,11 +79,11 @@ const BLOCK = `${BLOCK_START}
 ## Spool
 
 This project's work queue lives in \`.spool/\`. The human drives it by talking to you, through the
-Spool skills (\`/spool-help\` lists them). The \`spool\` CLI is your tool for it: never edit those
+Spool skills: \`/spool-init\`, \`/spool-loop\` and \`/spool-record\`. The \`spool\` CLI is your tool for it: never edit those
 files by hand, and never ask the human to run a command you can run.
 
 - The human gives feedback, an idea or a bug, even in passing: \`spool capture "<their exact words>"\`,
-  then file it with \`spool task "<title>" --from <note-id>\`. The \`spool-recorder\` skill has the rules.
+  then file it with \`spool task "<title>" --from <note-id>\`. The \`spool-record\` skill has the rules.
 - Asked to do some work: \`spool status\` first. If it is already a task, \`spool start <id>\`, and
   work it by the rules in the \`spool-loop\` skill, so the work is on record and can be undone.
 - No skills in your harness? \`spool prime\` prints the worker's rules, \`spool prime recorder\` the recorder's.
@@ -140,7 +140,7 @@ function map(ws: Workspace): string {
 export function prime(ws: Workspace, role: Role, contextOnly = false): string {
   const parts: string[] = [];
   if (role === 'recorder') {
-    if (!contextOnly) parts.push(RECORDER, `${rules('spool-recorder')}\n`);
+    if (!contextOnly) parts.push(RECORDER, `${rules('spool-record')}\n`);
     parts.push(`${map(ws)}\n`);
     return parts.join('\n');
   }

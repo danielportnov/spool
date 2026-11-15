@@ -1388,7 +1388,7 @@ export const COMMANDS: Command[] = [
           '',
           'Next, in your agent. You should not need this command line again.',
           '  /spool-loop       the loop: it shows you every open thread, talks the next one through, and builds it on your word',
-          '  /spool-recorder   put it in front of anything you type or say, and that message is filed as threads',
+          '  /spool-record     put it in front of anything you type or say, and that message is filed as threads',
           `  ${path.join(SPOOL_DIR, 'policy.md')} says what agents may decide without you — worth two minutes.`,
         );
       }
@@ -1427,7 +1427,7 @@ export const COMMANDS: Command[] = [
                 : 'edited here, so left alone; --force replaces it';
         out.push(`  ${outcome.padEnd(9)}  ${name}${note ? p.dim(`  · ${note}`) : ''}`);
       }
-      out.push('', 'In your agent:  /spool-help');
+      out.push('', 'In your agent:  /spool-init in a project, then /spool-loop');
       return { text: out.join('\n'), data: { dir, skills: done } };
     },
   },

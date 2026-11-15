@@ -36,18 +36,16 @@ dependencies.
 
 ## The skills
 
-You use Spool by talking to your agent. Three skills, and one that lists them:
+You use Spool by talking to your agent. There are three skills:
 
 | Skill | What it does | Use it |
 | --- | --- | --- |
 | `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
 | `/spool-loop [hours]` | **The main one.** It shows you every open thread 🧵 in the spool 🧶, ranked in the order it suggests, with its own ideas marked ✨ AI suggested. Then it takes them one at a time: it explains the thread in plain words and its plan, you say go (or change it, or pick another), and it builds. It notifies you when it is done or needs you, and checks back every `hours` (3 unless you say) for anything new | once, and leave the chat open |
-| `/spool-recorder <what, and where>` | Put it in front of anything you type or say: that one message is filed as threads 🧵, and the chat carries on as it was | whenever you have feedback or an idea |
-| `/spool-overview [project]` | The whole spool 🧶, every thread 🧵 colour-coded: needs you, blocked, in progress, ready, on hold | any time |
-| `/spool-help` | This table, and what to do next here | when you forget |
+| `/spool-record <what, and where>` | Put it in front of anything you type or say: that one message is filed as threads 🧵, and the chat carries on as it was | whenever you have feedback or an idea |
 
-**init** once, then **loop**, and that is the whole workflow. The loop and the recorder are the two
-that matter; the rest are for looking closer.
+**init** once, then **loop**, and that is the whole workflow. **record** is for adding to the spool
+whenever something comes to mind.
 
 ### What the loop does
 
@@ -105,7 +103,7 @@ The queue it creates stays on your machine. Git ignores `.spool/` unless you ask
 
 ## What it looks like
 
-> **You:** /spool-recorder the jump feels floaty, and I can barely see the coins at sunset
+> **You:** /spool-record the jump feels floaty, and I can barely see the coins at sunset
 >
 > **Agent:** Two threads in Sky Hop's spool: tighten the jump, and make the coins readable at sunset.
 
@@ -142,7 +140,8 @@ In another chat, or the same one later:
 With you somewhere else, a notification instead: *Spool: thread 3 is ready to start, the pause
 button. Say go.*
 
-At any point, `/spool-overview` shows where everything stands:
+Underneath, the engine keeps every thread under a colour. This is what an agent reads
+(`spool overview`), and what the loop's table is made from:
 
 ```console
 🧶 skyhop  4 threads open · 1 on hold · 2 done
@@ -343,7 +342,7 @@ finds those commits and undoes them in a single new commit. It is designed for a
 
 ### Two roles: a recorder and workers
 
-The **recorder** files one thing you said. Put `/spool-recorder` in front of a message, typed or
+The **recorder** files one thing you said. Put `/spool-record` in front of a message, typed or
 dictated, saying what you want and where: it captures your exact words, works out which project they
 belong to, splits them into threads, sizes each, and files them. It never does the work, and it never
 takes over the chat: the next message is an ordinary one. Its scope is wherever you are: one

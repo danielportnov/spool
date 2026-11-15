@@ -21,8 +21,8 @@ Get this project from nothing to agents working it, in one short conversation.
    create a folder.
 
 3. **Stop if it is already set up.** If that folder has a `.spool/` of its
-   own, tell them Spool is already set up for that folder, show
-   `/spool-overview` for it, and stop here. Do not set it up again.
+   own, tell them Spool is already set up for that folder, show them
+   `spool overview --table` for it, and stop here. Do not set it up again.
    A `.spool/` in a folder above it is different, and fine: this project gets
    its own queue and also appears in the parent's as a project.
 
@@ -56,12 +56,12 @@ Get this project from nothing to agents working it, in one short conversation.
    something. Skip it if they are not interested.
 
 7. **Take the first work.** If they have already said what they want in this
-   chat, capture and file it now by the `spool-recorder` rules. Otherwise ask
+   chat, capture and file it now by the `spool-record` rules. Otherwise ask
    what is on their mind for this project.
 
 End with what happens next, in one line each:
 
 - `/spool-loop` to start the loop: it shows every open thread in the order it suggests,
   explains each one before building it, and builds on their word. This is the one they need.
-- `/spool-recorder` in front of anything they type or say, in any chat, to
+- `/spool-record` in front of anything they type or say, in any chat, to
   have that message filed as threads

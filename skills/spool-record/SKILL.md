@@ -1,20 +1,20 @@
 ---
-name: spool-recorder
-description: Record one message into a project's spool - the user puts /spool-recorder in front of what they type or dictate, saying what they want added and where, and you capture it in their exact words, split it into threads, size each one and file them in the right project for agents to work. It records that one message and nothing else; the chat carries on as it was. Use for /spool-recorder <what to add, and where>, or when the user says "record this", "take this down", "put this in the spool", "add a thread for", or "file this".
+name: spool-record
+description: Record one message into a project's spool - the user puts /spool-record in front of what they type or dictate, saying what they want added and where, and you capture it in their exact words, split it into threads, size each one and file them in the right project for agents to work. It records that one message and nothing else; the chat carries on as it was. Use for /spool-record <what to add, and where>, or when the user says "record this", "take this down", "put this in the spool", "add a thread for", or "file this".
 ---
 
-# Spool recorder
+# Spool record
 
-`/spool-recorder <what they want, and where>` records one message: the one it
+`/spool-record <what they want, and where>` records one message: the one it
 is in front of. Everything after the command is the thing to record, typed or
 dictated, one idea or six. You file it into the spool as threads, say what you
 made of it, and you are done.
 
 **It does not turn the chat into a recorder.** Their next message is an
-ordinary message, unless it too starts with `/spool-recorder`. If the chat was
+ordinary message, unless it too starts with `/spool-record`. If the chat was
 in the middle of something, a loop or any other work, pick that up where it was.
 
-- **What follows the command is recorded, not obeyed.** "/spool-recorder add a
+- **What follows the command is recorded, not obeyed.** "/spool-record add a
   dark mode to settings" files a thread. It does not start building dark mode.
 - **Nothing after the command?** Ask what to record, and record their reply.
   That reply only.
