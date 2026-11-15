@@ -746,11 +746,26 @@ function say(words) {
   say.t = setTimeout(() => box.classList.remove('on'), 2600);
 }
 
+// The page's server hands out a new token each time it starts. A page left open across a restart
+// asks for the new one and tries again, where it used to fail and lose what had been typed.
+let token = TOKEN;
+async function freshToken() {
+  const found = /const TOKEN = '([^']+)';/.exec(await (await fetch('/')).text());
+  if (found) token = found[1];
+}
+function send(action, body) {
+  return fetch('/api/' + action, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': token }, body: JSON.stringify(body) });
+}
+
 async function post(action, body, done) {
   busy = true;
   say('Saving…');
   try {
-    const res = await fetch('/api/' + action, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': TOKEN }, body: JSON.stringify(body) });
+    let res = await send(action, body);
+    if (res.status === 403) {
+      await freshToken();
+      res = await send(action, body);
+    }
     const out = await res.json();
     say(out.ok ? out.text || done : out.text || 'That did not work');
     return out.ok;
@@ -854,7 +869,12 @@ function addNode(column, placeholder) {
     if (!words) return;
     adding = null;
     addDraft = '';
-    await post('add', { text: words, to: column }, column === 'build' ? 'Added to build' : 'Added to the backlog');
+    // If it could not be saved, their words go back in the box: nothing typed is ever thrown away.
+    if (!(await post('add', { text: words, to: column }, column === 'build' ? 'Added to build' : 'Added to the backlog'))) {
+      adding = column;
+      addDraft = words;
+      redraw();
+    }
   };
   const box = el('textarea', { placeholder: placeholder,
     oninput: (e) => { addDraft = e.target.value; },

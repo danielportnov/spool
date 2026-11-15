@@ -120,6 +120,17 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     assert.ok(Date.now() - typed < 1500, 'what was added shows at once');
     const daily = s.json('list').items.find((i: { title: string }) => i.title === 'A daily challenge level').id;
 
+    // A page left open while its server restarted has an old token. Adding still works, and nothing typed is lost.
+    await page.evaluate('token = "left-over-from-before-a-restart"');
+    await column('build').locator('button.add').click();
+    await page.keyboard.type('Fix the typo on the title screen');
+    await page.keyboard.press('Enter');
+    await card('build', 'Fix the typo on the title screen').waitFor();
+    const typo = s.json('list').items.find((i: { title: string }) => i.title === 'Fix the typo on the title screen').id;
+    assert.equal(state(typo), 'ready', 'added under Build, it is in build');
+    s.sp('propose', typo);
+    await card('proposed', 'Fix the typo on the title screen').waitFor();
+
     // A question is answered where it is asked.
     await card('build', 'Make coins readable at sunset').getByRole('button', { name: 'Outline' }).click();
     await until('the answer is on record', () => s.json('review').questions.length === 0);
@@ -180,7 +191,7 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     await page.keyboard.type('coins');
     assert.deepEqual(await page.locator('#board .card .title').allInnerTexts(), ['Make coins readable at sunset']);
     await page.keyboard.press('Escape');
-    assert.equal(await page.locator('#board .card').count(), 4);
+    assert.equal(await page.locator('#board .card').count(), 5);
 
     // Finished work: who built it is on the card, a tick approves one, and one button approves the rest.
     for (const [id, summary] of [[coins, 'Coins are outlined'], [jump, 'The jump snaps'], [daily, 'A new level every day']] as const) {
@@ -199,7 +210,8 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     await shot(page, '4-done');
 
     assert.equal(state(pause), 'proposed', 'what was never moved to build was never built');
-    assert.deepEqual(problems, [], 'the page logged no errors');
+    // One refusal is expected: the request sent with the left-over token, before the page fetched a new one.
+    assert.deepEqual(problems, ['Failed to load resource: the server responded with a status of 403 (Forbidden)'], 'the page logged no other errors');
   } finally {
     await browser.close();
     child.kill();
