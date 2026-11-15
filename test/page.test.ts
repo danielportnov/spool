@@ -78,6 +78,7 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.equal((await post('add', { to: 'done', text: 'x' })).status, 400);
     assert.equal((await post('add', { to: 'build', text: '  ' })).status, 400);
     assert.doesNotMatch(html, /Add to the spool|id="idea"/, 'no add box at the top');
+    assert.doesNotMatch(html, /also waiting for a look|Nothing is built until you move it to Build|id="where"/, 'the header is the name alone');
     assert.match(html, /'\+ Add'/);
 
     // An answer unblocks the thread it was holding.

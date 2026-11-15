@@ -317,9 +317,8 @@ const PAGE = String.raw`<!doctype html>
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
-  header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding: 18px 20px 6px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding: 18px 20px 14px; }
   h1 { font-size: 20px; margin: 0; font-weight: 650; }
-  .where { color: var(--soft); }
   .add { width: 100%; text-align: left; border-style: dashed; background: transparent; color: var(--soft); }
   .add:hover { color: var(--ink); }
   .adding textarea { margin-top: 0; background: var(--panel); }
@@ -362,7 +361,6 @@ const PAGE = String.raw`<!doctype html>
 <body>
 <header>
   <h1>🧶 <span id="project">Spool</span></h1>
-  <span class="where" id="where"></span>
 </header>
 <div class="rule" id="rule"></div>
 <main id="board"></main>
@@ -462,14 +460,11 @@ function cardNode(c, column) {
 function draw(b) {
   document.getElementById('project').textContent = b.project;
   document.title = '🧶 ' + b.project;
-  const waiting = [];
-  if (b.also.inbox) waiting.push(b.also.inbox + ' unfiled');
-  if (b.also.assumptions) waiting.push(b.also.assumptions + ' calls agents made');
-  if (b.also.skills) waiting.push(b.also.skills + ' new skills');
-  document.getElementById('where').textContent = 'v' + b.version + (waiting.length ? ' · also waiting for a look: ' + waiting.join(', ') : '');
-  document.getElementById('rule').textContent = b.gate
-    ? 'Nothing is built until you move it to Build.'
-    : 'The build gate is off in this project: new threads go straight to Build.';
+  // The header is the project's name and nothing else. One thing is still worth a line: a project
+  // where the gate is off, because there the board cannot promise that nothing builds by itself.
+  const rule = document.getElementById('rule');
+  rule.textContent = b.gate ? '' : 'The build gate is off in this project: new threads go straight to Build.';
+  rule.hidden = b.gate;
   const main = document.getElementById('board');
   main.replaceChildren(...COLUMNS.map(([key, name, hint]) => {
     const cards = b.columns[key];
