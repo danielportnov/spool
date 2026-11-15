@@ -725,6 +725,8 @@ let query = '';
 let adding = null;
 let addDraft = '';
 
+// (An attribute given as true is written empty, which is right for "hidden" or "open" and wrong for
+// "draggable": that one has to say "true", or the browser does not let the thing be dragged.)
 const el = (tag, attrs = {}, ...kids) => {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
@@ -816,7 +818,7 @@ function dragOf(node, c, from) {
 
 function cardNode(c, b) {
   const movable = c.column === 'proposed' || c.column === 'build';
-  const node = el('div', { class: 'card' + (c.complete ? ' past' : ''), draggable: movable, 'data-id': c.id },
+  const node = el('div', { class: 'card' + (c.complete ? ' past' : ''), draggable: movable && 'true', 'data-id': c.id },
     el('div', { class: 'title', onclick: () => openThread(c.id) }, c.title),
     el('div', { class: 'chips' }, chipsOf(c, b)),
     c.note && !c.done && el('div', { class: 'note' }, c.note),
@@ -831,7 +833,7 @@ function cardNode(c, b) {
 }
 
 function rowNode(c, b) {
-  const node = el('div', { class: 'row', draggable: !c.done && c.column !== 'building', 'data-id': c.id },
+  const node = el('div', { class: 'row', draggable: !c.done && c.column !== 'building' && 'true', 'data-id': c.id },
     el('div', {}, el('span', { class: 'title', onclick: () => openThread(c.id) }, c.title),
       el('span', { class: 'chips', style: 'display: inline-flex; margin: 0 0 0 8px; vertical-align: middle' }, chipsOf({ ...c, sprint: '', done: false }, b))),
     el('div', { class: 'right' },
