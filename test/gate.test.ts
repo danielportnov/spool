@@ -87,3 +87,42 @@ test('a thread carries tags and a version, set when it is filed or later, and cl
   assert.deepEqual(s.json('show', jump).item.tags, ['idea', 'art']);
   s.cleanup();
 });
+
+test('a sprint is a named set of work with no dates: fill it, play it, and it ends when its work does', () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop', '--gate');
+  const jump = s.id('task', 'Tighten the jump arc', '-s', 's');
+  const coins = s.id('task', 'Make coins readable at sunset', '-s', 'xs');
+  const later = s.id('task', 'A Grand Prix mode');
+
+  const made = s.sp('sprint', 'Polish');
+  assert.match(made, /^Sprint made in skyhop:\n {2}▫ r-\w+ {2}Polish {2}· planned · 0 of 0 done/);
+  const sprint = s.json('list', '-k', 'sprint').items[0].id;
+  assert.match(s.fails('sprint', 'polish'), /there is already a sprint called "polish"/);
+  assert.match(s.fails('play', 'Polish'), /Polish is empty/);
+
+  // Backlog work goes into it, by id or by name, and comes out again.
+  s.sp('edit', jump, '--sprint', sprint);
+  s.sp('edit', coins, '--sprint', 'polish');
+  s.sp('edit', later, '--sprint', 'Polish');
+  assert.match(s.sp('edit', later, '--sprint', 'none'), /Updated out of its sprint/);
+  assert.equal(s.json('show', jump).item.sprint, sprint);
+  assert.match(s.sp('overview', '--table'), /\| \*\*Tighten the jump arc\*\* \| Small \| Normal \| 🟠 Proposed · in Polish \|/);
+  assert.match(s.sp('next'), /Nothing is ready/, 'being in a sprint does not start anything');
+
+  // Playing it is the human moving everything in it to build, in one word.
+  const played = s.sp('play', 'Polish');
+  assert.match(played, /^Polish is running: 2 moved to build\./);
+  assert.match(s.item(jump), /human: moved to build with the sprint Polish/);
+  assert.deepEqual([s.json('show', jump).item.state, s.json('show', coins).item.state, s.json('show', later).item.state], ['ready', 'ready', 'proposed']);
+  assert.match(s.sp('list', '-k', 'sprint'), /▸ r-\w+ {2}Polish {2}· running · 0 of 2 done/);
+
+  // It finishes with its last thread, not on a date.
+  s.sp('start', jump);
+  assert.doesNotMatch(s.sp('done', jump, '-m', 'Snappier'), /Sprint finished/);
+  s.sp('start', coins);
+  assert.match(s.sp('done', coins, '-m', 'Outlined'), /Sprint finished: Polish\. Everything in it is done\./);
+  assert.match(s.sp('list', '-k', 'sprint', '--all'), /Polish {2}· done · 2 of 2 done/);
+  assert.match(s.fails('edit', later, '--sprint', 'Polish'), /Polish is finished/);
+  s.cleanup();
+});

@@ -7,7 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { type Item, type Spool, isPlan, isSettled, oneLine, reportFile, splitBody } from './model.ts';
-import { type Docket, type Review, blockers, children, dependents, docket, ready, review, stateOf, taskState, tasks } from './schedule.ts';
+import { type Docket, type Review, blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, stateOf, taskState, tasks } from './schedule.ts';
 import { BUILT_IN, fileFor, ledgerFor, matchSkills } from './skills.ts';
 import { type Candidate, SUGGEST, addLine, offerLine } from './suggest.ts';
 import type { Workspace } from './store.ts';
@@ -39,6 +39,8 @@ export function paint(on: boolean): Paint {
 
 const MARK: Record<string, string> = {
   proposed: '◇',
+  planned: '▫',
+  running: '▸',
   ready: '○',
   active: '▶',
   stale: '▷',
@@ -104,8 +106,13 @@ export function itemLine(ws: Workspace, item: Item, p: Paint, showProject = true
     if (state === 'done' || state === 'dropped') notes.push(awaitsGoAhead(ws, item) ? 'awaiting go-ahead' : state);
     const made = progress(ws, item);
     if (made) notes.push(made.text);
+    const sprint = sprintOf(ws, item);
+    if (sprint) notes.push(sprint.title);
     if (item.version) notes.push(`v${item.version}`);
     if (item.tags.length) notes.push(item.tags.map((t) => `#${t}`).join(' '));
+  } else if (item.kind === 'sprint') {
+    const inIt = sprintTasks(ws, item);
+    notes.push(item.status, `${inIt.filter((t) => t.status === 'done').length} of ${inIt.length} done`);
   } else if (item.kind === 'decision') {
     notes.push(item.choice ? `${item.status}: ${oneLine(item.choice, 48)}` : item.status);
   } else if (item.status !== 'new' && item.status !== 'active') {
@@ -371,7 +378,9 @@ export function tableRows(ws: Workspace, d: Docket): TableRow[] {
   const waiting = mine.filter((t) => state(t) === 'blocked').map((t) => ({ item: t, ...waitNote(ws, t) }));
   rows.push(...waiting.filter((r) => r.mark === '🔴'), ...waiting.filter((r) => r.mark !== '🔴'));
   for (const t of d.proposed) {
-    rows.push({ item: t, mark: '🟠', note: t.suggested ? `Proposed · ✨ AI suggested: ${oneLine(t.suggested, 100)}` : 'Proposed' });
+    const sprint = sprintOf(ws, t);
+    const where = sprint ? `Proposed · in ${sprint.title}` : 'Proposed';
+    rows.push({ item: t, mark: '🟠', note: t.suggested ? `${where} · ✨ AI suggested: ${oneLine(t.suggested, 100)}` : where });
   }
   for (const t of d.suggested) rows.push({ item: t, mark: '✨', note: `AI suggested: ${oneLine(t.suggested ?? '', 110)}. Say yes and it joins the order.` });
   for (const t of d.held) rows.push({ item: t, mark: '⚪', note: `On hold: “${oneLine(t.hold ?? '', 80)}”` });

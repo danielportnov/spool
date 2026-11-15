@@ -55,7 +55,7 @@ import {
   statusText,
   suggestText,
 } from './render.ts';
-import { blockers, children, dependents, docket, findCycle, ready, review, stateOf, taskState } from './schedule.ts';
+import { blockers, children, dependents, docket, findCycle, ready, review, sprintOf, sprintTasks, stateOf, taskState } from './schedule.ts';
 import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, writeSkill } from './skills.ts';
 import { SPOOL_DIR, type Workspace, findFolder, findHome, readConfig, skillsDir } from './store.ts';
 import { SUGGEST, suggestSkills } from './suggest.ts';
@@ -181,6 +181,26 @@ function versionOf(v: unknown): string | undefined {
   return given;
 }
 
+/** A sprint by its id or by its name, as a person would say it: "sprint 2", "Polish". */
+function sprintBy(ws: Workspace, ref: string): Item {
+  const named = ws.items.filter((i) => i.kind === 'sprint' && i.status !== 'dropped' && i.title.toLowerCase() === ref.trim().toLowerCase());
+  if (named.length === 1) return named[0]!;
+  if (named.length > 1) throw new SpoolError(`${named.length} sprints are called "${ref}"`, `Name one by id: ${named.map((s) => s.id).join(', ')}`);
+  return ws.get(ref, 'sprint');
+}
+
+/** A sprint is over when everything in it is finished. Nothing else ends one. */
+function settleSprint(ws: Workspace, task: Item, actor: string): Item | undefined {
+  const sprint = sprintOf(ws, task);
+  if (!sprint || sprint.status === 'done') return undefined;
+  const inIt = sprintTasks(ws, sprint);
+  if (!inIt.length || inIt.some((t) => t.status !== 'done')) return undefined;
+  sprint.status = 'done';
+  addLog(sprint, actor, `done: all ${inIt.length} finished`, ws.now());
+  ws.save(sprint);
+  return sprint;
+}
+
 const SIZE_GUIDE = 'xs a line or a value · s one function or screen · m several files · l cuts across the project · xl a project in itself';
 
 function sizeOf(v: unknown): Size | undefined {
@@ -224,6 +244,7 @@ function fileWork(call: Call, preset?: WorkType): Result {
     suggested,
     tags: tagsOf(call.opts.tag) ?? [],
     version: versionOf(call.opts.version) || undefined,
+    sprint: str(call.opts.sprint) ? sprintBy(ws, str(call.opts.sprint)!).id : undefined,
     from: uniq(from.map((i) => i.id)),
     needs: uniq(needs.map((i) => i.id)),
     body: [...quotes, bodyOf(call)].filter(Boolean).join('\n\n'),
@@ -255,6 +276,7 @@ const WORK: Options = {
   suggested: { type: 'string' },
   tag: { type: 'string', multiple: true },
   version: { type: 'string' },
+  sprint: { type: 'string' },
 };
 
 function first(call: Call, what: string, kind?: Kind): Item {
@@ -632,6 +654,59 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: 'sprint',
+    group: 'agents',
+    usage: 'sprint <name…> [-P <project>]',
+    summary: 'Make a sprint: a named set of work to build together, with no dates',
+    write: true,
+    options: { ...PROJECT },
+    run(call) {
+      const { ws, p } = call;
+      const name = oneLine(words(call, call.args, 'the sprint\'s name', 'spool sprint "Sprint 1"'), 60);
+      const spool = str(call.opts.project) ? ws.project(str(call.opts.project)) : ws.home;
+      if (ws.items.some((i) => i.kind === 'sprint' && i.spool === spool && i.status !== 'dropped' && i.title.toLowerCase() === name.toLowerCase())) {
+        throw new SpoolError(`there is already a sprint called "${name}"`);
+      }
+      const sprint = ws.create(spool, 'sprint', { title: name });
+      return {
+        text: `Sprint made in ${spool.name}:\n  ${itemLine(ws, sprint, p, false)}\n${p.dim(`  put work in it: spool edit <t-id> --sprint ${sprint.id}      the human starts it: spool play ${sprint.id}`)}`,
+        data: { sprint: itemJson(ws, sprint) },
+      };
+    },
+  },
+  {
+    name: 'play',
+    group: 'you',
+    usage: 'play <sprint>',
+    summary: 'Start a sprint: everything in it moves to build',
+    human: true,
+    write: true,
+    run({ ws, args, actor, p }) {
+      if (!args.length) throw new SpoolError('which sprint is missing', 'spool play <sprint id or name>');
+      const sprint = sprintBy(ws, args.join(' '));
+      if (sprint.status === 'done') throw new SpoolError(`${sprint.title} is finished`);
+      const inIt = sprintTasks(ws, sprint);
+      if (!inIt.length) throw new SpoolError(`${sprint.title} is empty`, `Put work in it first: spool edit <t-id> --sprint ${sprint.id}`);
+      const moved: Item[] = [];
+      for (const t of inIt) {
+        // Playing a sprint is the human saying start, for each thing in it: the same as moving each to build.
+        if (t.status !== 'proposed' && !t.hold) continue;
+        addLog(t, actor, `moved to build with the sprint ${sprint.title}`, ws.now());
+        if (t.status === 'proposed') t.status = 'open';
+        t.hold = undefined;
+        ws.save(t);
+        moved.push(t);
+      }
+      if (sprint.status !== 'running') {
+        sprint.status = 'running';
+        addLog(sprint, actor, `started: ${inIt.length} in it`, ws.now());
+        ws.save(sprint);
+      }
+      const out = [`${p.bold(sprint.title)} is running: ${moved.length} moved to build.`, ...moved.map((t) => `  ${itemLine(ws, t, p)}`)];
+      return { text: out.join('\n'), data: { sprint: itemJson(ws, sprint), build: moved.map((t) => t.id) } };
+    },
+  },
+  {
     name: 'propose',
     group: 'you',
     usage: 'propose <t-id…>',
@@ -882,6 +957,7 @@ export const COMMANDS: Command[] = [
       t.skills = uniq([...t.skills, ...used]);
       addLog(t, actor, `done: ${summary}`, ws.now());
       ws.save(t);
+      const finished = settleSprint(ws, t, actor);
 
       const kids = children(ws, t).filter((k) => k.status !== 'dropped');
       const gated = kids.filter((k) => k.needs.includes(t.id) && k.status === 'open');
@@ -902,6 +978,7 @@ export const COMMANDS: Command[] = [
       else if (root && type === 'change') {
         out.push(p.yellow(`  No commits found for it. Without the "Spool: ${t.id}" trailer or --commit, it cannot be reverted.`));
       }
+      if (finished) out.push(p.green(`  Sprint finished: ${finished.title}. Everything in it is done.`));
       if (ready.length) out.push('Now ready:', ...ready.map((r) => `  ${itemLine(ws, r, p)}`));
       // The third time the same steps are finished with no skill is the moment to say so: this agent still knows them.
       const again = suggestSkills(ws, ws.home).find((c) => c.tasks.includes(t));
@@ -910,7 +987,7 @@ export const COMMANDS: Command[] = [
       else out.push(p.dim('  A procedure worth keeping? spool skill add <name> -d "<when to use it>" --from ' + t.id + ' -b -'));
       return {
         text: out.join('\n'),
-        data: { task: itemJson(ws, t), unblocked: ready.map((r) => r.id), children: kids.map((k) => k.id), notified: told, repeats: before },
+        data: { task: itemJson(ws, t), unblocked: ready.map((r) => r.id), children: kids.map((k) => k.id), notified: told, repeats: before, sprintFinished: finished?.id ?? null },
       };
     },
   },
@@ -979,7 +1056,7 @@ export const COMMANDS: Command[] = [
   {
     name: 'edit',
     group: 'agents',
-    usage: 'edit <id> [--title <t>] [-p 0-3] [-s size] [-t type] [--tag <tag>…|none] [--version <v>|none] [-b <body>] [--needs <id>…|none] [--reopen]',
+    usage: 'edit <id> [--title <t>] [-p 0-3] [-s size] [-t type] [--tag <tag>…|none] [--version <v>|none] [--sprint <sprint>|none] [-b <body>] [--needs <id>…|none] [--reopen]',
     summary: 'Change an item',
     write: true,
     options: {
@@ -991,6 +1068,7 @@ export const COMMANDS: Command[] = [
       reopen: { type: 'boolean' },
       tag: { type: 'string', multiple: true },
       version: { type: 'string' },
+      sprint: { type: 'string' },
       ...BODY,
     },
     run(call) {
@@ -1028,6 +1106,18 @@ export const COMMANDS: Command[] = [
       if (version !== undefined) {
         item.version = version || undefined;
         changed.push(version ? `version ${version}` : 'version cleared');
+      }
+      if (str(call.opts.sprint)) {
+        if (item.kind !== 'task') throw new SpoolError('only tasks go in a sprint');
+        if (str(call.opts.sprint) === 'none') {
+          item.sprint = undefined;
+          changed.push('out of its sprint');
+        } else {
+          const sprint = sprintBy(ws, str(call.opts.sprint)!);
+          if (sprint.status === 'done') throw new SpoolError(`${sprint.title} is finished`, 'Put it in another sprint, or make one: spool sprint "<name>"');
+          item.sprint = sprint.id;
+          changed.push(`sprint ${sprint.title}`);
+        }
       }
       const body = bodyOf(call);
       if (body !== undefined) {
@@ -1371,6 +1461,7 @@ export const COMMANDS: Command[] = [
         task: (t) => `["${t}"]`,
         decision: (t) => `{{"${t}"}}`,
         skill: (t) => `[["${t}"]]`,
+        sprint: (t) => `[/"${t}"/]`,
       };
       const edges: { from: string; to: string; type: string }[] = [];
       for (const i of items) {

@@ -32,12 +32,12 @@ Two threads land in the spool, in your words.
 
 ## How it works
 
-| 🟠 Proposed | 🟢 Build | 🔵 Building | ✅ Done |
+| 🟠 Backlog | 🟢 Build | 🔵 Building | ✅ Done |
 | --- | --- | --- | --- |
 | Every new thread. Yours, or an agent's ✨. | The ones you picked. | An agent has it. | Shipped, and undoable. |
 
-1. **Threads start proposed.** Agents size them, explain them and suggest their own. They cannot start them.
-2. **You move a thread to Build.** Drag it, press ▶, or say "build that one".
+1. **Threads start in the backlog.** Agents size them, explain them and suggest their own. They cannot start them.
+2. **You move a thread to Build.** Drag it, press ▶, or say "build that one". Or group a few into a **sprint** and press ▶ on the sprint.
 3. **The loop builds it.** One thread at a time, in order, a line when it starts and a line when it ships.
 4. **You can take it back.** "Undo that" reverts everything that thread changed, and nothing else.
 
@@ -49,7 +49,9 @@ Two threads land in the spool, in your words.
 spool page
 ```
 
-A board of your spool, served from your own machine. Drag threads between Proposed and Build, add
+A board of your spool, served from your own machine, with a Jira-shaped **Backlog** view beside it:
+sprints you fill by dragging and start with one ▶. Sprints have no dates; agents work in hours, so
+a sprint is over when its threads are done. On the board, drag threads between Backlog and Build, add
 one with **+ Add**, answer an agent's question with one button. Open any card and you get the
 ticket: what you said, what was done and by which agent, everything in between, and its fields at
 the side — status, priority, difficulty, tags, version — all yours to change. Click a tag or a
@@ -57,9 +59,11 @@ version to narrow the board to it. Reply on a thread, and press **Mark as comple
 looked at the change. Agents keep working while it is
 open, and you watch threads move.
 
+![The Backlog view: sprints to fill and play, and the backlog under them](docs/spool-backlog.png)
+
 ![A thread, opened: what you said, what Claude did, and the ticket's fields](docs/spool-ticket.png)
 
-Both pictures are a made-up project.
+The pictures are a made-up project.
 
 ## While you're away
 

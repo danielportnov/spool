@@ -34,13 +34,16 @@
 
 import { flowStrings, flowTokens, parseFrontmatter, quote } from './frontmatter.ts';
 
-export type Kind = 'note' | 'task' | 'decision' | 'skill';
+export type Kind = 'note' | 'task' | 'decision' | 'skill' | 'sprint';
 
 export const KINDS: Record<Kind, { prefix: string; statuses: readonly string[]; initial: string }> = {
   note: { prefix: 'n', statuses: ['new', 'filed', 'dropped'], initial: 'new' },
   task: { prefix: 't', statuses: ['proposed', 'open', 'active', 'done', 'dropped'], initial: 'open' },
   decision: { prefix: 'd', statuses: ['open', 'assumed', 'decided', 'dropped'], initial: 'open' },
   skill: { prefix: 's', statuses: ['active', 'dropped'], initial: 'active' },
+  // A sprint is a named set of tasks the human means to build together. It has no dates: agents
+  // work in hours, so a sprint is over when its tasks are done, not when a fortnight is.
+  sprint: { prefix: 'r', statuses: ['planned', 'running', 'done', 'dropped'], initial: 'planned' },
 };
 
 export const KIND_NAMES = Object.keys(KINDS) as Kind[];
@@ -129,6 +132,8 @@ export interface Item {
   tags: string[];
   /** Tasks: the version it is meant for, or shipped in. */
   version?: string;
+  /** Tasks: the sprint it has been put in, by id. */
+  sprint?: string;
   /** Tasks: names of the skills used. */
   skills: string[];
   /** When the human acknowledged a finished task, an assumption or a new skill. */
@@ -171,6 +176,7 @@ const FIELDS: readonly (readonly [string, FieldType])[] = [
   ['commits', 'tokens'],
   ['tags', 'tokens'],
   ['version', 'string'],
+  ['sprint', 'string'],
   ['skills', 'tokens'],
   ['reviewed', 'string'],
   ['path', 'string'],

@@ -161,6 +161,30 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.equal(s.json('review').assumptions.length, 1, 'a call an agent made is not swept in with the threads');
     assert.match(html, /Mark all ' \+ cards\.length \+ ' as complete/);
 
+    // Sprints: made on the page, filled from the backlog, and played, which moves what is in one to build.
+    assert.equal((await post('sprint', { name: 'Polish' })).status, 200);
+    b = await board();
+    const polish = b.sprints.find((x: any) => x.name === 'Polish');
+    assert.deepEqual([polish.status, polish.total, polish.waiting], ['planned', 0, 0]);
+    assert.equal((await post('play', { id: polish.id })).status, 400, 'an empty sprint has nothing to play');
+    assert.equal((await post('assign', { id: jump, sprint: polish.id })).status, 200);
+    assert.equal((await post('assign', { id: followUp.id, sprint: polish.id })).status, 200);
+    assert.equal((await post('assign', { id: followUp.id, sprint: '' })).status, 200);
+    b = await board();
+    assert.deepEqual([b.sprints[0].total, b.sprints[0].waiting, b.columns.proposed.find((c: any) => c.id === jump).sprint], [1, 1, polish.id]);
+    assert.equal(b.columns.proposed.find((c: any) => c.id === followUp.id).sprint, '');
+    assert.equal((await post('play', { id: polish.id })).status, 200);
+    b = await board();
+    assert.deepEqual([b.sprints[0].status, b.sprints[0].waiting], ['running', 0]);
+    assert.ok(b.columns.build.some((c: any) => c.id === jump), 'playing the sprint moved its thread to build');
+    assert.match(s.item(jump), /human: moved to build with the sprint Polish/);
+    assert.equal((await post('sprint', { name: 'Later' })).status, 200);
+    const laterSprint = (await board()).sprints.find((x: any) => x.name === 'Later');
+    assert.equal((await post('drop-sprint', { id: laterSprint.id })).status, 200);
+    assert.deepEqual((await board()).sprints.map((x: any) => x.name), ['Polish']);
+    assert.match(html, /data-view="backlog">Backlog</);
+    assert.match(html, /id="search"/);
+
     // An audit's report is read on its ticket, in full.
     const audit = s.id('audit', 'How does it feel to a new player?');
     s.sp('build', audit);
@@ -169,8 +193,8 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.equal((await board()).columns.done.find((c: any) => c.id === audit).thread.report, '# First hour\n\nThe jump, and the coins.');
 
     // It refuses what it should: no token, a name that is not this machine, a move it does not offer.
-    assert.equal((await post('move', { id: jump, to: 'build' }, {})).status, 403);
-    assert.equal(s.json('show', jump).item.state, 'proposed', 'nothing moved without the token');
+    assert.equal((await post('move', { id: jump, to: 'proposed' }, {})).status, 403);
+    assert.equal(s.json('show', jump).item.state, 'ready', 'nothing moved without the token');
     // fetch will not send another Host, so this one goes out by hand, the way a rebound name would arrive.
     const asOtherSite = await new Promise<number>((resolve, reject) => {
       http.get(`${url}api/board`, { headers: { host: 'evil.example' } }, (res) => resolve(res.statusCode ?? 0)).on('error', reject);

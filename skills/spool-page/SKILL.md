@@ -1,6 +1,6 @@
 ---
 name: spool-page
-description: Open the Spool page - a board in the browser with every thread of this project's spool in four columns (proposed, build, building, done), where the user drags threads into build or presses play, adds notes and answers questions. Use for /spool-page, or when the user says "open the spool page", "open the board", "show me the board", "let me see the spool", or wants to plan or move threads around.
+description: Open the Spool page - a board in the browser with every thread of this project's spool in four columns (backlog, build, building, done), and a backlog view with sprints, where the user drags threads into build or presses play on a thread or a whole sprint, adds notes and answers questions. Use for /spool-page, or when the user says "open the spool page", "open the board", "show me the board", "let me see the spool", or wants to plan or move threads around.
 ---
 
 # Spool page
@@ -21,10 +21,17 @@ the chat can stay short.
 
 What they can do on it:
 
+The page has two views. **Board** is four columns: Backlog, Build, Building,
+Done. **Backlog** is for planning: sprints to fill and play, and under them
+everything that is in no sprint.
+
 | On the page | What it does |
 | --- | --- |
 | Drag a thread 🧵 to **Build**, or press ▶ | It may be built now, in its turn. This is the only way anything gets built. |
-| **Not yet**, or drag it back | Back to proposed. Nothing builds it. |
+| **Not yet**, or drag it back | Back to the backlog. Nothing builds it. |
+| **+ Create sprint**, then drag threads into it | A sprint is a named set of threads with no dates. Being in one starts nothing. |
+| **▶ Play sprint** | Everything in the sprint moves to Build at once. |
+| The search, or a sprint's pill | Narrows the board to what matches. |
 | Open a card | The ticket: what they said, what was done and by which agent, and everything that happened, with its fields at the side. |
 | Change a field on the ticket | Its name, status, priority, difficulty, tags or version. Tags and versions are theirs to invent. |
 | Click a tag or a version on a card | The board shows only those threads; click again to clear. |

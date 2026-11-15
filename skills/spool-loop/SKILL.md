@@ -231,6 +231,13 @@ Repeat until `spool next --claim` says nothing is ready:
    `spool ask`. Tick it off in a line: "✅ Thread 2 — <name>: <what they can
    see now>."
 
+**Sprints.** They may group threads into a sprint on the page and press play
+on it: every thread in it lands in build at once, and you build them like any
+others. A sprint has no dates; it is over when its last thread is done, and
+`spool done` says so. Say it too, in a line, and give it its version then.
+You may draft one from the backlog (`spool sprint "<name>"`, then
+`spool edit <t-id> --sprint <name>`); only they play it (`spool play`).
+
 Then take the next one. The order is read again every time, so a thread they
 moved to build while you worked comes up in its turn. A question about one
 thread is never a reason to stop: put it through `spool ask` and take the next.
@@ -253,6 +260,8 @@ else they say, take every part of it:
 | They say | Run |
 | --- | --- |
 | "build 3", "go on that one", "yes, do it" | `spool build <t-id>` |
+| "play the sprint", "start sprint 2" | `spool play <sprint>` |
+| "put that in the sprint", "take it out" | `spool edit <t-id> --sprint <sprint or none>` |
 | "not yet", "take that out of build" | `spool propose <t-id>` |
 | an answer: "the second one", "a", "no, do X" | `spool answer <d-id> <n or their words>` |
 | "do X first", "that one can wait" | `spool edit <id> -p <0-3>` |

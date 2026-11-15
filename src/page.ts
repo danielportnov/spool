@@ -2,8 +2,9 @@
  * The Spool page: the project's spool as a board in a browser.
  *
  * `spool page` starts a small server on this machine and opens a kanban board
- * of every thread: proposed, build, building, done. It is where the human
- * plans and steers. They drag a thread into build, or press play on it, and
+ * of every thread: backlog, build, building, done. A second view is the
+ * backlog itself, with sprints to fill and play. It is where the human plans
+ * and steers. They drag a thread into build, or press play on it, and
  * that is the only way anything gets built; they add a thread at the foot of a
  * column; they open a card and read its thread: what they asked, what was done
  * and by which agent, and everything that happened in between; they write a
@@ -13,7 +14,8 @@
  * Agents read the same spool and keep working while the page is open.
  *
  * Everything the page does is an ordinary command run in-process, as the
- * human: `build`, `propose`, `capture`, `task`, `file`, `edit`, `answer`, `approve`. So the page can do
+ * human: `build`, `propose`, `capture`, `task`, `file`, `edit`, `answer`, `approve`,
+ * `sprint`, `play`. So the page can do
  * nothing the command line cannot, and every rule the commands enforce holds
  * here too.
  *
@@ -33,7 +35,7 @@ import type { Bare, Result } from './commands.ts';
 import type { Ctx } from './context.ts';
 import { type Item, SpoolError, oneLine, reportFile, splitBody } from './model.ts';
 import { age, tableRows } from './render.ts';
-import { blockers, children, docket, review, taskState, tasks } from './schedule.ts';
+import { blockers, children, docket, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
 import { Workspace } from './store.ts';
 
 type Column = 'proposed' | 'build' | 'building' | 'done';
@@ -55,6 +57,8 @@ interface Card {
   p: number;
   tags: string[];
   version: string;
+  /** The sprint it is in, by id, or none. */
+  sprint: string;
   column: Column;
   created: string;
   updated: string;
@@ -126,6 +130,8 @@ interface Board {
   versions: string[];
   /** How many finished threads the human has marked complete, shown or not. */
   history: number;
+  /** The sprints, oldest first: what is in each and how far along it is. */
+  sprints: { id: string; name: string; status: string; total: number; done: number; waiting: number }[];
   columns: Record<Column, Card[]>;
   also: { assumptions: number; skills: number; inbox: number };
 }
@@ -208,6 +214,7 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     p: task.priority ?? 2,
     tags: task.tags,
     version: task.version ?? '',
+    sprint: sprintOf(ws, task)?.id ?? '',
     column,
     created: task.created,
     updated: task.updated,
@@ -271,6 +278,21 @@ export function board(ws: Workspace, project?: string): Board {
     tags: [...new Set(all.flatMap((t) => t.tags))].sort(),
     versions: [...new Set(all.map((t) => t.version ?? '').filter(Boolean))].sort().reverse(),
     history: done.filter((t) => t.reviewed).length,
+    sprints: ws.items
+      .filter((i) => i.kind === 'sprint' && i.spool === spool && i.status !== 'dropped')
+      .sort((a, b) => a.created.localeCompare(b.created))
+      .map((s) => {
+        const inIt = sprintTasks(ws, s);
+        return {
+          id: s.id,
+          name: s.title,
+          status: s.status,
+          total: inIt.length,
+          done: inIt.filter((t) => t.status === 'done').length,
+          // What pressing play would move: in the sprint, and not yet in build.
+          waiting: inIt.filter((t) => t.status === 'proposed' || !!t.hold).length,
+        };
+      }),
     columns,
     also: { assumptions: queue.assumptions.length, skills: queue.skills.length, inbox: queue.inbox.length },
   };
@@ -363,6 +385,24 @@ function change(ctx: Ctx, action: string, body: Body, project?: string): { ok: b
     // A reply on finished work is feedback on it: new work, linked to what it answers, and proposed like any other.
     const next = act(ctx, ['task', '--from', note, '--from', id, '--', oneLine(words.split('\n')[0]!, 110)]);
     return next.ok ? { ok: true, text: 'That thread is finished, so your reply is a new proposed thread linked to it.' } : next;
+  }
+  if (action === 'sprint') {
+    const name = text(body.name);
+    return name ? act(ctx, ['sprint', ...(project ? [`--project=${project}`] : []), '--', name]) : { ok: false, text: 'the sprint needs a name' };
+  }
+  if (action === 'assign') {
+    // Into a sprint, or back to the backlog.
+    const sprint = text(body.sprint);
+    if (!/^t-[a-z0-9]+$/.test(id) || (sprint && !/^r-[a-z0-9]+$/.test(sprint))) return { ok: false, text: 'which thread, and which sprint?' };
+    return act(ctx, ['edit', id, `--sprint=${sprint || 'none'}`]);
+  }
+  if (action === 'play') {
+    // Pressing play on a sprint: everything in it moves to build.
+    return /^r-[a-z0-9]+$/.test(id) ? act(ctx, ['play', id]) : { ok: false, text: 'which sprint?' };
+  }
+  if (action === 'drop-sprint') {
+    // The sprint goes; what was in it is back in the backlog, untouched.
+    return /^r-[a-z0-9]+$/.test(id) ? act(ctx, ['drop', id]) : { ok: false, text: 'which sprint?' };
   }
   if (action === 'edit') {
     // The ticket's fields. Each is the `spool edit` a person would have typed; the command checks the values.
@@ -487,93 +527,130 @@ const PAGE = String.raw`<!doctype html>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧶%3C/text%3E%3C/svg%3E">
 <style>
   :root {
-    --bg: #f6f5f2; --panel: #ffffff; --ink: #1d1c1a; --soft: #6f6c66; --line: #e4e1da;
-    --accent: #c2410c; --go: #15803d; --blue: #1d4ed8; --warn: #b45309; --chip: #f0eee8;
+    --bg: #f7f6f3; --panel: #ffffff; --col: #efede8; --ink: #1d1c1a; --soft: #6b6861; --line: #dfdcd5;
+    --accent: #c2410c; --go: #15803d; --blue: #1d4ed8; --warn: #b45309; --chip: #eeece6; --hot: #c9372c;
+    --shadow: 0 1px 2px rgba(30, 25, 15, .14);
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #151413; --panel: #201f1d; --ink: #f1efea; --soft: #a19d95; --line: #33312d;
-      --accent: #fb923c; --go: #4ade80; --blue: #93c5fd; --warn: #fbbf24; --chip: #2b2926; }
+    :root { --bg: #151413; --panel: #222120; --col: #1b1a19; --ink: #f1efea; --soft: #a19d95; --line: #353330;
+      --accent: #fb923c; --go: #4ade80; --blue: #93c5fd; --warn: #fbbf24; --chip: #2d2b28; --hot: #f87171;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .5); }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
-  header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding: 18px 20px 14px; }
-  h1 { font-size: 20px; margin: 0; font-weight: 650; }
-  .add { width: 100%; text-align: left; border-style: dashed; background: transparent; color: var(--soft); }
-  .add:hover { color: var(--ink); }
-  .adding textarea { margin-top: 0; background: var(--panel); }
-  .adding .acts { margin-top: 6px; }
-  button { font: inherit; cursor: pointer; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 6px 11px; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  button { font: inherit; cursor: pointer; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 5px 10px; }
   button:hover { border-color: var(--soft); }
   button.go { background: var(--go); border-color: var(--go); color: #fff; font-weight: 600; }
   @media (prefers-color-scheme: dark) { button.go { color: #052e16; } }
-  .where { color: var(--soft); }
-  .rule { padding: 0 20px 12px; color: var(--soft); font-size: 13px; }
-  main { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 14px; padding: 0 20px 32px; align-items: start; overflow-x: auto; }
-  section { background: var(--chip); border-radius: 14px; padding: 10px; min-height: 160px; border: 2px solid transparent; }
-  section.over { border-color: var(--go); }
-  section h2 { font-size: 13px; letter-spacing: .04em; text-transform: uppercase; margin: 4px 6px 10px; display: flex; justify-content: space-between; color: var(--soft); }
-  section h2 b { color: var(--ink); }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 9px; }
-  .card[draggable=true] { cursor: grab; }
-  .card.dragging { opacity: .45; }
-  .top { display: flex; gap: 8px; align-items: baseline; }
-  .n { color: var(--soft); font-variant-numeric: tabular-nums; min-width: 1.4em; }
-  .title { font-weight: 600; flex: 1; overflow-wrap: anywhere; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 7px 0 0 0; }
-  .chip { background: var(--chip); border-radius: 999px; padding: 1px 9px; font-size: 12px; color: var(--soft); }
-  .chip.hot { color: var(--accent); }
-  .chip.ai { color: var(--blue); }
-  .note { margin-top: 7px; font-size: 13px; color: var(--soft); overflow-wrap: anywhere; }
-  .q { margin-top: 8px; padding: 8px; border-radius: 9px; background: var(--chip); font-size: 13px; }
-  .q button { margin: 6px 6px 0 0; }
-  .q button.rec { border-color: var(--go); }
-  .acts { display: flex; gap: 6px; margin-top: 9px; }
-  details { margin-top: 8px; font-size: 13px; }
-  summary { cursor: pointer; color: var(--soft); }
-  pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 6px 0; }
-  textarea { width: 100%; min-height: 54px; margin-top: 6px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); color: var(--ink); font: inherit; resize: vertical; }
-  .empty { color: var(--soft); font-size: 13px; padding: 8px 6px; }
-  .title { cursor: pointer; }
+  input, select, textarea { font: inherit; color: var(--ink); }
+
+  /* the bar: the project, the two views, and a search */
+  .bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 18px; padding: 0 20px; height: 52px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .brand { font-size: 17px; font-weight: 700; white-space: nowrap; }
+  .where { color: var(--soft); font-size: 13px; font-weight: 400; margin-left: 6px; }
+  .tabs { display: flex; gap: 2px; align-self: stretch; }
+  .tab { background: none; border: 0; border-bottom: 3px solid transparent; border-radius: 0; padding: 0 12px; color: var(--soft); font-weight: 600; }
+  .tab.on { color: var(--ink); border-bottom-color: var(--accent); }
+  .search { margin-left: auto; width: min(260px, 40vw); padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
+  .rule { padding: 8px 20px 0; color: var(--warn); font-size: 13px; }
+  #quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 20px 0; font-size: 13px; min-height: 12px; }
+  .pill { border-radius: 999px; padding: 2px 11px; background: var(--panel); border: 1px solid var(--line); color: var(--soft); }
+  .pill.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  /* the board */
+  #board { display: grid; grid-template-columns: repeat(4, minmax(230px, 1fr)); gap: 12px; padding: 12px 20px 32px; align-items: start; overflow-x: auto; }
+  @media (max-width: 900px) { #board { grid-template-columns: repeat(4, 82vw); } }
+  .col { background: var(--col); border-radius: 10px; padding: 8px; min-height: 140px; border: 2px solid transparent; }
+  .over { border-color: var(--go) !important; }
+  .col h2 { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; margin: 5px 6px 10px; display: flex; gap: 8px; color: var(--soft); font-weight: 600; }
+  .col h2 .count { background: var(--chip); border-radius: 999px; padding: 0 8px; }
+  .card { background: var(--panel); border: 1px solid transparent; border-radius: 8px; padding: 9px 10px 8px; margin-bottom: 7px; box-shadow: var(--shadow); }
+  .card:hover { border-color: var(--line); }
+  .card[draggable=true], .row[draggable=true] { cursor: grab; }
+  .dragging { opacity: .45; }
+  .card.past { opacity: .7; }
+  .title { font-weight: 500; cursor: pointer; overflow-wrap: anywhere; }
   .title:hover { text-decoration: underline; }
-  .openit { background: none; border: 0; padding: 0; margin-top: 8px; color: var(--soft); font-size: 13px; }
-  .openit:hover { color: var(--ink); }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .chip { background: var(--chip); border-radius: 999px; padding: 0 8px; font-size: 12px; color: var(--soft); }
+  .chip.ai { color: var(--blue); }
   .chip.ok { color: var(--go); }
-  .tick { margin-left: auto; flex: none; width: 28px; height: 28px; padding: 0; border-radius: 50%; color: var(--go); font-weight: 700; }
+  .chip.check { color: var(--warn); }
+  .chip.sprint { color: var(--accent); }
+  .tag { cursor: pointer; }
+  .tag b { font-weight: 400; margin-left: 5px; opacity: .6; }
+  .tag b:hover { opacity: 1; }
+  .note { margin-top: 6px; font-size: 13px; color: var(--soft); overflow-wrap: anywhere; }
+  .q { margin-top: 8px; padding: 8px; border-radius: 8px; background: var(--chip); font-size: 13px; }
+  .q button { margin: 6px 6px 0 0; }
+  button.rec { border-color: var(--go); }
+  .meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--soft); }
+  .key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; }
+  .meta .push { margin-left: auto; }
+  .prio { font-weight: 800; letter-spacing: -1px; }
+  .prio.p0 { color: var(--hot); } .prio.p1 { color: var(--accent); } .prio.p3 { color: var(--blue); }
+  .size { border-radius: 999px; background: var(--chip); padding: 0 7px; font-weight: 600; }
+  .act { padding: 2px 9px; font-size: 12px; }
+  .tick { width: 24px; height: 24px; padding: 0; border-radius: 50%; color: var(--go); font-weight: 700; }
   .tick:hover { background: var(--go); border-color: var(--go); color: #fff; }
+  .empty { color: var(--soft); font-size: 13px; padding: 8px 6px; }
+  .add { width: 100%; text-align: left; border-style: dashed; background: transparent; color: var(--soft); }
+  .add:hover { color: var(--ink); }
+  .adding textarea, .adding input { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); resize: vertical; }
+  .acts { display: flex; gap: 6px; margin-top: 6px; }
   .foot { width: 100%; margin-bottom: 8px; }
   .history { background: none; border: 0; padding: 6px; color: var(--soft); font-size: 13px; width: 100%; text-align: left; }
   .history:hover { color: var(--ink); }
-  .card.past { opacity: .7; }
-  .chip.check { color: var(--warn); }
-  #veil { position: fixed; inset: 0; background: rgba(0,0,0,.35); }
-  #thread { position: fixed; top: 5vh; left: 50%; transform: translateX(-50%); width: min(1000px, 96vw); max-height: 90vh; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow-y: auto; padding: 22px 24px 26px; box-shadow: 0 24px 64px rgba(0,0,0,.3); }
+
+  /* the backlog: sprints to fill and play, and everything not in one */
+  #backlog { padding: 12px 20px 32px; max-width: 1100px; }
+  .group { background: var(--col); border-radius: 10px; padding: 8px; margin-bottom: 14px; border: 2px solid transparent; }
+  .ghead { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 4px 6px 9px; }
+  .gname { font-weight: 650; font-size: 15px; }
+  .gmeta { color: var(--soft); font-size: 13px; }
+  .state { border-radius: 4px; padding: 0 7px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: var(--chip); color: var(--soft); }
+  .state.running, .state.building { color: var(--blue); }
+  .state.build, .state.done { color: var(--go); }
+  .prog { flex: 0 0 110px; height: 6px; background: var(--chip); border-radius: 999px; overflow: hidden; }
+  .prog i { display: block; height: 100%; background: var(--go); }
+  .ghead .push { margin-left: auto; display: flex; gap: 6px; }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; background: var(--panel); padding: 7px 10px; border-bottom: 1px solid var(--line); }
+  .row:first-of-type { border-radius: 8px 8px 0 0; }
+  .row:last-of-type { border-radius: 0 0 8px 8px; border-bottom: 0; }
+  .row:only-of-type { border-radius: 8px; }
+  .row .right { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--soft); white-space: nowrap; }
+  .group .add, .group .adding { margin-top: 8px; }
+
+  /* the ticket */
+  #veil { position: fixed; inset: 0; background: rgba(0, 0, 0, .35); z-index: 3; }
+  #thread { position: fixed; z-index: 4; top: 5vh; left: 50%; transform: translateX(-50%); width: min(1000px, 96vw); max-height: 90vh; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow-y: auto; padding: 22px 24px 26px; box-shadow: 0 24px 64px rgba(0, 0, 0, .3); }
   .ticket { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 28px; }
   @media (max-width: 760px) { .ticket { grid-template-columns: 1fr; } #thread { top: 0; max-height: 100vh; border-radius: 0; width: 100vw; } }
-  .key { font-size: 12px; color: var(--soft); margin: 0 40px 6px 0; }
-  #thread h2 { font-size: 21px; margin: 0 0 6px; overflow-wrap: anywhere; border-radius: 6px; padding: 2px 4px; margin-left: -4px; outline: none; cursor: text; }
+  #thread .key { font-size: 12px; color: var(--soft); margin: 0 40px 6px 0; cursor: default; }
+  #thread h2 { font-size: 21px; margin: 0 0 6px -4px; overflow-wrap: anywhere; border-radius: 6px; padding: 2px 4px; outline: none; cursor: text; }
   #thread h2:hover, #thread h2:focus { background: var(--chip); }
+  #thread h3 { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); margin: 22px 0 8px; }
+  #thread .x { position: absolute; top: 14px; right: 16px; }
+  #thread .title { cursor: text; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 6px 0; }
+  textarea { width: 100%; min-height: 54px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); resize: vertical; }
   .side { border-left: 1px solid var(--line); padding-left: 22px; }
   @media (max-width: 760px) { .side { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); } }
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); margin-bottom: 5px; }
-  .field select, .field input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; }
+  .field select, .field input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
   .field .val { font-size: 14px; }
-  .tag { cursor: pointer; }
-  .tag b { font-weight: 400; margin-left: 5px; opacity: .6; }
-  .tag b:hover { opacity: 1; }
-  #filter { margin: 0 20px 12px; font-size: 13px; }
-  #filter button { border-radius: 999px; padding: 3px 11px; }
-  #thread h3 { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); margin: 22px 0 8px; }
-  #thread .x { position: absolute; top: 14px; right: 16px; }
-  .said { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; margin: 0 0 10px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
   .feed { margin-top: 18px; }
   .post { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; position: relative; padding-bottom: 18px; }
   .post::before { content: ''; position: absolute; left: 19px; top: 44px; bottom: 2px; width: 2px; background: var(--line); }
   .post:last-child::before { display: none; }
-  .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #fff; background: var(--soft); }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #fff; background: var(--soft); flex: none; }
   .avatar.you { background: var(--ink); color: var(--bg); }
   .avatar.claude { background: #d97757; }
   .avatar svg { width: 24px; height: 24px; }
+  .avatar.who22 { width: 22px; height: 22px; font-size: 11px; }
+  .avatar.who22 svg { width: 14px; height: 14px; }
   .byline { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
   .byline b { font-weight: 650; }
   .byline .model { background: var(--chip); border-radius: 999px; padding: 0 8px; font-size: 12px; color: var(--soft); }
@@ -585,58 +662,64 @@ const PAGE = String.raw`<!doctype html>
   .event::before { content: ''; position: absolute; left: 19px; top: 0; bottom: 0; width: 2px; background: var(--line); }
   .event .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); margin: 4px auto 0; position: relative; }
   .compose { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; margin-top: 6px; }
-  .compose textarea { margin-top: 0; }
   .compose .acts { margin-top: 8px; justify-content: flex-end; }
-  details.desc { margin: 12px 0 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
-  details.desc summary { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
-  .who { font-size: 12px; color: var(--soft); margin-bottom: 2px; }
-  .step { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 5px 0; font-size: 13px; border-top: 1px solid var(--line); }
-  .step .at { color: var(--soft); font-variant-numeric: tabular-nums; }
-  .step b { font-weight: 600; }
-  .step.you b { color: var(--accent); }
-  .reply { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--bg); }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  details.desc { margin: 12px 0 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  details.desc summary { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); cursor: pointer; }
   .finish { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
   .finish button { width: 100%; padding: 10px; font-size: 15px; }
   .finish .ok { color: var(--go); font-weight: 600; }
-  #said { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #said { position: fixed; z-index: 5; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   #said.on { opacity: 1; }
-  @media (max-width: 900px) { main { grid-template-columns: repeat(4, 82vw); } }
 </style>
 </head>
 <body>
-<header>
-  <h1>🧶 <span id="project">Spool</span></h1>
-  <span class="where" id="where"></span>
-</header>
-<div class="rule" id="rule"></div>
-<div id="filter" hidden></div>
+<div class="bar">
+  <div class="brand">🧶 <span id="project">Spool</span><span class="where" id="where"></span></div>
+  <div class="tabs">
+    <button class="tab" data-view="board">Board</button>
+    <button class="tab" data-view="backlog">Backlog</button>
+  </div>
+  <input class="search" id="search" placeholder="Search threads   /" autocomplete="off">
+</div>
+<div class="rule" id="rule" hidden></div>
+<div id="quick"></div>
 <main id="board"></main>
+<main id="backlog" hidden></main>
 <div id="veil" hidden></div>
 <aside id="thread" hidden></aside>
 <div id="said"></div>
 <script>
 const TOKEN = '__TOKEN__';
 const COLUMNS = [
-  ['proposed', '🟠 Proposed', 'Nothing here is built. Drag a thread to Build, or press ▶.'],
-  ['build', '🟢 Build', 'Agents take these in order, top first.'],
-  ['building', '🔵 Building', 'An agent has it now.'],
-  ['done', '✅ Done', 'For you to check.'],
+  ['proposed', 'Backlog', 'Nothing here is built. Drag a thread to Build, or press ▶.'],
+  ['build', 'Build', 'Agents take these in order, top first.'],
+  ['building', 'Building', 'An agent has it now.'],
+  ['done', 'Done', 'For you to check.'],
 ];
+const DOT = { proposed: '🟠', build: '🟢', building: '🔵', done: '✅' };
+const STATE = { proposed: 'Backlog', build: 'Build', building: 'Building', done: 'Done' };
+const SIZES = [['xs', 'Tiny'], ['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Huge']];
+const PRIORITIES = ['Urgent', 'High', 'Normal', 'Someday'];
+const ARROWS = ['↑↑', '↑', '=', '↓'];
+
 let last = '';
+let current = null;
 let busy = false;
+// Which view is up: the board, or the backlog with its sprints.
+let view = 'board';
+try { view = localStorage.getItem('spool-view') === 'backlog' ? 'backlog' : 'board'; } catch (e) {}
+// A link can name the view: /?view=backlog
+if (/[?&]view=backlog\b/.test(location.search)) view = 'backlog';
+if (/[?&]view=board\b/.test(location.search)) view = 'board';
 // The thread that is open, if one is, and notes begun but not yet added.
 let openId = null;
 const drafts = new Map();
 // Completed threads are history: kept, and out of the way until asked for.
 let showHistory = false;
-// The tag or version the board is narrowed to, as { kind: 'tag' | 'version', value }.
+// What the board is narrowed to: { kind: 'tag' | 'version' | 'sprint', value }, and whatever is typed in the search.
 let only = null;
-const SIZES = [['xs', 'Tiny'], ['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Huge']];
-const PRIORITIES = ['Urgent', 'High', 'Normal', 'Someday'];
-const shows = (c) => !only || (only.kind === 'tag' ? c.tags.includes(only.value) : c.version === only.value);
-const narrow = (kind, value) => { only = only && only.kind === kind && only.value === value ? null : { kind, value }; last = ''; load(true); };
-// The column whose "+ Add" is open, and what has been typed into it so far.
+let query = '';
+// The "+ Add" that is open ('proposed', 'build', or 'sprint' for a new sprint), and what has been typed into it.
 let adding = null;
 let addDraft = '';
 
@@ -647,7 +730,7 @@ const el = (tag, attrs = {}, ...kids) => {
     else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
     else if (v !== false && v != null) node.setAttribute(k, v === true ? '' : v);
   }
-  for (const kid of kids.flat()) if (kid != null && kid !== false) node.append(kid);
+  for (const kid of kids.flat(3)) if (kid != null && kid !== false) node.append(kid);
   return node;
 };
 
@@ -679,38 +762,200 @@ async function post(action, body, done) {
   }
 }
 
-function cardNode(c, column) {
-  const movable = column === 'proposed' || column === 'build';
-  const chips = el('div', { class: 'chips' },
+// ---- what is shown: narrowed by a sprint, a tag or a version, and by the search
+
+const sprintName = (b, id) => (b.sprints.find((s) => s.id === id) || {}).name || '';
+function shows(c) {
+  if (only && (only.kind === 'tag' ? !c.tags.includes(only.value) : only.kind === 'version' ? c.version !== only.value : c.sprint !== only.value)) return false;
+  if (!query) return true;
+  const hay = (c.title + ' ' + c.id + ' ' + c.tags.join(' ') + ' ' + c.version + ' ' + c.note).toLowerCase();
+  return query.toLowerCase().split(/\s+/).every((word) => hay.includes(word));
+}
+const narrow = (kind, value) => { only = only && only.kind === kind && only.value === value ? null : { kind, value }; redraw(); };
+const everyCard = (b) => COLUMNS.flatMap(([key]) => b.columns[key]);
+
+// ---- one thread, as a card on the board and as a row in the backlog
+
+function chipsOf(c, b) {
+  return [
     c.done && el('span', { class: 'chip ' + (c.complete ? 'ok' : 'check') }, c.complete ? '✓ Complete' : 'For you to check'),
     c.type !== 'change' && el('span', { class: 'chip' }, c.type),
-    c.difficulty && el('span', { class: 'chip' }, c.difficulty),
-    column !== 'done' && el('span', { class: 'chip' + (c.urgent ? ' hot' : '') }, c.priority),
     c.suggested && el('span', { class: 'chip ai', title: c.suggested }, '✨ AI suggested'),
+    c.sprint && el('span', { class: 'chip tag sprint', title: 'Show only this sprint', onclick: () => narrow('sprint', c.sprint) }, sprintName(b, c.sprint)),
     c.version && el('span', { class: 'chip tag', title: 'Show only this version', onclick: () => narrow('version', c.version) }, 'v' + c.version),
-    c.tags.map((t) => el('span', { class: 'chip tag', title: 'Show only this tag', onclick: () => narrow('tag', t) }, '#' + t)));
-  const node = el('div', { class: 'card' + (c.complete ? ' past' : ''), draggable: movable, 'data-id': c.id,
-    ondragstart: (e) => { e.dataTransfer.setData('text/plain', c.id + ' ' + column); node.classList.add('dragging'); busy = true; },
-    ondragend: () => { node.classList.remove('dragging'); busy = false; } },
-    el('div', { class: 'top' }, c.n != null && el('span', { class: 'n' }, c.n), el('span', { class: 'title', onclick: () => openThread(c.id) }, c.title),
-      c.done && !c.complete && el('button', { class: 'tick', title: 'Mark as complete', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓')),
-    chips,
-    c.note && el('div', { class: 'note' }, c.note));
+    c.tags.map((t) => el('span', { class: 'chip tag', title: 'Show only this tag', onclick: () => narrow('tag', t) }, '#' + t)),
+  ];
+}
 
-  if (c.question) {
-    node.append(el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title),
+// Who built it, how urgent, how big: the small facts at the foot of a card, the way a board has always shown them.
+function facts(c) {
+  return [
+    !c.done && el('span', { class: 'prio p' + c.p, title: c.priority }, ARROWS[c.p]),
+    c.size && el('span', { class: 'size', title: c.difficulty }, c.size.toUpperCase()),
+    (c.column === 'building' || c.done) && c.thread.by && smallAvatar(c.thread.by),
+  ];
+}
+function smallAvatar(who) {
+  const node = avatar(who);
+  node.classList.add('who22');
+  return node;
+}
+function moves(c) {
+  return [
+    c.column === 'proposed' && el('button', { class: 'act go', title: 'Move to Build', onclick: () => post('move', { id: c.id, to: 'build' }, 'In build: ' + c.title) }, '▶ Build'),
+    c.column === 'build' && el('button', { class: 'act', title: 'Back to the backlog', onclick: () => post('move', { id: c.id, to: 'proposed' }, 'Back in the backlog') }, 'Not yet'),
+    c.done && !c.complete && el('button', { class: 'tick', title: 'Mark as complete', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓'),
+  ];
+}
+function dragOf(node, c, from) {
+  node.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', c.id + ' ' + from); node.classList.add('dragging'); busy = true; });
+  node.addEventListener('dragend', () => { node.classList.remove('dragging'); busy = false; });
+}
+
+function cardNode(c, b) {
+  const movable = c.column === 'proposed' || c.column === 'build';
+  const node = el('div', { class: 'card' + (c.complete ? ' past' : ''), draggable: movable, 'data-id': c.id },
+    el('div', { class: 'title', onclick: () => openThread(c.id) }, c.title),
+    el('div', { class: 'chips' }, chipsOf(c, b)),
+    c.note && !c.done && el('div', { class: 'note' }, c.note),
+    c.question && el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title),
       c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '',
-        onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o))));
-  }
-  if (column === 'proposed') node.append(el('div', { class: 'acts' }, el('button', { class: 'go', onclick: () => post('move', { id: c.id, to: 'build' }, 'In build: ' + c.title) }, '▶ Build')));
-  if (column === 'build') node.append(el('div', { class: 'acts' }, el('button', { onclick: () => post('move', { id: c.id, to: 'proposed' }, 'Back to proposed') }, 'Not yet')));
-
-  const steps = c.thread.steps.length;
-  node.append(el('button', { class: 'openit', onclick: () => openThread(c.id) }, 'Open thread' + (steps ? ' · ' + steps + (steps === 1 ? ' step' : ' steps') : '')));
+        onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o))),
+    el('div', { class: 'meta' },
+      el('span', { class: 'key', title: 'Open the thread', onclick: () => openThread(c.id) }, c.id),
+      el('span', { class: 'push' }), facts(c), moves(c)));
+  if (movable) dragOf(node, c, c.column);
   return node;
 }
 
-// ---- a card opened up: what was asked, what was done and by whom, and how it got here
+function rowNode(c, b) {
+  const node = el('div', { class: 'row', draggable: !c.done && c.column !== 'building', 'data-id': c.id },
+    el('div', {}, el('span', { class: 'title', onclick: () => openThread(c.id) }, c.title),
+      el('span', { class: 'chips', style: 'display: inline-flex; margin: 0 0 0 8px; vertical-align: middle' }, chipsOf({ ...c, sprint: '', done: false }, b))),
+    el('div', { class: 'right' },
+      el('span', { class: 'state ' + c.column }, STATE[c.column]),
+      facts(c), el('span', { class: 'key', onclick: () => openThread(c.id) }, c.id), moves(c)));
+  if (!c.done && c.column !== 'building') dragOf(node, c, 'row');
+  return node;
+}
+
+// "+ Add": a thread added under a column starts in that column.
+function addNode(column, placeholder) {
+  if (adding !== column) {
+    return el('button', { class: 'add', onclick: () => { adding = column; addDraft = ''; redraw(); } }, '+ Add');
+  }
+  const close = () => { adding = null; addDraft = ''; redraw(); };
+  const save = async () => {
+    const words = addDraft.trim();
+    if (!words) return;
+    adding = null;
+    addDraft = '';
+    await post('add', { text: words, to: column }, column === 'build' ? 'Added to build' : 'Added to the backlog');
+  };
+  const box = el('textarea', { placeholder: placeholder,
+    oninput: (e) => { addDraft = e.target.value; },
+    onkeydown: (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { e.stopPropagation(); close(); }
+    } });
+  box.value = addDraft;
+  return el('div', { class: 'adding' }, box,
+    el('div', { class: 'acts' }, el('button', { class: 'go', onclick: save }, 'Add'), el('button', { onclick: close }, 'Cancel')));
+}
+
+// ---- the board: four columns
+
+function drawBoard(b) {
+  document.getElementById('board').replaceChildren(...COLUMNS.map(([key, name, hint]) => {
+    const every = b.columns[key].filter(shows);
+    // Done shows what is still for them to check. What they marked complete is history, a click away.
+    const past = key === 'done' ? every.filter((c) => c.complete) : [];
+    const cards = key === 'done' ? every.filter((c) => !c.complete) : every;
+    const drop = key === 'proposed' || key === 'build';
+    return el('section', { class: 'col', 'data-column': key,
+      ondragover: (e) => { if (drop) { e.preventDefault(); e.currentTarget.classList.add('over'); } },
+      ondragleave: (e) => e.currentTarget.classList.remove('over'),
+      ondrop: (e) => {
+        e.currentTarget.classList.remove('over');
+        const [id, from] = e.dataTransfer.getData('text/plain').split(' ');
+        if (!drop || !id || from === key) return;
+        e.preventDefault();
+        post('move', { id, to: key }, key === 'build' ? 'In build' : 'Back in the backlog');
+      } },
+      el('h2', {}, DOT[key] + ' ' + name, el('span', { class: 'count' }, String(cards.length))),
+      cards.length ? cards.map((c) => cardNode(c, b)) : el('div', { class: 'empty' }, key === 'done' ? 'Nothing left to check.' : hint),
+      key === 'done' && cards.length > 1 && el('button', { class: 'foot go', onclick: () => post('complete-all', {}, 'All marked as complete') }, '✓ Mark all ' + cards.length + ' as complete'),
+      key === 'done' && b.history > 0 && el('button', { class: 'history', onclick: () => { showHistory = !showHistory; redraw(); } },
+        (showHistory ? '▾ Hide history' : '▸ History') + ' · ' + b.history + ' complete'),
+      key === 'done' && showHistory && past.map((c) => cardNode(c, b)),
+      key === 'done' && showHistory && b.history > past.length && !only && !query && el('div', { class: 'empty' }, '+ ' + (b.history - past.length) + ' older'),
+      drop && addNode(key, key === 'build' ? 'What should be built?' : 'What do you want added?'));
+  }));
+}
+
+// ---- the backlog: sprints to fill and play, then everything that is in none
+
+function dropInto(node, sprint) {
+  node.addEventListener('dragover', (e) => { e.preventDefault(); node.classList.add('over'); });
+  node.addEventListener('dragleave', () => node.classList.remove('over'));
+  node.addEventListener('drop', (e) => {
+    node.classList.remove('over');
+    const [id] = e.dataTransfer.getData('text/plain').split(' ');
+    if (!id) return;
+    e.preventDefault();
+    post('assign', { id, sprint }, sprint ? 'In the sprint' : 'Back in the backlog');
+  });
+  return node;
+}
+
+function sprintNode(s, b) {
+  const rows = everyCard(b).filter((c) => c.sprint === s.id && shows(c));
+  const finished = s.status === 'done';
+  const group = el('div', { class: 'group' },
+    el('div', { class: 'ghead' },
+      el('span', { class: 'gname' }, s.name),
+      el('span', { class: 'state ' + s.status }, s.status),
+      el('span', { class: 'gmeta' }, s.total ? s.done + ' of ' + s.total + ' done' : 'Empty: drag threads here'),
+      s.total > 0 && el('span', { class: 'prog' }, el('i', { style: 'width: ' + Math.round((100 * s.done) / s.total) + '%' })),
+      el('span', { class: 'push' },
+        s.waiting > 0 && el('button', { class: 'go', title: 'Everything in it moves to Build', onclick: () => post('play', { id: s.id }, s.name + ' is running') },
+          s.status === 'running' ? '▶ Play ' + s.waiting + ' more' : '▶ Play sprint'),
+        !finished && s.status !== 'running' && el('button', { title: 'Remove the sprint. What is in it goes back to the backlog.', onclick: () => post('drop-sprint', { id: s.id }, 'Sprint removed') }, '✕'))),
+    rows.map((c) => rowNode(c, b)));
+  return finished ? group : dropInto(group, s.id);
+}
+
+function drawBacklog(b) {
+  const open = b.sprints.filter((s) => s.status !== 'done');
+  const finished = b.sprints.filter((s) => s.status === 'done');
+  const loose = b.columns.proposed.filter((c) => !c.sprint && shows(c));
+  const newSprint = adding === 'sprint'
+    ? el('div', { class: 'adding', style: 'max-width: 360px; margin-bottom: 14px' },
+        (() => {
+          const box = el('input', { placeholder: 'Name the sprint',
+            oninput: (e) => { addDraft = e.target.value; },
+            onkeydown: (e) => {
+              if (e.key === 'Enter' && addDraft.trim()) { const name = addDraft.trim(); adding = null; addDraft = ''; post('sprint', { name }, 'Sprint made'); }
+              if (e.key === 'Escape') { e.stopPropagation(); adding = null; addDraft = ''; redraw(); }
+            } });
+          box.value = addDraft;
+          return box;
+        })(),
+        el('div', { class: 'acts' },
+          el('button', { class: 'go', onclick: () => { const name = addDraft.trim(); if (!name) return; adding = null; addDraft = ''; post('sprint', { name }, 'Sprint made'); } }, 'Create'),
+          el('button', { onclick: () => { adding = null; addDraft = ''; redraw(); } }, 'Cancel')))
+    : el('button', { style: 'margin-bottom: 14px', onclick: () => { adding = 'sprint'; addDraft = 'Sprint ' + (b.sprints.length + 1); redraw(); } }, '+ Create sprint');
+  document.getElementById('backlog').replaceChildren(
+    ...open.map((s) => sprintNode(s, b)),
+    newSprint,
+    dropInto(el('div', { class: 'group' },
+      el('div', { class: 'ghead' }, el('span', { class: 'gname' }, 'Backlog'), el('span', { class: 'gmeta' }, loose.length + (loose.length === 1 ? ' thread' : ' threads') + ' in no sprint')),
+      loose.length ? loose.map((c) => rowNode(c, b)) : el('div', { class: 'empty' }, 'Everything is in a sprint, or built.'),
+      addNode('proposed', 'What do you want added?')), ''),
+    ...finished.map((s) => sprintNode(s, b)));
+}
+
+// ---- the ticket
 
 const whoIs = (who) => (who === 'human' ? 'You' : who === 'agent' ? 'An agent' : who === 'loop' ? 'The loop' : who || 'Someone');
 // An agent that signed with its model's name is shown as who it is: "Claude" and the model beside it.
@@ -738,8 +983,8 @@ function byline(who, at) {
 const when = (at) => (at ? at.slice(5, 10).replace('-', '/') + ' ' + at.slice(11, 16) : '');
 
 // The open thread is in the address, so a ticket can be linked to and survives a reload.
-function openThread(id) { openId = id; history.replaceState(null, '', '#' + id); last = ''; load(true); }
-function closeThread() { openId = null; history.replaceState(null, '', location.pathname); last = ''; load(true); }
+function openThread(id) { openId = id; history.replaceState(null, '', '#' + id); redraw(); }
+function closeThread() { openId = null; history.replaceState(null, '', location.pathname); redraw(); }
 
 // A ticket, the way a board has always shown one: the story on the left, its fields on the right.
 function threadNode(c, b) {
@@ -832,6 +1077,8 @@ function threadNode(c, b) {
         el('b', { title: 'Remove', onclick: () => save({ tags: c.tags.filter((x) => x !== tag) }, 'Tag removed') }, '✕')))),
       addTag, el('datalist', { id: 'known-tags' }, b.tags.filter((x) => !c.tags.includes(x)).map((x) => el('option', { value: x })))),
     field('Version', version, el('datalist', { id: 'known-versions' }, b.versions.map((x) => el('option', { value: x })))),
+    field('Sprint', choose([['', 'None'], ...b.sprints.filter((x) => x.status !== 'done' || x.id === c.sprint).map((x) => [x.id, x.name])], c.sprint,
+      (v) => post('assign', { id: c.id, sprint: v }, v ? 'In the sprint' : 'Back in the backlog'))),
     c.type !== 'change' && field('Type', el('div', { class: 'val' }, c.type)),
     (c.column === 'building' || c.done) && field('Built by', el('div', { class: 'val' }, whoIs(t.by))),
     c.suggested && field('Came from', el('div', { class: 'val' }, '✨ AI suggested')),
@@ -844,7 +1091,7 @@ function threadNode(c, b) {
 function drawThread(b) {
   const pane = document.getElementById('thread');
   const veil = document.getElementById('veil');
-  const c = openId && Object.values(b.columns).flat().find((x) => x.id === openId);
+  const c = openId && everyCard(b).find((x) => x.id === openId);
   pane.hidden = veil.hidden = !c;
   if (!c) { openId = null; return; }
   const at = pane.scrollTop;
@@ -852,92 +1099,74 @@ function drawThread(b) {
   pane.scrollTop = at;
 }
 
+// ---- the page
 
 function draw(b) {
   document.getElementById('project').textContent = b.project;
   // The yarn is the tab's icon, so the title is the project's name alone.
   document.title = b.project;
   document.getElementById('where').textContent = b.version ? 'v' + b.version : '';
-  // The header is the project's name and its version. One thing is still worth a line: a project
-  // where the gate is off, because there the board cannot promise that nothing builds by itself.
+  // One thing is still worth a line: a project where the gate is off, because there the board
+  // cannot promise that nothing builds by itself.
   const rule = document.getElementById('rule');
   rule.textContent = b.gate ? '' : 'The build gate is off in this project: new threads go straight to Build.';
   rule.hidden = b.gate;
-  const main = document.getElementById('board');
-  const filter = document.getElementById('filter');
-  filter.hidden = !only;
-  if (only) filter.replaceChildren('Showing only ', el('button', { onclick: () => narrow(only.kind, only.value) }, (only.kind === 'tag' ? '#' : 'v') + only.value + '  ✕'));
-  main.replaceChildren(...COLUMNS.map(([key, name, hint]) => {
-    const every = b.columns[key].filter(shows);
-    // Done shows what is still for them to check. What they marked complete is history, a click away.
-    const past = key === 'done' ? every.filter((c) => c.complete) : [];
-    const cards = key === 'done' ? every.filter((c) => !c.complete) : every;
-    const drop = key === 'proposed' || key === 'build';
-    return el('section', { 'data-column': key,
-      ondragover: (e) => { if (drop) { e.preventDefault(); e.currentTarget.classList.add('over'); } },
-      ondragleave: (e) => e.currentTarget.classList.remove('over'),
-      ondrop: (e) => {
-        e.currentTarget.classList.remove('over');
-        const [id, from] = e.dataTransfer.getData('text/plain').split(' ');
-        if (!drop || !id || from === key) return;
-        e.preventDefault();
-        post('move', { id, to: key }, key === 'build' ? 'In build' : 'Back to proposed');
-      } },
-      el('h2', {}, el('b', {}, name), el('span', {}, String(cards.length))),
-      cards.length ? cards.map((c) => cardNode(c, key)) : el('div', { class: 'empty' }, key === 'done' ? 'Nothing left to check.' : hint),
-      key === 'done' && cards.length > 1 && el('button', { class: 'foot go', onclick: () => post('complete-all', {}, 'All marked as complete') }, '✓ Mark all ' + cards.length + ' as complete'),
-      key === 'done' && b.history > 0 && el('button', { class: 'history', onclick: () => { showHistory = !showHistory; last = ''; load(true); } },
-        (showHistory ? '▾ Hide history' : '▸ History') + ' · ' + b.history + ' complete'),
-      key === 'done' && showHistory && past.map((c) => cardNode(c, key)),
-      key === 'done' && showHistory && b.history > past.length && !only && el('div', { class: 'empty' }, '+ ' + (b.history - past.length) + ' older'),
-      drop && addNode(key));
-  }));
-  const box = document.querySelector('.adding textarea');
+  for (const tab of document.querySelectorAll('.tab')) tab.classList.toggle('on', tab.dataset.view === view);
+
+  // Quick filters: one pill a sprint, and whatever tag or version the board is narrowed to.
+  const sprints = b.sprints.filter((s) => s.status !== 'done');
+  document.getElementById('quick').replaceChildren(...[
+    ...(view === 'board' && sprints.length ? [
+      el('button', { class: 'pill' + (only ? '' : ' on'), onclick: () => { only = null; redraw(); } }, 'All'),
+      ...sprints.map((s) => el('button', { class: 'pill' + (only && only.kind === 'sprint' && only.value === s.id ? ' on' : ''), onclick: () => narrow('sprint', s.id) }, s.name + ' · ' + s.done + '/' + s.total)),
+    ] : []),
+    only && only.kind !== 'sprint' && el('button', { class: 'pill on', onclick: () => narrow(only.kind, only.value) }, (only.kind === 'tag' ? '#' : 'v') + only.value + '  ✕'),
+  ].filter(Boolean));
+
+  document.getElementById('board').hidden = view !== 'board';
+  document.getElementById('backlog').hidden = view !== 'backlog';
+  if (view === 'board') drawBoard(b); else drawBacklog(b);
+  const box = document.querySelector('.adding textarea, .adding input');
   if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
   drawThread(b);
 }
 
-// "+ Add" at the foot of a column: a thread added there starts in that column.
-function addNode(column) {
-  if (adding !== column) {
-    return el('button', { class: 'add', onclick: () => { adding = column; addDraft = ''; last = ''; load(true); } }, '+ Add');
-  }
-  const close = () => { adding = null; addDraft = ''; last = ''; load(true); };
-  const save = async () => {
-    const words = addDraft.trim();
-    if (!words) return;
-    adding = null;
-    addDraft = '';
-    await post('add', { text: words, to: column }, column === 'build' ? 'Added to build' : 'Added as proposed');
-  };
-  const box = el('textarea', { placeholder: column === 'build' ? 'What should be built?' : 'What do you want added?',
-    oninput: (e) => { addDraft = e.target.value; },
-    onkeydown: (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
-      if (e.key === 'Escape') close();
-    } });
-  box.value = addDraft;
-  return el('div', { class: 'adding' }, box,
-    el('div', { class: 'acts' }, el('button', { class: 'go', onclick: save }, 'Add'), el('button', { onclick: close }, 'Cancel')));
-}
+// Draw again from what is already here: a view, a filter or a box changed, and nothing on disk did.
+function redraw() { if (current) draw(current); }
 
 async function load(now) {
   // Never redraw under someone's typing or choosing; a redraw that was asked for goes ahead.
   const at = document.activeElement;
-  if (!now && (busy || ['TEXTAREA', 'INPUT', 'SELECT'].includes(at?.tagName) || at?.isContentEditable)) return;
+  if (!now && (busy || (at && at.id !== 'search' && (['TEXTAREA', 'INPUT', 'SELECT'].includes(at.tagName) || at.isContentEditable)))) return;
   try {
     const text = await (await fetch('/api/board')).text();
     if (text === last) return;
     last = text;
-    draw(JSON.parse(text));
+    current = JSON.parse(text);
+    draw(current);
   } catch (e) {
     say('The page lost its server. Run spool page again.');
   }
 }
 
+for (const tab of document.querySelectorAll('.tab')) {
+  tab.addEventListener('click', () => {
+    view = tab.dataset.view;
+    try { localStorage.setItem('spool-view', view); } catch (e) {}
+    adding = null;
+    redraw();
+  });
+}
+document.getElementById('search').addEventListener('input', (e) => { query = e.target.value.trim(); redraw(); });
 if (/^#t-[a-z0-9]+$/.test(location.hash)) openId = location.hash.slice(1);
 document.getElementById('veil').addEventListener('click', closeThread);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openId && !adding && !document.activeElement?.isContentEditable) closeThread(); });
+document.addEventListener('keydown', (e) => {
+  const at = document.activeElement;
+  const typing = at && (['TEXTAREA', 'INPUT', 'SELECT'].includes(at.tagName) || at.isContentEditable);
+  if (e.key === 'Escape' && at && at.id === 'search') { at.value = ''; query = ''; at.blur(); redraw(); return; }
+  if (e.key === 'Escape' && openId && !adding && !(at && at.isContentEditable)) closeThread();
+  if (e.key === '/' && !typing) { e.preventDefault(); document.getElementById('search').focus(); }
+});
 load();
 setInterval(load, 1500);
 </script>

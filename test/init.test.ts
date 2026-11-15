@@ -216,6 +216,8 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   assert.match(page, /Run `spool page` in the background[\s\S]*Do not\n {3}describe the board in the chat/);
   assert.match(page, /This is the only way anything gets built\./);
   assert.match(page, /\*\*Keep the board live\.\*\* Opening the page is starting the loop/);
+  assert.match(page, /\*\*▶ Play sprint\*\* \| Everything in the sprint moves to Build at once\./);
+  assert.match(loop, /\*\*Sprints\.\*\*[\s\S]*A sprint has no dates; it is over when its last thread is done[\s\S]*only they play it \(`spool play`\)/);
   assert.match(page, /\*\*Mark as complete\*\*, at the foot of a finished thread/);
   assert.match(page, /Change a field on the ticket \| Its name, status, priority, difficulty, tags or version/);
   assert.match(loop, /5\. \*\*Stamp the threads\.\*\* `spool edit <t-id> --version <x\.y\.z>`/);

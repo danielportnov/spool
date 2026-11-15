@@ -37,6 +37,17 @@ export function blockers(ws: Workspace, task: Item): Item[] {
   return out;
 }
 
+/** The tasks put in a sprint, whatever state they are in. */
+export function sprintTasks(ws: Workspace, sprint: Item): Item[] {
+  return ws.items.filter((i) => i.kind === 'task' && i.sprint === sprint.id && i.status !== 'dropped');
+}
+
+/** The sprint a task is in, if it is in one that still exists. */
+export function sprintOf(ws: Workspace, task: Item): Item | undefined {
+  const sprint = task.sprint ? ws.find(task.sprint) : undefined;
+  return sprint && sprint.kind === 'sprint' && sprint.status !== 'dropped' ? sprint : undefined;
+}
+
 /** Tasks that list `item` in their needs. */
 export function dependents(ws: Workspace, item: Item): Item[] {
   return ws.items.filter((i) => i.kind === 'task' && i.needs.includes(item.id));
