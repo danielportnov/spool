@@ -31,7 +31,7 @@ import * as path from 'node:path';
 import { run } from './cli.ts';
 import type { Bare, Result } from './commands.ts';
 import type { Ctx } from './context.ts';
-import { type Item, SpoolError, oneLine, splitBody } from './model.ts';
+import { type Item, SpoolError, oneLine, reportFile, splitBody } from './model.ts';
 import { age, tableRows } from './render.ts';
 import { blockers, children, docket, review, taskState, tasks } from './schedule.ts';
 import { Workspace } from './store.ts';
@@ -77,6 +77,8 @@ interface Thread {
    * answered, and the small events in between.
    */
   feed: Post[];
+  /** The report an audit or a plan handed in, in full: the long read belongs on the page. */
+  report: string;
   /** Who built it, as they signed themselves. */
   by: string;
   summary: string;
@@ -156,6 +158,14 @@ function readBody(main: string): { said: Thread['said']; spec: string } {
   return { said, spec: spec.join('\n\n').trim() };
 }
 
+function readReport(task: Item): string {
+  try {
+    return fs.readFileSync(reportFile(task), 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
 function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Thread {
   const steps = log.map((line) => {
     const parsed = /^- (\d{4}-\d\d-\d\d \d\d:\d\dZ) (.+?): (.*)$/.exec(line);
@@ -168,6 +178,7 @@ function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Threa
     ...read,
     steps,
     feed: feedOf(ws, task, read.said, steps),
+    report: readReport(task),
     by: task.by ?? '',
     summary: task.summary ?? '',
     commits: task.commits.map((c) => c.slice(0, 7)),
@@ -745,6 +756,8 @@ function threadNode(c, b) {
         el('div', {}, byline(t.by || 'agent', ''), el('span', { class: 'badge ask' }, '❓ Needs a call from you'), el('pre', {}, c.question.title),
           el('div', {}, c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '', style: 'margin: 8px 6px 0 0',
             onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)))))),
+
+    t.report && el('details', { class: 'desc', open: true }, el('summary', {}, c.type === 'plan' ? 'The plan' : 'The report'), el('pre', {}, t.report)),
 
     lineage.length > 0 && [el('h3', {}, 'Linked'), lineage.map((l) => el('div', { class: 'note' }, l))],
 

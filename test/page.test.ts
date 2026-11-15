@@ -146,6 +146,13 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.deepEqual(followUp.thread.cameFrom, [{ id: coins, title: 'Make coins readable at sunset' }]);
     assert.match(html, /Mark as complete/);
 
+    // An audit's report is read on its ticket, in full.
+    const audit = s.id('audit', 'How does it feel to a new player?');
+    s.sp('build', audit);
+    s.sp('start', audit);
+    assert.equal(s.exec(['done', audit, '-m', 'Two things would make them quit', '--report', '-'], { stdin: '# First hour\n\nThe jump, and the coins.' }).code, 0);
+    assert.equal((await board()).columns.done.find((c: any) => c.id === audit).thread.report, '# First hour\n\nThe jump, and the coins.');
+
     // It refuses what it should: no token, a name that is not this machine, a move it does not offer.
     assert.equal((await post('move', { id: jump, to: 'build' }, {})).status, 403);
     assert.equal(s.json('show', jump).item.state, 'proposed', 'nothing moved without the token');
