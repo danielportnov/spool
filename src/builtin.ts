@@ -42,7 +42,7 @@ export type SkillName = (typeof SKILL_NAMES)[number];
  * sitting in the agent's list.
  */
 export const RETIRED: Record<string, string> = {
-  'spool-blockers': 'the loop does this at every check-in: /spool-loop',
+  'spool-blockers': 'the loop lists what needs you every time it runs: /spool-loop',
 };
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));

@@ -3,9 +3,9 @@
 **You talk. Agents turn it into work, keep working, and come back only for the calls that are yours.**
 
 Spool is a handful of agent skills, and a small CLI underneath them, that keep coding agents working
-on a project by themselves. Two commands: `/spool-init` once, then `/spool-loop`. Every few hours the
-*loop* shows you the spool, proposes what to ship next, asks everything it needs in one go, and then
-works until the next check-in. You answer, reprioritise, add ideas, and go back to your day. A
+on a project by themselves. Two commands: `/spool-init` once, then `/spool-loop`. The *loop* shows you
+every open thread in the order it suggests, then works them one by one, and tells you when it is done
+or needs you. You steer, add ideas, and go back to your day. A
 *recorder* takes ideas the moment you have them — while playing the build, from your phone, by voice.
 When an agent reaches a choice, it either makes the call and leaves a receipt, or asks you and gets on
 with something else. Anything it ships can be taken back in a sentence.
@@ -24,7 +24,7 @@ flowchart LR
   rec -- "files it" --> q[(".spool/")]
   q -- "next task" --> w["The loop"]
   w -- "commits" --> code[("your code")]
-  w -- "questions · receipts · new skills" --> rev["The check-in"]
+  w -- "questions · receipts · new skills" --> rev["The list"]
   rev --> you
   you -- "answer · approve · revert" --> q
 ```
@@ -41,7 +41,7 @@ You use Spool by talking to your agent. Three skills, and one that lists them:
 | Skill | What it does | Use it |
 | --- | --- | --- |
 | `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
-| `/spool-loop [hours]` | **The main one.** Every `hours` (3 unless you say) it shows you the spool 🧶 as one table of threads 🧵, recommends what to work on, talks through what needs you, and once you say go, works until the next check-in | once, and leave the chat open; again any time to check in now |
+| `/spool-loop [hours]` | **The main one.** It shows you every open thread 🧵 in the spool 🧶, ranked in the order it suggests, then works them one by one, telling you its plan as it starts each. It notifies you when it is done or needs you, and checks back every `hours` (3 unless you say) for anything new | once, and leave the chat open; steer it any time |
 | `/spool-recorder <what, and where>` | Put it in front of anything you type or say: that one message is filed as threads 🧵, and the chat carries on as it was | whenever you have feedback or an idea |
 | `/spool-overview [project]` | The whole spool 🧶, every thread 🧵 colour-coded: needs you, blocked, in progress, ready, on hold | any time |
 | `/spool-help` | This table, and what to do next here | when you forget |
@@ -49,21 +49,23 @@ You use Spool by talking to your agent. Three skills, and one that lists them:
 **init** once, then **loop**, and that is the whole workflow. The loop and the recorder are the two
 that matter; the rest are for looking closer.
 
-### A session of the loop
+### What the loop does
 
-`/spool-loop` sets one recurring job in the chat. Each time it comes round:
+The same three things, every time it runs:
 
-1. **Take stock.** Unfiled feedback is filed, unsized threads are sized, anything too big to build is
-   turned into a plan, and the spool is put in order.
-2. **Check in.** The same short layout every time: where the project stands in a line, what shipped
-   since last time, one table of the spool (each thread with its status, difficulty, priority and
-   what needs talking through), what the loop recommends working on this session, and everything
-   waiting on you, each ready to answer in a word.
-3. **Get your go-ahead.** Nothing starts until you approve. "Go" is enough; or change the order,
-   answer the questions, add ideas. If you are not there it notifies you, and waits.
-4. **Work** until the next session is due, or nothing can move without you.
-5. **Version** what shipped: one bump per session (minor for something new, patch for fixes), a
-   changelog entry, and a tag. The tag stays on your machine; pushing and releasing are yours.
+1. **Shows the spool.** One table, the same layout each time: every open thread, numbered in the
+   order it suggests doing them, with its difficulty and priority, and a note where something needs
+   you. Above it, what got done since last time.
+2. **Chips away.** It starts on thread 1 without being told. As it starts each thread it says what
+   the thread is and what it plans to do, then gets on with it. Steer it at any point: a comment on
+   the thread in hand changes it at once, and "do that one first" reorders the list.
+3. **Says when it is done.** It notifies you when the list is finished, when nothing can move without
+   you, or when a question stops one thread while the others carry on. What shipped gets a version:
+   a bump, a changelog entry and a tag that stays on your machine.
+
+The schedule is only a check back in. Every few hours the loop looks at the spool again, ranks in
+anything new or more pressing, shows the list and carries on. There is no session to fill and no
+deadline: the list is the plan.
 
 They are plain [Agent Skills](https://agentskills.io) in [`skills/`](skills): read them, edit them.
 The `spool` command is the engine they run. It holds the queue, the lock, the scheduler and the undo —
@@ -110,45 +112,30 @@ In another chat, or the same one later:
 
 > **You:** /spool-loop
 >
-> **Agent:** I'll check in every three hours; keep this chat open.
+> **Agent:** **🧶 Sky Hop** · 3 threads open, 1 needs you
 >
-> **🧶 Sky Hop** · 3 threads open, 1 needs you
->
-> | 🧵 Thread | Status | Difficulty | Priority | To talk through |
+> | # | 🧵 Thread | Difficulty | Priority | Note |
 > | --- | --- | --- | --- | --- |
-> | **Tighter jump** | 🟢 Ready | Small | High | — |
-> | **Coins readable at sunset** | 🔴 Needs you | Small | High | Dark outline, or teal? |
-> | **Pause button over the score** | 🟢 Ready | Tiny | Normal | — |
+> | 1 | **Tighter jump** | Small | High | |
+> | 2 | **Pause button over the score** | Tiny | Normal | |
+> | 🔴 | **Coins readable at sunset** | Small | High | Needs you: **a** dark outline · **b** teal. I'd pick **a**. |
 >
-> 🎯 **This session I recommend**
-> 1. Tighter jump — you'll feel it on the first level
-> 2. Coins readable at sunset — once you answer
-> 3. Pause button
+> I'll check back every three hours; keep this chat open.
 >
-> 💬 **To talk through**
-> 1. Coins at sunset: **a** dark outline · **b** teal. I'd pick **a**: it works on every background.
+> 🧵 Starting thread 1 — Tighter jump.<br>
+> Plan: raise gravity and shorten the hang at the top of the arc; you'll feel it on the first level.<br>
+> Steer me any time.
 >
-> Say **go** and I start. Or tell me what to change.
+> **You:** a. and snappy, not heavy
 >
-> **You:** 1a. coins first. go
+> **Agent:** Outline it is; coins are thread 3 now. Jump: keeping gravity, cutting the hang time
+> instead, so it snaps without feeling heavy.
 >
-> **Agent:** Coins, then the jump, then the pause button. Starting now; back at 5.
+> **Agent:** ✅ Thread 1 — Tighter jump: try the first level.<br>
+> 🧵 Starting thread 2 — Pause button…
 
-Three hours later:
-
-> **Agent:** **🧶 Sky Hop** · everything shipped, nothing open
->
-> ✅ **Shipped since last time**
-> - Coins readable at sunset — a dark outline
-> - Tighter jump — gravity 9.8 → 12, try the first level
-> - Pause button — it sits under the score now
->
-> Nothing to recommend: tell me what's next.
->
-> **You:** the jump is too heavy now, I wanted snappy, not heavy
->
-> **Agent:** I've undone the jump change and put that thread back at the front of the spool with your
-> words attached. 🎯 This session I recommend: 1. A snappier jump. Say **go**.
+Later, with you somewhere else, a notification: *Spool is done: 3 threads shipped, v0.4.0. Nothing
+left to do.*
 
 At any point, `/spool-overview` shows where everything stands:
 
@@ -357,9 +344,9 @@ belong to, splits them into threads, sizes each, and files them. It never does t
 takes over the chat: the next message is an ordinary one. Its scope is wherever you are: one
 repository, or a folder of them.
 
-**Workers** take tasks off the queue, and `/spool-loop` is a worker that keeps taking them, session
-after session. It also keeps the spool in order — sizing, ordering, filing what is unfiled — and it is
-the one that checks in with you. A question on one task never stops the rest.
+**Workers** take tasks off the queue, and `/spool-loop` is a worker that keeps taking them until
+none are left. It also keeps the spool in order — sizing, ordering, filing what is unfiled — and it
+is the one that shows you the list. A question on one task never stops the rest.
 
 The rules for both are written once, in those two skills. An agent whose harness has no skills gets
 the same text from the engine, so any agent that can run a command can play either role:
@@ -470,8 +457,7 @@ repository and running `spool` in it cannot run that repository's code.
 
 **Notifications.** In a chat, the loop reaches you through your harness's own notifications (in
 Claude Code, on your desktop, and on your phone when Remote Control is connected), with nothing to set
-up: when a check-in is waiting for your go-ahead, when a question stops a thread, and when nothing can
-move without you.
+up: when the list is done, when nothing can move without you, and when a question stops a thread.
 For the no-chat runner, or anywhere else, set a command and Spool runs it when a worker asks you
 something, or when the loop runs dry with questions outstanding. Details arrive in `SPOOL_EVENT`, `SPOOL_TITLE`, `SPOOL_ID` and
 `SPOOL_PROJECT`:
@@ -480,12 +466,12 @@ something, or when the loop runs dry with questions outstanding. Details arrive 
 { "notify": "curl -s -d \"$SPOOL_TITLE\" https://ntfy.sh/your-private-topic" }
 ```
 
-**The loop, in a chat.** `/spool-loop` runs a session now and every three hours after; `/spool-loop 1`
-makes it every hour, and `/spool-loop stop` ends it. It is one recurring job in your harness's own
-scheduler (in Claude Code, the one behind `/loop`), and nothing else, so it lives in that chat: keep
-the chat open and the machine awake. Claude Code ends a recurring job after 7 days; `/spool-loop`
-starts it again. Every session waits for your go-ahead before it works, so it is cheap to leave
-running: it notifies you, you say go from your phone, and it starts.
+**The loop, in a chat.** `/spool-loop` works the spool now and checks back every three hours;
+`/spool-loop 1` makes it every hour, and `/spool-loop stop` ends it. The check back in is one
+recurring job in your harness's own scheduler (in Claude Code, the one behind `/loop`), and nothing
+else, so it lives in that chat: keep the chat open and the machine awake. Claude Code ends a recurring
+job after 7 days; `/spool-loop` starts it again. A check back in that finds nothing new and nothing
+it can move says so in a line, so it is cheap to leave running.
 
 **The loop, with no chat.** The engine has a runner of its own. It contains no agent and doesn't care
 which one you use: `spool loop` claims the next ready task, starts your agent in that task's project

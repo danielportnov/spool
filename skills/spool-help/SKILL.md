@@ -16,20 +16,20 @@ Show this table as it is:
 | Skill | What it does | Use it |
 | --- | --- | --- |
 | `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
-| `/spool-loop [hours]` | The main one. Every `hours` (3 unless you say) it shows you the spool 🧶 as one table of threads 🧵, recommends what to work on, talks through what needs you, and once you say go, works until the next check-in | once, and leave the chat open; again any time to check in now |
+| `/spool-loop [hours]` | The main one. It shows you every open thread 🧵 in the spool 🧶, ranked in the order it suggests, then works them one by one, telling you its plan as it starts each. It notifies you when it is done or needs you, and checks back every `hours` (3 unless you say) for anything new | once, and leave the chat open; steer it any time |
 | `/spool-recorder <what, and where>` | Put it in front of anything you type or say: that one message is filed as threads 🧵, and the chat carries on as it was | whenever you have feedback or an idea |
 | `/spool-overview [project]` | The whole spool 🧶, every thread 🧵 colour-coded: needs you, blocked, in progress, ready, on hold | any time |
 
-The flow: **init** once, then **loop**, and that is it. The loop checks in
-every few hours; they answer, reprioritise, add ideas, and go back to their
-day. **Recorder** goes in front of any idea, at any time, in any chat.
-**Overview** shows the whole spool whenever they want to look.
+The flow: **init** once, then **loop**, and that is it. The loop works down
+the list by itself; they steer, add ideas, and go back to their day.
+**Recorder** goes in front of any idea, at any time, in any chat. **Overview**
+shows the whole spool whenever they want to look.
 
 Then add one line on what to do next here. Check with `spool status`; don't guess:
 
 - `spool` is not installed, or there is no `.spool/` here: "Start with `/spool-init`."
-- anything else: "`/spool-loop` starts the loop: a check-in now and every three hours,
-  and work in between once you say go. `/spool-loop 1` for every hour." If the spool is empty, add
-  that the first check-in will ask what they want built.
+- the spool is empty: "`/spool-recorder` and what you want built."
+- anything else: "`/spool-loop` shows you every open thread in the order it
+  suggests and starts working them, checking back every three hours."
 
 Only if they ask about the command line: `spool help` lists the engine's verbs.

@@ -1378,7 +1378,7 @@ export const COMMANDS: Command[] = [
         out.push(
           '',
           'Next, in your agent. You should not need this command line again.',
-          '  /spool-loop       the loop: it checks in with you now and every three hours, and works once you say go',
+          '  /spool-loop       the loop: it shows you every open thread in the order it suggests, then works them one by one',
           '  /spool-recorder   put it in front of anything you type or say, and that message is filed as threads',
           `  ${path.join(SPOOL_DIR, 'policy.md')} says what agents may decide without you — worth two minutes.`,
         );

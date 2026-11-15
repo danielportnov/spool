@@ -39,7 +39,7 @@ keep them.
 
 One line, whichever comes first:
 
-- anything under 🔴: "`/spool-loop` walks you through these at its check-in, and unblocks N threads."
+- anything under 🔴: "Answer these and N threads can move: tell me, or `/spool-loop` lists them with their options."
 - something under 🟣 they may want a say in: offer to talk it through before an agent plans it.
 - 🟢 work and nobody working it: "`/spool-loop` starts on it."
 - nothing open: "`/spool-recorder` to add what's next."
