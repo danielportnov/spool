@@ -2,6 +2,16 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.12.0 · 2026-11-15
+
+- Sprints, with no dates: make one, fill it from the backlog, press ▶ on it and everything in it is
+  built. `spool sprint`, `spool play`.
+- The page is laid out like the boards people know: Board and Backlog views, a search, sprint
+  pills, and cards with the key, priority, size and builder at the foot.
+- Done: a ✓ on each card, "Mark all as complete", and completed threads kept as History.
+- What you add or save on the page shows at once.
+- The yarn is the page's icon. An audit's or plan's report is read on its ticket.
+
 ## 0.11.0 · 2026-11-15
 
 - The loop reacts to the page: move a thread to Build and it starts within seconds, with no timer.
