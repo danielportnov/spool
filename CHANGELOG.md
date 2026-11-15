@@ -2,6 +2,17 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.8.0 · 2026-11-15
+
+- The Spool page: `spool page` or `/spool-page` opens a board of every thread in four columns —
+  proposed, build, building, done. Drag a thread to Build or press ▶, add notes, answer questions.
+- The build gate: every new thread starts proposed, and nothing is built until you move it to build,
+  on the page or by saying so (`spool build`). `spool init --gate` turns it on.
+- The loop builds what is in build and nothing else.
+- `spool mcp`: Spool's commands as tools for an agent with no shell.
+- `spool skills --suggest`: Spool notices procedures that recur across finished threads and the loop
+  offers to write them down.
+
 ## 0.7.0 · 2026-11-15
 
 - Three skills: `/spool-init`, `/spool-loop` and `/spool-record`. `/spool-recorder` is renamed
