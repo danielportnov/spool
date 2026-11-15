@@ -193,6 +193,22 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     await page.keyboard.press('Escape');
     assert.equal(await page.locator('#board .card').count(), 5);
 
+    // Each column sorts and filters by itself, and remembers it.
+    const titles = (key: string): Promise<string[]> => column(key).locator('.card .title').allInnerTexts();
+    assert.deepEqual(await titles('proposed'), ['Pause button under the score', 'Fix the typo on the title screen']);
+    await column('proposed').getByLabel('Sort this column').selectOption('title');
+    assert.deepEqual(await titles('proposed'), ['Fix the typo on the title screen', 'Pause button under the score']);
+    await column('build').getByLabel('Filter this column').selectOption({ label: '#feel' });
+    assert.deepEqual(await titles('build'), ['A snappier jump']);
+    assert.match(await column('build').locator('h2').innerText(), /1 OF 3/i);
+    assert.deepEqual(await titles('proposed'), ['Fix the typo on the title screen', 'Pause button under the score'], 'the other columns are left alone');
+    await page.reload();
+    await column('build').waitFor();
+    assert.deepEqual(await titles('build'), ['A snappier jump'], 'the choice is remembered');
+    await column('build').getByLabel('Filter this column').selectOption('');
+    await column('proposed').getByLabel('Sort this column').selectOption('');
+    assert.equal((await titles('build')).length, 3);
+
     // Finished work: who built it is on the card, a tick approves one, and one button approves the rest.
     for (const [id, summary] of [[coins, 'Coins are outlined'], [jump, 'The jump snaps'], [daily, 'A new level every day']] as const) {
       s.sp('start', id, '--as', 'Claude Fable 5.2');

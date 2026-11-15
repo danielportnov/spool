@@ -566,6 +566,10 @@ const PAGE = String.raw`<!doctype html>
   .over { border-color: var(--go) !important; }
   .col h2 { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; margin: 5px 6px 10px; display: flex; gap: 8px; color: var(--soft); font-weight: 600; }
   .col h2 .count { background: var(--chip); border-radius: 999px; padding: 0 8px; }
+  .tools { display: flex; gap: 6px; margin: -4px 4px 8px; }
+  .tools select { flex: 1; min-width: 0; padding: 2px 4px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--soft); font-size: 12px; cursor: pointer; }
+  .tools select:hover { border-color: var(--line); }
+  .tools select.set { color: var(--accent); border-color: var(--line); background: var(--panel); }
   .card { background: var(--panel); border: 1px solid transparent; border-radius: 8px; padding: 9px 10px 8px; margin-bottom: 7px; box-shadow: var(--shadow); }
   .card:hover { border-color: var(--line); }
   .card[draggable=true], .row[draggable=true] { cursor: grab; }
@@ -887,11 +891,76 @@ function addNode(column, placeholder) {
     el('div', { class: 'acts' }, el('button', { class: 'go', onclick: save }, 'Add'), el('button', { onclick: close }, 'Cancel')));
 }
 
+// ---- each column can be sorted and filtered by itself; the choice is remembered
+
+const SORTS = [['', 'Sort: as it stands'], ['priority', 'Sort: most urgent'], ['small', 'Sort: smallest'], ['large', 'Sort: largest'], ['new', 'Sort: newest'], ['old', 'Sort: oldest'], ['title', 'Sort: A to Z']];
+const BIG = { xs: 0, s: 1, m: 2, l: 3, xl: 4 };
+let cols = {};
+try { cols = JSON.parse(localStorage.getItem('spool-columns') || '{}') || {}; } catch (e) {}
+const colOf = (key) => cols[key] || { sort: '', filter: '' };
+function setCol(key, change) {
+  cols[key] = { ...colOf(key), ...change };
+  try { localStorage.setItem('spool-columns', JSON.stringify(cols)); } catch (e) {}
+  redraw();
+}
+// What a column can be narrowed to depends on what is in it: its tags, sprints, versions and kinds of thread.
+function filtersOf(cards, b) {
+  const seen = (pick) => [...new Set(cards.flatMap(pick).filter(Boolean))].sort();
+  return [
+    ['', 'Show: all'],
+    cards.some((c) => c.suggested) && ['ai', '✨ AI suggested'],
+    cards.some((c) => c.question) && ['ask', '❓ Needs you'],
+    cards.some((c) => !c.size) && ['unsized', 'Not sized'],
+    ...seen((c) => [c.type !== 'change' && c.type]).map((t) => ['type:' + t, t]),
+    ...seen((c) => [c.sprint]).map((id) => ['sprint:' + id, sprintName(b, id)]),
+    ...seen((c) => [c.version]).map((v) => ['version:' + v, 'v' + v]),
+    ...seen((c) => c.tags).map((t) => ['tag:' + t, '#' + t]),
+  ].filter(Boolean);
+}
+function passes(c, filter) {
+  if (!filter) return true;
+  if (filter === 'ai') return !!c.suggested;
+  if (filter === 'ask') return !!c.question;
+  if (filter === 'unsized') return !c.size;
+  const [kind, value] = [filter.slice(0, filter.indexOf(':')), filter.slice(filter.indexOf(':') + 1)];
+  return kind === 'tag' ? c.tags.includes(value) : kind === 'type' ? c.type === value : kind === 'sprint' ? c.sprint === value : c.version === value;
+}
+function sorted(cards, sort) {
+  const size = (c, missing) => (c.size ? BIG[c.size] : missing);
+  const by = {
+    priority: (a, z) => a.p - z.p,
+    small: (a, z) => size(a, 9) - size(z, 9),
+    large: (a, z) => size(z, -1) - size(a, -1),
+    new: (a, z) => z.created.localeCompare(a.created),
+    old: (a, z) => a.created.localeCompare(z.created),
+    title: (a, z) => a.title.localeCompare(z.title),
+  }[sort];
+  return by ? [...cards].sort(by) : cards;
+}
+function toolsNode(key, cards, b) {
+  const { sort, filter } = colOf(key);
+  const options = filtersOf(cards, b);
+  // A filter for something that has since left the column would hide everything: let it go.
+  const live = options.some(([v]) => v === filter) ? filter : '';
+  const pick = (list, value, onpick, label) => {
+    const node = el('select', { class: value ? 'set' : '', 'aria-label': label, onchange: (e) => { const v = e.target.value; e.target.blur(); onpick(v); } },
+      list.map(([v, name]) => el('option', { value: v }, name)));
+    node.value = value;
+    return node;
+  };
+  return el('div', { class: 'tools' },
+    pick(SORTS, sort, (v) => setCol(key, { sort: v }), 'Sort this column'),
+    pick(options, live, (v) => setCol(key, { filter: v }), 'Filter this column'));
+}
+
 // ---- the board: four columns
 
 function drawBoard(b) {
   document.getElementById('board').replaceChildren(...COLUMNS.map(([key, name, hint]) => {
-    const every = b.columns[key].filter(shows);
+    const whole = b.columns[key].filter(shows);
+    const tools = toolsNode(key, whole, b);
+    const filter = tools.lastChild.value;
+    const every = sorted(whole.filter((c) => passes(c, filter)), colOf(key).sort);
     // Done shows what is still for them to check. What they marked complete is history, a click away.
     const past = key === 'done' ? every.filter((c) => c.complete) : [];
     const cards = key === 'done' ? every.filter((c) => !c.complete) : every;
@@ -906,8 +975,9 @@ function drawBoard(b) {
         e.preventDefault();
         post('move', { id, to: key }, key === 'build' ? 'In build' : 'Back in the backlog');
       } },
-      el('h2', {}, DOT[key] + ' ' + name, el('span', { class: 'count' }, String(cards.length))),
-      cards.length ? cards.map((c) => cardNode(c, b)) : el('div', { class: 'empty' }, key === 'done' ? 'Nothing left to check.' : hint),
+      el('h2', {}, DOT[key] + ' ' + name, el('span', { class: 'count' }, filter ? every.length + ' of ' + whole.length : String(cards.length))),
+      whole.length > 1 && tools,
+      cards.length ? cards.map((c) => cardNode(c, b)) : el('div', { class: 'empty' }, filter ? 'Nothing here matches.' : key === 'done' ? 'Nothing left to check.' : hint),
       key === 'done' && cards.length > 1 && el('button', { class: 'foot go', onclick: () => post('complete-all', {}, 'All marked as complete') }, '✓ Mark all ' + cards.length + ' as complete'),
       key === 'done' && b.history > 0 && el('button', { class: 'history', onclick: () => { showHistory = !showHistory; redraw(); } },
         (showHistory ? '▾ Hide history' : '▸ History') + ' · ' + b.history + ' complete'),
