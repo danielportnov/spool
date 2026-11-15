@@ -188,6 +188,15 @@ One thread at a time, until `spool next` says nothing is ready:
    - they pick another: talk that one through.
    - nobody there: notify them, by "Reaching them", and wait. The next check
      back in shows the list again.
+   **One go can cover several.** "Go on 1 to 3", "do all the small ones",
+   "all of the AI ones": that is their word for every thread they named.
+   - Write it on each one, so it outlasts this chat:
+     `spool log <t-id> "approved ahead by the human: <their words>"`.
+   - Build them in order, back to back. Before each, one line in place of
+     the full talk: "🧵 Starting thread 2 — <name>: <your plan, in a line>."
+   - Stop for a full talk before the first thread they did not name.
+   - A thread whose log says it was approved ahead needs no new talk, at a
+     check back in or in a new chat: carry on with it.
 4. **Build it,** by the rules in "Working a thread". They can still steer
    while you work.
 5. Hand it in with `spool done`, or leave it waiting on a question with

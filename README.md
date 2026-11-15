@@ -58,8 +58,8 @@ context, explains, and builds; you decide. The same three things, every time it 
    table, what got done since last time.
 2. **Talks the next thread through, then builds it.** Before each thread it says what it is, in
    plain words, why it is next, and what it plans to do. That talk is where you are in the loop: say
-   go, change the plan, or pick another. Then it builds, ticks the thread off, and comes back with
-   the next one. What you agreed is written on the thread, so the context lives in the spool and not
+   go, change the plan, or pick another. One go can cover several ("go on 1 to 3"), and it builds
+   those back to back. Then it ticks the thread off and comes back with the next one. What you agreed is written on the thread, so the context lives in the spool and not
    in your head.
 3. **Says when it is done.** It notifies you when a thread is ready for your word and you are away,
    when the list is finished, or when nothing can move without you. What shipped gets a version: a

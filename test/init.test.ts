@@ -185,6 +185,7 @@ test('the loop skill is simple: show the spool ranked, chip away, say when it is
   assert.match(loop, /🧵 Next: thread 1 — <name>\.\n {7}What it is: [^\n]*\n {7}Why now: [^\n]*\n {7}My plan: [^\n]*\n {7}Go\? Or change it, or pick another\./);
   assert.match(loop, /\*\*Wait for their word\.\*\* This is the human in the loop, and the only gate/);
   assert.match(loop, /The chat is not the\nrecord: the spool is\./);
+  assert.match(loop, /\*\*One go can cover several\.\*\*[\s\S]*approved ahead by the human: <their words>[\s\S]*Stop for a full talk before the first thread they did not name[\s\S]*needs no new talk/);
 
   // Its own ideas go in the spool as AI suggested, and wait for a yes.
   assert.match(loop, /### Add your own ideas[\s\S]*spool task "<the idea>" --suggested "<why[^"]*>" --size <size>[\s\S]*nobody starts it, you\n {2}included, until the human says yes/);
