@@ -32,6 +32,7 @@ everything that is in no sprint.
 | **+ Create sprint**, then drag threads into it | A sprint is a named set of threads with no dates. Being in one starts nothing. |
 | **▶ Play sprint** | Everything in the sprint moves to Build at once. |
 | The search, or a sprint's pill | Narrows the board to what matches. |
+| **Add to Build**, at the foot of the backlog | Moves every thread the backlog is showing right now to Build, and none that a filter or the search has hidden. It asks once. |
 | **Sort** and **Show** at the top of a column | Sorts or filters that column alone. The order agents build in does not change. |
 | Open a card | The ticket: what they said, what was done and by which agent, and everything that happened, with its fields at the side. |
 | Change a field on the ticket | Its name, status, priority, difficulty, tags or version. Tags and versions are theirs to invent. |

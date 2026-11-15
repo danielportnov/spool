@@ -347,6 +347,12 @@ function change(ctx: Ctx, action: string, body: Body, project?: string): { ok: b
     }
     return ids.length ? act(ctx, ['approve', ...ids]) : { ok: true, text: 'Nothing left to check.' };
   }
+  if (action === 'move-many') {
+    // "Add to Build" at the foot of the backlog: exactly the threads the page was showing, and no others.
+    const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
+    if (!ids.length || ids.length > 500 || !ids.every((x) => /^t-[a-z0-9]+$/.test(x))) return { ok: false, text: 'which threads?' };
+    return act(ctx, ['build', ...ids]);
+  }
   if (action === 'move') {
     const to = text(body.to);
     if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
@@ -605,6 +611,7 @@ const PAGE = String.raw`<!doctype html>
   .adding textarea, .adding input { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); resize: vertical; }
   .acts { display: flex; gap: 6px; margin-top: 6px; }
   .foot { width: 100%; margin-bottom: 8px; }
+  .addall { margin-bottom: 0; }
   .history { background: none; border: 0; padding: 6px; color: var(--soft); font-size: 13px; width: 100%; text-align: left; }
   .history:hover { color: var(--ink); }
 
@@ -953,6 +960,21 @@ function toolsNode(key, cards, b) {
     pick(options, live, (v) => setCol(key, { filter: v }), 'Filter this column'));
 }
 
+// "Add to Build", for everything the backlog is showing right now. It starts work on all of them,
+// so it asks once: the first press arms it, the second does it.
+let armed = '';
+function addAllNode(where, cards) {
+  if (!cards.length) return null;
+  const ids = cards.map((c) => c.id);
+  const key = where + ':' + ids.join(',');
+  const label = cards.length === 1 ? '▶ Add 1 to Build' : '▶ Add all ' + cards.length + ' shown to Build';
+  if (armed !== key) {
+    return el('button', { class: 'foot addall', title: 'Moves what is shown here, and only that, to Build', onclick: () => { armed = key; redraw(); setTimeout(() => { if (armed === key) { armed = ''; redraw(); } }, 5000); } }, label);
+  }
+  return el('button', { class: 'foot addall go', onclick: () => { armed = ''; post('move-many', { ids }, cards.length + ' moved to Build'); } },
+    'Yes, move ' + cards.length + ' to Build');
+}
+
 // ---- the board: four columns
 
 function drawBoard(b) {
@@ -983,7 +1005,8 @@ function drawBoard(b) {
         (showHistory ? '▾ Hide history' : '▸ History') + ' · ' + b.history + ' complete'),
       key === 'done' && showHistory && past.map((c) => cardNode(c, b)),
       key === 'done' && showHistory && b.history > past.length && !only && !query && el('div', { class: 'empty' }, '+ ' + (b.history - past.length) + ' older'),
-      drop && addNode(key, key === 'build' ? 'What should be built?' : 'What do you want added?'));
+      drop && addNode(key, key === 'build' ? 'What should be built?' : 'What do you want added?'),
+      key === 'proposed' && cards.length > 0 && el('div', { style: 'margin-top: 8px' }, addAllNode('board', cards)));
   }));
 }
 
@@ -1045,7 +1068,8 @@ function drawBacklog(b) {
     dropInto(el('div', { class: 'group' },
       el('div', { class: 'ghead' }, el('span', { class: 'gname' }, 'Backlog'), el('span', { class: 'gmeta' }, loose.length + (loose.length === 1 ? ' thread' : ' threads') + ' in no sprint')),
       loose.length ? loose.map((c) => rowNode(c, b)) : el('div', { class: 'empty' }, 'Everything is in a sprint, or built.'),
-      addNode('proposed', 'What do you want added?')), ''),
+      addNode('proposed', 'What do you want added?'),
+      loose.length > 0 && el('div', { style: 'margin-top: 8px; max-width: 320px' }, addAllNode('backlog', loose))), ''),
     ...finished.map((s) => sprintNode(s, b)));
 }
 

@@ -209,6 +209,28 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     await column('proposed').getByLabel('Sort this column').selectOption('');
     assert.equal((await titles('build')).length, 3);
 
+    // "Add to Build" at the foot of the backlog moves what is shown there, and only that: it knows the filters.
+    const extra = s.id('task', 'Brighter sky on level 3', '-s', 's', '--tag', 'art');
+    s.sp('task', 'Sunset palette for level 4', '-s', 's', '--tag', 'art');
+    await card('proposed', 'Sunset palette for level 4').waitFor();
+    assert.equal(await column('proposed').locator('.card').count(), 4);
+    assert.equal(await column('proposed').locator('.addall').innerText(), '▶ Add all 4 shown to Build');
+    await column('proposed').getByLabel('Filter this column').selectOption({ label: '#art' });
+    await page.keyboard.press('/');
+    await page.keyboard.type('sky');
+    assert.deepEqual(await titles('proposed'), ['Brighter sky on level 3']);
+    await column('proposed').locator('.addall', { hasText: '▶ Add 1 to Build' }).click();
+    assert.equal(state(extra), 'proposed', 'the first press only arms it');
+    await column('proposed').getByRole('button', { name: 'Yes, move 1 to Build' }).click();
+    await until('what was shown is in build', () => state(extra) === 'ready');
+    await page.keyboard.press('/');
+    await page.keyboard.press('Escape');
+    await column('proposed').getByLabel('Filter this column').selectOption('');
+    await card('proposed', 'Pause button under the score').waitFor();
+    assert.deepEqual([state(pause), state(typo)], ['proposed', 'proposed'], 'what the filters hid was left where it was');
+    s.sp('propose', extra);
+    await card('proposed', 'Brighter sky on level 3').waitFor();
+
     // Finished work: who built it is on the card, a tick approves one, and one button approves the rest.
     for (const [id, summary] of [[coins, 'Coins are outlined'], [jump, 'The jump snaps'], [daily, 'A new level every day']] as const) {
       s.sp('start', id, '--as', 'Claude Fable 5.2');
