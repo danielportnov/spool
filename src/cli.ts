@@ -11,6 +11,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { COMMANDS, type Command, type Options, type Result, type Values } from './commands.ts';
+import { version } from './builtin.ts';
 import type { Ctx } from './context.ts';
 import { SpoolError } from './model.ts';
 import { paint } from './render.ts';
@@ -24,20 +25,21 @@ const GLOBAL: Options = {
 };
 
 const GROUPS: [Command['group'], string][] = [
-  ['you', 'You'],
-  ['agents', 'Agents'],
-  ['see', 'See'],
+  ['agents', 'Working the queue'],
+  ['you', 'The human\'s verbs — run these only on their word'],
+  ['see', 'Seeing'],
   ['setup', 'Set up'],
 ];
 
-function version(): string {
-  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
-  return pkg.version;
-}
-
 function help(): string {
   const width = Math.max(...COMMANDS.map((c) => c.name.length));
-  const lines = ['spool — a feedback-driven work queue for coding agents', ''];
+  const lines = [
+    'spool — the engine under the Spool skills',
+    '',
+    'People use Spool by talking to their agent: /spool-help there lists the skills.',
+    'These are the verbs those skills run. If you are a person, you rarely need them.',
+    '',
+  ];
   for (const [group, title] of GROUPS) {
     lines.push(title);
     for (const c of COMMANDS.filter((c) => c.group === group)) lines.push(`  ${c.name.padEnd(width)}  ${c.summary}`);

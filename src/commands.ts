@@ -8,6 +8,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ParseArgsConfig } from 'node:util';
+import { installSkills, installedIn, userSkillsDir } from './builtin.ts';
 import { type Ctx, notify } from './context.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
 import { runLoop } from './loop.ts';
@@ -34,19 +35,20 @@ import {
   timestamp,
   tokens,
 } from './model.ts';
-import { DEFAULT_POLICY, RECORDER_SKILL, type Role, SPOOL_SKILL, about, prime, upsertBlock } from './prime.ts';
+import { DEFAULT_POLICY, type Role, about, prime, upsertBlock } from './prime.ts';
 import {
   type Paint,
   brief,
   itemJson,
   itemLine,
   nothingReady,
+  overviewText,
   reviewText,
   showText,
   skillsText,
   statusText,
 } from './render.ts';
-import { blockers, children, dependents, findCycle, ready, review, stateOf, taskState } from './schedule.ts';
+import { blockers, children, dependents, docket, findCycle, ready, review, stateOf, taskState } from './schedule.ts';
 import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, writeSkill } from './skills.ts';
 import { SPOOL_DIR, type Workspace, findHome, readConfig, skillsDir } from './store.ts';
 
@@ -544,12 +546,14 @@ export const COMMANDS: Command[] = [
   {
     name: 'prime',
     group: 'agents',
-    usage: 'prime [worker|recorder]',
-    summary: 'Print the protocol for a role — run it first',
-    run({ ws, args }) {
+    usage: 'prime [worker|recorder] [--context]',
+    summary: 'What a role needs before it starts: its rules, and this project now (--context: just the project)',
+    options: { context: { type: 'boolean' } },
+    run({ ws, args, opts }) {
       const role = (args[0] ?? 'worker') as Role;
       if (role !== 'worker' && role !== 'recorder') throw new SpoolError(`no role "${args[0]}"`, 'spool prime worker   or   spool prime recorder');
-      return { text: prime(ws, role), data: { role, protocol: prime(ws, role) } };
+      const text = prime(ws, role, !!opts.context);
+      return { text, data: { role, protocol: text } };
     },
   },
   {
@@ -1068,6 +1072,40 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: 'overview',
+    aliases: ['ov'],
+    group: 'see',
+    usage: 'overview [<project>]',
+    summary: 'A project\'s whole docket under six colours: needs you, break down, blocked, in progress, ready, on hold',
+    options: { ...PROJECT },
+    run({ ws, p, args, opts }) {
+      const ref = str(opts.project) ?? str(args.join(' ').trim());
+      const spools = ref ? [ws.project(ref)] : ws.spools;
+      const json = (items: Item[]) => items.map((i) => itemJson(ws, i));
+      return {
+        text: overviewText(ws, spools, p),
+        data: {
+          workspace: ws.home.name,
+          projects: spools.map((spool) => {
+            const d = docket(ws, spool);
+            return {
+              name: spool.name,
+              path: spool.root,
+              needsYou: json(d.needsYou),
+              breakDown: json(d.breakDown),
+              blocked: json(d.blocked),
+              active: json(d.active),
+              ready: json(d.ready),
+              held: json(d.held),
+              done: d.done,
+              also: d.also,
+            };
+          }),
+        },
+      };
+    },
+  },
+  {
     name: 'list',
     aliases: ['ls'],
     group: 'see',
@@ -1245,14 +1283,12 @@ export const COMMANDS: Command[] = [
   {
     name: 'init',
     group: 'setup',
-    usage: 'init [--name <name>] [--about <one line>] [--no-skills] [--no-agents-file] [--force]',
+    usage: 'init [--name <name>] [--about <one line>] [--no-agents-file]',
     summary: 'Start a spool in this directory',
     options: {
       name: { type: 'string' },
       about: { type: 'string' },
-      'no-skills': { type: 'boolean' },
       'no-agents-file': { type: 'boolean' },
-      force: { type: 'boolean' },
     },
     bare({ ctx, opts, p }) {
       const root = ctx.cwd;
@@ -1278,11 +1314,6 @@ export const COMMANDS: Command[] = [
       const config = readConfig(root);
       const spool: Spool = { root, dir, name: config.name ?? path.basename(root), home: true, config };
 
-      if (!opts['no-skills']) {
-        const base = skillsDir(spool);
-        write(path.join(base, 'spool', 'SKILL.md'), SPOOL_SKILL, !!opts.force);
-        write(path.join(base, 'recorder', 'SKILL.md'), RECORDER_SKILL, !!opts.force);
-      }
       if (!opts['no-agents-file']) {
         const present = ['CLAUDE.md', 'AGENTS.md'].filter((f) => fs.existsSync(path.join(root, f)));
         for (const name of present.length ? present : ['AGENTS.md']) {
@@ -1296,16 +1327,46 @@ export const COMMANDS: Command[] = [
       const out = [fresh ? `Spool is set up in ${p.bold(spool.name)}.` : `${p.bold(spool.name)} already has a spool; refreshed what was missing.`];
       if (wrote.length) out.push(...wrote.map((f) => p.dim(`  wrote ${f}`)));
       if (parent) out.push(`It sits under ${path.basename(parent)} and shows up there as a project.`);
+      const skills = installedIn(userSkillsDir(ctx)) || installedIn(skillsDir(spool));
+      if (!skills) out.push('', 'The Spool skills are not installed for your agent yet. Once per machine:  spool install');
       if (fresh) {
         out.push(
           '',
-          'Next',
-          '  spool capture "<the first thing on your mind>"',
-          '  /recorder in Claude Code turns a chat into the recorder for this folder.',
+          'Next, in your agent. You should not need this command line again.',
+          '  /spool-recorder   talk or type; everything you say is filed as work',
+          '  /spool-loop 2     agents work the docket now, and every two hours',
+          '  /spool-blockers   answer what they need from you',
           `  ${path.join(SPOOL_DIR, 'policy.md')} says what agents may decide without you — worth two minutes.`,
         );
       }
-      return { text: out.join('\n'), data: { root, created: fresh, wrote } };
+      return { text: out.join('\n'), data: { root, created: fresh, wrote, skills } };
+    },
+  },
+  {
+    name: 'install',
+    group: 'setup',
+    usage: 'install [--here | --dir <skills directory>] [--force]',
+    summary: 'Put the Spool skills where your agent finds them; run it again after upgrading',
+    options: { here: { type: 'boolean' }, dir: { type: 'string' }, force: { type: 'boolean' } },
+    bare({ ctx, opts, p }) {
+      if (opts.here && str(opts.dir)) throw new SpoolError('--here and --dir both say where', 'Use one of them');
+      // Default: the person's own skills, seen from every project. --here: this project's, to check in for a team.
+      let dir = userSkillsDir(ctx);
+      if (str(opts.dir)) dir = path.resolve(ctx.cwd, str(opts.dir)!);
+      else if (opts.here) {
+        const root = findHome(ctx.cwd) ?? ctx.cwd;
+        const config = fs.existsSync(path.join(root, SPOOL_DIR, 'config.json')) ? readConfig(root) : { version: 1 };
+        dir = skillsDir({ root, dir: path.join(root, SPOOL_DIR), name: path.basename(root), home: true, config });
+      }
+      const done = installSkills(dir, !!opts.force);
+      const home = ctx.env.HOME;
+      const shown = home && dir.startsWith(home + path.sep) ? `~${dir.slice(home.length)}` : dir;
+      const out = [`Spool skills in ${p.bold(shown)}`];
+      for (const { name, outcome } of done) {
+        out.push(`  ${outcome.padEnd(9)}  ${name}${outcome === 'kept' ? p.dim('  · edited here, so left alone; --force replaces it') : ''}`);
+      }
+      out.push('', 'In your agent:  /spool-help');
+      return { text: out.join('\n'), data: { dir, skills: done } };
     },
   },
   {

@@ -12,12 +12,16 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { SKILL_NAMES } from './builtin.ts';
 import { quote } from './frontmatter.ts';
 import { type Item, type Spool, SpoolError, overlap, splitBody, tokens } from './model.ts';
 import { type SkillFile, type Workspace, skillsDir } from './store.ts';
 
-/** Spool's own skills are plumbing, not procedures; they are never suggested for a task. */
-export const BUILT_IN = new Set(['spool', 'recorder']);
+/**
+ * Spool's own skills are how it is used, not procedures for a task; they are
+ * never suggested for one. The last two are the names 0.1 installed.
+ */
+export const BUILT_IN = new Set<string>([...SKILL_NAMES, 'spool', 'recorder']);
 
 export function ledgerFor(ws: Workspace, skill: SkillFile): Item | undefined {
   return ws.items.find(

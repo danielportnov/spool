@@ -210,14 +210,19 @@ test('sending a plan or an audit back takes its unstarted work with it', () => {
 test('the protocols teach sizing, audits and plans to both roles', () => {
   const s = spool();
   const worker = s.sp('prime');
-  assert.match(worker, /an audit {3}Look, think, report\. Do not fix things here/);
-  assert.match(worker, /a plan {5}Work out how\. Do not build it here/);
-  assert.match(worker, /SIZE — how much would have to change\n {2}xs a line or a value/);
-  assert.match(worker, /one\n {2}pick in four to large work/);
+  assert.match(worker, /\*\*An audit\.\*\* Look, think, report\. Do not fix things here/);
+  assert.match(worker, /\*\*A plan\.\*\* Work out how\. Do not build it here/);
+  assert.match(worker, /### Size: how much would have to change\n\n`xs` a line or a value/);
+  assert.match(worker, /one\npick in four to large work/);
   const recorder = s.sp('prime', 'recorder');
-  assert.match(recorder, /a look and a report spool audit "<what to examine, and through whose eyes>"/);
-  assert.match(recorder, /something big {7}spool plan "<the objective>"/);
-  assert.match(recorder, /"go ahead with the plan" {26}spool approve <t-id>/);
+  assert.match(recorder, /\| a look and a report \| `spool audit "<what to examine, and through whose eyes>"/);
+  assert.match(recorder, /\| something big or open \| `spool plan "<the objective>"/);
+  assert.match(recorder, /\| "go ahead with the plan" \| `spool approve <t-id>`/);
+
+  // With --context a worker gets the policy and the state of the queue, and none of the rules.
+  const context = s.sp('prime', 'worker', '--context');
+  assert.match(context, /^POLICY \(\.spool\/policy\.md\)[\s\S]*## Ask first[\s\S]*NOW {2}\d+ ready/);
+  assert.doesNotMatch(context, /Working a task/);
   s.cleanup();
 });
 

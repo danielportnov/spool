@@ -76,14 +76,20 @@ test('the recorder is briefed with the projects and what is waiting', () => {
   s.sp('ask', 'Ship on Friday?', '--option', 'Yes', '--option', 'No');
   s.sp('capture', 'something unfiled');
   const brief = s.sp('prime', 'recorder');
-  assert.match(brief, /SPOOL · recorder protocol/);
+  assert.match(brief, /# Spool · recorder protocol/);
   assert.match(brief, /apps\/tidy_up +0 open {2}· A chore tracker/);
   assert.match(brief, /games\/sky_hop +1 open {2}· A platformer about hopping between clouds\./);
   assert.match(brief, /WAITING ON THE HUMAN\n.*Ship on Friday\?\n\s+1\) Yes {2}2\) No/);
   assert.match(brief, /INBOX {2}1 unfiled/);
 
+  // A recorder that has the rules from its skill asks only for what is true here.
+  const context = s.sp('prime', 'recorder', '--context');
+  assert.match(context, /^PROJECTS\n/);
+  assert.match(context, /WAITING ON THE HUMAN\n.*Ship on Friday\?/);
+  assert.doesNotMatch(context, /recorder protocol|## For every piece/);
+
   const worker = s.sp('prime');
-  assert.match(worker, /SPOOL · worker protocol/);
+  assert.match(worker, /# Spool · worker protocol/);
   assert.match(worker, /POLICY \(\.spool\/policy\.md\)[\s\S]*## Ask first/);
   assert.match(worker, /games\/sky_hop\/\.spool\/policy\.md/);
   assert.match(s.fails('prime', 'manager'), /no role "manager"/);
@@ -93,7 +99,7 @@ test('the recorder is briefed with the projects and what is waiting', () => {
 test('outside any spool, it says how to start one', () => {
   const s = new Sandbox();
   assert.match(s.fails('status'), /no \.spool\/ here or in any parent directory[\s\S]*spool init/);
-  assert.match(s.sp(), /a feedback-driven work queue/, 'bare `spool` prints help');
+  assert.match(s.sp(), /the engine under the Spool skills[\s\S]*\/spool-help/, 'bare `spool` prints help');
   s.sp('init');
   assert.match(s.sp(), /nothing is waiting on you/, 'and status once there is a spool');
   s.cleanup();

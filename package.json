@@ -1,7 +1,7 @@
 {
   "name": "@danielportnov/spool",
-  "version": "0.1.0",
-  "description": "A feedback-driven work queue for coding agents. You talk; agents thread it into tasks, work them around the clock, and come back only for the calls that are yours.",
+  "version": "0.2.0",
+  "description": "Agent skills, and the small CLI under them, that keep coding agents working on their own: you talk, they turn it into tasks, work them around the clock, and come back only for the calls that are yours.",
   "keywords": [
     "ai-agents",
     "coding-agents",
@@ -24,6 +24,7 @@
   },
   "files": [
     "dist",
+    "skills",
     "README.md",
     "LICENSE"
   ],

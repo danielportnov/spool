@@ -258,7 +258,7 @@ test('errors are instructive, and structured under --json', () => {
   assert.match(s.fails('task', 'x', '--bogus'), /Unknown option '--bogus'[\s\S]*usage: spool task/);
   assert.match(s.fails('task', 'x', '-p', '9'), /must be 0 to 3/);
   assert.match(s.fails('task'), /the title is missing/);
-  assert.match(s.sp('help'), /capture[\s\S]*review[\s\S]*next/);
+  assert.match(s.sp('help'), /the engine under the Spool skills[\s\S]*next[\s\S]*only on their word[\s\S]*capture[\s\S]*review/);
   assert.match(s.sp('help', 'ask'), /spool ask <question…>/);
   assert.match(s.sp('--version'), /^\d+\.\d+\.\d+$/);
   s.cleanup();

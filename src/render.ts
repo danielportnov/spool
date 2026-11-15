@@ -6,8 +6,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { type Item, isPlan, isSettled, oneLine, reportFile, splitBody } from './model.ts';
-import { type Review, blockers, children, dependents, ready, review, stateOf, taskState, tasks } from './schedule.ts';
+import { type Item, type Spool, isPlan, isSettled, oneLine, reportFile, splitBody } from './model.ts';
+import { type Docket, type Review, blockers, children, dependents, docket, ready, review, stateOf, taskState, tasks } from './schedule.ts';
 import { BUILT_IN, fileFor, ledgerFor, matchSkills } from './skills.ts';
 import type { Workspace } from './store.ts';
 
@@ -17,6 +17,8 @@ export interface Paint {
   red: (s: string) => string;
   green: (s: string) => string;
   yellow: (s: string) => string;
+  blue: (s: string) => string;
+  magenta: (s: string) => string;
   cyan: (s: string) => string;
 }
 
@@ -28,6 +30,8 @@ export function paint(on: boolean): Paint {
     red: wrap(31, 39),
     green: wrap(32, 39),
     yellow: wrap(33, 39),
+    blue: wrap(34, 39),
+    magenta: wrap(35, 39),
     cyan: wrap(36, 39),
   };
 }
@@ -230,6 +234,87 @@ export function statusText(ws: Workspace, p: Paint, project?: string): string {
   return out.join('\n').replace(/^\n/, '');
 }
 
+/** Why a blocked task is waiting, in words a person can act on. */
+export function waitingOn(ws: Workspace, task: Item): string {
+  const reasons = blockers(ws, task).map((b) => {
+    const what = `“${oneLine(b.title, 48)}”`;
+    if (b.kind === 'decision') return `waiting on your answer: ${what}`;
+    if (isPlan(b)) return b.status === 'done' ? `waiting on your go-ahead for ${what}` : `waiting for the plan ${what}`;
+    return `after ${what}`;
+  });
+  return reasons.slice(0, 2).join('; ') + (reasons.length > 2 ? `; and ${reasons.length - 2} more` : '');
+}
+
+const OVERVIEW_MAX = 8;
+
+/**
+ * One project's docket as a short list under six coloured dots. The dots are
+ * emoji on purpose: an agent relaying this into a chat gets no terminal
+ * colours, and the colour is what lets a person read the list at a glance.
+ */
+function docketText(ws: Workspace, d: Docket, p: Paint): string {
+  const open = d.breakDown.length + d.blocked.length + d.active.length + d.ready.length;
+  const facts = [`${open} open`, ...(d.held.length ? [`${d.held.length} on hold`] : []), `${d.done} done`];
+  const out = [`${p.bold(d.spool.name)}  ${p.dim(facts.join(' · '))}`];
+  const tagOf = (t: Item) => (t.kind === 'task' ? [tag(t)] : []);
+  const row = (item: Item, notes: string[], lead = '') =>
+    `  ${lead}${item.kind === 'task' && item.type ? `${item.type}: ` : ''}${oneLine(item.title, 84)}${p.dim(`  · ${[...notes, ...tagOf(item), item.id].join(' · ')}`)}`;
+  const group = (dot: string, title: string, items: Item[], line: (item: Item, i: number) => string, more: string) => {
+    if (!items.length) return;
+    out.push('', `${dot} ${p.bold(title)}  ${p.dim(String(items.length))}`);
+    out.push(...items.slice(0, OVERVIEW_MAX).map(line));
+    if (items.length > OVERVIEW_MAX) out.push(p.dim(`  … ${items.length - OVERVIEW_MAX} more — ${more}`));
+  };
+  const list = (state: string) => `spool list -P ${d.spool.name} -s ${state}`;
+
+  group('🔴', p.red('NEEDS YOU'), d.needsYou, (i) => {
+    if (i.kind === 'decision') {
+      const held = dependents(ws, i).filter((t) => !isSettled(t)).length;
+      return row(i, [held ? `a question · blocks ${plural(held, 'task')}` : 'a question']);
+    }
+    const parts = children(ws, i).filter((k) => k.status !== 'dropped').length;
+    return row(i, [`${plural(parts, 'part')} ${parts === 1 ? 'waits' : 'wait'} for your go-ahead`]);
+  }, 'spool review');
+  group('🟣', p.magenta('BREAK DOWN'), d.breakDown, (t) => {
+    const state = taskState(ws, t);
+    if (state === 'blocked') return row(t, [waitingOn(ws, t)]);
+    if (t.type !== 'plan') return row(t, ['too big to build in one go: needs a plan']);
+    if (state === 'active') return row(t, [`being planned now by ${t.by ?? 'someone'}`]);
+    return row(t, ['not planned yet: an agent will plan it, or talk it through first']);
+  }, `spool list -P ${d.spool.name} -t plan`);
+  group('🟡', p.yellow('BLOCKED'), d.blocked, (t) => row(t, [waitingOn(ws, t)]), list('blocked'));
+  group('🔵', p.blue('IN PROGRESS'), d.active, (t) => {
+    const who = t.by ?? 'someone';
+    const when = age(t.updated, ws.now());
+    return row(t, [taskState(ws, t) === 'stale' ? `${who} went quiet ${when} ago` : `${who}, ${when}`]);
+  }, list('active'));
+  group('🟢', p.green('READY'), d.ready, (t, i) => row(t, [], `${i + 1}. `), list('ready'));
+  group('⚪', 'ON HOLD', d.held, (t) => row(t, [`“${oneLine(t.hold ?? '', 60)}”`]), list('held'));
+
+  if (out.length === 1) out.push(p.dim('  nothing open'));
+  const also = [
+    ...(d.also.assumptions ? [plural(d.also.assumptions, 'call') + ' agents made'] : []),
+    ...(d.also.shipped ? [`${d.also.shipped} shipped`] : []),
+    ...(d.also.skills ? [plural(d.also.skills, 'new skill')] : []),
+    ...(d.also.inbox ? [`${d.also.inbox} unfiled`] : []),
+  ];
+  if (also.length) out.push('', p.dim(`also for you to look over: ${also.join(' · ')}  → spool review -P ${d.spool.name}`));
+  return out.join('\n');
+}
+
+/** The docket of one project, or of every project that has anything on it. */
+export function overviewText(ws: Workspace, spools: Spool[], p: Paint): string {
+  const dockets = spools.map((s) => docket(ws, s));
+  const busy = (d: Docket) =>
+    d.needsYou.length + d.breakDown.length + d.blocked.length + d.active.length + d.ready.length + d.held.length > 0 ||
+    Object.values(d.also).some(Boolean);
+  const shown = dockets.length > 1 ? dockets.filter(busy) : dockets;
+  const quiet = dockets.filter((d) => !shown.includes(d));
+  const out = shown.map((d) => docketText(ws, d, p));
+  if (quiet.length) out.push(p.dim(`nothing open in: ${quiet.map((d) => d.spool.name).join(', ')}`));
+  return out.join('\n\n');
+}
+
 export function reviewText(ws: Workspace, queue: Review, p: Paint): string {
   const out: string[] = [];
   const where = (i: Item) => (ws.spools.length > 1 ? p.dim(`  · ${i.spool.name}`) : '');
@@ -326,7 +411,7 @@ export function showText(ws: Workspace, item: Item, p: Paint): string {
 }
 
 export function skillsText(ws: Workspace, p: Paint): string {
-  // Spool's own two skills are in every project; listing them would bury the ones that matter.
+  // Spool's own skills are how it is used; listing them would bury the ones that matter.
   const skills = ws.skills.filter((s) => !BUILT_IN.has(s.name));
   if (!skills.length) return 'No skills yet. Agents add them with: spool skill add';
   const out: string[] = [];

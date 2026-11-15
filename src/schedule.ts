@@ -5,7 +5,7 @@
  * Nothing is cached and nothing is stored, so there is no state to repair.
  */
 
-import { type Item, isPlan, isSettled } from './model.ts';
+import { type Item, type Spool, isPlan, isSettled } from './model.ts';
 import type { Workspace } from './store.ts';
 
 export type TaskState = 'ready' | 'held' | 'blocked' | 'active' | 'stale' | 'done' | 'dropped';
@@ -62,8 +62,15 @@ export function stateOf(ws: Workspace, item: Item): string {
   return item.kind === 'task' ? taskState(ws, item) : item.status;
 }
 
-export function tasks(ws: Workspace, project?: string): Item[] {
-  const spool = project ? ws.project(project) : undefined;
+/** A project, given by name or as itself. */
+export type Scope = string | Spool | undefined;
+
+function scoped(ws: Workspace, project: Scope): Spool | undefined {
+  return typeof project === 'string' ? ws.project(project) : project;
+}
+
+export function tasks(ws: Workspace, project?: Scope): Item[] {
+  const spool = scoped(ws, project);
   return ws.items.filter((i) => i.kind === 'task' && (!spool || i.spool === spool));
 }
 
@@ -90,7 +97,7 @@ export function isLarge(ws: Workspace, task: Item): boolean {
  * on the tasks themselves; there is no counter to keep. The list is the whole
  * sequence played forward, so what `status` shows is what `next` will do.
  */
-export function ready(ws: Workspace, project?: string): Item[] {
+export function ready(ws: Workspace, project?: Scope): Item[] {
   const scope = tasks(ws, project);
   const every = Math.max(1, ws.home.config.largeEvery ?? 4);
   let quickRun = 0;
@@ -135,8 +142,8 @@ export interface Review {
 }
 
 /** Everything waiting on the human, most blocking first. */
-export function review(ws: Workspace, project?: string): Review {
-  const spool = project ? ws.project(project) : undefined;
+export function review(ws: Workspace, project?: Scope): Review {
+  const spool = scoped(ws, project);
   const items = ws.items.filter((i) => !spool || i.spool === spool);
   const weight = (d: Item): number => {
     const deps = dependents(ws, d).filter((t) => !isSettled(t));
@@ -157,6 +164,52 @@ export function review(ws: Workspace, project?: string): Review {
       .sort((a, b) => b.updated.localeCompare(a.updated)),
     skills: items.filter((i) => i.kind === 'skill' && i.status === 'active' && !i.reviewed),
     inbox: items.filter((i) => i.kind === 'note' && i.status === 'new').sort((a, b) => a.created.localeCompare(b.created)),
+  };
+}
+
+export interface Docket {
+  spool: Spool;
+  /** Open questions, and plans whose parts wait for a go-ahead: only the human can move these. */
+  needsYou: Item[];
+  /** Too big to build in one go: plans not yet written, and anything sized xl. */
+  breakDown: Item[];
+  blocked: Item[];
+  active: Item[];
+  /** In the order it will be picked. */
+  ready: Item[];
+  held: Item[];
+  done: number;
+  /** Waiting on the human without holding anything up. */
+  also: { assumptions: number; shipped: number; skills: number; inbox: number };
+}
+
+/**
+ * Everything open in one project, each task in exactly one place, ordered by
+ * who has to move next: the human first, then what needs thought, then what
+ * is waiting, then what is simply underway.
+ */
+export function docket(ws: Workspace, spool: Spool): Docket {
+  const queue = review(ws, spool);
+  const mine = tasks(ws, spool);
+  const big = (t: Item) => t.type === 'plan' || t.size === 'xl';
+  const live = mine.filter((t) => !['done', 'dropped', 'held'].includes(taskState(ws, t)));
+  const rest = live.filter((t) => !big(t));
+  const state = (t: Item) => taskState(ws, t);
+  return {
+    spool,
+    needsYou: [...queue.questions, ...queue.plans],
+    breakDown: live.filter(big).sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2) || a.created.localeCompare(b.created)),
+    blocked: rest.filter((t) => state(t) === 'blocked'),
+    active: rest.filter((t) => state(t) === 'active' || state(t) === 'stale'),
+    ready: ready(ws, spool).filter((t) => !big(t) && state(t) === 'ready'),
+    held: mine.filter((t) => state(t) === 'held'),
+    done: mine.filter((t) => t.status === 'done').length,
+    also: {
+      assumptions: queue.assumptions.length,
+      shipped: queue.shipped.length,
+      skills: queue.skills.length,
+      inbox: queue.inbox.length,
+    },
   };
 }
 
