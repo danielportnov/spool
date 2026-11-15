@@ -206,6 +206,14 @@ test('what counts is how the work was done: the agent’s notes, not the request
   t.sp('release', ...cut);
   cut.forEach((id, i) => t.sp('done', id, '-m', ['Cans refill at the well.', 'Weeds grow back in two days.', 'Crops ripen on a timer.'][i]!));
   assert.deepEqual(candidates(t), []);
+
+  // Nor is pointing at the same items: ids are names, not words for what was done.
+  for (const [title, summary] of [['Shop palette', 'The shop is teal.'], ['Menu palette', 'Amber menus.'], ['Map palette', 'Slate for the map.']]) {
+    const id = t.id('task', title!, '-s', 'xs');
+    t.sp('log', id, 'follows d-k3pq and d-9xzr, as in t-m2ab');
+    t.sp('done', id, '-m', summary!);
+  }
+  assert.deepEqual(candidates(t), []);
   t.cleanup();
 });
 

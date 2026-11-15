@@ -1220,7 +1220,7 @@ export const COMMANDS: Command[] = [
     name: 'skills',
     group: 'see',
     usage: 'skills [--suggest [-P <project>]]',
-    summary: 'Every skill in the workspace: where it came from, how often it is used; --suggest: procedures finished tasks keep repeating, with no skill yet',
+    summary: 'Every skill in the workspace: where it came from, how often it is used; --suggest lists steps finished tasks keep repeating with no skill',
     options: { suggest: { type: 'boolean' }, ...PROJECT },
     run({ ws, p, opts }) {
       if (opts.suggest) {
