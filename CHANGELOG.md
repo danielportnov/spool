@@ -2,6 +2,15 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.11.0 · 2026-11-15
+
+- The loop reacts to the page: move a thread to Build and it starts within seconds, with no timer.
+  `spool watch` is the command behind it. Opening the page starts the loop.
+- A thread reads as a conversation: You, then Claude with the model beside the name, and the moves
+  in between.
+- The README shows the page, with pictures from a made-up project.
+- Each ticket has its own address, and a reply on a finished thread becomes a linked follow-up.
+
 ## 0.10.0 · 2026-11-15
 
 - Spool page: click a card and it opens as a ticket. Your words, the description, the agent's
