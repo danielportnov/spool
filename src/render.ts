@@ -9,6 +9,7 @@ import * as path from 'node:path';
 import { type Item, type Spool, isPlan, isSettled, oneLine, reportFile, splitBody } from './model.ts';
 import { type Docket, type Review, blockers, children, dependents, docket, ready, review, stateOf, taskState, tasks } from './schedule.ts';
 import { BUILT_IN, fileFor, ledgerFor, matchSkills } from './skills.ts';
+import { type Candidate, SUGGEST, addLine, offerLine } from './suggest.ts';
 import type { Workspace } from './store.ts';
 
 export interface Paint {
@@ -546,6 +547,40 @@ export function skillsText(ws: Workspace, p: Paint): string {
   const lost = ws.items.filter((i) => i.kind === 'skill' && i.status === 'active' && !fileFor(ws, i));
   for (const l of lost) out.push(p.red(`  ${l.id}  ${l.title} is in the ledger but its SKILL.md is gone (${l.path})`));
   return out.join('\n').trimEnd();
+}
+
+const SUGGEST_MAX = 5;
+
+/** Procedures that keep recurring, each with the threads it was seen in, the line that offers it and the line that writes it. */
+export function suggestText(ws: Workspace, found: Candidate[], p: Paint): string {
+  if (!found.length) {
+    return `Nothing keeps recurring: no ${SUGGEST.minTasks} finished threads share the same steps without a skill.`;
+  }
+  const out = [p.bold('WORKED OUT MORE THAN ONCE') + p.dim('  the same steps in finished threads, and no skill for them')];
+  found.slice(0, SUGGEST_MAX).forEach((c, i) => {
+    const where = ws.spools.length > 1 ? ` · ${c.spool.name}` : '';
+    out.push('', `${i + 1}. ${p.bold(c.terms.join(' · '))}${p.dim(`  · in ${plural(c.tasks.length, 'finished thread')}${where}`)}`);
+    for (const t of c.tasks) out.push(`     ${p.bold(t.id)}  ${oneLine(t.title, 60)}${t.summary ? p.dim(`  · ${oneLine(t.summary, 80)}`) : ''}`);
+    out.push(p.dim(`   offer it       ${offerLine(c)}`), p.dim(`   on their yes   ${addLine(c)}`));
+  });
+  if (found.length > SUGGEST_MAX) out.push('', p.dim(`… ${found.length - SUGGEST_MAX} more, once these are settled`));
+  out.push(
+    '',
+    p.dim('These share words, which is not always a procedure: read the threads first. Offered, it waits in the list for a yes.'),
+    p.dim('Not one, or a skill already covers it? Offer it, then spool drop it with the reason: it is not raised again.'),
+  );
+  return out.join('\n');
+}
+
+/** A candidate as data: the same threads, terms and commands the text shows. */
+export function candidateJson(c: Candidate): Record<string, unknown> {
+  return {
+    project: c.spool.name,
+    terms: c.terms,
+    tasks: c.tasks.map((t) => ({ id: t.id, title: t.title, summary: t.summary ?? null, project: t.spool.name })),
+    offer: offerLine(c),
+    add: addLine(c),
+  };
 }
 
 export function itemJson(ws: Workspace, item: Item, full = false): Record<string, unknown> {

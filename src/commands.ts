@@ -39,6 +39,7 @@ import { DEFAULT_POLICY, type Role, about, prime, upsertBlock } from './prime.ts
 import {
   type Paint,
   brief,
+  candidateJson,
   itemJson,
   itemLine,
   nothingReady,
@@ -49,10 +50,12 @@ import {
   showText,
   skillsText,
   statusText,
+  suggestText,
 } from './render.ts';
 import { blockers, children, dependents, docket, findCycle, ready, review, stateOf, taskState } from './schedule.ts';
 import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, writeSkill } from './skills.ts';
 import { SPOOL_DIR, type Workspace, findFolder, findHome, readConfig, skillsDir } from './store.ts';
+import { SUGGEST, suggestSkills } from './suggest.ts';
 
 export type Options = NonNullable<ParseArgsConfig['options']>;
 export type Values = Record<string, string | boolean | (string | boolean)[] | undefined>;
@@ -811,10 +814,14 @@ export const COMMANDS: Command[] = [
         out.push(p.yellow(`  No commits found for it. Without the "Spool: ${t.id}" trailer or --commit, it cannot be reverted.`));
       }
       if (ready.length) out.push('Now ready:', ...ready.map((r) => `  ${itemLine(ws, r, p)}`));
-      out.push(p.dim('  A procedure worth keeping? spool skill add <name> -d "<when to use it>" --from ' + t.id + ' -b -'));
+      // The third time the same steps are finished with no skill is the moment to say so: this agent still knows them.
+      const again = suggestSkills(ws, ws.home).find((c) => c.tasks.includes(t));
+      const before = again?.tasks.filter((x) => x !== t).map((x) => x.id) ?? [];
+      if (again) out.push(`  The same steps as ${before.join(', ')}, with no skill for them. Offer one: spool skills --suggest`);
+      else out.push(p.dim('  A procedure worth keeping? spool skill add <name> -d "<when to use it>" --from ' + t.id + ' -b -'));
       return {
         text: out.join('\n'),
-        data: { task: itemJson(ws, t), unblocked: ready.map((r) => r.id), children: kids.map((k) => k.id), notified: told },
+        data: { task: itemJson(ws, t), unblocked: ready.map((r) => r.id), children: kids.map((k) => k.id), notified: told, repeats: before },
       };
     },
   },
@@ -1212,9 +1219,17 @@ export const COMMANDS: Command[] = [
   {
     name: 'skills',
     group: 'see',
-    usage: 'skills',
-    summary: 'Every skill in the workspace: where it came from, how often it is used',
-    run({ ws, p }) {
+    usage: 'skills [--suggest [-P <project>]]',
+    summary: 'Every skill in the workspace: where it came from, how often it is used; --suggest: procedures finished tasks keep repeating, with no skill yet',
+    options: { suggest: { type: 'boolean' }, ...PROJECT },
+    run({ ws, p, opts }) {
+      if (opts.suggest) {
+        const found = suggestSkills(ws, ws.project(str(opts.project)));
+        return {
+          text: suggestText(ws, found, p),
+          data: { candidates: found.map(candidateJson), needs: { tasks: SUGGEST.minTasks, terms: SUGGEST.minTerms } },
+        };
+      }
       return {
         text: skillsText(ws, p),
         data: {
