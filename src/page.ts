@@ -72,6 +72,11 @@ interface Thread {
   spec: string;
   /** Everything that happened to it, oldest first. */
   steps: { at: string; who: string; what: string }[];
+  /**
+   * The same story told as a conversation, oldest first: what the human said, what an agent
+   * answered, and the small events in between.
+   */
+  feed: Post[];
   /** Who built it, as they signed themselves. */
   by: string;
   summary: string;
@@ -79,6 +84,35 @@ interface Thread {
   cameFrom: { id: string; title: string }[];
   parts: { id: string; title: string; state: string }[];
   questions: { id: string; title: string; status: string; choice: string }[];
+}
+
+interface Post {
+  at: string;
+  who: string;
+  /** said: the human's words · post: an agent's note · shipped: it finished · asked: it needs a call · event: bookkeeping. */
+  kind: 'said' | 'post' | 'shipped' | 'asked' | 'event';
+  text: string;
+}
+
+/** The queue's own log lines: what moved where. Anything else an agent logged is something it had to say. */
+const BOOKKEEPING = /^(started|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |reverted|reopened|dropped|agreed|filed )/;
+
+function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['steps']): Post[] {
+  const words: Post[] = said.map((s) => ({
+    // A note knows when it was said; words with no note behind them were there from the start.
+    at: (ws.find(s.note)?.created ?? task.created).slice(0, 16).replace('T', ' ') + 'Z',
+    who: 'human',
+    kind: 'said',
+    text: s.text,
+  }));
+  const rest: Post[] = steps.map((s) => {
+    if (s.what.startsWith('done: ')) return { at: s.at, who: s.who, kind: 'shipped', text: s.what.slice(6) };
+    const asked = /^waiting on d-[a-z0-9]+: (.*)$/.exec(s.what);
+    if (asked) return { at: s.at, who: s.who, kind: 'asked', text: asked[1]! };
+    return { at: s.at, who: s.who, kind: BOOKKEEPING.test(s.what) || s.who === 'human' ? 'event' : 'post', text: s.what };
+  });
+  // Stable: things said in the same minute keep the order they were written in, words first.
+  return [...words, ...rest].map((p, i) => ({ p, i })).sort((a, b) => a.p.at.localeCompare(b.p.at) || a.i - b.i).map((x) => x.p);
 }
 
 interface Board {
@@ -129,9 +163,11 @@ function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Threa
   });
   const from = task.from.map((id) => ws.find(id)).filter((i): i is Item => !!i && i.kind !== 'note');
   const asked = task.needs.map((id) => ws.find(id)).filter((i): i is Item => !!i && i.kind === 'decision');
+  const read = readBody(main);
   return {
-    ...readBody(main),
+    ...read,
     steps,
+    feed: feedOf(ws, task, read.said, steps),
     by: task.by ?? '',
     summary: task.summary ?? '',
     commits: task.commits.map((c) => c.slice(0, 7)),
@@ -490,6 +526,29 @@ const PAGE = String.raw`<!doctype html>
   #thread h3 { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); margin: 22px 0 8px; }
   #thread .x { position: absolute; top: 14px; right: 16px; }
   .said { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; margin: 0 0 10px; }
+  .feed { margin-top: 18px; }
+  .post { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; position: relative; padding-bottom: 18px; }
+  .post::before { content: ''; position: absolute; left: 19px; top: 44px; bottom: 2px; width: 2px; background: var(--line); }
+  .post:last-child::before { display: none; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #fff; background: var(--soft); }
+  .avatar.you { background: var(--ink); color: var(--bg); }
+  .avatar.claude { background: #d97757; }
+  .avatar svg { width: 24px; height: 24px; }
+  .byline { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+  .byline b { font-weight: 650; }
+  .byline .model { background: var(--chip); border-radius: 999px; padding: 0 8px; font-size: 12px; color: var(--soft); }
+  .byline .at { color: var(--soft); font-size: 13px; }
+  .post pre { margin: 3px 0 0; }
+  .post .badge { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--go); }
+  .post .badge.ask { color: var(--warn); }
+  .event { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; position: relative; padding-bottom: 14px; font-size: 13px; color: var(--soft); }
+  .event::before { content: ''; position: absolute; left: 19px; top: 0; bottom: 0; width: 2px; background: var(--line); }
+  .event .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); margin: 4px auto 0; position: relative; }
+  .compose { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; margin-top: 6px; }
+  .compose textarea { margin-top: 0; }
+  .compose .acts { margin-top: 8px; justify-content: flex-end; }
+  details.desc { margin: 12px 0 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+  details.desc summary { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
   .who { font-size: 12px; color: var(--soft); margin-bottom: 2px; }
   .step { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 5px 0; font-size: 13px; border-top: 1px solid var(--line); }
   .step .at { color: var(--soft); font-variant-numeric: tabular-nums; }
@@ -608,6 +667,28 @@ function cardNode(c, column) {
 // ---- a card opened up: what was asked, what was done and by whom, and how it got here
 
 const whoIs = (who) => (who === 'human' ? 'You' : who === 'agent' ? 'An agent' : who === 'loop' ? 'The loop' : who || 'Someone');
+// An agent that signed with its model's name is shown as who it is: "Claude" and the model beside it.
+const speaker = (who) => {
+  if (who === 'human') return { name: 'You', model: '', kind: 'you' };
+  const claude = /^claude\b[\s-]*(.*)$/i.exec(who || '');
+  if (claude) return { name: 'Claude', model: claude[1].trim(), kind: 'claude' };
+  if (who === 'agent' || !who) return { name: 'Agent', model: '', kind: 'agent' };
+  if (who === 'loop') return { name: 'The loop', model: '', kind: 'agent' };
+  return { name: who, model: '', kind: 'agent' };
+};
+// A sunburst for Claude: drawn here, not the official mark.
+const SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></svg>';
+function avatar(who) {
+  const s = speaker(who);
+  const node = el('div', { class: 'avatar ' + s.kind, title: s.model ? s.name + ' ' + s.model : s.name });
+  if (s.kind === 'claude') node.innerHTML = SUN;
+  else node.textContent = s.kind === 'you' ? 'You'.slice(0, 1) : '🤖';
+  return node;
+}
+function byline(who, at) {
+  const s = speaker(who);
+  return el('div', { class: 'byline' }, el('b', {}, s.name), s.model && el('span', { class: 'model' }, s.model), el('span', { class: 'at' }, when(at)));
+}
 const when = (at) => (at ? at.slice(5, 10).replace('-', '/') + ' ' + at.slice(11, 16) : '');
 
 function openThread(id) { openId = id; last = ''; load(true); }
@@ -617,7 +698,7 @@ function closeThread() { openId = null; last = ''; load(true); }
 function threadNode(c, b) {
   const t = c.thread;
   const save = (fields, done) => post('edit', { id: c.id, ...fields }, done);
-  const box = el('textarea', { placeholder: 'Reply on this thread, in your words', oninput: (e) => drafts.set(c.id, e.target.value) });
+  const box = el('textarea', { placeholder: 'Post your reply', oninput: (e) => drafts.set(c.id, e.target.value) });
   box.value = drafts.get(c.id) || '';
   const lineage = [
     ...t.cameFrom.map((f) => 'Came out of: ' + f.title),
@@ -632,28 +713,41 @@ function threadNode(c, b) {
   const story = el('div', {},
     el('div', { class: 'key' }, (c.n != null ? '#' + c.n + ' · ' : '') + c.id),
     title,
-    t.said.length > 0 && el('h3', {}, 'What you said'),
-    t.said.map((s) => el('div', { class: 'said' }, el('div', { class: 'who' }, 'You' + (s.on ? ' · ' + s.on : '')), el('pre', {}, s.text))),
-    c.suggested && [el('h3', {}, 'Why the agent suggested it'), el('pre', {}, c.suggested)],
-    t.spec && [el('h3', {}, 'Description'), el('pre', {}, t.spec)],
-    c.done && [el('h3', {}, 'The response'),
-      el('div', { class: 'reply' },
-        el('div', { class: 'who' }, '🤖 Built by ' + whoIs(t.by)),
-        el('pre', {}, t.summary || 'No summary was left.'),
-        t.commits.length > 0 && el('div', { class: 'mono' }, (t.commits.length === 1 ? 'commit ' : 'commits ') + t.commits.join(' · ')))],
-    c.question && [el('h3', {}, 'Waiting on you'), el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title),
-      c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '',
-        onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)))],
-    t.steps.length > 0 && el('h3', {}, 'Activity'),
-    t.steps.map((s) => el('div', { class: 'step' + (s.who === 'human' ? ' you' : '') },
-      el('span', { class: 'at' }, when(s.at)), el('span', {}, el('b', {}, whoIs(s.who)), ' ' + s.what))),
+    (t.spec || c.suggested) && el('details', { class: 'desc', open: true },
+      el('summary', {}, 'Description'),
+      c.suggested && el('pre', {}, '✨ Why the agent suggested it: ' + c.suggested),
+      t.spec && el('pre', {}, t.spec)),
+
+    // The thread itself: a conversation, oldest first. You said, Claude answered, and the moves in between.
+    el('div', { class: 'feed' },
+      t.feed.map((p) => {
+        if (p.kind === 'event') {
+          return el('div', { class: 'event' }, el('div', { class: 'dot' }), el('div', {}, speaker(p.who).name + ' ' + p.text + ' · ' + when(p.at)));
+        }
+        const asking = p.kind === 'asked' && c.question && c.question.title === p.text;
+        return el('div', { class: 'post' }, avatar(p.who),
+          el('div', {}, byline(p.who, p.at),
+            p.kind === 'shipped' && el('span', { class: 'badge' }, '✓ Shipped'),
+            p.kind === 'asked' && el('span', { class: 'badge ask' }, '❓ Needs a call from you'),
+            el('pre', {}, p.text),
+            p.kind === 'shipped' && t.commits.length > 0 && el('div', { class: 'mono', style: 'margin-top: 6px; color: var(--soft)' }, (t.commits.length === 1 ? 'commit ' : 'commits ') + t.commits.join(' · ')),
+            asking && el('div', {}, c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '', style: 'margin: 8px 6px 0 0',
+              onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)))));
+      }),
+      // A question with no line of its own in the log still has to be answerable here.
+      c.question && !t.feed.some((p) => p.kind === 'asked' && p.text === c.question.title) && el('div', { class: 'post' }, avatar(t.by || 'agent'),
+        el('div', {}, byline(t.by || 'agent', ''), el('span', { class: 'badge ask' }, '❓ Needs a call from you'), el('pre', {}, c.question.title),
+          el('div', {}, c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '', style: 'margin: 8px 6px 0 0',
+            onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)))))),
+
     lineage.length > 0 && [el('h3', {}, 'Linked'), lineage.map((l) => el('div', { class: 'note' }, l))],
-    el('h3', {}, 'Add to this thread'),
-    box,
-    el('button', { onclick: async () => {
-      if (!box.value.trim()) return;
-      if (await post('note', { id: c.id, text: box.value }, 'Added to the thread')) drafts.delete(c.id);
-    } }, 'Add note'),
+
+    el('div', { class: 'compose' }, avatar('human'),
+      el('div', {}, box,
+        el('div', { class: 'acts' }, el('button', { class: 'go', onclick: async () => {
+          if (!box.value.trim()) return;
+          if (await post('note', { id: c.id, text: box.value }, 'Posted to the thread')) drafts.delete(c.id);
+        } }, 'Reply')))),
     c.done && el('div', { class: 'finish' }, c.complete
       ? el('div', { class: 'ok' }, '✓ Complete. You approved this change.')
       : el('button', { class: 'go', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓ Mark as complete')));
