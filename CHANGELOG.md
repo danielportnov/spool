@@ -2,6 +2,15 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.7.0 · 2026-11-15
+
+- Three skills: `/spool-init`, `/spool-loop` and `/spool-record`. `/spool-recorder` is renamed
+  `/spool-record`; `/spool-overview` and `/spool-help` are removed, and `spool install` takes the old
+  copies away.
+- The loop's table is printed by Spool itself (`spool overview --table`), so it is the same every
+  time, and every row has a number, AI-suggested and on-hold threads included.
+- One go can cover several threads: "go on 1 to 3" builds them back to back.
+
 ## 0.6.0 · 2026-11-15
 
 - Before each thread the loop talks it through in plain words — what it is, why it is next, its
