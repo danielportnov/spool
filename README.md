@@ -7,6 +7,8 @@ them, you pick the ones worth building, and a loop builds them while you do some
 
 No cloud. No account. No dependencies. Plain files in your repo and four commands.
 
+![The Spool page: a board with Proposed, Build, Building and Done](docs/spool-page.png)
+
 ## Quickstart
 
 ```bash
@@ -55,6 +57,10 @@ the side — status, priority, difficulty, tags, version — all yours to change
 version to narrow the board to it. Reply on a thread, and press **Mark as complete** when you have
 looked at the change. Agents keep working while it is
 open, and you watch threads move.
+
+![A thread, opened: what you said, what Claude did, and the ticket's fields](docs/spool-ticket.png)
+
+Both pictures are a made-up project.
 
 ## While you're away
 

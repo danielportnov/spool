@@ -136,6 +136,14 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.ok(s.json('show', coins).item.reviewed, 'approved, as the human');
     assert.equal((await board()).columns.done.find((c: any) => c.id === coins).complete, true);
     assert.equal((await post('complete', { id: jump })).status, 400, 'only finished work can be marked complete');
+
+    // A reply on finished work is feedback on it: it becomes a new thread, proposed, linked to the one it answers.
+    const reply = await post('note', { id: coins, text: 'the rim is too thin on the gold coins' });
+    assert.equal(reply.status, 200);
+    assert.match(((await reply.json()) as { text: string }).text, /new proposed thread linked to it/);
+    const followUp = (await board()).columns.proposed.find((c: any) => c.title === 'the rim is too thin on the gold coins');
+    assert.ok(followUp);
+    assert.deepEqual(followUp.thread.cameFrom, [{ id: coins, title: 'Make coins readable at sunset' }]);
     assert.match(html, /Mark as complete/);
 
     // It refuses what it should: no token, a name that is not this machine, a move it does not offer.

@@ -329,7 +329,12 @@ function change(ctx: Ctx, action: string, body: Body): { ok: boolean; text: stri
     const captured = act(ctx, ['capture', '--', words]);
     const note = (captured.data as { note?: { id?: string } } | null)?.note?.id;
     if (!captured.ok || !note) return { ok: false, text: captured.text || 'the note could not be saved' };
-    return id ? act(ctx, ['file', note, '--into', id]) : { ok: true, text: '' };
+    if (!id) return { ok: true, text: '' };
+    const filed = act(ctx, ['file', note, '--into', id]);
+    if (filed.ok || !/already (done|dropped)/.test(filed.text)) return filed;
+    // A reply on finished work is feedback on it: new work, linked to what it answers, and proposed like any other.
+    const next = act(ctx, ['task', '--from', note, '--from', id, '--', oneLine(words.split('\n')[0]!, 110)]);
+    return next.ok ? { ok: true, text: 'That thread is finished, so your reply is a new proposed thread linked to it.' } : next;
   }
   if (action === 'edit') {
     // The ticket's fields. Each is the `spool edit` a person would have typed; the command checks the values.
@@ -622,7 +627,7 @@ async function post(action, body, done) {
   try {
     const res = await fetch('/api/' + action, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': TOKEN }, body: JSON.stringify(body) });
     const out = await res.json();
-    say(out.ok ? done : out.text || 'That did not work');
+    say(out.ok ? out.text || done : out.text || 'That did not work');
     return out.ok;
   } catch (e) {
     say('The page lost its server. Run spool page again.');
@@ -691,8 +696,9 @@ function byline(who, at) {
 }
 const when = (at) => (at ? at.slice(5, 10).replace('-', '/') + ' ' + at.slice(11, 16) : '');
 
-function openThread(id) { openId = id; last = ''; load(true); }
-function closeThread() { openId = null; last = ''; load(true); }
+// The open thread is in the address, so a ticket can be linked to and survives a reload.
+function openThread(id) { openId = id; history.replaceState(null, '', '#' + id); last = ''; load(true); }
+function closeThread() { openId = null; history.replaceState(null, '', location.pathname); last = ''; load(true); }
 
 // A ticket, the way a board has always shown one: the story on the left, its fields on the right.
 function threadNode(c, b) {
@@ -877,6 +883,7 @@ async function load(now) {
   }
 }
 
+if (/^#t-[a-z0-9]+$/.test(location.hash)) openId = location.hash.slice(1);
 document.getElementById('veil').addEventListener('click', closeThread);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openId && !adding && !document.activeElement?.isContentEditable) closeThread(); });
 load();
