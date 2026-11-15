@@ -1,0 +1,43 @@
+{
+  "name": "@danielportnov/spool",
+  "version": "0.1.0",
+  "description": "A feedback-driven work queue for coding agents. You talk; agents thread it into tasks, work them around the clock, and come back only for the calls that are yours.",
+  "keywords": [
+    "ai-agents",
+    "coding-agents",
+    "claude-code",
+    "agent-skills",
+    "task-queue",
+    "human-in-the-loop",
+    "spec-driven",
+    "cli"
+  ],
+  "license": "MIT",
+  "author": "Daniel Portnov",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/danielportnov/spool.git"
+  },
+  "type": "module",
+  "bin": {
+    "spool": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.ts",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
