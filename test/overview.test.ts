@@ -48,6 +48,30 @@ test('the overview shows a whole spool as threads under six colours, by who has 
   s.cleanup();
 });
 
+test('a thread an agent suggests waits under ✨ for a yes, and keeps saying where it came from', () => {
+  const s = spool();
+  const asked = s.id('task', 'Fix the typo on the title screen', '-s', 'xs');
+  const idea = s.id('task', 'Remember the last level played', '-s', 's', '--suggested', 'the game always opens on level one, and players come back mid-way');
+
+  const out = s.sp('overview');
+  assert.match(out, /^🧶 demo {2}1 thread open · 1 suggested · 0 done\n/);
+  assert.match(out, new RegExp(`✨ AI SUGGESTED {2}1\\n {2}🧵 Remember the last level played {2}· “the game always opens on level one, and players come back mid-way” · say yes and it joins the list · p2 S · ${idea}`));
+  assert.doesNotMatch(out, /ON HOLD/, 'an idea is not something the human parked');
+  const [data] = s.json('overview').projects;
+  assert.deepEqual([data.ready.length, data.suggested.length, data.held.length], [1, 1, 0]);
+
+  // Nobody asked for it, so it is never handed out: not to an agent, and not by an agent's own release.
+  assert.ok(s.sp('next', '--claim').startsWith(asked));
+  assert.match(s.sp('next'), /Nothing is ready\./);
+  assert.match(s.fails('start', idea), /is on hold: AI suggested: waiting for your yes[\s\S]*Only the human releases it/);
+
+  // The human says yes: it joins the list, still marked as the agent's idea.
+  s.sp('release', idea);
+  assert.match(s.sp('overview'), new RegExp(`🟢 READY {2}1\\n {2}1\\. 🧵 Remember the last level played {2}· ✨ AI suggested · p2 S · ${idea}`));
+  assert.equal(s.json('show', idea).item.suggested, 'the game always opens on level one, and players come back mid-way');
+  s.cleanup();
+});
+
 test('the overview takes a project by any reasonable name, or shows every project with something on', () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'studio');

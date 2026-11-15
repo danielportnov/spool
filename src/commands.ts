@@ -182,12 +182,15 @@ function fileWork(call: Call, preset?: WorkType): Result {
   // Findings and parts land beside the audit or plan they came from unless told otherwise.
   const spool = str(call.opts.project) ? ws.project(str(call.opts.project)) : (from.find((i) => i.kind === 'task')?.spool ?? ws.home);
   const quotes = from.filter((i) => i.kind === 'note').map(quoteNote);
+  const suggested = str(call.opts.suggested)?.replace(/\s+/g, ' ').trim();
   const task = ws.create(spool, 'task', {
     title: oneLine(title, 120),
     priority: priorityOf(call.opts.priority) ?? 2,
     size,
     type: type === 'change' ? undefined : type,
-    hold: str(call.opts.hold)?.replace(/\s+/g, ' ').trim(),
+    // An agent's own idea waits for a yes: on hold, like anything else the human has not asked to start.
+    hold: str(call.opts.hold)?.replace(/\s+/g, ' ').trim() ?? (suggested ? 'AI suggested: waiting for your yes' : undefined),
+    suggested,
     from: uniq(from.map((i) => i.id)),
     needs: uniq(needs.map((i) => i.id)),
     body: [...quotes, bodyOf(call)].filter(Boolean).join('\n\n'),
@@ -211,6 +214,7 @@ const WORK: Options = {
   body: { type: 'string', short: 'b' },
   project: { type: 'string', short: 'P' },
   hold: { type: 'string' },
+  suggested: { type: 'string' },
 };
 
 function first(call: Call, what: string, kind?: Kind): Item {
@@ -816,7 +820,7 @@ export const COMMANDS: Command[] = [
     name: 'task',
     aliases: ['add'],
     group: 'agents',
-    usage: 'task <title…> [-s xs|s|m|l|xl] [-p 0-3] [-t change|audit|plan] [--hold <why>] [--from <id>…] [--needs <id>…] [-b <body>] [-P <project>]',
+    usage: 'task <title…> [-s xs|s|m|l|xl] [-p 0-3] [-t change|audit|plan] [--hold <why>] [--suggested <why>] [--from <id>…] [--needs <id>…] [-b <body>] [-P <project>]',
     summary: 'Queue a change',
     write: true,
     options: { ...WORK, type: { type: 'string', short: 't' } },
@@ -1092,7 +1096,7 @@ export const COMMANDS: Command[] = [
     aliases: ['ov'],
     group: 'see',
     usage: 'overview [<project>]',
-    summary: 'A project\'s whole spool 🧶, each thread 🧵 under one of six colours: needs you, break down, blocked, in progress, ready, on hold',
+    summary: 'A project\'s whole spool 🧶, each thread 🧵 under its colour: needs you, break down, blocked, in progress, ready, AI suggested, on hold',
     options: { ...PROJECT },
     run({ ws, p, args, opts }) {
       const ref = str(opts.project) ?? str(args.join(' ').trim());
@@ -1112,6 +1116,7 @@ export const COMMANDS: Command[] = [
               blocked: json(d.blocked),
               active: json(d.active),
               ready: json(d.ready),
+              suggested: json(d.suggested),
               held: json(d.held),
               done: d.done,
               also: d.also,
@@ -1378,7 +1383,7 @@ export const COMMANDS: Command[] = [
         out.push(
           '',
           'Next, in your agent. You should not need this command line again.',
-          '  /spool-loop       the loop: it shows you every open thread in the order it suggests, then works them one by one',
+          '  /spool-loop       the loop: it shows you every open thread, talks the next one through, and builds it on your word',
           '  /spool-recorder   put it in front of anything you type or say, and that message is filed as threads',
           `  ${path.join(SPOOL_DIR, 'policy.md')} says what agents may decide without you — worth two minutes.`,
         );

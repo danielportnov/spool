@@ -177,6 +177,8 @@ export interface Docket {
   active: Item[];
   /** In the order it will be picked. */
   ready: Item[];
+  /** Ideas agents added by themselves: on hold until the human says yes. */
+  suggested: Item[];
   held: Item[];
   done: number;
   /** Waiting on the human without holding anything up. */
@@ -202,7 +204,8 @@ export function docket(ws: Workspace, spool: Spool): Docket {
     blocked: rest.filter((t) => state(t) === 'blocked'),
     active: rest.filter((t) => state(t) === 'active' || state(t) === 'stale'),
     ready: ready(ws, spool).filter((t) => !big(t) && state(t) === 'ready'),
-    held: mine.filter((t) => state(t) === 'held'),
+    suggested: mine.filter((t) => state(t) === 'held' && !!t.suggested),
+    held: mine.filter((t) => state(t) === 'held' && !t.suggested),
     done: mine.filter((t) => t.status === 'done').length,
     also: {
       assumptions: queue.assumptions.length,

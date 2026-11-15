@@ -253,12 +253,20 @@ const OVERVIEW_MAX = 8;
  * this prints. The dots and marks are emoji on purpose: an agent relaying this
  * into a chat gets no terminal colours, and the colour is what lets a person
  * read the list at a glance. A question is not a thread, and is marked ❓.
+ * Threads an agent thought of by itself sit apart, under ✨, until the human
+ * says yes to them.
  */
 function docketText(ws: Workspace, d: Docket, p: Paint): string {
   const open = d.breakDown.length + d.blocked.length + d.active.length + d.ready.length;
-  const facts = [`${plural(open, 'thread')} open`, ...(d.held.length ? [`${d.held.length} on hold`] : []), `${d.done} done`];
+  const facts = [
+    `${plural(open, 'thread')} open`,
+    ...(d.suggested.length ? [`${d.suggested.length} suggested`] : []),
+    ...(d.held.length ? [`${d.held.length} on hold`] : []),
+    `${d.done} done`,
+  ];
   const out = [`🧶 ${p.bold(d.spool.name)}  ${p.dim(facts.join(' · '))}`];
-  const tagOf = (t: Item) => (t.kind === 'task' ? [tag(t)] : []);
+  // A thread an agent thought of keeps saying so after the human takes it up.
+  const tagOf = (t: Item) => (t.kind === 'task' ? [...(t.suggested && !t.hold ? ['✨ AI suggested'] : []), tag(t)] : []);
   const row = (item: Item, notes: string[], lead = '') =>
     `  ${lead}${item.kind === 'task' ? '🧵' : '❓'} ${item.kind === 'task' && item.type ? `${item.type}: ` : ''}${oneLine(item.title, 84)}${p.dim(`  · ${[...notes, ...tagOf(item), item.id].join(' · ')}`)}`;
   const group = (dot: string, title: string, items: Item[], line: (item: Item, i: number) => string, more: string) => {
@@ -291,6 +299,7 @@ function docketText(ws: Workspace, d: Docket, p: Paint): string {
     return row(t, [taskState(ws, t) === 'stale' ? `${who} went quiet ${when} ago` : `${who}, ${when}`]);
   }, list('active'));
   group('🟢', p.green('READY'), d.ready, (t, i) => row(t, [], `${i + 1}. `), list('ready'));
+  group('✨', 'AI SUGGESTED', d.suggested, (t) => row(t, [`“${oneLine(t.suggested ?? '', 70)}”`, 'say yes and it joins the list']), list('held'));
   group('⚪', 'ON HOLD', d.held, (t) => row(t, [`“${oneLine(t.hold ?? '', 60)}”`]), list('held'));
 
   if (out.length === 1) out.push(p.dim('  no threads open'));
@@ -308,7 +317,7 @@ function docketText(ws: Workspace, d: Docket, p: Paint): string {
 export function overviewText(ws: Workspace, spools: Spool[], p: Paint): string {
   const dockets = spools.map((s) => docket(ws, s));
   const busy = (d: Docket) =>
-    d.needsYou.length + d.breakDown.length + d.blocked.length + d.active.length + d.ready.length + d.held.length > 0 ||
+    d.needsYou.length + d.breakDown.length + d.blocked.length + d.active.length + d.ready.length + d.suggested.length + d.held.length > 0 ||
     Object.values(d.also).some(Boolean);
   const shown = dockets.length > 1 ? dockets.filter(busy) : dockets;
   const quiet = dockets.filter((d) => !shown.includes(d));

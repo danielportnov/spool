@@ -97,6 +97,11 @@ export interface Item {
   by?: string;
   /** Tasks: why this is parked. A task on hold is never handed out; only the human releases it. */
   hold?: string;
+  /**
+   * Tasks: an agent's own idea, and why it suggests it. Nobody asked for it, so it starts on hold
+   * and joins the work only when the human says yes. The reason stays, as where the thread came from.
+   */
+  suggested?: string;
   /** Ids that must be settled before this task is ready. */
   needs: string[];
   /** Ids this item came from. */
@@ -143,6 +148,7 @@ const FIELDS: readonly (readonly [string, FieldType])[] = [
   ['started', 'string'],
   ['by', 'string'],
   ['hold', 'string'],
+  ['suggested', 'string'],
   ['needs', 'tokens'],
   ['from', 'tokens'],
   ['options', 'strings'],
