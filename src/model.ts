@@ -125,6 +125,10 @@ export interface Item {
   summary?: string;
   /** Tasks: the commits that did the work — the handle `spool revert` pulls. */
   commits: string[];
+  /** Tasks: labels the human or an agent put on it, to group and find work by. */
+  tags: string[];
+  /** Tasks: the version it is meant for, or shipped in. */
+  version?: string;
   /** Tasks: names of the skills used. */
   skills: string[];
   /** When the human acknowledged a finished task, an assumption or a new skill. */
@@ -165,6 +169,8 @@ const FIELDS: readonly (readonly [string, FieldType])[] = [
   ['choice', 'string'],
   ['summary', 'string'],
   ['commits', 'tokens'],
+  ['tags', 'tokens'],
+  ['version', 'string'],
   ['skills', 'tokens'],
   ['reviewed', 'string'],
   ['path', 'string'],
@@ -205,7 +211,7 @@ export function serialize(item: Item): string {
 export function deserialize(text: string, spool: Spool): Item {
   const fm = parseFrontmatter(text);
   if (!fm.found) throw new Error('no frontmatter');
-  const record: Record<string, unknown> = { needs: [], from: [], options: [], commits: [], skills: [] };
+  const record: Record<string, unknown> = { needs: [], from: [], options: [], commits: [], skills: [], tags: [] };
   for (const [key, type] of FIELDS) {
     const value = fm.data.get(key);
     if (value === undefined) continue;

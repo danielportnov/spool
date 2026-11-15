@@ -13,7 +13,7 @@
  * Agents read the same spool and keep working while the page is open.
  *
  * Everything the page does is an ordinary command run in-process, as the
- * human: `build`, `propose`, `capture`, `task`, `file`, `answer`, `approve`. So the page can do
+ * human: `build`, `propose`, `capture`, `task`, `file`, `edit`, `answer`, `approve`. So the page can do
  * nothing the command line cannot, and every rule the commands enforce holds
  * here too.
  *
@@ -50,6 +50,14 @@ interface Card {
   /** What the human needs to know about it right now, if anything. */
   note: string;
   suggested: string;
+  /** The fields a ticket shows and the human can change. */
+  size: string;
+  p: number;
+  tags: string[];
+  version: string;
+  column: Column;
+  created: string;
+  updated: string;
   /** Shipped, and whether the human has marked it complete. */
   done: boolean;
   complete: boolean;
@@ -77,6 +85,9 @@ interface Board {
   project: string;
   version: string;
   gate: boolean;
+  /** Every tag and version in use, to offer when the human types one. */
+  tags: string[];
+  versions: string[];
   columns: Record<Column, Card[]>;
   also: { assumptions: number; skills: number; inbox: number };
 }
@@ -130,7 +141,7 @@ function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Threa
   };
 }
 
-function card(ws: Workspace, task: Item, n: number | null, note: string): Card {
+function card(ws: Workspace, task: Item, n: number | null, note: string, column: Column): Card {
   const { main, log } = splitBody(task.body);
   const asked = blockers(ws, task).find((b) => b.kind === 'decision' && b.status === 'open');
   return {
@@ -143,6 +154,13 @@ function card(ws: Workspace, task: Item, n: number | null, note: string): Card {
     type: task.type ?? 'change',
     note,
     suggested: task.suggested ?? '',
+    size: task.size ?? '',
+    p: task.priority ?? 2,
+    tags: task.tags,
+    version: task.version ?? '',
+    column,
+    created: task.created,
+    updated: task.updated,
     done: task.status === 'done',
     complete: task.status === 'done' && !!task.reviewed,
     thread: threadOf(ws, task, main, log),
@@ -184,19 +202,22 @@ export function board(ws: Workspace, project?: string): Board {
   // The open threads, in the order and with the numbers the loop's list gives them.
   for (const row of tableRows(ws, d)) {
     const column = columnOf(taskState(ws, row.item));
-    if (column) columns[column].push(card(ws, row.item, row.n, cardNote(row)));
+    if (column) columns[column].push(card(ws, row.item, row.n, cardNote(row), column));
   }
   const done = tasks(ws, spool)
     .filter((t) => t.status === 'done')
     .sort((a, b) => b.updated.localeCompare(a.updated));
   for (const t of done.slice(0, DONE_SHOWN)) {
-    columns.done.push(card(ws, t, null, `${age(t.updated, ws.now())} ago${t.summary ? ` · ${oneLine(t.summary, 160)}` : ''}`));
+    columns.done.push(card(ws, t, null, `${age(t.updated, ws.now())} ago${t.summary ? ` · ${oneLine(t.summary, 160)}` : ''}`, 'done'));
   }
   const queue = review(ws, spool);
+  const all = tasks(ws, spool);
   return {
     project: spool.name,
     version: projectVersion(spool.root),
     gate: !!spool.config.gate,
+    tags: [...new Set(all.flatMap((t) => t.tags))].sort(),
+    versions: [...new Set(all.map((t) => t.version ?? '').filter(Boolean))].sort().reverse(),
     columns,
     also: { assumptions: queue.assumptions.length, skills: queue.skills.length, inbox: queue.inbox.length },
   };
@@ -273,6 +294,18 @@ function change(ctx: Ctx, action: string, body: Body): { ok: boolean; text: stri
     const note = (captured.data as { note?: { id?: string } } | null)?.note?.id;
     if (!captured.ok || !note) return { ok: false, text: captured.text || 'the note could not be saved' };
     return id ? act(ctx, ['file', note, '--into', id]) : { ok: true, text: '' };
+  }
+  if (action === 'edit') {
+    // The ticket's fields. Each is the `spool edit` a person would have typed; the command checks the values.
+    if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
+    const argv = ['edit', id];
+    if (typeof body.title === 'string' && body.title.trim()) argv.push(`--title=${body.title.trim()}`);
+    if (typeof body.priority === 'number') argv.push(`--priority=${body.priority}`);
+    if (typeof body.size === 'string' && body.size) argv.push(`--size=${body.size}`);
+    if (Array.isArray(body.tags)) argv.push(...(body.tags.length ? body.tags.map((t) => `--tag=${String(t)}`) : ['--tag=none']));
+    if (typeof body.version === 'string') argv.push(`--version=${body.version.trim() || 'none'}`);
+    if (argv.length === 2) return { ok: false, text: 'nothing to change' };
+    return act(ctx, argv);
   }
   if (action === 'complete') {
     // "Mark as complete" is the human saying the change is good: the same as approving it.
@@ -437,8 +470,23 @@ const PAGE = String.raw`<!doctype html>
   .chip.ok { color: var(--go); }
   .chip.check { color: var(--warn); }
   #veil { position: fixed; inset: 0; background: rgba(0,0,0,.35); }
-  #thread { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 18px 20px 28px; box-shadow: -12px 0 32px rgba(0,0,0,.18); }
-  #thread h2 { font-size: 18px; margin: 0 34px 4px 0; overflow-wrap: anywhere; }
+  #thread { position: fixed; top: 5vh; left: 50%; transform: translateX(-50%); width: min(1000px, 96vw); max-height: 90vh; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow-y: auto; padding: 22px 24px 26px; box-shadow: 0 24px 64px rgba(0,0,0,.3); }
+  .ticket { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 28px; }
+  @media (max-width: 760px) { .ticket { grid-template-columns: 1fr; } #thread { top: 0; max-height: 100vh; border-radius: 0; width: 100vw; } }
+  .key { font-size: 12px; color: var(--soft); margin: 0 40px 6px 0; }
+  #thread h2 { font-size: 21px; margin: 0 0 6px; overflow-wrap: anywhere; border-radius: 6px; padding: 2px 4px; margin-left: -4px; outline: none; cursor: text; }
+  #thread h2:hover, #thread h2:focus { background: var(--chip); }
+  .side { border-left: 1px solid var(--line); padding-left: 22px; }
+  @media (max-width: 760px) { .side { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); } }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); margin-bottom: 5px; }
+  .field select, .field input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; }
+  .field .val { font-size: 14px; }
+  .tag { cursor: pointer; }
+  .tag b { font-weight: 400; margin-left: 5px; opacity: .6; }
+  .tag b:hover { opacity: 1; }
+  #filter { margin: 0 20px 12px; font-size: 13px; }
+  #filter button { border-radius: 999px; padding: 3px 11px; }
   #thread h3 { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); margin: 22px 0 8px; }
   #thread .x { position: absolute; top: 14px; right: 16px; }
   .said { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; margin: 0 0 10px; }
@@ -463,6 +511,7 @@ const PAGE = String.raw`<!doctype html>
   <span class="where" id="where"></span>
 </header>
 <div class="rule" id="rule"></div>
+<div id="filter" hidden></div>
 <main id="board"></main>
 <div id="veil" hidden></div>
 <aside id="thread" hidden></aside>
@@ -480,6 +529,12 @@ let busy = false;
 // The thread that is open, if one is, and notes begun but not yet added.
 let openId = null;
 const drafts = new Map();
+// The tag or version the board is narrowed to, as { kind: 'tag' | 'version', value }.
+let only = null;
+const SIZES = [['xs', 'Tiny'], ['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Huge']];
+const PRIORITIES = ['Urgent', 'High', 'Normal', 'Someday'];
+const shows = (c) => !only || (only.kind === 'tag' ? c.tags.includes(only.value) : c.version === only.value);
+const narrow = (kind, value) => { only = only && only.kind === kind && only.value === value ? null : { kind, value }; last = ''; load(true); };
 // The column whose "+ Add" is open, and what has been typed into it so far.
 let adding = null;
 let addDraft = '';
@@ -527,7 +582,9 @@ function cardNode(c, column) {
     c.type !== 'change' && el('span', { class: 'chip' }, c.type),
     c.difficulty && el('span', { class: 'chip' }, c.difficulty),
     column !== 'done' && el('span', { class: 'chip' + (c.urgent ? ' hot' : '') }, c.priority),
-    c.suggested && el('span', { class: 'chip ai', title: c.suggested }, '✨ AI suggested'));
+    c.suggested && el('span', { class: 'chip ai', title: c.suggested }, '✨ AI suggested'),
+    c.version && el('span', { class: 'chip tag', title: 'Show only this version', onclick: () => narrow('version', c.version) }, 'v' + c.version),
+    c.tags.map((t) => el('span', { class: 'chip tag', title: 'Show only this tag', onclick: () => narrow('tag', t) }, '#' + t)));
   const node = el('div', { class: 'card', draggable: movable, 'data-id': c.id,
     ondragstart: (e) => { e.dataTransfer.setData('text/plain', c.id + ' ' + column); node.classList.add('dragging'); busy = true; },
     ondragend: () => { node.classList.remove('dragging'); busy = false; } },
@@ -556,8 +613,10 @@ const when = (at) => (at ? at.slice(5, 10).replace('-', '/') + ' ' + at.slice(11
 function openThread(id) { openId = id; last = ''; load(true); }
 function closeThread() { openId = null; last = ''; load(true); }
 
-function threadNode(c) {
+// A ticket, the way a board has always shown one: the story on the left, its fields on the right.
+function threadNode(c, b) {
   const t = c.thread;
+  const save = (fields, done) => post('edit', { id: c.id, ...fields }, done);
   const box = el('textarea', { placeholder: 'Reply on this thread, in your words', oninput: (e) => drafts.set(c.id, e.target.value) });
   box.value = drafts.get(c.id) || '';
   const lineage = [
@@ -565,21 +624,18 @@ function threadNode(c) {
     ...t.parts.map((p) => 'Part: ' + p.title + ' (' + p.state + ')'),
     ...t.questions.map((q) => 'Asked: ' + q.title + (q.choice ? ' → ' + q.choice : ' → not answered yet')),
   ];
-  return [
-    el('button', { class: 'x', onclick: closeThread, title: 'Close' }, '✕'),
-    el('h2', {}, (c.n != null ? c.n + ' · ' : '') + c.title),
-    el('div', { class: 'chips' },
-      c.done && el('span', { class: 'chip ' + (c.complete ? 'ok' : 'check') }, c.complete ? '✓ Complete' : 'For you to check'),
-      c.type !== 'change' && el('span', { class: 'chip' }, c.type),
-      c.difficulty && el('span', { class: 'chip' }, c.difficulty),
-      el('span', { class: 'chip' + (c.urgent ? ' hot' : '') }, c.priority),
-      c.suggested && el('span', { class: 'chip ai' }, '✨ AI suggested')),
 
+  const title = el('h2', { contenteditable: 'plaintext-only', spellcheck: 'false', title: 'Click to rename',
+    onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } if (e.key === 'Escape') { e.target.textContent = c.title; e.target.blur(); e.stopPropagation(); } },
+    onblur: (e) => { const now = e.target.textContent.trim(); if (now && now !== c.title) save({ title: now }, 'Renamed'); else e.target.textContent = c.title; } }, c.title);
+
+  const story = el('div', {},
+    el('div', { class: 'key' }, (c.n != null ? '#' + c.n + ' · ' : '') + c.id),
+    title,
     t.said.length > 0 && el('h3', {}, 'What you said'),
     t.said.map((s) => el('div', { class: 'said' }, el('div', { class: 'who' }, 'You' + (s.on ? ' · ' + s.on : '')), el('pre', {}, s.text))),
     c.suggested && [el('h3', {}, 'Why the agent suggested it'), el('pre', {}, c.suggested)],
-    t.spec && [el('h3', {}, 'The spec'), el('pre', {}, t.spec)],
-
+    t.spec && [el('h3', {}, 'Description'), el('pre', {}, t.spec)],
     c.done && [el('h3', {}, 'The response'),
       el('div', { class: 'reply' },
         el('div', { class: 'who' }, '🤖 Built by ' + whoIs(t.by)),
@@ -588,23 +644,58 @@ function threadNode(c) {
     c.question && [el('h3', {}, 'Waiting on you'), el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title),
       c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '',
         onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)))],
-
-    t.steps.length > 0 && el('h3', {}, 'Everything that happened'),
+    t.steps.length > 0 && el('h3', {}, 'Activity'),
     t.steps.map((s) => el('div', { class: 'step' + (s.who === 'human' ? ' you' : '') },
       el('span', { class: 'at' }, when(s.at)), el('span', {}, el('b', {}, whoIs(s.who)), ' ' + s.what))),
-    lineage.length > 0 && [el('h3', {}, 'Where it came from, and what came of it'), lineage.map((l) => el('div', { class: 'note' }, l))],
-
+    lineage.length > 0 && [el('h3', {}, 'Linked'), lineage.map((l) => el('div', { class: 'note' }, l))],
     el('h3', {}, 'Add to this thread'),
     box,
     el('button', { onclick: async () => {
       if (!box.value.trim()) return;
       if (await post('note', { id: c.id, text: box.value }, 'Added to the thread')) drafts.delete(c.id);
     } }, 'Add note'),
-
     c.done && el('div', { class: 'finish' }, c.complete
       ? el('div', { class: 'ok' }, '✓ Complete. You approved this change.')
-      : el('button', { class: 'go', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓ Mark as complete')),
-  ];
+      : el('button', { class: 'go', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓ Mark as complete')));
+
+  const field = (label, ...kids) => el('div', { class: 'field' }, el('label', {}, label), kids);
+  const choose = (options, value, onchange) => {
+    const node = el('select', { onchange: (e) => onchange(e.target.value) },
+      options.map(([v, name]) => el('option', { value: v }, name)));
+    node.value = value;
+    return node;
+  };
+  const movable = c.column === 'proposed' || c.column === 'build';
+  const status = movable
+    ? choose([['proposed', '🟠 Proposed'], ['build', '🟢 Build']], c.column, (to) => post('move', { id: c.id, to }, to === 'build' ? 'In build' : 'Back to proposed'))
+    : el('div', { class: 'val' }, c.column === 'building' ? '🔵 Building' + (t.by ? ', by ' + whoIs(t.by) : '') : c.complete ? '✅ Done · complete' : '✅ Done · for you to check');
+  const addTag = el('input', { placeholder: 'Add a tag', list: 'known-tags',
+    onkeydown: (e) => {
+      if (e.key !== 'Enter' || !e.target.value.trim()) return;
+      e.preventDefault();
+      save({ tags: [...c.tags, e.target.value.trim()] }, 'Tagged');
+    } });
+  const version = el('input', { placeholder: 'None', list: 'known-versions',
+    onkeydown: (e) => { if (e.key === 'Enter') e.target.blur(); },
+    onchange: (e) => { if (e.target.value.trim() !== c.version) save({ version: e.target.value }, e.target.value.trim() ? 'Version set' : 'Version cleared'); } });
+  version.value = c.version;
+
+  const side = el('div', { class: 'side' },
+    field('Status', status),
+    field('Priority', c.done ? el('div', { class: 'val' }, c.priority) : choose(PRIORITIES.map((name, i) => [String(i), name]), String(c.p), (v) => save({ priority: Number(v) }, 'Priority: ' + PRIORITIES[Number(v)]))),
+    field('Difficulty', c.done ? el('div', { class: 'val' }, c.difficulty || 'Not sized') : choose([['', 'Not sized'], ...SIZES], c.size, (v) => v && save({ size: v }, 'Difficulty changed'))),
+    field('Tags',
+      el('div', { class: 'chips', style: 'margin: 0 0 7px' }, c.tags.map((tag) => el('span', { class: 'chip tag' }, '#' + tag,
+        el('b', { title: 'Remove', onclick: () => save({ tags: c.tags.filter((x) => x !== tag) }, 'Tag removed') }, '✕')))),
+      addTag, el('datalist', { id: 'known-tags' }, b.tags.filter((x) => !c.tags.includes(x)).map((x) => el('option', { value: x })))),
+    field('Version', version, el('datalist', { id: 'known-versions' }, b.versions.map((x) => el('option', { value: x })))),
+    c.type !== 'change' && field('Type', el('div', { class: 'val' }, c.type)),
+    (c.column === 'building' || c.done) && field('Built by', el('div', { class: 'val' }, whoIs(t.by))),
+    c.suggested && field('Came from', el('div', { class: 'val' }, '✨ AI suggested')),
+    field('Created', el('div', { class: 'val' }, c.created.slice(0, 10))),
+    field('Updated', el('div', { class: 'val' }, c.updated.slice(0, 16).replace('T', ' '))));
+
+  return [el('button', { class: 'x', onclick: closeThread, title: 'Close' }, '✕'), el('div', { class: 'ticket' }, story, side)];
 }
 
 function drawThread(b) {
@@ -614,7 +705,7 @@ function drawThread(b) {
   pane.hidden = veil.hidden = !c;
   if (!c) { openId = null; return; }
   const at = pane.scrollTop;
-  pane.replaceChildren(...threadNode(c).flat(3).filter(Boolean));
+  pane.replaceChildren(...threadNode(c, b));
   pane.scrollTop = at;
 }
 
@@ -629,8 +720,11 @@ function draw(b) {
   rule.textContent = b.gate ? '' : 'The build gate is off in this project: new threads go straight to Build.';
   rule.hidden = b.gate;
   const main = document.getElementById('board');
+  const filter = document.getElementById('filter');
+  filter.hidden = !only;
+  if (only) filter.replaceChildren('Showing only ', el('button', { onclick: () => narrow(only.kind, only.value) }, (only.kind === 'tag' ? '#' : 'v') + only.value + '  ✕'));
   main.replaceChildren(...COLUMNS.map(([key, name, hint]) => {
-    const cards = b.columns[key];
+    const cards = b.columns[key].filter(shows);
     const drop = key === 'proposed' || key === 'build';
     return el('section', { 'data-column': key,
       ondragover: (e) => { if (drop) { e.preventDefault(); e.currentTarget.classList.add('over'); } },
@@ -676,8 +770,9 @@ function addNode(column) {
 }
 
 async function load(now) {
-  // Never redraw under someone's typing; opening or closing "+ Add" is the one redraw that is asked for.
-  if (!now && (busy || document.activeElement?.tagName === 'TEXTAREA')) return;
+  // Never redraw under someone's typing or choosing; a redraw that was asked for goes ahead.
+  const at = document.activeElement;
+  if (!now && (busy || ['TEXTAREA', 'INPUT', 'SELECT'].includes(at?.tagName) || at?.isContentEditable)) return;
   try {
     const text = await (await fetch('/api/board')).text();
     if (text === last) return;
@@ -689,7 +784,7 @@ async function load(now) {
 }
 
 document.getElementById('veil').addEventListener('click', closeThread);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openId && !adding) closeThread(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openId && !adding && !document.activeElement?.isContentEditable) closeThread(); });
 load();
 setInterval(load, 3000);
 </script>

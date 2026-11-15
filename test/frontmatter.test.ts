@@ -18,6 +18,7 @@ function task(fields: Partial<Item>): Item {
     options: [],
     commits: [],
     skills: [],
+    tags: [],
     body: '',
     extra: [],
     spool: SPOOL,
@@ -87,7 +88,7 @@ test('reads what a person or an editor might write', () => {
     '  - d-aaaa',
     '  - d-bbbb',
     'from: [n-cccc, "n-dddd"]',
-    'tags:',
+    'cssclasses:',
     '  - idea',
     '  - art',
     'aliases: [one, two]',
@@ -104,7 +105,7 @@ test('reads what a person or an editor might write', () => {
 
   // Fields Spool does not own are written back exactly as they were.
   const rewritten = serialize(item);
-  assert.match(rewritten, /^tags:\n {2}- idea\n {2}- art$/m);
+  assert.match(rewritten, /^cssclasses:\n {2}- idea\n {2}- art$/m);
   assert.match(rewritten, /^aliases: \[one, two\]$/m);
 });
 

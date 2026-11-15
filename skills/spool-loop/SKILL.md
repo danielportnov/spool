@@ -281,6 +281,8 @@ plans changes no version.
    and the changelog; then `git tag -a v<x.y.z> -m "<x.y.z>"`, in the style of
    the tags already there. No `Spool:` trailer: a version is not a thread, and
    undoing a thread never takes a version back.
+5. **Stamp the threads.** `spool edit <t-id> --version <x.y.z>` on each thread
+   that shipped in it, so the page shows what went into which version.
 
 The tag stays on this machine. Pushing it, publishing a package and making a
 release are the human's calls, in their words. If the policy says this project

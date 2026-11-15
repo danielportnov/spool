@@ -67,3 +67,23 @@ test('the gate is a choice: off unless a project turns it on, and it can be turn
   assert.match(s.fails('build'), /what to build is missing/);
   s.cleanup();
 });
+
+test('a thread carries tags and a version, set when it is filed or later, and cleared with none', () => {
+  const s = spool();
+  const jump = s.id('task', 'Tighten the jump arc', '--tag', 'Level Design', '--tag', '#feel', '--version', 'v1.2');
+  assert.deepEqual([s.json('show', jump).item.tags, s.json('show', jump).item.version], [['level-design', 'feel'], '1.2']);
+  assert.match(s.sp('list'), /Tighten the jump arc {2}· v1\.2 · #level-design #feel/);
+  assert.match(s.item(jump), /^tags: \[level-design, feel\]\nversion: "?1\.2"?$/m);
+
+  assert.match(s.sp('edit', jump, '--tag', 'physics', '--version', '1.3'), /Updated tags physics, version 1\.3/);
+  assert.deepEqual(s.json('show', jump).item.tags, ['physics']);
+  s.sp('edit', jump, '--tag', 'none', '--version', 'none');
+  assert.deepEqual([s.json('show', jump).item.tags, s.json('show', jump).item.version], [[], undefined]);
+  assert.match(s.fails('edit', jump, '--version', 'not a version'), /is not a version/);
+  assert.match(s.fails('edit', jump, '--tag', '!!!'), /a tag needs a letter or a digit/);
+
+  // Tags a person wrote by hand, as a list down the page, are read as tags.
+  s.write(`.spool/items/${jump}.md`, s.item(jump).replace('status: open', 'status: open\ntags:\n  - idea\n  - art'));
+  assert.deepEqual(s.json('show', jump).item.tags, ['idea', 'art']);
+  s.cleanup();
+});

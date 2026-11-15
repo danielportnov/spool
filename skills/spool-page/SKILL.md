@@ -21,7 +21,9 @@ What they can do on it:
 | --- | --- |
 | Drag a thread 🧵 to **Build**, or press ▶ | It may be built now, in its turn. This is the only way anything gets built. |
 | **Not yet**, or drag it back | Back to proposed. Nothing builds it. |
-| Open a card | Its thread: what they said, what was done and by which agent, and everything that happened. |
+| Open a card | The ticket: what they said, what was done and by which agent, and everything that happened, with its fields at the side. |
+| Change a field on the ticket | Its name, status, priority, difficulty, tags or version. Tags and versions are theirs to invent. |
+| Click a tag or a version on a card | The board shows only those threads; click again to clear. |
 | A note on a thread | It lands on that thread, in their words. |
 | **Mark as complete**, at the foot of a finished thread | They have looked at the change and approve it. |
 | **+ Add** at the foot of Proposed or Build | A new thread in that column, named from their first line, with all their words kept on it. Added under Build, it is in build. |

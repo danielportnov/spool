@@ -98,6 +98,19 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.equal(b.columns.build[0].question, null);
     assert.equal(b.also.inbox, 1);
 
+    // A ticket's fields are changed from the page: a new name, priority, difficulty, tags and a version.
+    assert.equal((await post('edit', { id: jump, title: 'A snappier jump', priority: 0, size: 'm', tags: ['Level Design', 'feel'], version: '1.5' })).status, 200);
+    const edited = s.json('show', jump).item;
+    assert.deepEqual([edited.title, edited.priority, edited.size, edited.tags, edited.version], ['A snappier jump', 0, 'm', ['level-design', 'feel'], '1.5']);
+    b = await board();
+    const ticket = b.columns.proposed.find((c: any) => c.id === jump);
+    assert.deepEqual([ticket.p, ticket.priority, ticket.size, ticket.difficulty, ticket.tags, ticket.version, ticket.column], [0, 'Urgent', 'm', 'Medium', ['level-design', 'feel'], '1.5', 'proposed']);
+    assert.deepEqual([b.tags, b.versions], [['feel', 'level-design'], ['1.5']]);
+    assert.equal((await post('edit', { id: jump, tags: [], version: '' })).status, 200);
+    assert.deepEqual([s.json('show', jump).item.tags, s.json('show', jump).item.version], [[], undefined]);
+    assert.equal((await post('edit', { id: jump, size: 'enormous' })).status, 400);
+    assert.equal((await post('edit', { id: jump })).status, 400);
+
     // Finished work shows who built it, and "Mark as complete" is the human approving it.
     s.sp('start', coins, '--as', 'Claude Fable 5.2');
     s.sp('done', coins, '-m', 'Coins have a teal rim at sunset', '--as', 'Claude Fable 5.2');

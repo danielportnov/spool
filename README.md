@@ -49,9 +49,11 @@ spool page
 ```
 
 A board of your spool, served from your own machine. Drag threads between Proposed and Build, add
-one with **+ Add**, answer an agent's question with one button. Open any card and you get its
-thread: what you said, what was done and by which agent, and everything in between. Reply on it,
-and press **Mark as complete** when you have looked at the change. Agents keep working while it is
+one with **+ Add**, answer an agent's question with one button. Open any card and you get the
+ticket: what you said, what was done and by which agent, everything in between, and its fields at
+the side — status, priority, difficulty, tags, version — all yours to change. Click a tag or a
+version to narrow the board to it. Reply on a thread, and press **Mark as complete** when you have
+looked at the change. Agents keep working while it is
 open, and you watch threads move.
 
 ## While you're away

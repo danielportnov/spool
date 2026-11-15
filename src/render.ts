@@ -104,6 +104,8 @@ export function itemLine(ws: Workspace, item: Item, p: Paint, showProject = true
     if (state === 'done' || state === 'dropped') notes.push(awaitsGoAhead(ws, item) ? 'awaiting go-ahead' : state);
     const made = progress(ws, item);
     if (made) notes.push(made.text);
+    if (item.version) notes.push(`v${item.version}`);
+    if (item.tags.length) notes.push(item.tags.map((t) => `#${t}`).join(' '));
   } else if (item.kind === 'decision') {
     notes.push(item.choice ? `${item.status}: ${oneLine(item.choice, 48)}` : item.status);
   } else if (item.status !== 'new' && item.status !== 'active') {

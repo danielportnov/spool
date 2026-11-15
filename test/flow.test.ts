@@ -285,11 +285,11 @@ test('check reports a broken file without taking the queue down', () => {
 test('fields Spool does not own survive its edits', () => {
   const s = spool();
   const id = s.id('task', 'Tagged elsewhere');
-  s.write(`.spool/items/${id}.md`, s.item(id).replace('status: open', 'status: open\ntags:\n  - idea\n  - art'));
+  s.write(`.spool/items/${id}.md`, s.item(id).replace('status: open', 'status: open\naliases:\n  - idea\n  - art'));
   s.sp('edit', id, '--title', 'Renamed', '-p', '0', '-b', 'New body');
   s.sp('log', id, 'a note');
   const file = s.item(id);
-  assert.match(file, /^tags:\n {2}- idea\n {2}- art$/m);
+  assert.match(file, /^aliases:\n {2}- idea\n {2}- art$/m);
   assert.match(file, /^title: Renamed$/m);
   assert.match(file, /New body\n\n## Log\n- .* agent: edited: title, priority p0, body\n- .* agent: a note/);
   s.cleanup();

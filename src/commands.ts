@@ -161,6 +161,25 @@ const SIZE_WORDS: Record<string, Size> = {
   'extra-large': 'xl',
   huge: 'xl',
 };
+/** Tags are short labels: lower case, words joined by hyphens, so "Level Design" and "level-design" are one tag. */
+function tagsOf(v: unknown): string[] | undefined {
+  if (v === undefined) return undefined;
+  const given = many(v);
+  if (given.length === 1 && given[0] === 'none') return [];
+  const tags = given.map((t) => t.toLowerCase().replace(/^#/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32)).filter(Boolean);
+  if (!tags.length) throw new SpoolError('a tag needs a letter or a digit', 'spool edit <id> --tag level-design   or   --tag none');
+  return uniq(tags);
+}
+
+/** A version is whatever the project calls its versions: 0.9.0, 1.2, "spring". One short word. */
+function versionOf(v: unknown): string | undefined {
+  const given = str(v)?.trim().replace(/^v(?=\d)/, '');
+  if (given === undefined) return undefined;
+  if (given === 'none') return '';
+  if (!/^[\w.+-]{1,24}$/.test(given)) throw new SpoolError(`"${given}" is not a version`, 'One short word, such as 0.9.0 or none');
+  return given;
+}
+
 const SIZE_GUIDE = 'xs a line or a value · s one function or screen · m several files · l cuts across the project · xl a project in itself';
 
 function sizeOf(v: unknown): Size | undefined {
@@ -202,6 +221,8 @@ function fileWork(call: Call, preset?: WorkType): Result {
     // Where it is off, the idea goes on hold, like anything else the human has not asked to start.
     hold: str(call.opts.hold)?.replace(/\s+/g, ' ').trim() ?? (suggested && !spool.config.gate ? 'AI suggested: waiting for your yes' : undefined),
     suggested,
+    tags: tagsOf(call.opts.tag) ?? [],
+    version: versionOf(call.opts.version) || undefined,
     from: uniq(from.map((i) => i.id)),
     needs: uniq(needs.map((i) => i.id)),
     body: [...quotes, bodyOf(call)].filter(Boolean).join('\n\n'),
@@ -231,6 +252,8 @@ const WORK: Options = {
   project: { type: 'string', short: 'P' },
   hold: { type: 'string' },
   suggested: { type: 'string' },
+  tag: { type: 'string', multiple: true },
+  version: { type: 'string' },
 };
 
 function first(call: Call, what: string, kind?: Kind): Item {
@@ -955,7 +978,7 @@ export const COMMANDS: Command[] = [
   {
     name: 'edit',
     group: 'agents',
-    usage: 'edit <id> [--title <t>] [-p 0-3] [-s size] [-t type] [-b <body>] [--needs <id>…|none] [--reopen]',
+    usage: 'edit <id> [--title <t>] [-p 0-3] [-s size] [-t type] [--tag <tag>…|none] [--version <v>|none] [-b <body>] [--needs <id>…|none] [--reopen]',
     summary: 'Change an item',
     write: true,
     options: {
@@ -965,6 +988,8 @@ export const COMMANDS: Command[] = [
       type: { type: 'string', short: 't' },
       needs: { type: 'string', multiple: true },
       reopen: { type: 'boolean' },
+      tag: { type: 'string', multiple: true },
+      version: { type: 'string' },
       ...BODY,
     },
     run(call) {
@@ -991,6 +1016,17 @@ export const COMMANDS: Command[] = [
       if (type) {
         item.type = type === 'change' ? undefined : type;
         changed.push(`type ${type}`);
+      }
+      const tags = tagsOf(call.opts.tag);
+      const version = versionOf(call.opts.version);
+      if ((tags || version !== undefined) && item.kind !== 'task') throw new SpoolError('only tasks have tags and a version');
+      if (tags) {
+        item.tags = tags;
+        changed.push(tags.length ? `tags ${tags.join(', ')}` : 'tags cleared');
+      }
+      if (version !== undefined) {
+        item.version = version || undefined;
+        changed.push(version ? `version ${version}` : 'version cleared');
       }
       const body = bodyOf(call);
       if (body !== undefined) {
