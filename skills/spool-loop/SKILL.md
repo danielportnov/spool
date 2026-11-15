@@ -1,24 +1,25 @@
 ---
 name: spool-loop
-description: Run the Spool loop, the main way a project gets worked - every few hours (three unless told otherwise) take stock of the spool, size and order its threads, show the user the whole spool and a proposal of what to ship before the next check-in, walk them through everything waiting on them (questions, go-aheads, calls agents made, work to accept or undo), then work unattended until then. Use for /spool-loop [hours], or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "keep going", "what's next - do it", asks you to work unattended, or asks "what needs me", "what's blocked", "what do you need from me", "catch me up" or "what did the agents do".
+description: Run the Spool loop, the main way a project gets worked - every few hours (three unless told otherwise) take stock of the spool, show the user one clean table of its threads with difficulty, priority and what needs talking through, recommend what to work on this session, walk them through everything waiting on them, and once they approve, work unattended until the next check-in. Use for /spool-loop [hours], or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "keep going", "what's next - do it", asks you to work unattended, or asks "what needs me", "what's blocked", "what do you need from me", "catch me up" or "what did the agents do".
 ---
 
 # Spool loop
 
 The loop is how a project gets worked while the human lives their life. They
 give you a few minutes; you give them hours of work; you meet again at the
-next check-in. Every cycle has the same shape:
+next check-in. Every session has the same shape:
 
 1. **Take stock** of the spool: file, size and order what is in it.
-2. **Check in**: the whole spool, your proposal for this cycle, and every
-   question you can see coming, in one message.
-3. **Work**, heads down, until the cycle's time is up or nothing can move.
-4. **Wrap up**, and come back when the next cycle is due.
+2. **Check in**: one clean table of the spool, what you recommend working on
+   this session, and what needs talking through.
+3. **Get their go-ahead.** Nothing starts until they approve.
+4. **Work**, heads down, until the session's time is up or nothing can move.
+5. **Wrap up**, and come back when the next session is due.
 
 **A spool 🧶 holds threads 🧵.** A project's queue of work is its spool, and
 each piece of work in it is a thread. Say it that way to the human, with the
 emojis. The commands call a thread a task (`spool task`, `<t-id>`), and that
-is the only place the word belongs. To the human, a cycle is "this loop".
+is the only place the word belongs.
 
 `spool` is your tool for the spool. The human never types it, and you never
 edit `.spool/` by hand.
@@ -27,11 +28,11 @@ edit `.spool/` by hand.
 
 | Called as | Means |
 | --- | --- |
-| `/spool-loop` | Start the loop, a cycle every 3 hours. Already running in this chat? Keep its schedule and run a cycle now: this is also how the human clears what is waiting on them. |
+| `/spool-loop` | Start the loop, a session every 3 hours. Already running in this chat? Keep its schedule and run a session now: this is also how the human gets a check-in whenever they want one. |
 | `/spool-loop <hours>` | The same, every `<hours>` hours. Already running? Change it to that. |
-| `/spool-loop again` | The schedule firing: the next cycle is due. The human never types this. |
-| `/spool-loop go` | The check-in window closing: start work. The human never types this. |
-| `/spool-loop stop` | Cancel the schedule and any timer, say so, and end. |
+| `/spool-loop stop` | Cancel the schedule, say so, and end. |
+
+That is all of it. The schedule calls the plain `/spool-loop` too.
 
 ## Start
 
@@ -39,31 +40,34 @@ edit `.spool/` by hand.
    what is ready. Read the policy: it decides what you may settle yourself.
    No `.spool/` here? Tell them in a line, set it up now by the `spool-init`
    skill, then carry on from here.
-2. Called by the human, with a number or without: set the schedule. See "The schedule".
-3. Run a cycle. Called with `go`, the check-in is already done: go straight to "Work".
+2. Make sure the schedule is set. See "The schedule".
+3. Run a session.
 
 ## The schedule
 
-The loop is a real recurring job in this chat, set with your harness's scheduler.
+The loop is one recurring job in this chat, set with your harness's scheduler.
+**One job, and nothing else:** no timers, no second job, no other prompt.
 
-- **In Claude Code:** `CronList` shows whether a job for `/spool-loop again` is
-  already set. None? `CronCreate` one, recurring, every `<hours>` hours, with
-  the prompt `/spool-loop again`. One at a different interval? `CronDelete` it
-  and create the new one. Never leave two.
+- **In Claude Code:** `CronList` shows whether a job for `/spool-loop` is
+  already set. One is, and no number was given, or the same number? Leave it:
+  this is how a session the schedule started finds things. None? `CronCreate`
+  one, recurring, every `<hours>` hours, with the prompt `/spool-loop`. A
+  different number was given? `CronDelete` it and create the new one.
 - **The first return is a full interval away.** A cron's hours usually include
   the one you are in, so pick a minute this hour has already passed, and not
   :00 or :30: at 4:12, `7 1-23/3 * * *` first comes back after 7:07, where
   minute 13 would come back at once. Read the next run in the tool's result.
   Sooner than half an interval? Delete the job and set it again.
-- The `loop` skill sets the same job: `/loop <hours>h /spool-loop again`.
-  If it runs the first firing at once, that is this cycle; do not run two.
+- The `loop` skill sets the same job: `/loop <hours>h /spool-loop`.
+  If it runs the first firing at once, that is this session; do not run two.
 - Tell them once, in a line: when you will be back, by the time the scheduler
   gave and not the one you asked for; that the loop lives in this chat, so the
   chat stays open and the machine awake; and how long the schedule lasts
   (Claude Code ends one after 7 days). `/spool-loop` starts it again.
-- Called with `again` and the job is gone? It ran out. Run this cycle, and say
-  in the wrap-up that it was the last.
-- No scheduler in your harness? Say so, run one cycle, and offer
+- The schedule's last firing finds its job gone. That is the loop ending, not
+  a reason to set another on your own: run the session, and say that it was
+  the last and that `/spool-loop` starts the loop again.
+- No scheduler in your harness? Say so, run one session, and offer
   `spool loop --watch 300`, which works the spool from a terminal with no chat at all.
 
 ## Take stock
@@ -86,71 +90,89 @@ spool in order, before any work:
   others wait on), put a thread in the wrong place, move it:
   `spool edit <id> -p <0-3>`. Never move something against what they said.
 
-Then write **the proposal**: the key things you intend to ship before the next
-check-in, chosen from the open threads, in the order you will take them. Be
-honest about what the hours hold: one large thread, or a few medium ones, or
-a run of small ones. A proposal that promises everything tells them nothing.
+Then choose **your recommendation**: the threads you would work on this
+session, in the order you would take them. Recommending is your job: they
+should be able to say "go" and get a good session. Be honest about what the
+hours hold: one large thread, or a few medium ones, or a run of small ones.
+A recommendation that promises everything tells them nothing.
 
-Read each thread in the proposal (`spool show <id>`) far enough to see the
+Read each thread you recommend (`spool show <id>`) far enough to see the
 choices it does not settle, and deal with them now, by "Choices the thread
 doesn't settle": ask today what is theirs to decide, so no question is
 discovered two hours in with nobody there to answer it.
 
 ## Check in
 
-One message, in three parts, always in this order. The emojis and the colours
-are how a person takes it in at a glance, so keep them. No ids.
+The check-in is the one thing the human reads, so it has to tell them at a
+glance what the project's features are, what is going on, and what you are
+about to do. Make it **cute, concise, professional and organized**:
 
-**1. 🧶 The spool.** Everything in it, the way `spool overview` printed it:
-the same coloured groups in the same order, one line per thread, each starting
-with 🧵, the title in plain words. Add a group at the top, **✅ Shipped since
-last time**, with how they can see each thing, and name any call you made on
-your own. Leave out empty groups; cut a long group to its first few and say
-how many more.
+- **The same layout every time**, so they learn where to look.
+- **Concise:** every line earns its place. Names and numbers, not adjectives.
+- **Cute, lightly:** the 🧶 and 🧵, the colours, a warm word. Never a joke
+  that costs them a second line.
+- **Their terms:** a thread's name is the feature or the fix as they would say
+  it, a few words, not the title you filed it under. No ids.
 
-| | Group | Means |
-| --- | --- | --- |
-| ✅ | Shipped | Finished since the last check-in. |
-| 🔴 | Needs you | A question only they can answer, or a plan waiting for their go-ahead. |
-| 🟣 | Break down | Too big to build in one go; it needs a plan first. |
-| 🟡 | Blocked | Waiting on something else: say what. |
-| 🔵 | In progress | An agent has it now. |
-| 🟢 | Ready | Can start, in the order it will be taken. |
-| ⚪ | On hold | They said not yet. |
+Use exactly this layout, leaving out a part that is empty:
 
-**2. 🎯 The proposal.** Under its own heading, so it cannot be missed: "In the
-next `<hours>` hours I propose to ship:", then a numbered list, each line a
-thread 🧵 and what they will be able to see when it is done. Then one line on
-what you are leaving for a later loop, and why. Then ask: take the proposal as
-it is, or say which threads they want instead. One word from them must be
-enough to accept it.
+```
+**🧶 <project>** · <where it stands, in one line>
 
-**3. ❓ What needs them.** Everything waiting on the human, most blocking
-first, each ready to answer in a word. Number them straight through, so
-"1a, 2 go ahead, the rest is fine" settles the lot. Nothing waiting? Say so.
+✅ **Shipped since last time**
+- <feature> — <what they can see now>
 
-- **Questions.** Work is stopped on these. Each with its options lettered,
-  your recommendation and the reason in a line, and what it unblocks.
+| 🧵 Thread | Status | Difficulty | Priority | To talk through |
+| --- | --- | --- | --- | --- |
+| **<feature, in a few words>** | 🟢 Ready | Small | High | — |
+| **<feature>** | 🔴 Needs you | Medium | High | <the question, in a few words> |
+
+🎯 **This session I recommend**
+1. <thread> — <what they will see when it is done>
+2. <thread> — …
+
+<one line: what you are leaving for later, and why>
+
+💬 **To talk through**
+1. <question> **a** <option> · **b** <option>. I'd pick **a**: <reason>.
+
+Say **go** and I start. Or tell me what to change.
+```
+
+**The table is the whole spool**, one row a thread, what you recommend first
+and in order, then the rest by status. More than a dozen rows? Keep the top
+ones and end with "+ N more for someday".
+
+| Column | Say |
+| --- | --- |
+| Status | 🔴 Needs you · 🟣 Needs a plan · 🟡 Blocked · 🔵 In progress · 🟢 Ready · ⚪ On hold |
+| Difficulty | from its size: xs Tiny · s Small · m Medium · l Large · xl Huge |
+| Priority | p0 Urgent · p1 High · p2 Normal · p3 Someday |
+| To talk through | what the two of you need to settle before it can move: an open question, a plan wanting a go-ahead, something too big to start without a word from them. Otherwise — |
+
+**💬 To talk through** is everything waiting on the human, most blocking
+first, each ready to answer in a word, numbered straight through so
+"1a, 2 go ahead, the rest is fine" settles the lot:
+
+- **Questions.** Work is stopped on these. Options lettered, your
+  recommendation and the reason in a line.
 - **Plans waiting for a go-ahead.** The approach in a sentence, and its parts.
 - **Calls agents made on their own.** Together, briefly: what was decided and
   why. Would they change any?
 - **New skills** agents wrote down: the name, and what it is for.
 
 This is the only place the human is asked for anything, so nothing waiting on
-them is left out of it. Do not spend their attention twice: what they have
-already seen and let stand, say as a count, not again in full.
+them is left out of it. What they have already seen and let stand, say as a
+count, not again in full.
 
-End with the time you start on the proposal unless they say otherwise.
+## Get their go-ahead
 
-Then give them the window: ten minutes, less if they are plainly here.
+Post the check-in, end your turn, and wait. **Nothing starts until they
+approve**: no timer, no starting on silence. Nobody there? Notify them, by
+"Reaching them", and the session waits; the next one checks in again.
 
-- **In Claude Code:** `CronCreate` a one-shot (`recurring: false`) ten minutes
-  from now with the prompt `/spool-loop go`, and end your turn. A turn that is
-  still running hears nothing, so do not wait inside it.
-- No timer? If the human started this cycle, end your turn and wait for their
-  reply. If the schedule did, go straight to work.
-
-**They reply in the window.** Take every part of it:
+"Go", "yes", "approved" is enough: start on your recommendation. Anything
+else they say, take every part of it:
 
 | They say | Run |
 | --- | --- |
@@ -169,19 +191,18 @@ Then give them the window: ten minutes, less if they are plainly here.
 
 Never guess an answer or an approval; if you can't tell which thread they
 mean, or whether that was a yes, ask. Their words are the record: pass what
-they said through, don't tidy it into your own. Then cancel the timer, say the proposal as it now stands, numbered,
-and start work. `go` arriving after work has started means nothing: end the turn.
+they said through, don't tidy it into your own. An answer to a question is
+not a go-ahead for the session: if they changed things without saying go,
+show the recommendation as it now stands, numbered, and ask.
 
-**Nobody replies.** `go` arrives: work the proposal as you made it. Questions
-still open keep their threads waiting, and everything else moves. Silence
-approves nothing: calls, shipped work and plans wait for the next check-in.
+Once they approve, say what you are starting on in a line, and go.
 
 ## Work
 
-Repeat until the cycle's time is up, or `spool next --claim` says nothing is ready:
+Repeat until the session's time is up, or `spool next --claim` says nothing is ready:
 
-1. Claim the next thread of the proposal: `spool start <t-id>` prints its
-   brief. When the proposal is done, `spool next --claim` hands you the most
+1. Claim the next thread they approved: `spool start <t-id>` prints its
+   brief. When those are done, `spool next --claim` hands you the most
    important ready thread. Add `-P <project>` if they asked for one project only.
 2. Do it, by the rules in "Working a thread".
 3. Hand it in with `spool done`, or leave it waiting on a question with `spool ask`.
@@ -191,15 +212,15 @@ or to ask whether to continue: the check-in was the time for that. A question
 about one thread is never a reason to stop: put it through `spool ask` and
 take the next thread.
 
-- Finished the proposal early? Keep going down the spool.
-- Time is up when the next cycle is due. Finish the thread in hand, and do not
-  take another: the next check-in should happen on time.
+- Finished what they approved early? Keep going down the spool.
+- Time is up when the next session is due. Finish the thread in hand, and do
+  not take another: the next check-in should happen on time.
 - The human writes while you work? Take it by the table above, and carry on.
-  If they ask what you are working on, say the proposal again, numbered, with
-  what is done ticked off.
+  If they ask what you are working on, say the recommendation again,
+  numbered, with what is done ticked off.
 - If your harness has subagents, give each thread to a fresh one with the brief
   and the "Working a thread" rules. A clean context for each keeps a long
-  cycle sharp.
+  session sharp.
 
 ## Wrap up
 
@@ -208,19 +229,19 @@ few plain lines, the first that applies first:
 
 - what is waiting on them, as a count: the next check-in walks through it, and
   `/spool-loop` brings one now;
-- the proposal, with what shipped ticked off and how they can see each thing;
+- what they approved, with what shipped ticked off and how they can see each thing;
 - the new version, if there is one;
 - when you will be back.
 
-No ids and no tables unless they ask. Then end the turn, and keep the schedule:
-answers and new feedback arrive between cycles, and the next one picks them
-up. A cycle that finds nothing it can move says what it is waiting on, and ends.
+No ids. Then end the turn, and keep the schedule: answers and new feedback
+arrive between sessions, and the next one picks them up. A session that finds
+nothing it can move says what it is waiting on, and ends.
 
 ### A version for what shipped
 
-A cycle that shipped a change ends by giving the project a new version, so
-"it broke in 0.4" means something to everyone. Once per cycle, after the last
-thread, for each project that shipped a change. A cycle of only audits and
+A session that shipped a change ends by giving the project a new version, so
+"it broke in 0.4" means something to everyone. Once per session, after the last
+thread, for each project that shipped a change. A session of only audits and
 plans changes no version.
 
 1. **Find the version** where the project already keeps it: `package.json`,
@@ -250,10 +271,10 @@ The human is usually somewhere else, and a notification is how the loop gets
 them back. Each one costs them their attention, so send only what they would
 act on, at these three moments:
 
-- **A check-in is posted** on a cycle the schedule started, or with questions
-  in it: "Spool check-in: 2 questions. Starting on the jump at 7:47."
-- **A question stops a thread mid-cycle:** once, when you ask it, in the words
-  of the question: "Spool needs you: outline the coins, or teal?"
+- **A check-in is waiting for their go-ahead** and they are not here: "Spool
+  check-in: 3 threads recommended, 2 to talk through. Say go to start."
+- **A question stops a thread mid-session:** once, when you ask it, in the
+  words of the question: "Spool needs you: outline the coins, or teal?"
 - **Nothing can move without them**, at the wrap-up: "Spool is waiting on you:
   3 questions. Nothing else can move."
 

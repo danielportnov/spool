@@ -16,7 +16,7 @@ Show this table as it is:
 | Skill | What it does | Use it |
 | --- | --- | --- |
 | `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
-| `/spool-loop [hours]` | The main one. Every `hours` (3 unless you say) it shows you the spool 🧶, proposes which threads 🧵 to ship next, walks you through everything waiting on you, then works until the next check-in | once, and leave the chat open; again any time to check in now |
+| `/spool-loop [hours]` | The main one. Every `hours` (3 unless you say) it shows you the spool 🧶 as one table of threads 🧵, recommends what to work on, talks through what needs you, and once you say go, works until the next check-in | once, and leave the chat open; again any time to check in now |
 | `/spool-recorder <what, and where>` | Put it in front of anything you type or say: that one message is filed as threads 🧵, and the chat carries on as it was | whenever you have feedback or an idea |
 | `/spool-overview [project]` | The whole spool 🧶, every thread 🧵 colour-coded: needs you, blocked, in progress, ready, on hold | any time |
 
@@ -29,7 +29,7 @@ Then add one line on what to do next here. Check with `spool status`; don't gues
 
 - `spool` is not installed, or there is no `.spool/` here: "Start with `/spool-init`."
 - anything else: "`/spool-loop` starts the loop: a check-in now and every three hours,
-  work in between. `/spool-loop 1` for every hour." If the spool is empty, add
+  and work in between once you say go. `/spool-loop 1` for every hour." If the spool is empty, add
   that the first check-in will ask what they want built.
 
 Only if they ask about the command line: `spool help` lists the engine's verbs.
