@@ -63,4 +63,5 @@ End with what happens next, in one line each:
 
 - `/spool-loop` to start the loop: it checks in now and every three hours, and
   works in between. This is the one they need.
-- `/spool-recorder` to talk at any time, and have everything they say filed
+- `/spool-recorder` in front of anything they type or say, in any chat, to
+  have that message filed as threads

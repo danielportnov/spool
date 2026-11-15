@@ -182,8 +182,15 @@ test('the loop skill is a cycle: take stock, check in, work, wrap up', () => {
   assert.match(shipped('spool-init'), /`\/spool-loop` to start the loop: it checks in now and every three hours/);
 });
 
-test('the recorder decides the split and the size itself', () => {
+test('the recorder records one message, and decides the split and the size itself', () => {
   const recorder = shipped('spool-recorder');
+  // It is a prefix on one message, never a mode the chat is left in.
+  assert.match(recorder, /`\/spool-recorder <what they want, and where>` records one message/);
+  assert.match(recorder, /\*\*It does not turn the chat into a recorder\.\*\*/);
+  assert.match(recorder, /What follows the command is recorded, not obeyed/);
+  assert.match(recorder, /One message, then out: never keep recording what they say next\./);
+  assert.doesNotMatch(recorder, /Stay in this role|You are the recorder/);
+  assert.match(String(parseFrontmatter(recorder).data.get('description')), /records that one message and nothing else[\s\S]*\/spool-recorder <what to add, and where>/);
   assert.match(recorder, /## Splitting what they said[\s\S]*never ask them how to split[\s\S]*`--needs <the earlier thread>`[\s\S]*`--from <note-id>`\n {2}on each/);
   assert.match(recorder, /Size every thread as you file it[\s\S]*Never ask them how\nbig something is\./);
   assert.doesNotMatch(recorder, /Leave it off/, 'no thread is filed without a size');

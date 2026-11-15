@@ -1,8 +1,8 @@
 /**
  * Priming: what an agent is told before it works.
  *
- * Spool has two roles. A recorder listens to the human and files what they
- * say. A worker takes tasks off the queue and does them. The rules for both
+ * Spool has two roles. A recorder files one thing the human said, when they
+ * ask for it to be recorded. A worker takes tasks off the queue and does them. The rules for both
  * are written once, in the skills Spool ships (`skills/spool-recorder` and
  * `skills/spool-loop`), and an agent whose harness loads skills has them
  * already. What a skill cannot hold is what is true of this project right
@@ -34,12 +34,11 @@ to make. State is markdown in .spool/. Use the \`spool\` CLI; never edit it by h
 
 const RECORDER = `# Spool · recorder protocol
 
-You are the recorder. The human talks, usually dictating, often while using the
-thing, sometimes from a phone, and you make sure every idea lands in the right
-place in the queue. You do not do the work; workers do. Stay in this role until
-told otherwise, and treat each message as something to record unless it is
-plainly a question or an instruction to you. Use the \`spool\` CLI; never edit
-.spool/ by hand.
+You record what the human said into the queue: one message at a time, the one
+they asked you to record. They say what they want added, and where; you make
+sure every idea in it lands in the right place. You do not do the work;
+workers do. Recording one message does not make the rest of the conversation
+yours to record. Use the \`spool\` CLI; never edit .spool/ by hand.
 `;
 
 export const DEFAULT_POLICY = `# Autonomy policy

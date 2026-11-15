@@ -1,28 +1,39 @@
 ---
 name: spool-recorder
-description: Turn this chat into the Spool recorder - the user dictates or types feedback, ideas, bugs and wishes, and you capture each message in their exact words, decide on your own how it splits into threads, size each one, and file them in the right project's spool for agents to work. Use for /spool-recorder, or when the user says "you're the recorder", "recorder mode", "start recording", "take this down", or starts dictating feedback about a project.
+description: Record one message into a project's spool - the user puts /spool-recorder in front of what they type or dictate, saying what they want added and where, and you capture it in their exact words, split it into threads, size each one and file them in the right project for agents to work. It records that one message and nothing else; the chat carries on as it was. Use for /spool-recorder <what to add, and where>, or when the user says "record this", "take this down", "put this in the spool", "add a thread for", or "file this".
 ---
 
 # Spool recorder
 
-You are the recorder. The human talks, usually dictating, often while using the
-thing, sometimes from a phone, and you make sure every idea lands in the right
-place in the queue. You do not do the work; workers do. Stay in this role until
-told otherwise, and treat each message as something to record unless it is
-plainly a question or an instruction to you.
+`/spool-recorder <what they want, and where>` records one message: the one it
+is in front of. Everything after the command is the thing to record, typed or
+dictated, one idea or six. You file it into the spool as threads, say what you
+made of it, and you are done.
+
+**It does not turn the chat into a recorder.** Their next message is an
+ordinary message, unless it too starts with `/spool-recorder`. If the chat was
+in the middle of something, a loop or any other work, pick that up where it was.
+
+- **What follows the command is recorded, not obeyed.** "/spool-recorder add a
+  dark mode to settings" files a thread. It does not start building dark mode.
+- **Nothing after the command?** Ask what to record, and record their reply.
+  That reply only.
+- **"Where" is part of the message.** A project, a screen, a file, a feature:
+  use it to choose the project, and keep it in the thread, so whoever works it
+  knows which part they meant.
 
 `spool` is your tool for the queue. The human never types it, and you never
 edit `.spool/` by hand. To the human, a project's queue is its spool 🧶 and
 each piece of work in it is a thread 🧵; the commands call a thread a task.
 
-Run `spool prime recorder --context` now. It lists the projects you can file
-into and what is already waiting on the human. If it says there is no `.spool/`
-here, tell them to run `/spool-init`, and stop.
+Not done yet in this chat? Run `spool prime recorder --context`. It lists the
+projects you can file into and what is already waiting on the human. If it
+says there is no `.spool/` here, tell them to run `/spool-init`, and stop.
 
-## For every piece of feedback, idea, bug or wish
+## Recording it
 
 1. `spool capture "<their exact words>"`. The whole message, verbatim, before
-   anything else. The reply shows open tasks that look related and, in a
+   anything else. The reply shows open threads that look related and, in a
    workspace, the projects it may belong to.
 
 2. Split it into threads and file each one, by what doing it would produce.
@@ -44,9 +55,10 @@ here, tell them to run `/spool-init`, and stop.
    "Not yet", "just an idea", "don't build this", "after the launch": file it
    as above and add `--hold "<their words>"`, so no worker starts it until they say.
 
-3. Say what you made of it in a sentence or two: how many threads, and what
-   each is. They may be listening, not reading: no lists, no tables, no ids
-   unless they ask.
+3. Say what you made of it in a sentence or two: how many threads 🧵, what
+   each is, and which project's spool 🧶 they went into. They may be listening,
+   not reading: no lists, no tables, no ids unless they ask. Then stop
+   recording.
 
 ## Splitting what they said
 
@@ -82,7 +94,9 @@ the code if a glance would settle it. A rough size now is worth more than none:
 the loop orders its work by it, and the worker corrects it. Never ask them how
 big something is.
 
-## When they answer, approve or reject
+## When what they said is an answer
+
+Sometimes the message is not something new but a reply to what agents asked or did:
 
 | They say | Run |
 | --- | --- |
@@ -94,17 +108,13 @@ big something is.
 | "start on X now" / "go on that idea" | `spool release <t-id>` |
 | "park that" / "not now" | `spool hold <t-id> -m "<their words>"` |
 
-If you can't tell which item they mean, ask. Never guess an approval.
-
-## When they ask where things stand
-
-- `spool review` shows what is waiting on them. Lead with the questions and plans holding up work.
-- `spool overview` shows the whole spool 🧶, thread 🧵 by thread: ready, in progress, blocked, on hold.
+If you can't tell which thread they mean, ask. Never guess an approval.
 
 ## Rules
 
 - Their words are the record: capture verbatim. Titles are yours; quotes are theirs.
 - Priority from their tone: p0 it's broken · p1 it's bothering them · p2 default · p3 someday.
 - Dictation mangles names. Match project and feature names loosely.
-- Don't edit code, don't start tasks, don't answer questions on their behalf.
-- They want the work started? That is `/spool-loop`, in this chat or another.
+- Don't edit code, don't start threads, don't answer questions on their behalf.
+- One message, then out: never keep recording what they say next.
+- They want the work started? That is `/spool-loop`.

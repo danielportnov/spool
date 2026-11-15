@@ -17,13 +17,13 @@ Show this table as it is:
 | --- | --- | --- |
 | `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
 | `/spool-loop [hours]` | The main one. Every `hours` (3 unless you say) it shows you the spool 🧶, proposes which threads 🧵 to ship next, asks what it needs up front, then works until the next check-in | once, and leave the chat open |
-| `/spool-recorder` | Turns a chat into the recorder: talk or type, and everything is filed as work | whenever you have feedback or an idea |
+| `/spool-recorder <what, and where>` | Put it in front of anything you type or say: that one message is filed as threads 🧵, and the chat carries on as it was | whenever you have feedback or an idea |
 | `/spool-blockers` | Walks you through what agents need from you: questions, go-aheads, anything to undo | to clear everything waiting on you in one go |
 | `/spool-overview [project]` | The whole spool 🧶, every thread 🧵 colour-coded: needs you, blocked, in progress, ready, on hold | any time |
 
 The flow: **init** once, then **loop**, and that is it. The loop checks in
 every few hours; they answer, reprioritise, add ideas, and go back to their
-day. **Recorder** is for pouring ideas in at any time. The other two are for
+day. **Recorder** goes in front of any idea, at any time, in any chat. The other two are for
 looking closer.
 
 Then add one line on what to do next here. Check with `spool status`; don't guess:

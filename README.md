@@ -42,7 +42,7 @@ You use Spool by talking to your agent. Five skills, and one that lists them:
 | --- | --- | --- |
 | `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
 | `/spool-loop [hours]` | **The main one.** Every `hours` (3 unless you say) it shows you the spool 🧶, proposes which threads 🧵 to ship next, asks what it needs up front, then works until the next check-in | once, and leave the chat open |
-| `/spool-recorder` | Turns a chat into the recorder: talk or type, and everything is filed as work | whenever you have feedback or an idea |
+| `/spool-recorder <what, and where>` | Put it in front of anything you type or say: that one message is filed as threads 🧵, and the chat carries on as it was | whenever you have feedback or an idea |
 | `/spool-blockers` | Walks you through what agents need from you: questions, go-aheads, anything to undo | to clear everything waiting on you in one go |
 | `/spool-overview [project]` | The whole spool 🧶, every thread 🧵 colour-coded: needs you, blocked, in progress, ready, on hold | any time |
 | `/spool-help` | This table, and what to do next here | when you forget |
@@ -100,11 +100,12 @@ The queue it creates stays on your machine. Git ignores `.spool/` unless you ask
 
 ## What it looks like
 
-> **You:** /spool-recorder
+> **You:** /spool-recorder the jump feels floaty, and I can barely see the coins at sunset
 >
-> **You:** the jump feels floaty, and I can barely see the coins at sunset
->
-> **Recorder:** Filed two things for Sky Hop: tighten the jump, and make the coins readable at sunset.
+> **Agent:** Two threads in Sky Hop's spool: tighten the jump, and make the coins readable at sunset.
+
+That records the one message it is in front of. The chat is not a recorder afterwards: whatever it
+was doing, it carries on.
 
 In another chat, or the same one later:
 
@@ -342,10 +343,11 @@ finds those commits and undoes them in a single new commit. It is designed for a
 
 ### Two roles: a recorder and workers
 
-The **recorder** is a chat you leave open — a mid-sized model is plenty. You dictate; it captures your
-exact words, works out which project and which task they belong to, and files them. It never does the
-work. That is `/spool-recorder`, and its scope is wherever you start it: one repository, or a folder
-of them.
+The **recorder** files one thing you said. Put `/spool-recorder` in front of a message, typed or
+dictated, saying what you want and where: it captures your exact words, works out which project they
+belong to, splits them into threads, sizes each, and files them. It never does the work, and it never
+takes over the chat: the next message is an ordinary one. Its scope is wherever you are: one
+repository, or a folder of them.
 
 **Workers** take tasks off the queue, and `/spool-loop` is a worker that keeps taking them, cycle
 after cycle. It also keeps the spool in order — sizing, ordering, filing what is unfiled — and it is
@@ -355,7 +357,9 @@ The rules for both are written once, in those two skills. An agent whose harness
 the same text from the engine, so any agent that can run a command can play either role:
 
 ```bash
-claude --model sonnet "$(spool prime recorder)"
+claude -p "$(spool prime recorder)
+
+Record this: the jump feels floaty, and I can barely see the coins at sunset"
 ```
 
 ### Skills compound

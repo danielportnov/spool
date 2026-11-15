@@ -86,7 +86,7 @@ test('the recorder is briefed with the projects and what is waiting', () => {
   const context = s.sp('prime', 'recorder', '--context');
   assert.match(context, /^PROJECTS\n/);
   assert.match(context, /WAITING ON THE HUMAN\n.*Ship on Friday\?/);
-  assert.doesNotMatch(context, /recorder protocol|## For every piece/);
+  assert.doesNotMatch(context, /recorder protocol|## Recording it/);
 
   const worker = s.sp('prime');
   assert.match(worker, /# Spool · worker protocol/);
