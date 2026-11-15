@@ -2,6 +2,16 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.5.0 · 2026-11-15
+
+- The loop is simpler. Every run shows one table of every open thread, numbered in the order it
+  suggests, then works them one by one without waiting for a go-ahead.
+- As it starts each thread it says what the thread is and its plan, and it can be steered at any time.
+- It notifies you when the list is done, when nothing can move without you, or when a question stops
+  a thread.
+- The schedule is only a check back in for anything new or more pressing: no sessions, no hours to
+  fill.
+
 ## 0.4.0 · 2026-11-15
 
 - The loop's check-in is one fixed layout: where the project stands, what shipped, a table of the
