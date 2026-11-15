@@ -3,32 +3,113 @@
 **Tell your agents what you want. Go outside. Come back to it built.**
 
 A spool holds threads. Every idea, bug and feature in your repo is a thread 🧵. Agents propose
-them, you pick the ones worth building, and a loop builds them while you do something better.
+them, you pick the ones worth building, and Claude builds them while you do something better.
 
-No cloud. No account. No dependencies. Plain files in your repo and four commands.
+Spool itself has no cloud and no account of its own: it is plain files in your repo. You bring Claude.
 
-![The Spool page: a board with Proposed, Build, Building and Done](docs/spool-page.png)
+![The Spool page: a board with Backlog, Build, Building and Done](docs/spool-page.png)
 
-## Quickstart
+## Already use Claude Code?
 
 ```bash
 npm install -g github:danielportnov/spool && spool install
 ```
 
-Then in Claude Code, inside any project:
+Then, in Claude Code inside your project: `/spool-init`, and after it `/spool-page`. That's it.
+
+## New to this? Set up in five minutes
+
+**What you need**
+
+- **A Claude account on a paid plan.** Claude Code, the part of Claude that works on your files, is
+  not included in the free plan.
+- **A project folder** with the code you want worked on. A git repository is best: git is what lets
+  Spool undo a thread.
+- **A Mac, Linux or Windows computer.** Spool has been built and tried on macOS so far.
+
+**1. Get Claude Code**
+
+The easy way is the Claude desktop app: [download it](https://claude.ai/download), sign in, open the
+**Code** tab, choose **Open folder…** and pick your project.
+
+Prefer a terminal? Install it, then start it inside your project:
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+```
+
+```bash
+cd your-project && claude
+```
+
+On Windows, and for every other way to install, see
+[Claude Code's own setup guide](https://code.claude.com/docs/en/setup).
+
+**2. Get Node.js**
+
+Spool runs on Node.js 20 or newer. Get it from [nodejs.org](https://nodejs.org), then check:
+
+```bash
+node --version
+```
+
+**3. Install Spool**
+
+In a terminal, anywhere:
+
+```bash
+npm install -g github:danielportnov/spool
+```
+
+```bash
+spool install
+```
+
+The first downloads and builds Spool, which takes a minute. The second gives Claude Code four new
+commands, called skills. Nothing is added to your project yet.
+
+**4. Set up your project**
+
+In Claude Code, with your project open, type:
 
 ```
-/spool-init     set it up, once
-/spool-page     open the board, press ▶ on a thread, and it gets built
+/spool-init
 ```
 
-That's the whole thing. Got an idea? Put this in front of it, typed or dictated:
+Claude reads your project, creates a `.spool/` folder in it for the threads, and tells you what
+agents may decide for themselves. Claude asks before it runs a command: when it asks about `spool`,
+choose **Yes, and don't ask again**.
+
+**5. Open the board, and build something**
+
+```
+/spool-page
+```
+
+A board opens in your browser. Press **+ Add** under Backlog and type what you want, in your own
+words. Press **▶ Build** on it. Claude starts on it, and the card moves to Building, then Done.
+
+Keep that chat open while you want things built: that is where Claude is working.
+
+**If something does not work**
+
+| You see | Do this |
+| --- | --- |
+| `/spool-init` is not in the list | Run `spool install` again, then type `/reload-skills` or start a new chat. |
+| `spool: command not found` | Close the terminal and open a new one. Still missing? Node's global folder is not on your PATH: `npm prefix -g` shows where it is. |
+| The board did not open | Go to the address Claude printed, usually `http://127.0.0.1:4747`. |
+| Nothing gets built | Is the thread under **Build**? Is the chat where you typed `/spool-page` still open? |
+| Claude keeps asking permission | Choose **Yes, and don't ask again** for `spool` commands. |
+
+## Every day
+
+Got an idea? Put this in front of it, typed or dictated, in any Claude Code chat in the project:
 
 ```
 /spool-record the jump feels floaty, and I can't see the coins at sunset
 ```
 
-Two threads land in the spool, in your words.
+Two threads land in the backlog, in your words. Nothing is built until you move them to Build.
 
 ## How it works
 
