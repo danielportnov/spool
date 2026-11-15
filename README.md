@@ -392,6 +392,13 @@ up in `spool review` like anything else done on your behalf: approve, or drop an
 task's brief lists the skills that fit it, and in a workspace a skill at the top is available to every
 project below. Skills you wrote by hand are listed too.
 
+An agent sees only its own task, so Spool watches for the procedure nobody noticed. When three or more
+finished threads describe the same steps ("build, bump the version, tag") and none used a skill,
+`spool skills --suggest` lists them, and the loop offers it to you as an AI-suggested thread: "Write
+down how we cut a release as a skill". Say yes and an agent writes it down; say no and it is not
+raised again. Spool only spots the repetition, by shared words. The steps are written by an agent, on
+your word.
+
 ### Blocked is computed, never stored
 
 A task has no "blocked" status. It lists what it `needs`, and whether it is ready is worked out from
@@ -565,6 +572,7 @@ These are the verbs the skills run. They are here for reference, and for buildin
 | `spool overview [project]` | A project's whole spool 🧶, each thread 🧵 under one of six colours |
 | `spool list [-k kind] [-s state] [-t type] [--size sizes] [--search words]` | Find items, closed ones included |
 | `spool show <id>` · `inbox` · `skills` | One item · unfiled feedback · every skill |
+| `spool skills --suggest [-P project]` | Procedures finished threads keep repeating with no skill for them, and the line that offers each to you |
 | `spool graph` | The items and their links, as Mermaid |
 | `spool check` | Validate the store: bad files, dangling links, cycles |
 

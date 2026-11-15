@@ -187,6 +187,9 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   assert.match(loop, /\*\*Nothing in build\?\*\* Do not build\./);
   assert.match(loop, /\| "build 3", "go on that one", "yes, do it" \| `spool build <t-id>` \|/);
   assert.match(loop, /Never guess a go, an answer or an approval\. If their reply does not plainly\nsay it, ask in one line\./);
+  // A procedure that keeps recurring is one of those ideas: offered, never written unasked, and a no is kept.
+  assert.match(loop, /### Add your own ideas[\s\S]*\*\*A procedure agents keep working out again is an idea too\.\*\*\n`spool skills --suggest` lists steps that recur across finished threads[\s\S]*It matches words, not meaning, so read the threads first[\s\S]*Their no is\n {2}remembered/);
+  assert.match(loop, /### Skills[\s\S]*`spool done` says when the steps\nyou just took match earlier finished threads with no skill for them[\s\S]*is the human's call:\n`spool skills --suggest` prints the line that offers it/);
   assert.match(loop, /\*\*They can steer at any time,\*\*/);
   assert.match(loop, /The chat is not the\nrecord: the spool is\./);
 
