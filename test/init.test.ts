@@ -173,11 +173,12 @@ test('the loop skill is simple: show the spool ranked, chip away, say when it is
   // The same list every time: every open thread, in the order it will be worked.
   assert.match(loop, /\*\*A spool 🧶 holds threads 🧵\.\*\*/);
   assert.match(loop, /\*\*The same layout every time\*\*[\s\S]*\*\*cute, concise, professional and organized\*\*/);
-  assert.match(loop, /\*\*🧶 <project>\*\* · <where it stands, in one line>[\s\S]*✅ \*\*Done since last time\*\*[\s\S]*\| # \| 🧵 Thread \| Difficulty \| Priority \| Note \|/);
-  assert.match(loop, /\*\*Every open thread is in the table\.\*\*/);
+  assert.match(loop, /`spool overview --table` prints the list[\s\S]*Show it exactly as it comes[\s\S]*never renumber/);
+  assert.match(loop, /✅ \*\*Done since last time\*\*[\s\S]*\*\*🧶 <project>\*\*[\s\S]*\| # \| 🧵 Thread \| Difficulty \| Priority \| Note \|/);
+  assert.match(loop, /\*\*Every open thread has a row and a number\*\*/);
   assert.match(loop, /`spool loop --dry-run` then lists every thread that can be worked, in the\nexact order `spool next --claim` will hand them out/);
-  assert.match(loop, /xs Tiny · s Small · m Medium · l Large · xl Huge/);
-  assert.match(loop, /p0 Urgent · p1 High · p2 Normal · p3 Someday/);
+  assert.match(loop, /Tiny · Small · Medium · Large · Huge/);
+  assert.match(loop, /Urgent · High · Normal · Someday/);
 
   // Before each thread, a talk in plain words; the human's word is the only gate; steering any time.
   assert.match(loop, /Write for someone who knows nothing about the project/);
@@ -187,7 +188,7 @@ test('the loop skill is simple: show the spool ranked, chip away, say when it is
 
   // Its own ideas go in the spool as AI suggested, and wait for a yes.
   assert.match(loop, /### Add your own ideas[\s\S]*spool task "<the idea>" --suggested "<why[^"]*>" --size <size>[\s\S]*nobody starts it, you\n {2}included, until the human says yes/);
-  assert.match(loop, /\| ✨ \| \*\*<feature>\*\* \| Small \| Normal \| AI suggested: <why>\. Say yes and it joins the list\. \|/);
+  assert.match(loop, /\| 4 \| \*\*<feature>\*\* \| Small \| Normal \| ✨ AI suggested: <why>\. Say yes and it joins the order\. \|/);
   assert.match(loop, /\*\*They can steer at any time,\*\*/);
   assert.match(loop, /The order is read again every time/);
 
@@ -268,7 +269,7 @@ test('install takes away a retired skill nobody edited, and the loop does its jo
 
   // What it did is in the loop's list, and no skill sends anyone to it.
   const loop = shipped('spool-loop');
-  assert.match(loop, /what else waits for a look — calls agents made, new skills[\s\S]*a plan wanting their go-ahead/);
+  assert.match(loop, /one line for what else waits[\s\S]*🔴 needs you, with the question and its options/);
   assert.match(loop, /`spool approve --all`; it never covers plans/);
   assert.match(loop, /Never guess an answer or an approval/);
   for (const name of SKILL_NAMES) assert.doesNotMatch(shipped(name), /spool-blockers/);

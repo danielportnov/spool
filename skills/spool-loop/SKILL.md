@@ -127,36 +127,36 @@ do. **The same layout every time**, so they learn where to look. Make it
 - **Their terms:** a thread's name is the feature or the fix as they would say
   it, a few words, not the title you filed it under. No ids.
 
-Use exactly this layout, leaving out a part that is empty:
+`spool overview --table` prints the list: one header line, one table of every
+open thread, one line for what else waits. Show it exactly as it comes. You
+may shorten a thread's name to the few words they would use for it; change
+nothing else, and never renumber. Above it, add what got done:
 
 ```
-**🧶 <project>** · <where it stands, in one line>
-
 ✅ **Done since last time**
 - <feature> — <what they can see now>
 
+**🧶 <project>** · <N> threads open · <N> need you · <N> AI suggested
+
 | # | 🧵 Thread | Difficulty | Priority | Note |
 | --- | --- | --- | --- | --- |
-| 1 | **<feature, in a few words>** | Small | High | |
-| 2 | **<feature>** | Large | Normal | |
-| 🔴 | **<feature>** | Medium | High | Needs you: <the question> **a** <option> · **b** <option>. I'd pick **a**. |
-| ✨ | **<feature>** | Small | Normal | AI suggested: <why>. Say yes and it joins the list. |
-| ⚪ | **<feature>** | Tiny | Normal | On hold: "<their words>" |
-
-<one line, if any: what else waits for a look — calls agents made, new skills>
+| 1 | **<feature being built>** | Large | Normal | 🔵 Being built now |
+| 2 | **<feature, in a few words>** | Small | High | |
+| 3 | **<feature>** | Medium | High | 🔴 Needs you: <the question> **a** <option> · **b** <option>. I'd pick **a**. |
+| 4 | **<feature>** | Small | Normal | ✨ AI suggested: <why>. Say yes and it joins the order. |
+| 5 | **<feature>** | Tiny | Normal | ⚪ On hold: "<their words>" |
 ```
 
-**Every open thread is in the table.** Numbered rows first: what you will do,
-in the order you will do it. Then, with a dot in place of a number, what
-cannot move and why. More than fifteen rows? Keep the top ones and end with
-"+ N more for someday".
+**Every open thread has a row and a number**, so they can point at any of
+them: "do 4", "yes to 6", "drop 9". First what is being built, then what comes
+next in the order you will take it, then what cannot move and why.
 
-| Column | Say |
+| Column | Says |
 | --- | --- |
-| # | its place in the order; or 🔴 needs you · 🟡 blocked · 🔵 someone else has it · ✨ AI suggested · ⚪ on hold |
-| Difficulty | from its size: xs Tiny · s Small · m Medium · l Large · xl Huge |
-| Priority | p0 Urgent · p1 High · p2 Normal · p3 Someday |
-| Note | only what they need: the question and its options, what it waits on, a plan wanting their go-ahead. Usually empty. |
+| # | a number for every thread, yours to point at |
+| Difficulty | from its size: Tiny · Small · Medium · Large · Huge |
+| Priority | Urgent · High · Normal · Someday |
+| Note | 🔵 being built · 🔴 needs you, with the question and its options · 🟡 waiting on something · ✨ AI suggested · ⚪ on hold. Empty when it is simply next. |
 
 Then talk thread 1 through, in the same message.
 

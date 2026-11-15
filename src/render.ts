@@ -313,6 +313,101 @@ function docketText(ws: Workspace, d: Docket, p: Paint): string {
   return out.join('\n');
 }
 
+const DIFFICULTY = { xs: 'Tiny', s: 'Small', m: 'Medium', l: 'Large', xl: 'Huge' } as const;
+const URGENCY = ['Urgent', 'High', 'Normal', 'Someday'] as const;
+
+export interface TableRow {
+  n: number;
+  item: Item;
+  /** A mark for where it stands when it is not simply next: 🔵 🔴 🟡 ✨ ⚪. */
+  mark: string;
+  note: string;
+}
+
+/** Why a thread cannot move, said to the human: the question with its options, or what it waits on. */
+function waitNote(ws: Workspace, task: Item): { mark: string; note: string } {
+  const [first] = blockers(ws, task);
+  if (!first) return { mark: '🟡', note: 'Blocked' };
+  if (first.kind === 'decision') {
+    const letter = (i: number) => String.fromCharCode(97 + i);
+    const options = first.options.map((o, i) => `**${letter(i)}** ${oneLine(o, 70)}`).join(' · ');
+    const pick = first.recommend && first.options[first.recommend - 1] ? ` I'd pick **${letter(first.recommend - 1)}**.` : '';
+    return { mark: '🔴', note: `Needs you: ${oneLine(first.title, 110)}${options ? ` ${options}.` : ''}${pick}` };
+  }
+  const what = `“${oneLine(first.title, 60)}”`;
+  if (isPlan(first)) {
+    return first.status === 'done'
+      ? { mark: '🔴', note: `Needs you: your go-ahead for the plan ${what}` }
+      : { mark: '🟡', note: `Waiting for the plan ${what}` };
+  }
+  return { mark: '🟡', note: `Waiting on ${what}` };
+}
+
+/**
+ * Every open thread of one project as numbered rows: what is being built, then
+ * what comes next in the order it will be taken, then what cannot move and why.
+ * Every row has a number, so the human can point at any of them: "do 6 first".
+ */
+export function tableRows(ws: Workspace, d: Docket): TableRow[] {
+  const mine = tasks(ws, d.spool);
+  const state = (t: Item) => taskState(ws, t);
+  const say = (t: Item, ...notes: string[]) => [...(t.suggested ? ['✨ AI suggested'] : []), ...notes.filter(Boolean)].join(' · ');
+  const rows: Omit<TableRow, 'n'>[] = [];
+  for (const t of mine.filter((t) => state(t) === 'active')) {
+    rows.push({ item: t, mark: '🔵', note: say(t, `Being built now${t.by && t.by !== 'agent' ? ` by ${t.by}` : ''}`) });
+  }
+  for (const t of ready(ws, d.spool)) {
+    const why = state(t) === 'stale' ? `${t.by ?? 'Someone'} went quiet on it; picked up again` : t.type === 'plan' ? 'I write the plan, not the build' : '';
+    rows.push({ item: t, mark: '', note: say(t, why) });
+  }
+  const waiting = mine.filter((t) => state(t) === 'blocked').map((t) => ({ item: t, ...waitNote(ws, t) }));
+  rows.push(...waiting.filter((r) => r.mark === '🔴'), ...waiting.filter((r) => r.mark !== '🔴'));
+  for (const t of d.suggested) rows.push({ item: t, mark: '✨', note: `AI suggested: ${oneLine(t.suggested ?? '', 110)}. Say yes and it joins the order.` });
+  for (const t of d.held) rows.push({ item: t, mark: '⚪', note: `On hold: “${oneLine(t.hold ?? '', 80)}”` });
+  return rows.map((r, i) => ({ n: i + 1, ...r }));
+}
+
+/**
+ * The loop's list, as markdown ready to put in a chat: one header line, one
+ * table, one line for what else waits. It is printed here, and not drawn by
+ * each agent, so it is the same every time it is shown.
+ */
+function tableText(ws: Workspace, d: Docket): string {
+  const rows = tableRows(ws, d);
+  const cell = (text: string) => text.replace(/\|/g, '\\|');
+  const needs = rows.filter((r) => r.mark === '🔴').length;
+  const facts = [
+    `${plural(rows.length - d.suggested.length - d.held.length, 'thread')} open`,
+    ...(needs ? [`${needs} ${needs === 1 ? 'needs' : 'need'} you`] : []),
+    ...(d.suggested.length ? [`${d.suggested.length} AI suggested`] : []),
+    ...(d.held.length ? [`${d.held.length} on hold`] : []),
+    `${d.done} done`,
+  ];
+  const out = [`**🧶 ${d.spool.name}** · ${facts.join(' · ')}`, ''];
+  if (!rows.length) return `${out[0]}\n\nNothing is open.`;
+  out.push('| # | 🧵 Thread | Difficulty | Priority | Note |', '| --- | --- | --- | --- | --- |');
+  for (const r of rows) {
+    const t = r.item;
+    const name = `${t.type === 'plan' ? 'Plan: ' : t.type === 'audit' ? 'Audit: ' : ''}${oneLine(t.title, 70)}`;
+    const difficulty = t.size ? DIFFICULTY[t.size] : '—';
+    out.push(`| ${r.n} | **${cell(name)}** | ${difficulty} | ${URGENCY[t.priority ?? 2] ?? 'Normal'} | ${cell(`${r.mark} ${r.note}`.trim())} |`);
+  }
+  const also = [
+    ...(d.also.assumptions ? [plural(d.also.assumptions, 'call') + ' agents made on their own'] : []),
+    ...(d.also.skills ? [plural(d.also.skills, 'new skill')] : []),
+    ...(d.also.inbox ? [`${d.also.inbox} unfiled`] : []),
+  ];
+  if (also.length) out.push('', `Also waiting for a look: ${also.join(' · ')}.`);
+  return out.join('\n');
+}
+
+/** The loop's list for one project, or for every project that has anything open. */
+export function overviewTable(ws: Workspace, spools: Spool[]): string {
+  const dockets = spools.map((s) => docket(ws, s));
+  const shown = dockets.length > 1 ? dockets.filter((d) => tableRows(ws, d).length) : dockets;
+  return shown.map((d) => tableText(ws, d)).join('\n\n');
+}
+
 /** The spool of one project, or of every project that has anything on it. */
 export function overviewText(ws: Workspace, spools: Spool[], p: Paint): string {
   const dockets = spools.map((s) => docket(ws, s));

@@ -72,6 +72,37 @@ test('a thread an agent suggests waits under ✨ for a yes, and keeps saying whe
   s.cleanup();
 });
 
+test('--table prints the loop’s list: every open thread numbered, in the order it will be taken', () => {
+  const s = spool();
+  const jump = s.id('task', 'Tighten the jump arc', '-s', 's', '-p', '1');
+  const coins = s.id('task', 'Make coins readable at sunset', '-s', 'xs');
+  const typo = s.id('task', 'Fix the typo | on the title screen', '-s', 'xs', '-p', '3');
+  const online = s.id('plan', 'Add online multiplayer');
+  s.sp('task', 'A Grand Prix mode', '-s', 'm', '--hold', 'just an idea');
+  s.sp('task', 'Remember the last level played', '-s', 's', '--suggested', 'the game always opens on level one');
+  s.sp('ask', 'Outline the coins, or turn them teal?', '--option', 'Outline', '--option', 'Teal', '--recommend', '1', '--for', coins);
+  s.sp('start', jump);
+
+  const out = s.sp('overview', '--table').split('\n');
+  assert.equal(out[0], '**🧶 demo** · 4 threads open · 1 needs you · 1 AI suggested · 1 on hold · 0 done');
+  assert.deepEqual(out.slice(2, 4), ['| # | 🧵 Thread | Difficulty | Priority | Note |', '| --- | --- | --- | --- | --- |']);
+  assert.deepEqual(out.slice(4), [
+    '| 1 | **Tighten the jump arc** | Small | High | 🔵 Being built now |',
+    '| 2 | **Plan: Add online multiplayer** | — | Normal | I write the plan, not the build |',
+    '| 3 | **Fix the typo \\| on the title screen** | Tiny | Someday |  |',
+    "| 4 | **Make coins readable at sunset** | Tiny | Normal | 🔴 Needs you: Outline the coins, or turn them teal? **a** Outline · **b** Teal. I'd pick **a**. |",
+    '| 5 | **Remember the last level played** | Small | Normal | ✨ AI suggested: the game always opens on level one. Say yes and it joins the order. |',
+    '| 6 | **A Grand Prix mode** | Medium | Normal | ⚪ On hold: “just an idea” |',
+  ]);
+
+  // The same rows as data, and an idea the human took up keeps its mark in the order.
+  assert.deepEqual(s.json('overview').projects[0].rows.map((r: { id: string }) => r.id).slice(0, 4), [jump, online, typo, coins]);
+  s.sp('release', s.json('overview').projects[0].rows[4].id);
+  assert.match(s.sp('overview', '--table'), /\| 3 \| \*\*Remember the last level played\*\* \| Small \| Normal \| ✨ AI suggested \|/);
+  assert.equal(new Sandbox().sp('init', '--name', 'empty').length > 0 && s.sp('overview', '--table').includes('Nothing is open'), false);
+  s.cleanup();
+});
+
 test('the overview takes a project by any reasonable name, or shows every project with something on', () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'studio');

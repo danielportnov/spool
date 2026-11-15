@@ -42,7 +42,9 @@ import {
   itemJson,
   itemLine,
   nothingReady,
+  overviewTable,
   overviewText,
+  tableRows,
   reviewText,
   showText,
   skillsText,
@@ -1095,20 +1097,22 @@ export const COMMANDS: Command[] = [
     name: 'overview',
     aliases: ['ov'],
     group: 'see',
-    usage: 'overview [<project>]',
-    summary: 'A project\'s whole spool 🧶, each thread 🧵 under its colour: needs you, break down, blocked, in progress, ready, AI suggested, on hold',
-    options: { ...PROJECT },
+    usage: 'overview [<project>] [--table]',
+    summary: 'A project\'s whole spool 🧶, each thread 🧵 under its colour; --table prints the loop\'s numbered list for a chat',
+    options: { ...PROJECT, table: { type: 'boolean' } },
     run({ ws, p, args, opts }) {
       const ref = str(opts.project) ?? str(args.join(' ').trim());
       const spools = ref ? [ws.project(ref)] : ws.spools;
       const json = (items: Item[]) => items.map((i) => itemJson(ws, i));
       return {
-        text: overviewText(ws, spools, p),
+        // --table is the loop's list: every thread numbered, as markdown for a chat.
+        text: opts.table ? overviewTable(ws, spools) : overviewText(ws, spools, p),
         data: {
           workspace: ws.home.name,
           projects: spools.map((spool) => {
             const d = docket(ws, spool);
             return {
+              rows: tableRows(ws, d).map((r) => ({ n: r.n, id: r.item.id, title: r.item.title, mark: r.mark, note: r.note })),
               name: spool.name,
               path: spool.root,
               needsYou: json(d.needsYou),
