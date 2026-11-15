@@ -132,7 +132,7 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     ]);
     assert.ok(feed.indexOf('human · event · moved to build') < feed.indexOf('agent · asked · Outline the coins, or turn them teal?'));
     assert.ok(feed.indexOf('Claude Fable 5.2 · event · started') < feed.indexOf('Claude Fable 5.2 · shipped · Coins have a teal rim at sunset'));
-    assert.match(html, /Claude[\s\S]*not the official mark/);
+    assert.match(html, /const CLAUDE = '<svg viewBox="0 0 24 24" fill="#D97757" role="img" aria-label="Claude"><path d="m4\.7144 15\.9555/, 'Claude is shown by its own mark');
     assert.equal((await post('complete', { id: coins })).status, 200);
     assert.ok(s.json('show', coins).item.reviewed, 'approved, as the human');
     assert.equal((await board()).columns.done.find((c: any) => c.id === coins).complete, true);
