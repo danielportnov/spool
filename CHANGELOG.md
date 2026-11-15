@@ -2,6 +2,12 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.12.1 · 2026-11-15
+
+- The Backlog view shows as soon as you click it.
+- Claude is shown by its own logo on a thread.
+- The README sets a beginner up from nothing but a Claude account.
+
 ## 0.12.0 · 2026-11-15
 
 - Sprints, with no dates: make one, fill it from the backlog, press ▶ on it and everything in it is
