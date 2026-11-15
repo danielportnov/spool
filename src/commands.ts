@@ -50,7 +50,7 @@ import {
 } from './render.ts';
 import { blockers, children, dependents, docket, findCycle, ready, review, stateOf, taskState } from './schedule.ts';
 import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, writeSkill } from './skills.ts';
-import { SPOOL_DIR, type Workspace, findHome, readConfig, skillsDir } from './store.ts';
+import { SPOOL_DIR, type Workspace, findFolder, findHome, readConfig, skillsDir } from './store.ts';
 
 export type Options = NonNullable<ParseArgsConfig['options']>;
 export type Values = Record<string, string | boolean | (string | boolean)[] | undefined>;
@@ -1283,16 +1283,19 @@ export const COMMANDS: Command[] = [
   {
     name: 'init',
     group: 'setup',
-    usage: 'init [--name <name>] [--about <one line>] [--no-agents-file]',
-    summary: 'Start a spool in this directory',
+    usage: 'init [<folder>] [--name <name>] [--about <one line>] [--no-agents-file] [--refresh]',
+    summary: 'Start a spool in this directory, or in a folder named here; does nothing where one exists',
     options: {
       name: { type: 'string' },
       about: { type: 'string' },
       'no-agents-file': { type: 'boolean' },
+      refresh: { type: 'boolean' },
     },
-    bare({ ctx, opts, p }) {
-      const root = ctx.cwd;
+    bare({ ctx, args, opts, p }) {
+      // A folder may be named the way a person says it: "sky hop" finds games/sky_hop.
+      const root = args.length ? findFolder(ctx.cwd, args.join(' ')) : ctx.cwd;
       const dir = path.join(root, SPOOL_DIR);
+      const where = path.relative(ctx.cwd, root);
       const wrote: string[] = [];
       const write = (file: string, text: string, overwrite = false): void => {
         if (!overwrite && fs.existsSync(file)) return;
@@ -1302,15 +1305,27 @@ export const COMMANDS: Command[] = [
       };
 
       const fresh = !fs.existsSync(path.join(dir, 'config.json'));
+      // Run by accident where a spool exists, this changes nothing. --refresh is the deliberate version:
+      // after an upgrade, it brings the agents' pointer up to date and puts back anything missing.
+      if (!fresh && !opts.refresh) {
+        const name = readConfig(root).name ?? path.basename(root);
+        return {
+          text: [
+            `Spool is already set up in ${p.bold(name)}${where ? p.dim(`  · ${where}`) : ''}. Nothing was changed.`,
+            p.dim(`  see where it stands: spool overview${where ? ` -C ${where}` : ''}`),
+          ].join('\n'),
+          data: { root, created: false, wrote },
+        };
+      }
       const parent = findHome(path.dirname(root));
       if (fresh) {
         const config: Config = { version: 1, name: str(opts.name) ?? path.basename(root) };
         if (str(opts.about)) config.about = str(opts.about);
         write(path.join(dir, 'config.json'), `${JSON.stringify(config, null, 2)}\n`);
-        write(path.join(dir, 'policy.md'), DEFAULT_POLICY);
-        write(path.join(dir, '.gitignore'), '.lock\n*.tmp\n');
-        fs.mkdirSync(path.join(dir, 'items'), { recursive: true });
       }
+      write(path.join(dir, 'policy.md'), DEFAULT_POLICY);
+      write(path.join(dir, '.gitignore'), '.lock\n*.tmp\n');
+      fs.mkdirSync(path.join(dir, 'items'), { recursive: true });
       const config = readConfig(root);
       const spool: Spool = { root, dir, name: config.name ?? path.basename(root), home: true, config };
 
@@ -1324,9 +1339,13 @@ export const COMMANDS: Command[] = [
         }
       }
 
-      const out = [fresh ? `Spool is set up in ${p.bold(spool.name)}.` : `${p.bold(spool.name)} already has a spool; refreshed what was missing.`];
+      const out = [
+        fresh
+          ? `Spool is set up in ${p.bold(spool.name)}${where ? p.dim(`  · ${where}`) : ''}.`
+          : `${p.bold(spool.name)}: ${wrote.length ? 'refreshed.' : 'already up to date.'}`,
+      ];
       if (wrote.length) out.push(...wrote.map((f) => p.dim(`  wrote ${f}`)));
-      if (parent) out.push(`It sits under ${path.basename(parent)} and shows up there as a project.`);
+      if (fresh && parent) out.push(`It sits under ${path.basename(parent)} and shows up there as a project.`);
       const skills = installedIn(userSkillsDir(ctx)) || installedIn(skillsDir(spool));
       if (!skills) out.push('', 'The Spool skills are not installed for your agent yet. Once per machine:  spool install');
       if (fresh) {

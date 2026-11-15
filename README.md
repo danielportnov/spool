@@ -36,7 +36,7 @@ You use Spool by talking to your agent. Five skills, and one that lists them:
 
 | Skill | What it does | Use it |
 | --- | --- | --- |
-| `/spool-init` | Sets Spool up in this folder or repo | once per project |
+| `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
 | `/spool-recorder` | Turns a chat into the recorder: talk or type, and everything is filed as work | whenever you have feedback or an idea |
 | `/spool-loop [hours]` | Agents work the docket until nothing can move without you, and come back every `hours` | to get work going, and keep it going |
 | `/spool-blockers` | Walks you through what agents need from you: questions, go-aheads, anything to undo | when the loop says it is waiting on you |
@@ -71,6 +71,9 @@ Then, in your agent, in any project:
 ```
 /spool-init
 ```
+
+From a folder of projects, name the one you mean, however you would say it: `/spool-init sky hop`
+sets up `games/sky_hop`. Run it where Spool is already set up and it changes nothing, and says so.
 
 ## What it looks like
 
@@ -478,7 +481,7 @@ These are the verbs the skills run. They are here for reference, and for buildin
 | Set up | |
 | --- | --- |
 | `spool install [--here \| --dir path] [--force]` | Put the skills where your agent finds them |
-| `spool init [--name n] [--about line]` | Start a spool in this directory (`/spool-init` does this) |
+| `spool init [folder] [--name n] [--about line] [--refresh]` | Start a spool here or in a named folder; a no-op where one exists, unless `--refresh` |
 | `spool loop [--watch s] [--agent cmd]` | Work the queue with no chat |
 
 Every command takes `--json`, `-C <dir>` and `--as <name>`. Errors say what to do instead.

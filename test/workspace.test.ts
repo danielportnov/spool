@@ -7,7 +7,7 @@ function studio(): Sandbox {
   const s = new Sandbox();
   s.sp('init', '--name', 'studio');
   s.write('games/sky_hop/README.md', '# Sky Hop\n\nA platformer about hopping between clouds.\n');
-  s.cd('games/sky_hop').sp('init');
+  assert.match(s.cd('games/sky_hop').sp('init'), /sits under .* and shows up there as a project/);
   s.cd('apps/tidy_up').sp('init', '--about', 'A chore tracker');
   s.cd('sites/plain').write('index.html', '<html>');
   // Projects are never looked for inside dependency or build directories.
@@ -22,8 +22,8 @@ test('a workspace is the spool you are in plus every spool below it', () => {
     status.projects.map((p: { name: string }) => p.name),
     ['studio', 'apps/tidy_up', 'games/sky_hop'],
   );
-  assert.match(s.sp('init'), /already has a spool/);
-  assert.match(s.cd('games/sky_hop').sp('init'), /sits under .* and shows up there as a project/);
+  assert.match(s.sp('init'), /already set up in studio\. Nothing was changed/);
+  assert.match(s.sp('init', 'sky hop'), /already set up in sky_hop {2}· games\/sky_hop\. Nothing was changed/);
   s.cleanup();
 });
 

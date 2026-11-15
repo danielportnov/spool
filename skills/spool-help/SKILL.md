@@ -14,7 +14,7 @@ Show this table as it is:
 
 | Skill | What it does | Use it |
 | --- | --- | --- |
-| `/spool-init` | Sets Spool up in this folder or repo | once per project |
+| `/spool-init [folder]` | Sets Spool up in this folder or repo, or in one inside it that you name | once per project |
 | `/spool-recorder` | Turns a chat into the recorder: talk or type, and everything is filed as work | whenever you have feedback or an idea |
 | `/spool-loop [hours]` | Agents work the docket until nothing can move without you, and come back every `hours` | to get work going, and keep it going |
 | `/spool-blockers` | Walks you through what agents need from you: questions, go-aheads, anything to undo | when the loop says it is waiting on you |

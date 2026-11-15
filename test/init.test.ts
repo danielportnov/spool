@@ -23,24 +23,65 @@ test('init lays down the store, the policy and a pointer for agents', () => {
   s.cleanup();
 });
 
-test('init is safe to run again and never clobbers what is there', () => {
+test('init run again by accident changes nothing, and says so', () => {
   const s = new Sandbox();
   s.write('CLAUDE.md', '# My project\n\nMy own rules.\n');
-  s.sp('init');
+  s.sp('init', '--name', 'demo');
   assert.equal(s.exists('AGENTS.md'), false, 'an existing CLAUDE.md is used instead of adding a file');
   const first = s.read('CLAUDE.md');
   assert.ok(first.startsWith('# My project\n\nMy own rules.\n\n<!-- spool:start -->'));
 
-  // Edits to the policy are kept; the block is not duplicated.
+  // Someone has since changed the policy, dropped the pointer and lost a file.
   s.write('.spool/policy.md', 'My policy.');
-  s.write('CLAUDE.md', `${first}\nMore of my rules.\n`);
-  s.sp('install');
-  const again = s.sp('init');
-  assert.match(again, /already has a spool/);
-  assert.doesNotMatch(again, /wrote|not installed/);
+  s.write('CLAUDE.md', '# My project\n');
+  s.sp('task', 'Something queued');
+  const again = s.exec(['init', '--name', 'other']);
+  assert.equal(again.code, 0);
+  assert.match(again.out, /^Spool is already set up in demo\. Nothing was changed\.\n {2}see where it stands: spool overview$/);
+  assert.equal(s.read('CLAUDE.md'), '# My project\n');
   assert.equal(s.read('.spool/policy.md'), 'My policy.');
+  assert.equal(JSON.parse(s.read('.spool/config.json')).name, 'demo');
+  assert.deepEqual(s.json('init'), { root: s.root, created: false, wrote: [] });
+  assert.match(s.sp('status'), /Something queued/);
+
+  // --refresh is the deliberate version: the pointer comes back, once, and what is yours is kept.
+  s.write('CLAUDE.md', `${first}\nMore of my rules.\n`);
+  assert.match(s.sp('init', '--refresh'), /^demo: already up to date\./);
+  s.write('CLAUDE.md', '# My project\n');
+  assert.match(s.sp('init', '--refresh'), /^demo: refreshed\.\n {2}wrote CLAUDE\.md/);
   assert.equal(s.read('CLAUDE.md').match(/spool:start/g)!.length, 1);
-  assert.ok(s.read('CLAUDE.md').endsWith('More of my rules.\n'));
+  assert.equal(s.read('.spool/policy.md'), 'My policy.');
+  s.cleanup();
+});
+
+test('init takes a folder inside this one, named the way you would say it', () => {
+  const s = new Sandbox();
+  s.write('games/sky_hop/README.md', '# Sky Hop\n');
+  s.write('apps/tidy-up/README.md', '# Tidy Up\n');
+  s.write('apps/tidy-up/TidyUp/App.swift', '// a folder of the same name inside: the outer one is the project');
+  s.write('apps/tools/README.md', '');
+  s.write('games/tools/README.md', '');
+  s.write('node_modules/sky-hop/index.js', '');
+
+  // By name, however it is spelled or spoken; by path; and from a parent that has no spool at all.
+  assert.match(s.sp('init', 'sky', 'hop'), /^Spool is set up in sky_hop {2}· games\/sky_hop\./);
+  assert.ok(s.exists('games/sky_hop/.spool/config.json'));
+  assert.ok(s.exists('games/sky_hop/AGENTS.md'));
+  assert.equal(s.exists('.spool'), false, 'the folder you ran it from is left alone');
+  assert.match(s.sp('init', 'tidyup', '--name', 'Tidy Up'), /^Spool is set up in Tidy Up {2}· apps\/tidy-up\./);
+  assert.match(s.sp('init', 'apps/tools'), /^Spool is set up in tools {2}· apps\/tools\./);
+
+  // Asking again for one that is set up changes nothing there either.
+  assert.match(s.sp('init', 'Sky Hop'), /^Spool is already set up in sky_hop {2}· games\/sky_hop\. Nothing was changed\.\n.*spool overview -C games\/sky_hop$/);
+
+  // It never guesses, and never makes a folder up.
+  assert.match(s.fails('init', 'tools'), /"tools" matches several folders: apps\/tools, games\/tools[\s\S]*by its path/);
+  assert.match(s.fails('init', 'star map'), /no folder "star map" here/);
+  assert.equal(s.exists('star map'), false);
+
+  // Once the parent has a spool too, the ones below show up in it as projects.
+  s.sp('init', '--name', 'studio');
+  assert.match(s.sp('status'), /studio · 4 projects[\s\S]*apps\/tidy-up[\s\S]*games\/sky_hop/);
   s.cleanup();
 });
 
@@ -103,7 +144,7 @@ test('install can target a project, or any skills directory', () => {
   assert.match(s.sp('install', '--here'), /Spool skills in .*\.claude\/skills\n {2}installed/);
   assert.ok(s.exists('.claude/skills/spool-loop/SKILL.md'));
   assert.equal(s.exists('.home/.claude'), false);
-  assert.doesNotMatch(s.sp('init'), /not installed/, 'skills checked into the project count');
+  assert.doesNotMatch(s.sp('init', '--refresh'), /not installed/, 'skills checked into the project count');
   assert.doesNotMatch(s.sp('skills'), /spool-loop/, "Spool's own skills are not listed among the project's procedures");
 
   s.sp('install', '--dir', 'elsewhere/skills');

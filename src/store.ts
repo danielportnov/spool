@@ -81,6 +81,41 @@ export function findHome(from: string): string | null {
   }
 }
 
+/**
+ * A folder below `from`, given the way a person would say it: a path, or just
+ * its name, spoken loosely ("sky hop" for games/sky_hop). An exact path
+ * wins; otherwise the name must match exactly one folder within a few levels.
+ */
+export function findFolder(from: string, ref: string, maxDepth = 4): string {
+  const exact = path.resolve(from, ref);
+  if (fs.existsSync(exact) && fs.statSync(exact).isDirectory()) return exact;
+  const norm = (text: string) => text.toLowerCase().replace(/[\s_.-]+/g, '');
+  const want = norm(ref.replace(/[\\/]+$/, ''));
+  if (!want) throw new SpoolError('which folder?');
+  const found: string[] = [];
+  const walk = (dir: string, depth: number): void => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.') || SKIP.has(entry.name)) continue;
+      const child = path.join(dir, entry.name);
+      // "sky hop" names the folder; "games/sky hop" names it by its path from here.
+      // A project often holds a folder of its own name (an Xcode or Unity project, a package). The outer one is meant.
+      if (norm(entry.name) === want || norm(toPosix(path.relative(from, child)).replaceAll('/', '')) === want.replaceAll('/', '')) found.push(child);
+      else if (depth < maxDepth) walk(child, depth + 1);
+    }
+  };
+  walk(from, 1);
+  const shown = (dirs: string[]) => dirs.map((d) => toPosix(path.relative(from, d))).join(', ');
+  if (found.length === 1) return found[0]!;
+  if (found.length > 1) throw new SpoolError(`"${ref}" matches several folders: ${shown(found)}`, 'Say which, by its path');
+  throw new SpoolError(`no folder "${ref}" here`, 'Give a path, or the name of a folder within this one');
+}
+
 export function readConfig(root: string): Config {
   const file = path.join(root, SPOOL_DIR, 'config.json');
   try {
