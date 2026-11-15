@@ -8,6 +8,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { COMMANDS, type Command, type Options, type Result, type Values } from './commands.ts';
@@ -125,6 +126,8 @@ export function run(argv: string[], ctx: Ctx): number {
   const json = argv.includes('--json');
   try {
     const { result, json: asJson } = dispatch(argv, ctx);
+    // `spool mcp` returns with nothing to say: its output is the conversation that follows, and nothing else may be on stdout.
+    if (!result.text && result.data === undefined) return result.code ?? 0;
     if (asJson) ctx.out(JSON.stringify(result.data ?? { text: result.text }, null, 2));
     else if (result.text) ctx.out(result.text);
     return result.code ?? 0;
@@ -152,6 +155,8 @@ if (isMain()) {
     err: (text) => process.stderr.write(`${text}\n`),
     now: () => new Date(),
     stdin: () => fs.readFileSync(0, 'utf8'),
+    // Nothing here waits: the process stays up while stdin is open, and ends by itself when it closes.
+    lines: (each) => void readline.createInterface({ input: process.stdin, crlfDelay: Infinity }).on('line', each),
     color: !!process.stdout.isTTY && !process.env.NO_COLOR,
     inherit: true,
   });

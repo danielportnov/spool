@@ -56,6 +56,7 @@ export class Sandbox {
       err: (text) => err.push(text),
       now: () => new Date(this.clock.now),
       stdin: () => options.stdin ?? '',
+      lines: (each) => (options.stdin ?? '').split('\n').forEach((line) => each(line)),
       color: false,
       inherit: false,
     });

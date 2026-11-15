@@ -25,6 +25,11 @@ export interface Ctx {
   now: () => Date;
   /** Piped input, read on demand for `--body -`. */
   stdin: () => string;
+  /**
+   * Piped input as it arrives, a line at a time. For `spool mcp`, the one command that holds a
+   * conversation instead of running once: this returns at once, and the lines come later.
+   */
+  lines: (each: (line: string) => void) => void;
   color: boolean;
   /** Let a launched agent write straight to the terminal instead of being captured. */
   inherit: boolean;
