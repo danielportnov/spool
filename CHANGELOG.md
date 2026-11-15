@@ -2,6 +2,13 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.14.0 · 2026-11-15
+
+- A lock for the gate: `spool init --lock`. The commands that start work then run only for a person,
+  on the page or at their own terminal; an agent is refused.
+- **Add to Build** at the foot of the backlog moves everything it is showing, after every filter.
+- `docs/how-it-works.md` is rewritten for Spool as it is now.
+
 ## 0.13.0 · 2026-11-15
 
 - Each column on the board sorts and filters by itself, and remembers it.
