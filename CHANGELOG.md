@@ -2,6 +2,14 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.6.0 · 2026-11-15
+
+- Before each thread the loop talks it through in plain words — what it is, why it is next, its
+  plan — and builds on your word: go, change it, or pick another.
+- The loop adds its own ideas to the spool as ✨ AI suggested. They wait for your yes.
+- The recorder gives every thread a short spec: what, why, done when.
+- What you agree in a talk is written on the thread, so the context lives in the spool.
+
 ## 0.5.0 · 2026-11-15
 
 - The loop is simpler. Every run shows one table of every open thread, numbered in the order it
