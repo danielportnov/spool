@@ -154,7 +154,7 @@ test('every command a skill tells an agent to run exists', () => {
 test('the loop skill is a cycle: take stock, check in, work, wrap up', () => {
   const loop = shipped('spool-loop');
   const headings = [...loop.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
-  assert.deepEqual(headings, ['How it was called', 'Start', 'The schedule', 'Take stock', 'Check in', 'Work', 'Wrap up', 'Working a thread']);
+  assert.deepEqual(headings, ['How it was called', 'Start', 'The schedule', 'Take stock', 'Check in', 'Work', 'Wrap up', 'Reaching them', 'Working a thread']);
 
   // Three hours unless told otherwise, and the schedule's own prompt can never set a second schedule.
   assert.match(loop, /\| `\/spool-loop` \| Start the loop, a cycle every 3 hours\./);
@@ -169,6 +169,9 @@ test('the loop skill is a cycle: take stock, check in, work, wrap up', () => {
   // The check-in shows the whole spool, then a proposal nobody can miss, then the questions.
   assert.match(loop, /\*\*A spool 🧶 holds threads 🧵\.\*\*/);
   assert.match(loop, /\*\*1\. 🧶 The spool\.\*\*[\s\S]*\*\*2\. 🎯 The proposal\.\*\*[\s\S]*In the\nnext `<hours>` hours I propose to ship[\s\S]*\*\*3\. ❓ Questions\.\*\*/);
+
+  // It reaches the human through the harness's own notifications, and only when they would act.
+  assert.match(loop, /## Reaching them[\s\S]*A check-in is posted[\s\S]*A question stops a thread mid-cycle[\s\S]*Nothing can move without them[\s\S]*`PushNotification`/);
 
   // Every way in is covered by the description an agent matches on, and every skill agrees on the default.
   assert.match(String(parseFrontmatter(loop).data.get('description')), /three unless told otherwise[\s\S]*a proposal of what to ship[\s\S]*\/spool-loop \[hours\]/);

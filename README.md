@@ -454,8 +454,11 @@ repository and running `spool` in it cannot run that repository's code.
 
 ## Running it
 
-**Notifications.** Set a command and Spool runs it when a worker asks you something, or when the loop
-runs dry with questions outstanding. Details arrive in `SPOOL_EVENT`, `SPOOL_TITLE`, `SPOOL_ID` and
+**Notifications.** In a chat, the loop reaches you through your harness's own notifications (in
+Claude Code, on your desktop, and on your phone when Remote Control is connected), with nothing to set
+up: when a check-in is waiting, when a question stops a thread, and when nothing can move without you.
+For the no-chat runner, or anywhere else, set a command and Spool runs it when a worker asks you
+something, or when the loop runs dry with questions outstanding. Details arrive in `SPOOL_EVENT`, `SPOOL_TITLE`, `SPOOL_ID` and
 `SPOOL_PROJECT`:
 
 ```json

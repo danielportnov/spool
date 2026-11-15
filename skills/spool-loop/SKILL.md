@@ -195,6 +195,28 @@ No ids and no tables unless they ask. Then end the turn, and keep the schedule:
 answers and new feedback arrive between cycles, and the next one picks them
 up. A cycle that finds nothing it can move says what it is waiting on, and ends.
 
+## Reaching them
+
+The human is usually somewhere else, and a notification is how the loop gets
+them back. Each one costs them their attention, so send only what they would
+act on, at these three moments:
+
+- **A check-in is posted** on a cycle the schedule started, or with questions
+  in it: "Spool check-in: 2 questions. Starting on the jump at 7:47."
+- **A question stops a thread mid-cycle:** once, when you ask it, in the words
+  of the question: "Spool needs you: outline the coins, or teal?"
+- **Nothing can move without them**, at the wrap-up: "Spool is waiting on you:
+  3 questions. Nothing else can move."
+
+Never for a finished thread, for progress, or for a wrap-up with nothing waiting.
+
+- **In Claude Code:** the `PushNotification` tool: a desktop notification, and
+  their phone when Remote Control is connected. One line, under 200
+  characters, leading with what they would act on. "Not sent" means they are
+  already here; carry on.
+- No notification tool? `spool ask` already runs their notifier command, if
+  they set one. Do nothing more.
+
 ## Working a thread
 
 A thread 🧵 is one piece of work in a project's spool 🧶. The commands call it a
