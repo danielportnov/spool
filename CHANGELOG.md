@@ -9,6 +9,10 @@ What shipped in each version of Spool, newest first.
   pick on the ticket's **Model** field, or `spool edit <id> --model <m> --effort <e>`, always wins.
   If Fable cannot answer, the size decides, from Sonnet for a tiny fix up to Fable at xhigh for a
   huge one. `"router": false` in your config skips Fable; your own table goes under `models`.
+- See what a page-built agent is doing: `claude -p` is run with `--output-format stream-json
+  --verbose`, the card's live lines show its messages and tool calls, and the whole stream is kept
+  in `.spool/runs/<thread>/`, out of git. The thread's log gets the session id (`claude --resume
+  <id>` opens it) and every tool call the agent was refused.
 
 ## 0.16.0 · 2026-11-15
 

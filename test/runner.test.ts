@@ -198,6 +198,58 @@ test('a page stopped mid-build puts its thread back, and a page starting up resc
   }
 });
 
+test('the agent’s stream is kept with the thread: its steps, a denied tool call, and its session', async () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop', '--gate');
+  const jump = s.id('task', 'Tighten the jump arc');
+  s.sp('build', jump);
+  const events = [
+    { type: 'system', subtype: 'init', session_id: 'abc-123', model: 'claude-opus-5-5' },
+    {
+      type: 'assistant',
+      session_id: 'abc-123',
+      message: { content: [{ type: 'text', text: 'Reading the jump code.' }, { type: 'tool_use', name: 'Bash', input: { command: 'rm -rf build' } }] },
+    },
+    { type: 'user', session_id: 'abc-123', message: { content: [{ type: 'tool_result', is_error: true, content: 'This command requires approval' }] } },
+    {
+      type: 'result',
+      subtype: 'success',
+      session_id: 'abc-123',
+      num_turns: 3,
+      result: 'Could not clean the build.',
+      permission_denials: [{ tool_name: 'Bash', tool_input: { command: 'rm -rf build' } }],
+    },
+  ];
+  const stream = path.join(s.root, 'stream.jsonl');
+  fs.writeFileSync(stream, events.map((e) => JSON.stringify(e)).join('\n') + '\n');
+  const worker = agent(s, 'worker.sh', `cat "${stream}"; echo "a warning" >&2; sleep 1; exit 1`);
+  const { child, url } = await startPage(s, '--run', '--agent', worker, '--port', String(58000 + (process.pid % 1500)));
+  try {
+    const board = async () => (await (await fetch(`${url}api/board`)).json()) as Record<string, any>;
+    const live = await until('the steps are heard', async () => { const b = await board(); return b.runner.current?.lines.length >= 6 && b; });
+    assert.deepEqual(live.runner.current.lines.slice(0, 6), [
+      'session abc-123 · claude-opus-5-5',
+      'Reading the jump code.',
+      '→ Bash: rm -rf build',
+      '✗ This command requires approval',
+      'denied → Bash: rm -rf build',
+      'finished · 3 turns — Could not clean the build.',
+    ]);
+    await until('the run is over', async () => { const b = await board(); return !b.runner.current && b.runner.recent[0]; });
+    const item = s.item(jump);
+    const kept = /page: session abc-123 · transcript (\.spool\/runs\/[\w-]+\/[\w-]+\.jsonl) · open it with `claude --resume abc-123`/.exec(item);
+    assert.ok(kept, item);
+    assert.match(item, /page: permission denied: Bash: rm -rf build/);
+    const saved = fs.readFileSync(path.join(s.root, kept[1]!), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    assert.deepEqual(saved.slice(0, 4), events, 'the stream is kept as it came');
+    assert.deepEqual(saved[4], { type: 'stderr', text: 'a warning' });
+    assert.equal(fs.readFileSync(path.join(s.root, '.spool', 'runs', '.gitignore'), 'utf8').split('\n')[1], '*', 'transcripts stay out of git');
+  } finally {
+    child.kill();
+    s.cleanup();
+  }
+});
+
 test('the runner is off unless asked for: opening the page builds nothing', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop', '--gate');

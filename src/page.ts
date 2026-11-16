@@ -55,6 +55,7 @@ import { prime } from './prime.ts';
 import { age, brief, paint, sprintAbout, tableRows } from './render.ts';
 import { blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
 import { Workspace } from './store.ts';
+import { hearLine, streaming, transcriptFile } from './stream.ts';
 
 type Column = 'proposed' | 'build' | 'building' | 'done';
 
@@ -173,7 +174,7 @@ interface Post {
 }
 
 /** The queue's own log lines: what moved where. Anything else an agent logged is something it had to say. */
-const BOOKKEEPING = /^(started|check passed|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |reverted|reopened|dropped|agreed|filed )/;
+const BOOKKEEPING = /^(started|check passed|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |session |transcript |reverted|reopened|dropped|agreed|filed )/;
 
 function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['steps']): Post[] {
   const words: Post[] = said.map((s) => ({
@@ -642,7 +643,7 @@ export class Runner {
       try {
         task = ready(ws, this.project).find((t) => this.gaveUp.get(t.id) !== t.updated);
         if (!task) return;
-        command = commandFor(this.agent, pickFor(task, models));
+        command = streaming(commandFor(this.agent, pickFor(task, models)));
         asker = routerCommand(this.agent, task, models, router);
         task.status = 'active';
         task.by = this.name();
@@ -695,7 +696,7 @@ export class Runner {
       }
       const routed = code === 0 ? parseRoute(out) : undefined;
       const note = routeNote(routed, routed ? undefined : code === 0 ? 'no answer it could read' : how);
-      const command = commandFor(this.agent, pickFor(task, userConfig(this.ctx).models, routed));
+      const command = streaming(commandFor(this.agent, pickFor(task, userConfig(this.ctx).models, routed)));
       let still = true;
       try {
         const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
@@ -749,26 +750,105 @@ export class Runner {
     });
     const run = { id: task.id, title: task.title, child, lines: [] as string[], began: Date.now(), stopped: false };
     this.current = run;
-    const hear = (chunk: Buffer): void => {
-      // What the agent prints, without the terminal's colour codes, a line at a time.
-      for (const line of chunk.toString('utf8').replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').split('\n')) {
-        if (line.trim()) run.lines.push(line.trimEnd().slice(0, 400));
+    // Everything the agent prints is kept with the thread as it came, stderr as events of its own.
+    let transcript: string | undefined;
+    let keep: number | undefined;
+    try {
+      transcript = transcriptFile(task.spool.dir, task.id, new Date(run.began));
+      keep = fs.openSync(transcript, 'a');
+    } catch {
+      transcript = undefined; // Nowhere to keep it; the run goes ahead without.
+    }
+    const shown = transcript ? path.relative(task.spool.root, transcript) : '';
+    const keepRaw = (text: string): void => {
+      if (keep === undefined) return;
+      try {
+        fs.writeSync(keep, text);
+      } catch {
+        // A full disk loses the transcript, not the run.
       }
-      if (run.lines.length > LIVE_LINES) run.lines.splice(0, run.lines.length - LIVE_LINES);
     };
-    child.stdout!.on('data', hear);
-    child.stderr!.on('data', hear);
+    // What goes on the thread's log: its session, and each tool call it was refused.
+    const notes: string[] = [];
+    let session: string | undefined;
+    const hear = (line: string): void => {
+      // A line at a time, without the terminal's colour codes.
+      const heard = hearLine(line.replace(/\x1b\[[0-9;]*[A-Za-z]/g, ''));
+      for (const l of heard.lines) run.lines.push(l.slice(0, 400));
+      if (run.lines.length > LIVE_LINES) run.lines.splice(0, run.lines.length - LIVE_LINES);
+      let tell = false;
+      if (heard.session && !session) {
+        session = heard.session;
+        notes.push(`session ${session}${shown ? ` · transcript ${shown}` : ''} · open it with \`claude --resume ${session}\``);
+        tell = true;
+      }
+      for (const d of heard.denials ?? []) {
+        notes.push(`permission denied: ${d}`);
+        tell = true;
+      }
+      if (tell) this.note(task.id, notes);
+    };
+    const reader = (stderr: boolean) => {
+      let rest = '';
+      const take = (part: string): void => {
+        if (stderr && part.trim()) keepRaw(`${JSON.stringify({ type: 'stderr', text: part })}\n`);
+        hear(part);
+      };
+      return {
+        data: (chunk: Buffer): void => {
+          const text = chunk.toString('utf8');
+          if (!stderr) keepRaw(text);
+          const parts = (rest + text).split('\n');
+          rest = parts.pop() ?? '';
+          parts.forEach(take);
+        },
+        flush: (): void => {
+          if (rest) take(rest);
+          rest = '';
+        },
+      };
+    };
+    const out = reader(false);
+    const err = reader(true);
+    child.stdout!.on('data', out.data);
+    child.stderr!.on('data', err.data);
     child.stdin!.on('error', () => {});
     child.stdin!.end(prompt);
     let over = false;
     const end = (how: string): void => {
       if (over) return;
       over = true;
+      out.flush();
+      err.flush();
+      if (keep !== undefined) fs.closeSync(keep);
       fs.rmSync(file, { force: true });
+      // A run with no session still says where its transcript is; notes the store was too busy for go now.
+      if (!session && transcript && fs.statSync(transcript).size > 0) notes.push(`transcript ${shown}`);
+      this.note(task.id, notes);
       this.settle(run, how);
     };
     child.on('error', (error) => end(`could not start (${error.message})`));
     child.on('exit', (code, signal) => end(`exited ${code ?? signal}`));
+  }
+
+  /** Write a run's notes on its thread and empty the list; if the store is busy they wait for the next try. */
+  private note(id: string, notes: string[]): void {
+    if (!notes.length) return;
+    try {
+      const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
+      try {
+        const task = ws.find(id);
+        if (task) {
+          for (const n of notes) addLog(task, 'page', n, ws.now());
+          ws.save(task);
+        }
+        notes.length = 0;
+      } finally {
+        ws.close();
+      }
+    } catch {
+      // Busy for an instant; they go with the next note, or when the agent exits.
+    }
   }
 
   private settle(run: NonNullable<Runner['current']>, how: string): void {
