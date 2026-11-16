@@ -73,7 +73,7 @@ test('a stopped thread is carried on in the session it was in, told only what is
     const [first] = fake.args();
     const session = new RegExp(`--session-id (${UUID})$`).exec(first!)?.[1];
     assert.ok(session, `the session is Spool's choice: ${first}`);
-    assert.match(s.item(jump), new RegExp(`page: handed to \`[^\`]*claude -p --model haiku --effort low --output-format stream-json --verbose --input-format stream-json --session-id ${session}\``));
+    assert.match(s.item(jump), new RegExp(`page: handed to \`[^\`]*claude -p --model haiku --effort low --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool stdio --session-id ${session}\``));
     assert.equal(leftOff(s.json('show', jump).item), undefined, 'nothing to carry on while it is being built');
 
     // Stopped, it waits. The human writes on it, and carries on.
@@ -87,7 +87,7 @@ test('a stopped thread is carried on in the session it was in, told only what is
     // The same session, picked up: the same model, nobody asked to choose it again, and one line for what happened.
     assert.deepEqual(fake.args(), [first, first!.replace('--session-id', '--resume')]);
     assert.equal(fake.read('routed.txt'), 'asked\n');
-    assert.match(s.item(jump), new RegExp(`page: handed to \`[^\`]*claude -p --model haiku --effort low --output-format stream-json --verbose --input-format stream-json --resume ${session}\``));
+    assert.match(s.item(jump), new RegExp(`page: handed to \`[^\`]*claude -p --model haiku --effort low --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool stdio --resume ${session}\``));
     assert.match(fake.prompt(1), /## Working a thread[\s\S]*YOUR TASK[\s\S]*the jump feels floaty/);
     const again = fake.prompt(2);
     assert.match(again, new RegExp(`earlier in this session, and it is yours again: ${jump} Tighten the jump arc\n\nThe human stopped you, and has now set you going again\\.\n\nSince you were last given the thread, the human has written on it:\n\n> keep gravity at 34\n\nThe human may write to you while you work[^\n]*\n\nCarry on from where you were\\.[^\n]*spool done`));

@@ -134,7 +134,7 @@ export function userConfig(ctx: Ctx): UserConfig {
  * Tell the human something needs them. Runs the user's notifier with the
  * details in SPOOL_* variables; a missing or failing notifier is never an error.
  */
-export function notify(ctx: Ctx, event: 'ask' | 'plan' | 'idle', title: string, item?: Item): boolean {
+export function notify(ctx: Ctx, event: 'ask' | 'plan' | 'idle' | 'permission', title: string, item?: Item): boolean {
   const command = ctx.env.SPOOL_NOTIFY ?? userConfig(ctx).notify;
   if (!command) return false;
   spawnSync(command, {

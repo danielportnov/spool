@@ -585,6 +585,19 @@ what it says. When its turn ends it goes, as an agent always did; one that stops
 unfinished just after you wrote to it is kept five minutes for what you say next. Any other agent
 command is watched only: your reply waits on the thread for its next run.
 
+**It asks you before a tool it may not use.** A `claude -p` agent can only do what your agent
+command allows it. Until now a tool call outside that was refused in silence, and you found out
+after the run. Now the call waits, and the question is on the thread's card in Building and on its
+ticket: what it wants to run, what the agent said it is for, and three answers. **Allow once**
+lets that call through. **Allow for this run** also stops it asking again for the like until this
+run ends, by what Claude Code itself suggests for the call (hover the button to read it: a rule
+for the command, a folder, or file edits accepted); nothing is written to your settings. **No**
+refuses it, and on the ticket you can say why, which the agent is told. The thread's log says who
+allowed or refused what. The question waits ten minutes, then is refused. It only waits when
+someone is there: if no page has asked for the board in the last 30 seconds, it is refused at
+once, as before, so a sprint you walked away from never stops on a question. Your notifier is told
+when one waits (`SPOOL_EVENT` is `permission`).
+
 **Stop.** A card being built has a **■ Stop**. It ends that thread's agent at once, with anything
 the agent started, and one that does not listen is killed two seconds later; a `claude -p` agent
 is asked to stop first, so that its session knows it was stopped, and ended three seconds later if
@@ -689,7 +702,9 @@ left out, and where the gate is locked the tools that start work are refused the
 
 **Notifications outside a chat.** Put a command under `notify` in `~/.config/spool/config.json` and
 Spool runs it when an agent asks you something. The details arrive in `SPOOL_EVENT`, `SPOOL_TITLE`,
-`SPOOL_ID` and `SPOOL_PROJECT`.
+`SPOOL_ID` and `SPOOL_PROJECT`. The event is `ask` for a question, `plan` for a plan that waits
+for your go-ahead, `idle` when the loop has nothing left but questions, and `permission` when an
+agent the page runs needs your yes for a tool call.
 
 ## What Spool will not do
 

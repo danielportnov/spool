@@ -12,6 +12,8 @@
  * the next run picks that session up, told only what has changed since (`leftOff`, `carryOn`).
  * Such a session can also be spoken to while it works: a note the human writes on a thread being
  * built is said to its agent within a second (`attend`), and Stop asks it to stop before ending it.
+ * And a tool call it needs a yes for comes here as a question (`asked`): held for the human where
+ * one is looking, to answer with `permit`, and refused at once where nobody is.
  *
  * There is no HTTP here, and nothing about requests: the page's server (`server.ts`) holds a
  * Runner and reads its fields, and anything else that builds can hold one the same way.
@@ -23,7 +25,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { act } from './act.ts';
 import { type Pick as Picked, ROUTER, type Routing, commandFor, parseRoute, pickFor, routeNote, routerCommand } from './agent.ts';
-import { type Builder, type Ctx, builderOf, parallelOf, saveBuilder, userConfig } from './context.ts';
+import { type Builder, type Ctx, builderOf, notify, parallelOf, saveBuilder, userConfig } from './context.ts';
 import { dirtyPaths, discardPaths, repoRoot } from './git.ts';
 import { DEFAULT_AGENT, PREAMBLE } from './loop.ts';
 import { type Item, type SpoolError, addLog, oneLine, splitBody, timestamp } from './model.ts';
@@ -34,7 +36,7 @@ import { ready, tasks } from './schedule.ts';
 import { type Session, askRouter, endAgent, pageRunning, promptFile, recall, remember, startSession } from './session.ts';
 import { atOnceIn, sharedFolderWhy } from './slots.ts';
 import { Workspace } from './store.ts';
-import { SESSION_ID, inSession, listening, listens, streaming } from './stream.ts';
+import { type Ask, SESSION_ID, asking, inSession, keeps, listening, listens, streaming } from './stream.ts';
 import { closeWorktree, openWorktree, workDir } from './worktree.ts';
 
 /** Whether the last claim on a thread was a page handing it to an agent, not someone starting it. */
@@ -74,6 +76,14 @@ for you. Finish it with \`spool done\`, or leave it waiting on a question, then 
 
 /** How long a session that ended its turn with its thread unfinished is kept for the human's next word, after their last. */
 const REPLY_WINDOW_MS = 5 * 60_000;
+
+/** A face that asked for the board this recently has someone looking at it. */
+const LOOKING_MS = 30_000;
+/** How long an agent's question waits for the human where someone is looking, before it is refused. */
+const ASK_WAIT_MS = 10 * 60_000;
+
+/** What an agent is told with a no that nobody gave: how to go on without the call. */
+const GO_ON = 'Do not look for another way to do the same thing. If the thread cannot be finished without it, say what you need with `spool ask`, and stop.';
 
 /** How a page's run of a thread ended with the thread put back in Build: by the line that put it back. */
 type Left = 'stopped' | 'unfinished' | 'cut off';
@@ -180,6 +190,24 @@ export interface Live {
   lines: string[];
   /** A note written on its thread reaches its agent while it works. False for an agent that is only watched. */
   listens: boolean;
+  /** The tool call its agent needs a yes for and is waiting on, if it is waiting on one: the oldest, where there are several. */
+  asking: Asking | null;
+}
+
+/** An agent's question, as a face shows it. It is answered with `permit`. */
+export interface Asking {
+  /** The question's id, to answer it by. */
+  ask: string;
+  tool: string;
+  /** The call in short, as the agent's own lines show it: "Bash: npm publish --dry-run". */
+  what: string;
+  /** What the agent said the call is for, where it said. */
+  why: string;
+  /** What a yes for the rest of this run would allow without asking again. Empty where a yes can only be for the once. */
+  rest: string;
+  /** When it asked, and when it is refused if nobody has answered. */
+  since: string;
+  until: string;
 }
 
 /** What one try at handing out a thread came to: an agent started, nothing there to hand out, or a thread that could not be started. */
@@ -230,6 +258,10 @@ export class Runner {
   handedOut = 0;
   /** How long a session that ended its turn with its thread unfinished is kept for the human's next word, after their last. */
   replyWindow = REPLY_WINDOW_MS;
+  /** How long an agent's question waits for the human's answer before it is refused. */
+  askWait = ASK_WAIT_MS;
+  /** When a face last asked what there is to show. */
+  private seen = 0;
   /** How the last few threads it ran turned out, newest first. */
   recent: { id: string; title: string; outcome: string }[] = [];
   private gaveUp = new Map<string, string>();
@@ -365,12 +397,65 @@ export class Runner {
 
   /** What each run is doing now, for a face to draw. */
   live(): Live[] {
-    return [...this.runs.values()].map((run) => ({
-      id: run.id,
-      seconds: Math.round((Date.now() - run.began) / 1000),
-      lines: run.lines,
-      listens: !!run.session?.listens,
-    }));
+    return [...this.runs.values()].map((run) => {
+      const ask = run.session?.asking[0];
+      return {
+        id: run.id,
+        seconds: Math.round((Date.now() - run.began) / 1000),
+        lines: run.lines,
+        listens: !!run.session?.listens,
+        asking: ask
+          ? { ask: ask.id, tool: ask.tool, what: ask.call, why: ask.why, rest: keeps(ask), since: new Date(ask.since).toISOString(), until: new Date(ask.since + this.askWait).toISOString() }
+          : null,
+      };
+    });
+  }
+
+  /** A face has just asked what there is to show: someone is looking. */
+  looked(): void {
+    this.seen = Date.now();
+  }
+
+  /**
+   * An agent needs a yes for a tool call. With someone looking it waits for them, and the notifier
+   * is told. With nobody looking it is refused at once, as an agent with nobody to ask always
+   * was, so that a sprint the human walked away from never stops on a question.
+   */
+  private asked(run: Run, task: Item, ask: Ask): void {
+    if (Date.now() - this.seen >= LOOKING_MS) {
+      run.session?.answer(ask.id, 'no', `Refused: nobody is at Spool to allow it. ${GO_ON}`);
+      return;
+    }
+    // After this line is read, so that a slow notifier holds nothing up that was already here.
+    setImmediate(() => notify(this.ctx, 'permission', `${run.id} needs your yes: ${ask.call}`, task));
+  }
+
+  /**
+   * The human's answer to an agent's question: yes for this call (`once`), yes for the rest of
+   * the run (`run`), or `no`, with a reason the agent is told. It goes back to the agent, which
+   * has been waiting, and onto the thread's log.
+   */
+  permit(id: string, askId: string, how: 'once' | 'run' | 'no', why = ''): { ok: boolean; text: string } {
+    const run = this.runs.get(id);
+    const ask = run?.session?.asking.find((a) => a.id === askId);
+    if (!run?.session || !ask) return { ok: false, text: 'That question is no longer open.' };
+    const rest = how === 'run' ? keeps(ask) : '';
+    const reason = oneLine(why, 300);
+    const told = reason ? `The human refused this, and said: ${reason}` : `The human refused this. ${GO_ON}`;
+    if (!run.session.answer(ask.id, how, told, true)) return { ok: false, text: 'That question is no longer open.' };
+    const said =
+      how === 'no'
+        ? `refused by the human: ${ask.call}${reason ? `. They said: ${reason}` : ''}`
+        : rest
+          ? `allowed by the human for the rest of this run: ${ask.call} (not asked again: ${rest})`
+          : `allowed once by the human: ${ask.call}`;
+    (run.unsaid ??= []).push(said);
+    // They are there: if its turn ends with the thread unfinished, it is kept a while for what they say next.
+    run.spoke = Date.now();
+    this.attend();
+    if (how === 'no') return { ok: true, text: 'Refused. The agent is told.' };
+    if (how === 'run' && !rest) return { ok: true, text: 'Allowed once: there was nothing to keep for the rest of the run.' };
+    return { ok: true, text: how === 'run' ? 'Allowed for the rest of this run.' : 'Allowed once.' };
   }
 
   /** Stop every agent that is working, each as `stop` does, and switch the runner off. */
@@ -511,6 +596,12 @@ export class Runner {
   private attend(): void {
     const open = [...this.runs.values()].filter((run) => run.session?.listens || run.unsaid?.length);
     if (!open.length) return;
+    // A question nobody has answered in time is refused, so that no thread waits on one for ever.
+    for (const run of open) {
+      for (const ask of [...(run.session?.asking ?? [])]) {
+        if (Date.now() - ask.since >= this.askWait) run.session!.answer(ask.id, 'no', `Refused: nobody answered in time. ${GO_ON}`);
+      }
+    }
     try {
       const ws = Workspace.open(this.ctx.cwd, this.ctx.now);
       try {
@@ -676,7 +767,7 @@ export class Runner {
 
   /** The agent command for a thread, with the model and effort it gets put in it, and the stream on, both ways, where it is `claude -p`. */
   private command(task: Item, models: Routing, routed?: Picked): string {
-    return listening(streaming(commandFor(this.agent, pickFor(task, models, routed))));
+    return asking(listening(streaming(commandFor(this.agent, pickFor(task, models, routed)))));
   }
 
   /** A command that starts a thread from nothing: where it is `claude -p`, in a new session of Spool's choosing. */
@@ -751,6 +842,7 @@ export class Runner {
           if (!afresh || !this.startAfresh(task, run, afresh)) this.settle(run, ended);
         },
         turn: () => this.attend(),
+        ask: (ask) => this.asked(run, task, ask),
       });
     } catch (error) {
       this.couldNotStart(task.id, (error as Error).message);

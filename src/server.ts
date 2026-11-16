@@ -5,7 +5,7 @@
  * (`board.ts`) and what an agent said on a run (`heard.ts`), and takes what the human does on
  * the page as POSTs. Each of those is an ordinary
  * command run as the human (`act.ts`), or a word to the runner it holds (`engine.ts`): on, off,
- * stop, interrupt. A thread moved between columns is both, so `moveThread` is here, beside the runner it
+ * stop, interrupt, and the answer to an agent's question. A thread moved between columns is both, so `moveThread` is here, beside the runner it
  * tells. `servePage` is the command: it points at the page already up for a project, or starts
  * one, in the background if asked, and stays up to start it again when the page restarts onto
  * new code (`upkeep.ts`, `detach.ts`).
@@ -201,6 +201,8 @@ export function startPage(
     try {
       if (req.method === 'GET' && url.pathname === '/') return send(res, 200, 'text/html', PAGE.replace('__TOKEN__', token).replace('__BUILD__', upkeep.build));
       if (req.method === 'GET' && url.pathname === '/api/board') {
+        // Someone is looking: an agent's question can wait for them.
+        runner.looked();
         const ws = Workspace.open(ctx.cwd, ctx.now);
         try {
           // The project asked for, by its name on the workspace's own list; any other is the page's own.
@@ -370,6 +372,13 @@ export function startPage(
             const stopped = runner.stop(id);
             const words = stopped ? 'Stopped. It waits in Build until you carry on.' : 'No agent of this page is building that thread.';
             return send(res, stopped ? 200 : 400, 'application/json', JSON.stringify({ ok: stopped, text: words }));
+          }
+          if (action === 'permit') {
+            // The answer to an agent's question about a tool call: yes, once or for the rest of its run, or no and why.
+            const how = text(body.answer);
+            if (how !== 'once' && how !== 'run' && how !== 'no') return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'once, run, or no?' }));
+            const result = runner.permit(text(body.id), text(body.ask), how, text(body.why));
+            return send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify(result));
           }
           if (action === 'interrupt') {
             // Not a stop: the agent ends what it is doing and waits for what the human says next.

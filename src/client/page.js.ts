@@ -217,6 +217,16 @@ function took(since) {
   if (s < 86400) return Math.floor(s / 3600) + 'h ' + (Math.floor(s / 60) % 60) + 'm';
   return Math.floor(s / 86400) + 'd';
 }
+// A tool call the agent needs a yes for, and waits on: what it is, and the three answers. The answer goes back to the
+// agent, which carries on or is told no. On the ticket a no can say why, and the agent is told that too.
+function permitNode(c, a, sayWhy) {
+  const answer = (how, done, why) => post('permit', { id: c.id, ask: a.ask, answer: how, why: why || '' }, done);
+  return el('div', { class: 'q' }, el('div', {}, '🔐 May it run ', el('span', { class: 'mono' }, a.what), '?', a.why ? ' ' + a.why + '.' : ''),
+    el('button', { onclick: () => answer('once', 'Allowed once') }, 'Allow once'),
+    a.rest && el('button', { title: 'It is not asked again in this run: ' + a.rest, onclick: () => answer('run', 'Allowed for this run') }, 'Allow for this run'),
+    el('button', { onclick: () => answer('no', 'Refused') }, 'No'),
+    sayWhy && sayNode('Why not?', 'No, because', (why) => answer('no', 'Refused', why)));
+}
 // The line a Building card shows: what the agent is doing now, and for how long. The runner's own output is the freshest.
 function liveLine(c, b) {
   if (b && stoppedOf(c, b)) return el('div', { class: 'live', title: 'You stopped the agent that was building this. Nothing builds it until you carry on.' }, el('span', { class: 'now' }, '■ Stopped'));
@@ -322,6 +332,7 @@ function cardNode(c, b) {
     c.why && !c.done && el('div', { class: 'why', title: c.why }, inline(c.why)),
     noteNode(c),
     liveLine(c, b),
+    b && liveOf(c, b) && liveOf(c, b).asking && permitNode(c, liveOf(c, b).asking, false),
     c.question && el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title),
       c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '',
         onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o))),
@@ -960,6 +971,7 @@ function livePost(c, b) {
         run && run.listens && el('span', { class: 'at', title: 'What you reply on this thread reaches the agent while it works: it reads it at its next step.' }, ' · hears your replies'),
         run && stopNode(c, 'act stop', '■ Stop the agent')),
       el('div', { class: 'livenow' }, el('span', { class: 'nowtext' }, (run && run.lines.at(-1)) || c.live.note || 'starting…'), el('span', { class: 'caret' })),
+      run && run.asking && permitNode(c, run.asking, true),
       session && el('div', { class: 'session' }, 'Session ', el('code', { title: session }, session.slice(0, 8)), copyNode('claude --resume ' + session, 'Copy the command that opens it')),
       run && el('div', { class: 'livelog', 'data-keep': 'livelog', 'data-follow': 'true' }, run.lines.join('\n') || 'starting…')));
 }

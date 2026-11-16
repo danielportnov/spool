@@ -14,7 +14,9 @@
  * The stream goes both ways. With `--input-format stream-json` a session reads
  * a message a line from its input for as long as that is open, so what the
  * human writes on a thread can be said to the agent building it, and it can be
- * told to stop what it is doing. The lines Spool writes are made here too.
+ * told to stop what it is doing. With `--permission-prompt-tool stdio` a tool
+ * call that needs a yes is put to Spool as a line on that stream, and waits
+ * for the answer. The lines Spool writes are made here too.
  * `docs/claude-stream.md` has what was tried against Claude Code.
  */
 
@@ -57,6 +59,16 @@ export function listens(command: string): boolean {
   return claudePrint(command) && STREAM_OUT.test(command) && STREAM_IN.test(command);
 }
 
+/**
+ * Have a session that can be spoken to put its permission questions to Spool: a tool call it is
+ * not allowed arrives as a line on its stream and waits for an answer, where on its own it would
+ * be refused in silence. Left alone where the command says who answers them itself.
+ */
+export function asking(command: string): string {
+  if (!listens(command) || names(command, '--permission-prompt-tool', '--permission-prompts')) return command;
+  return `${command.trim()} --permission-prompt-tool stdio`;
+}
+
 /** What the human says to a session, as the line written to its input. */
 export function userLine(text: string): string {
   return JSON.stringify({ type: 'user', message: { role: 'user', content: text } });
@@ -65,6 +77,59 @@ export function userLine(text: string): string {
 /** Telling a session to stop what it is doing: its turn ends, and it waits for the next message. */
 export function interruptLine(id: string): string {
   return JSON.stringify({ type: 'control_request', request_id: id, request: { subtype: 'interrupt' } });
+}
+
+/** A tool call an agent needs a yes for: Claude's question, as it arrives on the stream. */
+export interface Ask {
+  /** The question's id: the answer names it. */
+  id: string;
+  tool: string;
+  /** The call as a person would say it: "Bash: npm publish". */
+  call: string;
+  /** What the agent said the call is for, where it said. */
+  why: string;
+  /** The tool's input, which a yes hands back as it came. */
+  input: unknown;
+  /** What Claude suggests allowing so that it need not ask the like again, where it suggests anything. */
+  suggestions: Record<string, unknown>[];
+}
+
+/**
+ * What of a question's suggestions a yes "for the rest of this run" grants: rules that allow a
+ * tool, folders to work in, and file edits accepted without asking. Each is kept to the session,
+ * whatever it says of itself, so nothing is written to a settings file; anything else Claude may
+ * suggest (another mode, a rule that denies) is left out.
+ */
+function kept(ask: Ask): Record<string, unknown>[] {
+  return ask.suggestions
+    .filter((p) => (p.type === 'addRules' && p.behavior === 'allow') || p.type === 'addDirectories' || (p.type === 'setMode' && p.mode === 'acceptEdits'))
+    .map((p) => ({ ...p, destination: 'session' }));
+}
+
+/** The same, in a line a person can read; empty where a yes can only be for the once. */
+export function keeps(ask: Ask): string {
+  const said = kept(ask).flatMap((p) => {
+    if (p.type === 'setMode') return ['every file edit'];
+    if (p.type === 'addDirectories') return (Array.isArray(p.directories) ? p.directories : []).map((dir) => `files in ${String(dir)}`);
+    return (Array.isArray(p.rules) ? p.rules : []).map((rule: { toolName?: unknown; ruleContent?: unknown }) =>
+      typeof rule?.ruleContent === 'string' ? `${String(rule.toolName)}: ${short(rule.ruleContent, 120)}` : `every ${String(rule?.toolName)}`,
+    );
+  });
+  return [...new Set(said)].join(', ');
+}
+
+/** The answer to a question, as the line written to the session's input: yes, for this call or for the rest of the run. */
+export function allowLine(ask: Ask, forRun = false): string {
+  const grant = forRun ? kept(ask) : [];
+  return JSON.stringify({
+    type: 'control_response',
+    response: { subtype: 'success', request_id: ask.id, response: { behavior: 'allow', updatedInput: ask.input, ...(grant.length ? { updatedPermissions: grant } : {}) } },
+  });
+}
+
+/** Or no, with the reason: the agent is given it as the tool's error. */
+export function denyLine(ask: Ask, message: string): string {
+  return JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: ask.id, response: { behavior: 'deny', message } } });
 }
 
 /**
@@ -105,6 +170,8 @@ export interface Heard {
   lost?: true;
   /** Its turn has ended: a session whose input is open now waits for the next message. */
   over?: true;
+  /** It needs a yes for a tool call, and waits for the answer. */
+  asks?: Ask;
 }
 
 const short = (s: string, n = 200): string => {
@@ -152,6 +219,20 @@ export function hearLine(line: string): Heard {
     for (const c of e.message.content) {
       if (c?.type === 'tool_result' && c.is_error) lines.push(`✗ ${short(textOf(c.content)) || 'the tool failed'}`);
     }
+  } else if (e.type === 'control_request' && e.request?.subtype === 'can_use_tool' && typeof e.request_id === 'string' && typeof e.request.tool_name === 'string') {
+    const r = e.request;
+    const call = toolCall(r.tool_name, r.input);
+    const told = typeof r.input?.description === 'string' ? r.input.description : typeof r.description === 'string' ? r.description : '';
+    const asks: Ask = {
+      id: e.request_id,
+      tool: r.tool_name,
+      call,
+      // What it is for, unless that is only the file's name over again.
+      why: told && !call.includes(told) ? short(told) : '',
+      input: r.input ?? {},
+      suggestions: Array.isArray(r.permission_suggestions) ? r.permission_suggestions.filter((p: unknown) => p && typeof p === 'object') : [],
+    };
+    return { lines: [`asks → ${call}`], session, asks };
   } else if (e.type === 'result') {
     const denials = Array.isArray(e.permission_denials)
       ? e.permission_denials

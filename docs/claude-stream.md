@@ -95,7 +95,16 @@ Also printed, and of no use to Spool yet: `system` events with the subtypes `pos
   as an agent always did. The exception is a thread still unfinished whose agent you wrote to in
   the last five minutes: it is kept for your next word until those minutes are up.
 
+- **Its questions come to you.** The command is also started with `--permission-prompt-tool stdio`,
+  unless it says who answers its permission prompts itself. A `can_use_tool` request is held for
+  you where a face of Spool asked for the board in the last 30 seconds, for up to ten minutes, and
+  answered `deny` at once where none did. Allow once is `allow` with the input handed back. Allow
+  for the rest of the run adds `updatedPermissions`: of what the request suggested, the rules that
+  allow a tool, the folders, and accepting file edits, each kept to the session. Nothing else it
+  might suggest is ever handed back, and nothing is written to a settings file.
+
 What Spool writes to a session is in the thread's transcript too, as lines of its own
-(`{"type":"spool","event":"said","text":"…"}`), between the lines the agent printed.
+(`{"type":"spool","event":"said","text":"…"}`, and `"event":"answered"` for an answer), between
+the lines the agent printed.
 
 Any other agent command is run exactly as before: Spool does not know its flags.

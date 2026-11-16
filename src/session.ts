@@ -14,8 +14,9 @@
  *
  * Such a session is started with its input left open (`listening`), and then it can be spoken to
  * while it works: `say` writes it a message from the human, `interrupt` tells it to stop what it
- * is doing, and `leave` closes its input, on which it finishes its turn and goes. Any other agent
- * is given its prompt and watched, as it always was.
+ * is doing, and `leave` closes its input, on which it finishes its turn and goes. A tool call it
+ * needs a yes for is put to it as a question (`asking`), which waits until `answer` is given. Any
+ * other agent is given its prompt and watched, as it always was.
  *
  * It knows nothing of the queue: which thread is next, what a run's ending means for its thread,
  * and what is written on it are the engine's (`engine.ts`).
@@ -29,7 +30,7 @@ import { ROUTE_TIMEOUT_MS, routerPrompt } from './agent.ts';
 import type { Ctx } from './context.ts';
 import type { Item } from './model.ts';
 import { oneLine } from './model.ts';
-import { hearLine, interruptLine, listens, runDir, sessionOf, transcriptFile, userLine } from './stream.ts';
+import { type Ask, allowLine, denyLine, hearLine, interruptLine, listens, runDir, sessionOf, transcriptFile, userLine } from './stream.ts';
 
 /** How many of the lines an agent has printed are kept to show: the newest. */
 const LIVE_LINES = 60;
@@ -177,6 +178,14 @@ export interface Session {
   listens: boolean;
   /** When its last turn ended, if nothing has been said to it since: it is waiting for a word. */
   waiting?: number;
+  /** The tool calls it needs a yes for and is waiting on, oldest first, each with when it asked. */
+  asking: (Ask & { since: number })[];
+  /**
+   * Answer one of those: yes for this call, yes for the rest of the run, or no with the reason
+   * the agent is given. `person` says a human gave the answer, and not Spool for want of one.
+   * False where it is not waiting on that question.
+   */
+  answer(id: string, how: 'once' | 'run' | 'no', reason?: string, person?: boolean): boolean;
   /** Say the human's words to it. They are read at its next step. False where it cannot be spoken to. */
   say(text: string): boolean;
   /** Tell it to stop what it is doing. Its turn ends, and it waits for what is said next. */
@@ -196,14 +205,15 @@ export interface Session {
  *
  * A `claude -p` command with its input open is given the prompt as its first message, and its
  * input stays open. `on.turn` hears each time it ends a turn and waits: it goes on waiting until
- * it is spoken to or its input is closed, so whoever holds it must do one or the other.
+ * it is spoken to or its input is closed, so whoever holds it must do one or the other. `on.ask`
+ * hears each tool call it needs a yes for; that waits too, until it is answered.
  */
 export function startSession(
   task: Item,
   prompt: string,
   command: string,
   at: { folder: string; env: Ctx['env']; actor: string },
-  on: { note: (notes: string[]) => void; end: (how: string) => void; turn?: () => void },
+  on: { note: (notes: string[]) => void; end: (how: string) => void; turn?: () => void; ask?: (ask: Ask) => void },
 ): Session {
   const file = promptFile(task.id, process.pid);
   fs.writeFileSync(file, prompt);
@@ -243,6 +253,18 @@ export function startSession(
       return true;
     },
     interrupt: () => tell(interruptLine(`spool-${++sent}`), { event: 'interrupt' }, 'told to stop what it is doing'),
+    asking: [],
+    answer: (id, how, reason = '', person = false) => {
+      const at = live.asking.findIndex((ask) => ask.id === id);
+      const ask = live.asking[at];
+      if (!ask) return false;
+      const yes = how !== 'no';
+      if (!tell(yes ? allowLine(ask, how === 'run') : denyLine(ask, reason), { event: 'answered', ask: id, call: ask.call, answer: how, ...(person ? { by: 'human' } : {}) }, `${yes ? 'allowed' : 'refused'} → ${ask.call}`)) return false;
+      live.asking.splice(at, 1);
+      // A no a person gave is on the thread's log in their words: it is not said again when the turn ends.
+      if (!yes && person) refused.push(ask.call);
+      return true;
+    },
     leave: () => {
       if (!live.listens) return;
       live.listens = false;
@@ -280,6 +302,8 @@ export function startSession(
   let session: string | undefined;
   // A session says which it is at the start of every turn: once is enough to show.
   let opened = '';
+  // The calls a person refused, which the turn's last event will list among those it was denied.
+  const refused: string[] = [];
   const hear = (line: string): void => {
     // A line at a time, without the terminal's colour codes.
     const heard = hearLine(line.replace(/\x1b\[[0-9;]*[A-Za-z]/g, ''));
@@ -297,10 +321,20 @@ export function startSession(
       log = true;
     }
     for (const d of heard.denials ?? []) {
+      const said = refused.indexOf(d);
+      if (said >= 0) {
+        refused.splice(said, 1);
+        continue;
+      }
       notes.push(`permission denied: ${d}`);
       log = true;
     }
     if (log) on.note(notes);
+    if (heard.asks && live.listens) {
+      const ask = { ...heard.asks, since: Date.now() };
+      live.asking.push(ask);
+      on.ask?.(ask);
+    }
     if (heard.over && live.listens) {
       live.waiting = Date.now();
       on.turn?.();
@@ -340,6 +374,7 @@ export function startSession(
     over = true;
     live.listens = false;
     live.waiting = undefined;
+    live.asking.length = 0;
     out.flush();
     err.flush();
     if (keep !== undefined) fs.closeSync(keep);

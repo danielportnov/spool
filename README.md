@@ -293,8 +293,10 @@ watching, or not there. The pick is kept for the project. Say "switch to chat mo
 runs `spool builder chat`; "let the page build" is `spool builder headless`.
 
 The agent it starts is a command on your machine, `claude -p` unless you say otherwise, and it can
-only do what you allow it. To let it edit files and commit, say so once in
-`~/.config/spool/config.json`:
+only do what you allow it. What you have not allowed, it asks for while the page is open: the
+question shows on its card, with **Allow once**, **Allow for this run** and **No**. With nobody
+at the page it is refused, so nothing waits on you overnight. To let it edit files and commit
+without asking, say so once in `~/.config/spool/config.json`:
 
 ```json
 { "agent": "claude -p --permission-mode acceptEdits --allowedTools 'Bash(spool *)' 'Bash(git *)' Edit Write Read" }
