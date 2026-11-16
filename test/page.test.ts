@@ -178,6 +178,10 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.deepEqual([b.sprints[0].status, b.sprints[0].waiting], ['running', 0]);
     assert.ok(b.columns.build.some((c: any) => c.id === jump), 'playing the sprint moved its thread to build');
     assert.match(s.item(jump), /human: moved to build with the sprint Polish/);
+    // What a sprint is for is written on the page, and read back from it.
+    assert.equal((await post('sprint-about', { id: polish.id, goal: 'Everything feels tight', why: 'the beta opens on Friday', doneWhen: 'no floaty jumps' })).status, 200);
+    const about = (await board()).sprints[0];
+    assert.deepEqual([about.goal, about.why, about.doneWhen], ['Everything feels tight', 'the beta opens on Friday', 'no floaty jumps']);
     assert.equal((await post('sprint', { name: 'Later' })).status, 200);
     const laterSprint = (await board()).sprints.find((x: any) => x.name === 'Later');
     assert.equal((await post('drop-sprint', { id: laterSprint.id })).status, 200);

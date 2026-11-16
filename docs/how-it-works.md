@@ -160,8 +160,9 @@ with one pick in four kept for large work so quick wins never starve it.
 ## Sprints
 
 A sprint is a named set of threads with **no dates**: agents work in hours, so a sprint is over
-when its threads are done, not when a fortnight is. Being in a sprint starts nothing. Playing it
-moves everything in it to Build at once. `spool done` says when a sprint's last thread has shipped.
+when its threads are done, not when a fortnight is. It says what it is for: a goal, the reason, and
+when it is done, written by you on the page or drafted by an agent. Being in a sprint starts
+nothing. Playing it moves everything in it to Build at once. `spool done` says when a sprint's last thread has shipped.
 
 ## Skills that compound
 

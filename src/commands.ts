@@ -679,10 +679,10 @@ export const COMMANDS: Command[] = [
   {
     name: 'sprint',
     group: 'agents',
-    usage: 'sprint <name…> [-P <project>]',
-    summary: 'Make a sprint: a named set of work to build together, with no dates',
+    usage: 'sprint <name…> [--goal <what it is for>] [--why <why now>] [--done-when <what will be true>] [-P <project>]',
+    summary: 'Make a sprint: a named set of work to build together, with a goal and no dates',
     write: true,
-    options: { ...PROJECT },
+    options: { goal: { type: 'string' }, why: { type: 'string' }, 'done-when': { type: 'string' }, ...PROJECT },
     run(call) {
       const { ws, p } = call;
       const name = oneLine(words(call, call.args, 'the sprint\'s name', 'spool sprint "Sprint 1"'), 60);
@@ -690,9 +690,15 @@ export const COMMANDS: Command[] = [
       if (ws.items.some((i) => i.kind === 'sprint' && i.spool === spool && i.status !== 'dropped' && i.title.toLowerCase() === name.toLowerCase())) {
         throw new SpoolError(`there is already a sprint called "${name}"`);
       }
-      const sprint = ws.create(spool, 'sprint', { title: name });
+      // What the sprint is for is its body, in the same three lines a thread's spec has.
+      const about = [
+        str(call.opts.goal) && `Goal: ${oneLine(str(call.opts.goal)!, 300)}`,
+        str(call.opts.why) && `Why: ${oneLine(str(call.opts.why)!, 300)}`,
+        str(call.opts['done-when']) && `Done when: ${oneLine(str(call.opts['done-when'])!, 300)}`,
+      ].filter(Boolean);
+      const sprint = ws.create(spool, 'sprint', { title: name, body: about.join('\n') });
       return {
-        text: `Sprint made in ${spool.name}:\n  ${itemLine(ws, sprint, p, false)}\n${p.dim(`  put work in it: spool edit <t-id> --sprint ${sprint.id}      the human starts it: spool play ${sprint.id}`)}`,
+        text: `Sprint made in ${spool.name}:\n  ${itemLine(ws, sprint, p, false)}\n${about.length ? '' : p.dim('  say what it is for: spool edit ' + sprint.id + ' -b "Goal: …\\nWhy: …\\nDone when: …"\n')}${p.dim(`  put work in it: spool edit <t-id> --sprint ${sprint.id}      the human starts it: spool play ${sprint.id}`)}`,
         data: { sprint: itemJson(ws, sprint) },
       };
     },

@@ -172,6 +172,12 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     await page.keyboard.press('Enter');
     const sprint = backlog.locator('.group', { hasText: 'Polish' });
     await sprint.waitFor();
+    await sprint.getByText('+ Say what this sprint is for').click();
+    await sprint.getByPlaceholder('Goal: what this sprint is for').fill('Everything feels tight');
+    await sprint.getByPlaceholder('Why: why now').fill('the beta opens on Friday');
+    await sprint.getByRole('button', { name: 'Save' }).click();
+    await sprint.locator('.about', { hasText: 'Everything feels tight' }).waitFor();
+    assert.match(s.json('show', s.json('list', '-k', 'sprint').items[0].id).item.body, /^Goal: Everything feels tight\nWhy: the beta opens on Friday/);
     await backlog.locator('.row', { hasText: 'A daily challenge level' }).dragTo(sprint);
     await sprint.locator('.row', { hasText: 'A daily challenge level' }).waitFor();
     assert.ok(s.json('show', daily).item.sprint, 'dragged into the sprint');

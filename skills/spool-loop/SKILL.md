@@ -241,8 +241,12 @@ Repeat until `spool next --claim` says nothing is ready:
 on it: every thread in it lands in build at once, and you build them like any
 others. A sprint has no dates; it is over when its last thread is done, and
 `spool done` says so. Say it too, in a line, and give it its version then.
-You may draft one from the backlog (`spool sprint "<name>"`, then
-`spool edit <t-id> --sprint <name>`); only they play it (`spool play`).
+You may draft one from the backlog: say what it is for
+(`spool sprint "<name>" --goal "<what it is for>" --why "<why now>"
+--done-when "<what will be true>"`), then fill it
+(`spool edit <t-id> --sprint <name>`). Only they play it (`spool play`).
+Agreeing to a sprint with a goal is agreeing to a plan: that is what lets
+you build the whole of it without stopping.
 
 Then take the next one. The order is read again every time, so a thread they
 moved to build while you worked comes up in its turn. A question about one

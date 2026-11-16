@@ -387,6 +387,17 @@ export function tableRows(ws: Workspace, d: Docket): TableRow[] {
   return rows.map((r, i) => ({ n: i + 1, ...r }));
 }
 
+/** A sprint's goal, reason and done-when, read from the three lines of its body. Whatever else is there is the goal. */
+export function sprintAbout(sprint: Item): { goal: string; why: string; doneWhen: string } {
+  const lines = splitBody(sprint.body).main.split('\n').map((l) => l.trim()).filter(Boolean);
+  const take = (label: string) => {
+    const at = lines.findIndex((l) => l.toLowerCase().startsWith(`${label}:`));
+    return at < 0 ? '' : lines.splice(at, 1)[0]!.slice(label.length + 1).trim();
+  };
+  const [why, doneWhen, goal] = [take('why'), take('done when'), take('goal')];
+  return { goal: goal || lines.join(' '), why, doneWhen };
+}
+
 /**
  * The loop's list, as markdown ready to put in a chat: one header line, one
  * table, one line for what else waits. It is printed here, and not drawn by
@@ -405,7 +416,17 @@ function tableText(ws: Workspace, d: Docket): string {
     `${d.done} done`,
   ];
   const out = [`**🧶 ${d.spool.name}** · ${facts.join(' · ')}`, ''];
-  if (!rows.length) return `${out[0]}\n\nNothing is open.`;
+  // Sprints that are not finished, each with what it is for: the plan the threads below serve.
+  const sprints = ws.items
+    .filter((i) => i.kind === 'sprint' && i.spool === d.spool && (i.status === 'planned' || i.status === 'running'))
+    .sort((a, b) => a.created.localeCompare(b.created));
+  for (const s of sprints) {
+    const inIt = sprintTasks(ws, s);
+    const goal = sprintAbout(s).goal;
+    out.push(`🏁 **${s.title}** · ${s.status} · ${inIt.filter((t) => t.status === 'done').length} of ${inIt.length} done${goal ? ` — ${oneLine(goal, 140)}` : ''}`);
+  }
+  if (sprints.length) out.push('');
+  if (!rows.length) return `${out.join('\n').trimEnd()}\n\nNothing is open.`;
   out.push('| # | 🧵 Thread | Difficulty | Priority | Note |', '| --- | --- | --- | --- | --- |');
   for (const r of rows) {
     const t = r.item;

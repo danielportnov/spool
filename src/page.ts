@@ -34,7 +34,7 @@ import { run } from './cli.ts';
 import type { Bare, Result } from './commands.ts';
 import type { Ctx } from './context.ts';
 import { type Item, SpoolError, oneLine, reportFile, splitBody } from './model.ts';
-import { age, tableRows } from './render.ts';
+import { age, sprintAbout, tableRows } from './render.ts';
 import { blockers, children, docket, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
 import { Workspace } from './store.ts';
 
@@ -133,7 +133,7 @@ interface Board {
   /** How many finished threads the human has marked complete, shown or not. */
   history: number;
   /** The sprints, oldest first: what is in each and how far along it is. */
-  sprints: { id: string; name: string; status: string; total: number; done: number; waiting: number }[];
+  sprints: { id: string; name: string; status: string; goal: string; why: string; doneWhen: string; total: number; done: number; waiting: number }[];
   columns: Record<Column, Card[]>;
   also: { assumptions: number; skills: number; inbox: number };
 }
@@ -290,6 +290,7 @@ export function board(ws: Workspace, project?: string): Board {
           id: s.id,
           name: s.title,
           status: s.status,
+          ...sprintAbout(s),
           total: inIt.length,
           done: inIt.filter((t) => t.status === 'done').length,
           // What pressing play would move: in the sprint, and not yet in build.
@@ -406,6 +407,15 @@ function change(ctx: Ctx, action: string, body: Body, project?: string): { ok: b
     const sprint = text(body.sprint);
     if (!/^t-[a-z0-9]+$/.test(id) || (sprint && !/^r-[a-z0-9]+$/.test(sprint))) return { ok: false, text: 'which thread, and which sprint?' };
     return act(ctx, ['edit', id, `--sprint=${sprint || 'none'}`]);
+  }
+  if (action === 'sprint-about') {
+    // What a sprint is for, written or changed on the page: its goal, the reason, and when it is done.
+    if (!/^r-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which sprint?' };
+    const lines = [['Goal', body.goal], ['Why', body.why], ['Done when', body.doneWhen]]
+      .map(([label, value]) => [label, text(value).replace(/\s+/g, ' ')])
+      .filter(([, value]) => value)
+      .map(([label, value]) => `${label}: ${value}`);
+    return act(ctx, ['edit', id, `--body=${lines.join('\n')}`]);
   }
   if (action === 'play') {
     // Pressing play on a sprint: everything in it moves to build.
@@ -638,6 +648,11 @@ const PAGE = String.raw`<!doctype html>
   .row:only-of-type { border-radius: 8px; }
   .row .right { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--soft); white-space: nowrap; }
   .group .add, .group .adding { margin-top: 8px; }
+  .about { padding: 0 6px 10px; font-size: 13px; color: var(--soft); cursor: pointer; }
+  .about b { color: var(--ink); font-weight: 600; }
+  .about:hover { color: var(--ink); }
+  .aboutform { padding: 0 6px 10px; display: grid; gap: 6px; max-width: 720px; }
+  .aboutform input { padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 
   /* the ticket */
   #veil { position: fixed; inset: 0; background: rgba(0, 0, 0, .35); z-index: 3; }
@@ -1043,8 +1058,30 @@ function sprintNode(s, b) {
         s.waiting > 0 && el('button', { class: 'go', title: 'Everything in it moves to Build', onclick: () => post('play', { id: s.id }, s.name + ' is running') },
           s.status === 'running' ? '▶ Play ' + s.waiting + ' more' : '▶ Play sprint'),
         !finished && s.status !== 'running' && el('button', { title: 'Remove the sprint. What is in it goes back to the backlog.', onclick: () => post('drop-sprint', { id: s.id }, 'Sprint removed') }, '✕'))),
+    aboutNode(s),
     rows.map((c) => rowNode(c, b)));
   return finished ? group : dropInto(group, s.id);
+}
+
+// What a sprint is for: its goal, the reason, and when it is done. Click it to write or change it.
+let editingSprint = '';
+function aboutNode(s) {
+  if (editingSprint === s.id) {
+    const field = (key, placeholder) => { const box = el('input', { placeholder, 'data-about': key }); box.value = s[key] || ''; return box; };
+    const form = el('div', { class: 'aboutform' },
+      field('goal', 'Goal: what this sprint is for'), field('why', 'Why: why now'), field('doneWhen', 'Done when: what will be true'));
+    const read = () => Object.fromEntries([...form.querySelectorAll('input')].map((box) => [box.dataset.about, box.value]));
+    form.append(el('div', { class: 'acts' },
+      el('button', { class: 'go', onclick: () => { const about = read(); editingSprint = ''; post('sprint-about', { id: s.id, ...about }, 'Saved'); } }, 'Save'),
+      el('button', { onclick: () => { editingSprint = ''; redraw(); } }, 'Cancel')));
+    return form;
+  }
+  const open = () => { editingSprint = s.id; redraw(); };
+  if (!s.goal && !s.why && !s.doneWhen) return s.status === 'done' ? null : el('div', { class: 'about', onclick: open }, '+ Say what this sprint is for');
+  return el('div', { class: 'about', title: 'Click to change', onclick: s.status === 'done' ? null : open },
+    s.goal && el('div', {}, el('b', {}, 'Goal '), s.goal),
+    s.why && el('div', {}, el('b', {}, 'Why '), s.why),
+    s.doneWhen && el('div', {}, el('b', {}, 'Done when '), s.doneWhen));
 }
 
 function drawBacklog(b) {
