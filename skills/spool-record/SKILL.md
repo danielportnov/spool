@@ -34,7 +34,9 @@ says there is no `.spool/` here, tell them to run `/spool-init`, and stop.
 
 1. `spool capture "<their exact words>"`. The whole message, verbatim, before
    anything else. The reply shows open threads that look related and, in a
-   workspace, the projects it may belong to.
+   workspace, the projects it may belong to. If the message also tells you how
+   to work ("then keep going until midnight"), capture each idea in it on its
+   own instead, in their words, and leave the rest out: see "What is not recorded".
 
 2. Split it into threads and file each one, by what doing it would produce.
    How to split is your call, not a question for them: see "Splitting what they said".
@@ -95,6 +97,19 @@ Decide it yourself, every time, and never ask them how to split.
 Ask them only when you cannot tell which project they mean, or what they
 meant at all. Then one short question, and leave the note in the inbox until
 they answer.
+
+## What is not recorded
+
+A thread is an idea, a wish, feedback or a bug about the project. The rest is not:
+
+- An instruction to you about the work ("work the backlog", "stop at midnight",
+  "use subagents") is done, not recorded.
+- A go, a no or a choice between options you offered is a verb: see "When what
+  they said is an answer".
+- Talk about the chat itself is not recorded either.
+
+Not sure whether it is an idea or an instruction? Record nothing and act; an
+idea that matters will come back.
 
 ## Size: how much would have to change
 

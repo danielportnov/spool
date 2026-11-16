@@ -69,9 +69,10 @@ Get this project from nothing to agents working it, in one short conversation.
    `notify` in `~/.config/spool/config.json`, run whenever an agent asks them
    something. Skip it if they are not interested.
 
-8. **Take the first work.** If they have already said what they want in this
-   chat, capture and file it now by the `spool-record` rules. Otherwise ask
-   what is on their mind for this project.
+8. **Take the first work.** If they have already given an idea, a wish or a
+   bug for this project in this chat, capture and file it now by the
+   `spool-record` rules; what they asked of you about the setup is not one.
+   Otherwise ask what is on their mind for this project.
 
 End with what happens next, in one line each:
 

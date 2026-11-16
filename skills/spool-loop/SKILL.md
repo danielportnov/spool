@@ -275,6 +275,14 @@ else they say, take every part of it:
 | "all good", "the rest is fine" | `spool approve --all`; it never covers plans |
 | "drop that skill" | `spool drop <s-id>` |
 | anything new: an idea, a bug, a wish | `spool capture "<their exact words>"`, then file it |
+| how to work: "work the backlog", "stop at midnight", "use subagents" | nothing to record: do it |
+
+Not everything they say is a note. An instruction to you about the work is
+done, not recorded, and a go, a no or a choice is the verb above, which
+carries their words where they matter. A long message is taken apart: each
+idea in it is captured and filed in their words, the rest is done and left in
+the chat. Not sure whether it is an idea or an instruction? Record
+nothing and act; an idea that matters will come back.
 
 Never guess a go, an answer or an approval. If their reply does not plainly
 say it, ask in one line. Their words are the record: pass what they said
@@ -428,7 +436,11 @@ recommendation, the reason.
   so the thread waits on the answer instead of on you.
 - A thread on hold is the human saying not yet. It is never handed out; never release it yourself.
 - The human says something about the project while you work? `spool capture "<their exact words>"`,
-  file it with `spool task "<title>" --from <note-id>`, and carry on.
+  file it with `spool task "<title>" --from <note-id>`, and carry on. That is for an idea, a wish,
+  feedback or a bug. An instruction to you about the work ("work the backlog until midnight",
+  "use subagents") is done, not recorded; a go, a no or a choice is a verb (`spool build`,
+  `spool propose`, `spool answer`). In a long message, capture each idea on its own and act on the
+  rest. Not sure whether it is an idea or an instruction? Record nothing and act.
 
 ### Skills
 
