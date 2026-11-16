@@ -124,6 +124,46 @@ test('an agent that walks away has its thread put back once; one that hangs can 
   }
 });
 
+test('a page stopped mid-build puts its thread back, and a page starting up rescues one left behind', async () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop', '--gate');
+  const hard = s.id('task', 'Too hard');
+  s.sp('build', hard);
+  const sleeper = agent(s, 'sleeper.sh', 'echo "thinking hard"; sleep 30');
+  const gone = (child: ChildProcess): Promise<void> => new Promise((r) => (child.exitCode !== null || child.signalCode ? r() : child.once('exit', () => r())));
+  const working = async (url: string) =>
+    until('the agent is heard working', async () => ((await (await fetch(`${url}api/board`)).json()) as Record<string, any>).runner.current?.lines.length);
+
+  try {
+    // Ctrl-C on the page while its agent works: the thread is back in Build at once.
+    const first = await startPage(s, '--run', '--agent', sleeper, '--port', String(53000 + (process.pid % 1500)));
+    await working(first.url);
+    assert.equal(s.json('show', hard).item.state, 'active');
+    first.child.kill('SIGINT');
+    await gone(first.child);
+    assert.deepEqual([s.json('show', hard).item.state, s.json('show', hard).item.by], ['ready', undefined]);
+    assert.match(s.item(hard), /page: the page was stopped; back in build/);
+
+    // A page killed outright cannot put anything back: the next page to start does.
+    const second = await startPage(s, '--run', '--agent', sleeper, '--port', String(54500 + (process.pid % 1500)));
+    await working(second.url);
+    second.child.kill('SIGKILL');
+    await gone(second.child);
+    assert.equal(s.json('show', hard).item.state, 'active', 'left marked as handed out');
+
+    const worker = agent(s, 'worker.sh', 'spool done "$SPOOL_TASK" -m "finished" > /dev/null');
+    const third = await startPage(s, '--run', '--agent', worker, '--port', String(56000 + (process.pid % 1500)));
+    try {
+      await until('the rescued thread is built', async () => s.json('show', hard).item.status === 'done');
+      assert.match(s.item(hard), /page: its page had stopped with nobody working it; back in build/);
+    } finally {
+      third.child.kill();
+    }
+  } finally {
+    s.cleanup();
+  }
+});
+
 test('the runner is off unless asked for: opening the page builds nothing', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop', '--gate');

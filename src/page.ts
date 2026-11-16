@@ -399,6 +399,37 @@ export function board(ws: Workspace, project?: string, runner?: Runner): Board {
 
 const LIVE_LINES = 60;
 
+/** The file a page writes its agent's prompt to. It lives exactly as long as the agent. */
+const promptFile = (id: string, pid: number): string => path.join(os.tmpdir(), `spool-${id}-${pid}.md`);
+
+/** Whether the last claim on a thread was a page handing it to an agent, not someone starting it. */
+function handedByPage(task: Item): boolean {
+  const claims = splitBody(task.body).log.filter((line) => /^- \S+ \S+ (page: handed to |[^:]+: (started|picked up after))/.test(line));
+  return / page: handed to /.test(claims.at(-1) ?? '');
+}
+
+/** Whether a page on this machine, other than this one, has an agent on the thread right now. */
+function pageRunning(id: string): boolean {
+  let names: string[] = [];
+  try {
+    names = fs.readdirSync(os.tmpdir());
+  } catch {
+    return false;
+  }
+  return names.some((name) => {
+    const found = /^spool-(t-[a-z0-9]+)-(\d+)\.md$/.exec(name);
+    if (!found || found[1] !== id) return false;
+    const pid = Number(found[2]);
+    if (pid === process.pid) return false;
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === 'EPERM';
+    }
+  });
+}
+
 /**
  * The runner: with it on, the page builds what is in Build by itself. It takes
  * the next thread, starts the user's agent command on it with the rules and
@@ -426,12 +457,66 @@ export class Runner {
     this.project = project;
     this.agent = agent || ctx.env.SPOOL_AGENT || userConfig(ctx).agent || DEFAULT_AGENT;
     this.on = on;
+    this.recover();
     this.timer = setInterval(() => this.tick(), 1000);
   }
 
+  /**
+   * The page is going away. The thread its agent is on goes back to Build now,
+   * while the process is still here to write it: the agent ends with the page,
+   * so nobody would be working a thread left marked as handed out.
+   */
   close(): void {
     clearInterval(this.timer);
-    this.stop();
+    const run = this.current;
+    if (!run) return;
+    run.stopped = true;
+    this.current = null;
+    this.putBack(run.id, 'the page was stopped; back in build');
+    this.end(run.child);
+    fs.rmSync(promptFile(run.id, process.pid), { force: true });
+  }
+
+  /** Put a thread the page handed out back in Build, if it is still out. */
+  private putBack(id: string, why: string): void {
+    try {
+      const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
+      try {
+        const task = ws.find(id);
+        if (task?.status !== 'active') return;
+        task.status = 'open';
+        task.by = undefined;
+        addLog(task, 'page', why, ws.now());
+        ws.save(task);
+      } finally {
+        ws.close();
+      }
+    } catch {
+      // The store could not be written; the next page to start finds the thread and puts it back.
+    }
+  }
+
+  /**
+   * A page that ended without settling (killed outright, or a version before this
+   * one) leaves its thread marked as handed out with nobody on it. On start, put
+   * back every thread whose last claim was a page's hand-off where no page has an
+   * agent on it: a running agent's prompt file, named with its page's pid, lives as long as it does.
+   */
+  private recover(): void {
+    let orphans: string[] = [];
+    try {
+      const ws = Workspace.open(this.ctx.cwd, this.ctx.now);
+      try {
+        orphans = tasks(ws, this.project)
+          .filter((t) => t.status === 'active' && handedByPage(t) && !pageRunning(t.id))
+          .map((t) => t.id);
+      } finally {
+        ws.close();
+      }
+    } catch {
+      return;
+    }
+    for (const id of orphans) this.putBack(id, 'its page had stopped with nobody working it; back in build');
   }
 
   /** Stop the agent that is working. Its thread goes back to Build, and the runner is switched off so it is not picked straight up again. */
@@ -482,7 +567,7 @@ export class Runner {
   }
 
   private start(task: Item, prompt: string): void {
-    const file = path.join(os.tmpdir(), `spool-${task.id}-${process.pid}.md`);
+    const file = promptFile(task.id, process.pid);
     fs.writeFileSync(file, prompt);
     const child = spawn(this.agent.replaceAll('{prompt_file}', file), {
       shell: true,
@@ -850,7 +935,13 @@ export function startPage(
     server.listen(port, '127.0.0.1', () => ready({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`, server }));
   };
   listen(options.port ?? 4747, 20);
-  server.on('close', () => runner.close());
+  // The server's own close comes later than a process that is exiting: put the thread back on the way out too.
+  const leaving = (): void => runner.close();
+  process.once('exit', leaving);
+  server.on('close', () => {
+    process.off('exit', leaving);
+    runner.close();
+  });
   return server;
 }
 
@@ -878,9 +969,8 @@ export function servePage({ ctx, opts }: Bare): Result {
       spawn(opener, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref();
     }
   });
-  // Ctrl-C ends the page and the agent it started with it.
-  process.once('SIGINT', () => { server.close(); process.exit(0); });
-  process.once('SIGTERM', () => { server.close(); process.exit(0); });
+  // Ctrl-C, or closing the terminal, ends the page and the agent it started with it.
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.once(signal, () => { server.close(); process.exit(0); });
   return { text: '' };
 }
 
