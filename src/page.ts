@@ -190,7 +190,7 @@ interface Post {
 }
 
 /** The queue's own log lines: what moved where. Anything else an agent logged is something it had to say. */
-const BOOKKEEPING = /^(started|check passed|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |session |transcript |reverted|reopened|dropped|agreed|filed )/;
+const BOOKKEEPING = /^(started|check passed|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |session |transcript |reverted|reopened|dropped|agreed|filed |placed )/;
 
 function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['steps']): Post[] {
   const words: Post[] = said.map((s) => ({
@@ -1928,6 +1928,9 @@ const PAGE = String.raw`<!doctype html>
   .card:hover { border-color: var(--line); }
   .card[draggable=true], .row[draggable=true] { cursor: grab; }
   .dragging { opacity: .45; }
+  /* Where a card dragged over Build will land. */
+  .landing { height: 3px; margin: -5px 2px 2px; border-radius: 2px; background: var(--go); pointer-events: none; }
+  .col .hint { margin: -6px 6px 10px; color: var(--soft); font-size: 12px; }
   .card.past { opacity: .7; }
   .title { font-weight: 500; cursor: pointer; overflow-wrap: anywhere; }
   .title:hover { text-decoration: underline; }
@@ -2092,7 +2095,7 @@ const TOKEN = '__TOKEN__';
 const BUILD = '__BUILD__';
 const COLUMNS = [
   ['proposed', 'Backlog', 'Nothing here is built. Drag a thread to Build, or press ▶.'],
-  ['build', 'Build', 'Agents take these in order, top first.'],
+  ['build', 'Build', 'Agents take these in order, top first. Drag a card up or down to change it.'],
   ['building', 'Building', 'An agent has it now.'],
   ['done', 'Done', 'For you to check.'],
 ];
@@ -2261,7 +2264,35 @@ function moves(c, b) {
 }
 function dragOf(node, c, from) {
   node.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', c.id + ' ' + from); node.classList.add('dragging'); busy = true; });
-  node.addEventListener('dragend', () => { node.classList.remove('dragging'); busy = false; });
+  node.addEventListener('dragend', () => { node.classList.remove('dragging'); unland(); busy = false; });
+}
+
+// Dragging over Build, a thin line shows where the card will land: before the first card whose middle is below the pointer.
+function landAt(col, y) {
+  const cards = [...col.querySelectorAll('.card:not(.dragging)')];
+  const below = cards.find((n) => { const r = n.getBoundingClientRect(); return y < r.top + r.height / 2; }) || null;
+  const line = document.querySelector('.landing') || el('div', { class: 'landing' });
+  const at = below || (cards.length ? cards[cards.length - 1].nextSibling : null);
+  if (line.parentNode !== col || line.nextSibling !== at) col.insertBefore(line, at);
+}
+function unland() {
+  const line = document.querySelector('.landing');
+  if (line) line.remove();
+}
+// Where a drop at the landing line puts a thread in Build's line, as the order command takes it; null where it changes nothing.
+function spotOf(col, id) {
+  const line = col.querySelector('.landing');
+  if (!line) return null;
+  const all = [...col.querySelectorAll('.card')];
+  const others = all.filter((n) => n.dataset.id !== id);
+  if (!others.length) return null;
+  let below = line.nextSibling;
+  while (below && !(below.classList && below.classList.contains('card'))) below = below.nextSibling;
+  if (below && below.dataset.id === id) below = all[all.indexOf(below) + 1] || null;
+  const mine = all.find((n) => n.dataset.id === id);
+  // Dropped just where it already is.
+  if (mine && (all[all.indexOf(mine) + 1] || null) === below) return null;
+  return below ? { before: below.dataset.id } : { after: others[others.length - 1].dataset.id };
 }
 
 function cardNode(c, b) {
@@ -2411,18 +2442,33 @@ function drawBoard(b) {
     const cards = key === 'done' ? every.filter((c) => !c.complete) : every;
     // Every column takes a card dropped on it; only the backlog and Build take a new thread typed in.
     const drop = key === 'proposed' || key === 'build';
+    // Build drawn as it stands is the order it will be built in, so a drop there is a place in that line.
+    const line = key === 'build' && !colOf(key).sort;
     return el('section', { class: 'col', 'data-column': key,
-      ondragover: (e) => { e.preventDefault(); e.currentTarget.classList.add('over'); },
-      ondragleave: (e) => e.currentTarget.classList.remove('over'),
+      ondragover: (e) => {
+        e.preventDefault();
+        e.currentTarget.classList.add('over');
+        if (line) landAt(e.currentTarget, e.clientY);
+      },
+      ondragleave: (e) => {
+        if (e.currentTarget.contains(e.relatedTarget)) return;
+        e.currentTarget.classList.remove('over');
+        unland();
+      },
       ondrop: (e) => {
         e.currentTarget.classList.remove('over');
         const [id, from] = e.dataTransfer.getData('text/plain').split(' ');
-        if (!id || from === key) return;
+        const spot = line && id ? spotOf(e.currentTarget, id) : null;
+        unland();
+        if (!id || (from === key && !spot)) return;
         e.preventDefault();
         // The server says what the move did: stopped an agent, undid its work, or queued it to build next.
-        post('move', { id, to: key }, '');
+        // Dropped at a place in Build, it is moved there first if it came from elsewhere, then put in that place.
+        if (spot) post('order', { id, ...spot }, '');
+        else post('move', { id, to: key }, '');
       } },
       el('h2', {}, DOT[key] + ' ' + name, el('span', { class: 'count' }, filter ? every.length + ' of ' + whole.length : String(cards.length))),
+      line && cards.length > 1 && el('div', { class: 'hint' }, 'Built top first. Drag a card up or down to change the order.'),
       whole.length > 1 && tools,
       cards.length ? cards.map((c) => cardNode(c, b)) : el('div', { class: 'empty' }, filter ? 'Nothing here matches.' : key === 'done' ? 'Nothing left to check.' : hint),
       key === 'done' && cards.length > 1 && el('button', { class: 'foot go', onclick: () => post('complete-all', {}, 'All marked as complete') }, '✓ Mark all ' + cards.length + ' as complete'),

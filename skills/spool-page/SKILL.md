@@ -33,11 +33,12 @@ and anything about no thread, sit in a strip at the top of the Backlog view.
 | --- | --- |
 | Drag a thread 🧵 to **Build**, or press ▶ | It may be built now, in its turn. This is the only way anything gets built. |
 | **Not yet**, or drag it back | Back to the backlog. Nothing builds it. |
+| Drag a card up or down in **Build** | A line shows where it will land. Dropped there, that is its place: Build is built top first, by this page's agents, by `spool next` and by the loop. Dropped there from another column, it moves to Build in that place. |
 | **+ Create sprint**, then drag threads into it | A sprint is a named set of threads with no dates. Being in one starts nothing. |
 | **▶ Play sprint** | Everything in the sprint moves to Build at once. |
 | The search, or a sprint's pill | Narrows the board to what matches. |
 | **Add to Build**, at the foot of the backlog | Moves every thread the backlog is showing right now to Build, and none that a filter or the search has hidden. It asks once. |
-| **Sort** and **Show** at the top of a column | Sorts or filters that column alone. The order agents build in does not change. |
+| **Sort** and **Show** at the top of a column | Sorts or filters that column alone. The order agents build in does not change. Build sorted another way takes a drop as a move, not a place. |
 | Open a card | The ticket: what they said, what was done and by which agent, and everything that happened, with its fields at the side. |
 | Change a field on the ticket | Its name, status, priority, difficulty, tags or version. Tags and versions are theirs to invent. |
 | Click a tag or a version on a card | The board shows only those threads; click again to clear. |
