@@ -132,7 +132,8 @@ export class Sandbox {
   }
 
   cleanup(): void {
-    fs.rmSync(this.root, { recursive: true, force: true });
+    // A stand-in agent may still be writing as it is ended: try again for a moment before giving up.
+    fs.rmSync(this.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }
 
