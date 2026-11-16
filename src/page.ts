@@ -2190,11 +2190,34 @@ const PAGE = String.raw`<!doctype html>
   details.desc .part.why .label { color: var(--go); }
   details.desc .part.done .label { color: var(--blue); }
   .changes { margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
-  .changes .file { display: flex; gap: 10px; font-size: 13px; padding: 2px 0; }
-  .changes .file span:first-child { flex: 1; overflow-wrap: anywhere; }
   .plus { color: var(--go); } .minus { color: var(--hot); }
-  .diff { margin-top: 10px; max-height: 420px; overflow: auto; background: var(--bg); border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; white-space: pre; }
-  .diff .at { color: var(--blue); } .diff .head { color: var(--soft); font-weight: 600; }
+  .changes .sum { margin-top: 10px; font-size: 13px; display: flex; gap: 8px; align-items: baseline; }
+  .changes .commits { margin: 4px 0 10px; font-size: 12px; color: var(--soft); }
+  .changes .commits .mono { margin-right: 4px; }
+  .changes .file { border: 1px solid var(--line); border-radius: 8px; margin-top: 6px; overflow: hidden; min-width: 0; }
+  .changes .filehead { display: flex; align-items: center; gap: 10px; padding: 6px 10px; font-size: 13px; cursor: pointer; user-select: none; }
+  .changes .filehead:hover { background: var(--chip); }
+  .changes .twist { color: var(--soft); width: 10px; }
+  .changes .path { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .changes .dir { color: var(--soft); }
+  .changes .word { font-size: 11px; color: var(--soft); background: var(--chip); border-radius: 6px; padding: 1px 6px; }
+  .changes .stat { display: inline-flex; gap: 1px; }
+  .changes .stat i { width: 7px; height: 7px; border-radius: 1px; background: var(--line); }
+  .changes .stat i.plus { background: var(--go); } .changes .stat i.minus { background: var(--hot); }
+  .changes .filebody { border-top: 1px solid var(--line); background: var(--bg); }
+  .changes .filebody .note { padding: 6px 10px; }
+  .changes .scroll { max-height: 520px; overflow: auto; }
+  .changes table.lines { border-collapse: collapse; min-width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; tab-size: 4; }
+  .changes table.lines td { padding: 0; white-space: pre; }
+  .changes td.num { width: 1%; min-width: 34px; padding: 0 6px; text-align: right; color: var(--soft); opacity: 0.7; user-select: none; }
+  .changes td.sign { width: 1%; padding: 0 4px; user-select: none; }
+  .changes td.code { padding-right: 10px; }
+  .changes tr.plus td.sign { color: var(--go); } .changes tr.minus td.sign { color: var(--hot); }
+  .changes tr.plus, .changes tr.minus { color: var(--ink); }
+  .changes tr.plus { background: color-mix(in srgb, var(--go) 14%, transparent); }
+  .changes tr.minus { background: color-mix(in srgb, var(--hot) 14%, transparent); }
+  .changes tr.none td.code { color: var(--soft); font-style: italic; }
+  .changes tr.at td { color: var(--soft); background: var(--chip); padding: 1px 10px; }
   .undo { margin-top: 12px; display: grid; gap: 8px; }
   .undo input { padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
   .finish { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
@@ -2945,16 +2968,117 @@ async function showChanges(id) {
   }
   redraw();
 }
+// The patch the server sends is one text; the files in it are told apart here, the way a pull request lists them.
+// Each file keeps its header facts (new, deleted, renamed, binary) and its hunks as rows with both line numbers.
+function parsePatch(patch) {
+  const files = [];
+  const byPath = new Map();
+  let f = null, h = null, old = 0, now = 0;
+  for (const text of patch.split('\n')) {
+    if (text.startsWith('diff --git ')) {
+      const m = /^diff --git a\/(.*) b\/(.*)$/.exec(text);
+      const path = m ? m[2] : text.slice(11);
+      f = byPath.get(path);
+      // One file touched by several commits is one row, its hunks in the order they happened.
+      if (!f) { f = { path, from: m ? m[1] : path, state: '', binary: false, hunks: [] }; byPath.set(path, f); files.push(f); }
+      else if (f.state === 'deleted') f.state = '';
+      h = null;
+      continue;
+    }
+    if (!f) continue;
+    if (!h) {
+      if (text.startsWith('new file mode')) f.state = f.state || 'new';
+      else if (text.startsWith('deleted file mode')) f.state = 'deleted';
+      else if (text.startsWith('rename from ')) { f.state = 'renamed'; f.from = text.slice(12); }
+      else if (text.startsWith('Binary files') || text.startsWith('GIT binary patch')) f.binary = true;
+    }
+    const at = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@ ?(.*)$/.exec(text);
+    if (at) { h = { title: text, rows: [] }; f.hunks.push(h); old = +at[1]; now = +at[2]; continue; }
+    if (!h || !text) continue;
+    const mark = text[0];
+    if (mark === '+') h.rows.push({ kind: 'plus', old: '', now: now++, text: text.slice(1) });
+    else if (mark === '-') h.rows.push({ kind: 'minus', old: old++, now: '', text: text.slice(1) });
+    else if (mark === ' ') h.rows.push({ kind: '', old: old++, now: now++, text: text.slice(1) });
+    else h.rows.push({ kind: 'none', old: '', now: '', text });
+  }
+  for (const g of files) {
+    g.added = g.hunks.reduce((n, x) => n + x.rows.filter((r) => r.kind === 'plus').length, 0);
+    g.removed = g.hunks.reduce((n, x) => n + x.rows.filter((r) => r.kind === 'minus').length, 0);
+  }
+  return files;
+}
+
+// Which files of a ticket are folded open, and how far each is scrolled sideways: kept across redraws.
+const opened = new Map();
+const sideways = new Map();
+function changeBar(added, removed) {
+  const total = added + removed;
+  let green = total ? Math.round(5 * added / total) : 0;
+  let red = total ? 5 - green : 0;
+  if (added && !green) { green = 1; red = 4; }
+  if (removed && !red) { red = 1; green = 4; }
+  return el('span', { class: 'stat', 'aria-hidden': 'true' },
+    [0, 1, 2, 3, 4].map((i) => el('i', { class: i < green ? 'plus' : i < green + red ? 'minus' : '' })));
+}
+function fileDiff(key, g, cutNote) {
+  const table = el('table', { class: 'lines' }, g.hunks.map((h) => el('tbody', {},
+    el('tr', { class: 'at' }, el('td', { colspan: 4 }, h.title)),
+    h.rows.map((r) => el('tr', { class: r.kind },
+      el('td', { class: 'num' }, r.old === '' ? '' : String(r.old)),
+      el('td', { class: 'num' }, r.now === '' ? '' : String(r.now)),
+      el('td', { class: 'sign' }, r.kind === 'plus' ? '+' : r.kind === 'minus' ? '−' : ''),
+      el('td', { class: 'code' }, r.text))))));
+  const box = el('div', { class: 'scroll', 'data-keep': 'diff:' + key }, table);
+  box.addEventListener('scroll', () => sideways.set(key, box.scrollLeft));
+  // A box has no width until it is on the page, so its sideways place is put back once it is.
+  const was = sideways.get(key);
+  if (was) setTimeout(() => { box.scrollLeft = was; }, 0);
+  return el('div', { class: 'filebody' },
+    g.binary && !g.hunks.length ? el('div', { class: 'note' }, 'A binary file: there are no lines to show.') : g.hunks.length ? box : el('div', { class: 'note' }, g.state === 'renamed' ? 'Renamed, with no lines changed.' : 'No lines to show.'),
+    cutNote);
+}
 function changesNode(c) {
   if (!c.done || !c.thread.commits.length) return null;
   const d = showing.has(c.id) && diffs.get(c.id);
-  const line = (text) => el('div', { class: text.startsWith('+++') || text.startsWith('---') || text.startsWith('diff ') ? 'head' : text.startsWith('@@') ? 'at' : text.startsWith('+') ? 'plus' : text.startsWith('-') ? 'minus' : '' }, text || ' ');
-  return el('div', { class: 'changes' },
-    el('button', { onclick: () => showChanges(c.id) }, d ? 'Hide the changes' : 'Show what changed'),
-    d && d.files.map((f) => el('div', { class: 'file' }, el('span', { class: 'mono' }, f.path), el('span', { class: 'plus' }, '+' + f.added), el('span', { class: 'minus' }, '−' + f.removed))),
-    d && !d.files.length && el('div', { class: 'note' }, 'No changes on record for it in this repository.'),
-    d && d.patch && el('div', { class: 'diff', 'data-keep': 'diff' }, d.patch.split('\n').map(line)),
-    d && d.cut && el('div', { class: 'note' }, 'The rest is too long to show here.'));
+  const head = el('button', { onclick: () => showChanges(c.id) }, d ? 'Hide the changes' : 'Show what changed');
+  if (!d) return el('div', { class: 'changes' }, head);
+  if (!d.files.length) return el('div', { class: 'changes' }, head, el('div', { class: 'note' }, 'No changes on record for it in this repository.'));
+  const parsed = parsePatch(d.patch || '');
+  const counted = new Map(d.files.map((f) => [f.path, f]));
+  // The rows: every file in the patch, then any the cut patch never reached.
+  const rows = parsed.map((g) => {
+    const n = counted.get(g.path);
+    return { ...g, added: n ? n.added : g.added, removed: n ? n.removed : g.removed };
+  });
+  for (const f of d.files) if (!parsed.some((g) => g.path === f.path) && !f.path.includes(' => ')) rows.push({ path: f.path, state: '', binary: false, hunks: [], added: f.added, removed: f.removed, unseen: true });
+  const added = d.files.reduce((n, f) => n + f.added, 0);
+  const removed = d.files.reduce((n, f) => n + f.removed, 0);
+  const small = added + removed < 40;
+  const shas = d.commits.map((x) => x.sha).join(' ');
+  const cutNote = el('div', { class: 'note cutnote' }, 'The rest of this change is not shown here. To see it: ', el('code', {}, 'git show ' + shas));
+  return el('div', { class: 'changes' }, head,
+    el('div', { class: 'sum' },
+      el('b', {}, d.files.length + (d.files.length === 1 ? ' file' : ' files') + ' changed'), ' ',
+      el('span', { class: 'plus' }, '+' + added), ' ', el('span', { class: 'minus' }, '−' + removed)),
+    el('div', { class: 'commits' }, d.commits.map((x) => el('div', {}, el('span', { class: 'mono' }, x.sha), ' ' + x.subject))),
+    rows.map((g, i) => {
+      const key = c.id + '\0' + g.path;
+      const open = opened.has(key) ? opened.get(key) : small || i === 0;
+      const slash = g.path.lastIndexOf('/');
+      const last = i === rows.length - 1;
+      const word = g.binary ? 'binary' : g.state === 'new' ? 'new' : g.state === 'deleted' ? 'deleted' : g.state === 'renamed' ? 'renamed from ' + g.from : '';
+      const cut = d.cut && last;
+      return el('div', { class: 'file' + (open ? ' open' : '') },
+        el('div', { class: 'filehead', role: 'button', tabindex: '0', 'aria-expanded': String(open),
+          onclick: () => { opened.set(key, !open); redraw(); },
+          onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); opened.set(key, !open); redraw(); } } },
+          el('span', { class: 'twist' }, open ? '▾' : '▸'),
+          el('span', { class: 'path mono' }, slash >= 0 && el('span', { class: 'dir' }, g.path.slice(0, slash + 1)), g.path.slice(slash + 1)),
+          word && el('span', { class: 'word' }, word),
+          el('span', { class: 'plus' }, '+' + g.added), el('span', { class: 'minus' }, '−' + g.removed),
+          changeBar(g.added, g.removed)),
+        open && (g.unseen ? cutNote : fileDiff(key, g, cut && cutNote)));
+    }));
 }
 // Undo is the other answer to finished work: take back exactly what this thread changed, and say why.
 function undoNode(c) {
