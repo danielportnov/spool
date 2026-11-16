@@ -1,6 +1,6 @@
 ---
 name: spool-page
-description: Open the Spool page - a board in the browser with every thread of this project's spool in four columns (backlog, build, building, done), and a backlog view with sprints, where the user drags threads into build or presses play on a thread or a whole sprint, adds notes and answers questions. Use for /spool-page, or when the user says "open the spool page", "open the board", "show me the board", "let me see the spool", or wants to plan or move threads around.
+description: Open the Spool page - a board in the browser with every thread of this project's spool in four columns (backlog, build, building, done), a backlog view with sprints, and a roadmap of the sprints in order, where the user drags threads into build or presses play on a thread or a whole sprint, adds notes and answers questions. Use for /spool-page, or when the user says "open the spool page", "open the board", "show me the board", "let me see the spool", or wants to plan or move threads around.
 ---
 
 # Spool page
@@ -24,7 +24,7 @@ the chat can stay short.
 
 What they can do on it:
 
-The page has two views. **Board** is four columns: Backlog, Build, Building,
+The page has three views. **Board** is four columns: Backlog, Build, Building,
 Done. Above them, when anything has shipped that they have not looked at or
 anything needs them, is the morning brief: the same as `spool brief`, so do
 not repeat it in the chat when they have the board open. **Backlog** is for planning: sprints to fill and play, under them
@@ -33,6 +33,10 @@ question on its card and ticket, a call an agent made as a post in its thread
 (**Fine**, or **Overrule** in their words), a plan's go-ahead and a new skill
 on the ticket. A card with something to look at says so. Notes nobody filed,
 and anything about no thread, sit in a strip at the top of the Backlog view.
+**Roadmap** is the sprints in a row under the project's goals: reached, being
+played (with each thread's state and how far along it is), and planned, each
+with its play. When they ask where things are heading, or how a sprint is
+going, it is the view to point them at.
 
 | On the page | What it does |
 | --- | --- |
@@ -40,7 +44,8 @@ and anything about no thread, sit in a strip at the top of the Backlog view.
 | **Not yet**, or drag it back | Back to the backlog. Nothing builds it. |
 | Drag a card up or down in **Build** | A line shows where it will land. Dropped there, that is its place: Build is built top first, by this page's agents, by `spool next` and by the loop. Dropped there from another column, it moves to Build in that place. |
 | **+ Create sprint**, then drag threads into it | A sprint is a named set of threads with no dates. Being in one starts nothing. |
-| **▶ Play sprint** | Everything in the sprint moves to Build at once. |
+| **▶ Play sprint** | Everything in the sprint moves to Build at once. On the Backlog view and the Roadmap alike. |
+| A thread's line on the **Roadmap**, dragged onto another sprint | It moves to that sprint, as `spool edit <t-id> --sprint <sprint>` does; onto **In no sprint**, it leaves its sprint. Clicked, it opens its ticket. |
 | The search, or a sprint's pill | Narrows the board to what matches. |
 | **Add to Build**, at the foot of the backlog | Moves every thread the backlog is showing right now to Build, and none that a filter or the search has hidden. It asks once. |
 | **Sort** and **Show** at the top of a column | Sorts or filters that column alone. The order agents build in does not change. Build sorted another way takes a drop as a move, not a place. |

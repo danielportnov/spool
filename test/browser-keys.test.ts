@@ -305,12 +305,14 @@ test('Cmd+K finds any thread by name, id or tag, and runs any action by name', a
     // Actions by name, and Up and Down to choose among them.
     await page.keyboard.press('ControlOrMeta+k');
     await page.keyboard.type('go to');
-    assert.deepEqual(await hits.allInnerTexts(), ['Go to the Board', 'Go to the Backlog']);
+    assert.deepEqual(await hits.allInnerTexts(), ['Go to the Board', 'Go to the Backlog', 'Go to the Roadmap']);
     const chosen = palette.locator('.hit.on .name');
     await page.keyboard.press('ArrowDown');
     assert.equal(await chosen.innerText(), 'Go to the Backlog');
     await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
     assert.equal(await chosen.innerText(), 'Go to the Board', 'and round to the top');
+    await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('Enter');

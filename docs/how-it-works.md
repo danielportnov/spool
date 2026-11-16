@@ -73,7 +73,7 @@ an agent how to work ("keep going until midnight"), or saying go or no, is acted
 
 ## The page
 
-`spool page` starts a small server on your machine and opens a board. It has two views.
+`spool page` starts a small server on your machine and opens a board. It has three views.
 
 **Board.** Four columns: Backlog, Build, Building, Done.
 
@@ -98,7 +98,7 @@ finishes. With nothing shipped and nothing needing you, the panel is not there.
   the rest; completed threads are kept behind a **History** line.
 - The keyboard: `j` and `k` move down and up a column (or the Backlog view's rows), `h` and `l`
   between columns, `Enter` opens the thread, `b` moves it to Build and `x` archives it (both from
-  the backlog only), `Esc` closes or lets go, `g b` and `g l` switch views, `?` lists the keys.
+  the backlog only), `Esc` closes or lets go, `g b`, `g l` and `g r` switch views, `?` lists the keys.
 - `c`, from anywhere on the page, opens one box: type, press `Enter`, and it is in the backlog.
   A `#word` in it is a tag and `!0` to `!3` its priority (`spool task -p`, `--tag`), left out of
   its name; every word is kept on the thread.
@@ -110,6 +110,16 @@ finishes. With nothing shipped and nothing needing you, the panel is not there.
 press **▶ Play sprint**. Notes nobody filed sit in a strip at the top (**Make it a thread**, or
 **Set aside**), with anything waiting on you that is about no thread. The strip is gone when it is
 empty.
+
+**Roadmap.** Where the work is going, in one row. At the top, the project's goals in a line or
+two (where none are set, how to set them). Then the sprints in order: the ones reached, quiet, with
+the version each became, the day and how many threads; the one being played, open, with your words
+for it, its goal, why, done-when and the goal it serves, how far along it is, and each of its
+threads in a line with its state (done, building, in build, in the backlog, or needing you); then
+the ones planned, with their goal, how many threads and of what sizes, and **▶ Play sprint**; and
+last, how many threads are in no sprint, which opens the Backlog view. A thread's line opens its
+ticket. Drag it onto another sprint to move it there, or onto **In no sprint** to take it out. On a
+phone the sprints are a stack.
 
 **What waits on you is on its thread.** A question is answered on its card, or on its ticket with a
 button or in your own words. A call an agent made by itself is a post in its thread, "Decided: …"
@@ -127,7 +137,7 @@ commits with your reason. While the page's own agent builds a thread, its card s
 effort it was started with, and its ticket names the agent's session with a button that copies
 `claude --resume <session>`, to open it in a terminal. A ticket has its own address (`#t-4kq7`): the link icon beside its id
 copies it, and a click on a thread's id, on a card, a row or a ticket, copies the id. And
-`?view=backlog` opens the Backlog view.
+`?view=backlog` opens the Backlog view, `?view=roadmap` the Roadmap.
 
 **In a background tab.** The tab's title and icon say what is going on: a count, `(2) skyhop`, of
 the threads waiting on you (a question, a plan wanting a go-ahead, finished work not yet marked

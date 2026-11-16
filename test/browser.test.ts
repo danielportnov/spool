@@ -241,7 +241,7 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
 
     // What waits on him lives on its thread: a question on its card, a call on its card and ticket.
     // What is about no thread, and a note nobody filed, is in a strip at the top of the backlog.
-    assert.deepEqual(await page.locator('.tab').allInnerTexts(), ['Board', 'Backlog'], 'two views, and no Needs you');
+    assert.deepEqual(await page.locator('.tab').allInnerTexts(), ['Board', 'Backlog', 'Roadmap'], 'three views, and no Needs you');
     s.sp('ask', 'Pause on the left, or the right?', '--option', 'Left', '--option', 'Right', '--recommend', '2', '--for', pause);
     s.sp('assume', 'Which font for the score?', '--chose', 'The pixel font', '--why', 'it matches the title screen', '--for', pause);
     s.sp('assume', 'How loud is the coin sound?', '--chose', 'Half volume', '--why', 'it plays often');

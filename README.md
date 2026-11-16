@@ -163,7 +163,9 @@ spool page
 
 A board of your spool, served from your own machine, with a Jira-shaped **Backlog** view beside it:
 sprints you fill by dragging and start with one ▶. Sprints have no dates; agents work in hours, so
-a sprint is over when its threads are done, and becomes a version named for it. On the board, drag threads between Backlog and Build, drag a card
+a sprint is over when its threads are done, and becomes a version named for it. The **Roadmap** view
+puts them in a row under your goals: the ones reached, the one being played with each of its
+threads and how far along it is, and the ones to come, each with its ▶. On the board, drag threads between Backlog and Build, drag a card
 up or down in Build to say what is built first, add one with **+ Add**, answer an agent's question with one button. It all works from the keyboard too: `c` adds a thread from anywhere, `Cmd+K` finds any thread or action, and `?` lists the keys. Open any card and you get the
 ticket: what you said, what was done and by which agent, everything in between, and its fields at
 the side — status, priority, difficulty, tags, version — all yours to change. Click a tag or a

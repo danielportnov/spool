@@ -17,10 +17,12 @@ import { type Brief, morning } from './brief.ts';
 import type { Builder } from './context.ts';
 import { type Picking, type Runner, stoppedInBuild } from './engine.ts';
 import { git, repoRoot } from './git.ts';
+import { type Goals, goalsOf } from './goals.ts';
 import { type Item, isPlan, oneLine, reportFile, splitBody, whyOf } from './model.ts';
 import { age, sprintAbout, tableRows } from './render.ts';
 import { type Run as StartedWith, runOf } from './run.ts';
 import { type Review, blockers, children, dependents, docket, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
+import { sprintDates } from './sprints.ts';
 import type { Workspace } from './store.ts';
 import type { Upkeep } from './upkeep.ts';
 import { watched } from './watch.ts';
@@ -241,8 +243,29 @@ export interface Board {
     stopped: string[];
     recent: { id: string; title: string; outcome: string }[];
   };
-  /** The sprints, oldest first: what is in each and how far along it is. */
-  sprints: { id: string; name: string; status: string; goal: string; why: string; doneWhen: string; total: number; done: number; waiting: number }[];
+  /**
+   * The sprints, oldest first: what is in each and how far along it is. `serves` is the goal it is
+   * for, `vision` his words for it, `version` the one it became; `started` and `reached` are when
+   * play was pressed on it and when its last thread was done, empty until then.
+   */
+  sprints: {
+    id: string;
+    name: string;
+    status: string;
+    goal: string;
+    why: string;
+    doneWhen: string;
+    serves: string;
+    vision: string;
+    version: string;
+    started: string;
+    reached: string;
+    total: number;
+    done: number;
+    waiting: number;
+  }[];
+  /** Where the project is going, from its goals page: null where none are set. */
+  goals: Goals | null;
   columns: Record<Column, Card[]>;
   /** Threads put out of sight, newest first: on no column, shown only in the Backlog view's Archived section. */
   archived: Card[];
@@ -544,12 +567,14 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
           name: s.title,
           status: s.status,
           ...sprintAbout(s),
+          ...sprintDates(s),
           total: inIt.length,
           done: inIt.filter((t) => t.status === 'done').length,
           // What pressing play would move: in the sprint, and not yet in build.
           waiting: inIt.filter((t) => t.status === 'proposed' || !!t.hold).length,
         };
       }),
+    goals: goalsOf(spool) ?? null,
     columns,
     archived: all
       .filter((t) => taskState(ws, t) === 'archived')

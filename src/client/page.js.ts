@@ -29,12 +29,12 @@ const ARROWS = ['↑↑', '↑', '=', '↓'];
 let last = '';
 let current = null;
 let busy = false;
-// Which view is up: the board, or the backlog with its sprints.
+// Which view is up: the board, the backlog with its sprints, or the roadmap of sprints in order.
 let view = 'board';
 // A view the page no longer has, remembered or linked to, is the board.
-try { view = localStorage.getItem('spool-view') === 'backlog' ? 'backlog' : 'board'; } catch (e) {}
+try { view = ['backlog', 'roadmap'].find((v) => v === localStorage.getItem('spool-view')) || 'board'; } catch (e) {}
 // A link can name the view: /?view=backlog
-const asked = /[?&]view=(board|backlog)\b/.exec(location.search);
+const asked = /[?&]view=(board|backlog|roadmap)\b/.exec(location.search);
 if (asked) view = asked[1];
 // The thread that is open, if one is, and notes begun but not yet added.
 let openId = null;
@@ -1421,8 +1421,9 @@ function draw(b) {
   }
   document.getElementById('board').hidden = view !== 'board';
   document.getElementById('backlog').hidden = view !== 'backlog';
+  document.getElementById('roadmap').hidden = view !== 'roadmap';
   drawBrief(b);
-  if (view === 'board') drawBoard(b); else drawBacklog(b);
+  if (view === 'board') drawBoard(b); else if (view === 'roadmap') drawRoadmap(b); else drawBacklog(b);
   drawJump();
   const box = document.querySelector('.adding textarea, .adding input');
   if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
@@ -1582,6 +1583,7 @@ let focusId = null;
 // The lists j and k move along: each column of the board, or the Backlog view's rows top to bottom.
 function lanes() {
   if (view === 'board') return [...document.querySelectorAll('#board .col')].map((col) => [...col.querySelectorAll('.card[data-id]')]);
+  if (view === 'roadmap') return [...document.querySelectorAll('#roadmap .lane')].map((lane) => [...lane.querySelectorAll('.rrow[data-id]')]);
   return [[...document.querySelectorAll('#backlog .row[data-id]')]];
 }
 function markFocus() {
@@ -1685,6 +1687,7 @@ const KEYS = [
   { key: 'x', label: 'x', says: 'Archive it, from the backlog', run: archiveFocused, board: true },
   { key: 'g b', label: 'g then b', says: 'Go to the Board', run: () => goTo('board'), board: true },
   { key: 'g l', label: 'g then l', says: 'Go to the Backlog', run: () => goTo('backlog'), board: true },
+  { key: 'g r', label: 'g then r', says: 'Go to the Roadmap', run: () => goTo('roadmap'), board: true },
   { key: '/', label: '/', says: 'Search', run: () => document.getElementById('search').focus(), board: true },
   { key: 'c', label: 'c', says: 'Add a thread to the backlog, from anywhere', run: () => openLayer('add') },
   { key: 'mod k', label: MAC ? '⌘ K' : 'Ctrl K', says: 'Find a thread, or run an action by name' },
@@ -1709,6 +1712,7 @@ function actionsOf(b) {
   return [
     { name: 'Go to the Board', hint: 'g b', run: () => goTo('board') },
     { name: 'Go to the Backlog', hint: 'g l', run: () => goTo('backlog') },
+    { name: 'Go to the Roadmap', hint: 'g r', run: () => goTo('roadmap') },
     { name: 'Switch who builds to ' + (chat ? 'Headless' : 'Chat'), run: () => post('builder', { builder: chat ? 'headless' : 'chat' }, '') },
     !chat && { name: b.runner.on ? 'Switch agents off' : 'Switch agents on', run: () => post('runner', { on: !b.runner.on }, '') },
     ...b.sprints.filter((x) => x.waiting > 0).map((x) => ({ name: 'Play sprint: ' + x.name, run: () => post('play', { id: x.id }, x.name + ' is running') })),

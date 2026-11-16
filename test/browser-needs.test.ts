@@ -44,7 +44,7 @@ test('a plan, a new skill and a question are each settled on their own thread', 
     // A link to the view that is gone, or a page that remembers it, opens on the board.
     await page.goto(url + '?view=needs');
     await card('Lobby screen').waitFor();
-    assert.deepEqual(await page.locator('.tab').allInnerTexts(), ['Board', 'Backlog']);
+    assert.deepEqual(await page.locator('.tab').allInnerTexts(), ['Board', 'Backlog', 'Roadmap']);
     await page.evaluate(() => localStorage.setItem('spool-view', 'needs'));
     await page.goto(url);
     await card('Lobby screen').waitFor();

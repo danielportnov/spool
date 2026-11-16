@@ -9,6 +9,8 @@
 
 import { CSS } from './page.css.ts';
 import { JS } from './page.js.ts';
+import { ROADMAP_CSS } from './roadmap.css.ts';
+import { ROADMAP_JS } from './roadmap.js.ts';
 
 export const PAGE = String.raw`<!doctype html>
 <html lang="en">
@@ -32,7 +34,7 @@ paintTheme();
 SYSTEM_DARK.addEventListener('change', paintTheme);
 </script>
 <style>
-${CSS}</style>
+${CSS + ROADMAP_CSS}</style>
 </head>
 <body>
 <div class="bar">
@@ -40,6 +42,7 @@ ${CSS}</style>
   <div class="tabs">
     <button class="tab" data-view="board">Board</button>
     <button class="tab" data-view="backlog">Backlog</button>
+    <button class="tab" data-view="roadmap">Roadmap</button>
   </div>
   <input class="search" id="search" placeholder="Search threads   /" autocomplete="off">
   <div class="builder" id="builder" role="group" aria-label="Who builds" hidden><button data-builder="headless">Headless</button><button data-builder="chat">Chat</button></div>
@@ -53,13 +56,14 @@ ${CSS}</style>
 <nav class="jump" id="jump" aria-label="Columns"></nav>
 <main id="board"></main>
 <main id="backlog" hidden></main>
+<main id="roadmap" hidden></main>
 <div id="veil" hidden></div>
 <aside id="thread" hidden></aside>
 <div id="said"></div>
 <div id="layerveil" hidden></div>
 <div id="layer" role="dialog" aria-modal="true" hidden></div>
 <script>
-${JS}</script>
+${JS + ROADMAP_JS}</script>
 </body>
 </html>
 `;
