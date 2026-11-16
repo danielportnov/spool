@@ -8,6 +8,10 @@
  * there is still one runner to a project, and leaving this screen stops nothing: the page is a
  * process of its own, and its agents carry on.
  *
+ * Beside the queue is whatever the cursor is on. For a thread being built that is its agent's
+ * session, live: the lines the page's runner heard, asked for by number (`/api/run`, `heard.ts`),
+ * so what came before this screen was opened is there too, and each look brings only what is new.
+ *
  * Two pure functions do the work, so a test compares screens as text with no terminal: `frame`
  * draws a screen from the board and the interface's own state, and `key` turns a key into a new
  * state and, maybe, an action. `watchQueue` is the loop around them, and `openQueue` is what bare
@@ -64,10 +68,15 @@ export interface State {
   sizes: Record<string, string>;
   /** Spool's mark for the top line, in this terminal's colours (`markLine`); empty where it is drawn plain. */
   mark: string;
+  /**
+   * What the agent said on the thread the cursor is on, as far as the page has been asked: which
+   * run, the number of the next line to ask for, and whether the thread was still being built then.
+   */
+  run: { id: string; run: string; next: number; lines: string[]; live: boolean } | null;
 }
 
 export function start(page: State['page'], cols: number, rows: number, now: number): State {
-  return { view: 'queue', focus: 'queue', at: '', index: 0, backlog: false, adding: null, scroll: null, said: '', failed: false, page, now, cols, rows, sizes: {}, mark: '' };
+  return { view: 'queue', focus: 'queue', at: '', index: 0, backlog: false, adding: null, scroll: null, said: '', failed: false, page, now, cols, rows, sizes: {}, mark: '', run: null };
 }
 
 /** What a key asks for beyond a change of state: one of the page's own POSTs, or to leave. */
@@ -275,11 +284,12 @@ function threadSide(board: Board, state: State, c: Card, inner: number): Side {
   numbered(body, 'To check', c.steps, inner);
   if (c.done) spec();
 
-  const run = board.runner.running.find((r) => r.id === c.id);
-  const last = run ? run.lines.slice(-8) : c.column === 'building' && c.live?.note ? [c.live.note] : c.thread.steps.slice(-6).map((s) => `${s.at.slice(5, 16)} ${s.who}: ${s.what}`.trim());
+  // What its agent said last, where a page ran one on it; else the last of what is written on the thread.
+  const heard = state.run?.id === c.id ? state.run.lines.slice(-8) : [];
+  const last = heard.length ? heard : c.thread.steps.slice(-6).map((s) => `${s.at.slice(5, 16)} ${s.who}: ${s.what}`.trim());
   if (last.length) {
     if (body.length) body.push(BLANK);
-    body.push({ text: 'Last lines', tone: 'bold' });
+    body.push({ text: heard.length ? 'Its agent last said' : 'Last lines', tone: 'bold' });
     for (const said of last) wrap(said, inner - 4).forEach((line, n) => body.push({ text: `${n ? '    ' : '  '}${line}`, tone: 'dim' }));
   }
   if (!body.length) body.push({ text: 'Nothing is written on it yet.', tone: 'dim' });
@@ -290,6 +300,40 @@ function threadSide(board: Board, state: State, c: Card, inner: number): Side {
     ],
     body,
     follow: false,
+  };
+}
+
+/** How a line an agent said is shown: its tool calls quietly, what failed in red, what it was refused in yellow. */
+function saidTone(line: string): Tone | undefined {
+  if (line.startsWith('→ ') || line.startsWith('session ')) return 'dim';
+  if (line.startsWith('✗ ')) return 'red';
+  return line.startsWith('denied → ') ? 'yellow' : undefined;
+}
+
+/**
+ * One agent at work, live: what it was started with and where, and under that every line it has
+ * said, the newest last. The lines are the run's own, once the page has been asked for them;
+ * until then, the few the board carries, so moving to a thread shows its lines at once.
+ */
+function sessionSide(board: Board, state: State, c: Card, inner: number): Side {
+  const run = board.runner.running.find((r) => r.id === c.id);
+  // Only a run of this page's is shown as this session: lines kept from an earlier run are not what a chat is doing now.
+  const lines = !run ? [] : state.run?.id === c.id && state.run.lines.length ? state.run.lines : run.lines;
+  const body: Bit[] = [];
+  for (const said of lines) wrap(said, inner - 2).forEach((line, n) => body.push({ text: `${n ? '  ' : ''}${line}`, tone: saidTone(said) }));
+  if (!body.length) {
+    // Built by a chat, or by hand: its agent's lines are wherever that agent is.
+    const none = run ? 'Nothing said yet.' : `${c.thread.by || 'An agent'} is building this outside the page, so its lines are not here.`;
+    for (const line of wrap(c.live?.note ? `${none} Its last note: ${c.live.note}` : none, inner)) body.push({ text: line, tone: 'dim' });
+  }
+  const started = [c.run?.model, c.run?.effort, took(builtFor(board, c, state.now))].filter(Boolean).join(' · ');
+  return {
+    head: [
+      { left: [{ text: c.id, tone: 'dim' }, { text: `  ${c.title}`, tone: 'bold' }], right: [{ text: started }] },
+      { left: [{ text: c.worktree || 'the project’s own folder', tone: 'dim' }], right: [{ text: c.run?.session ? `session ${c.run.session.slice(0, 8)}` : '', tone: 'dim' }] },
+    ],
+    body,
+    follow: true,
   };
 }
 
@@ -358,7 +402,15 @@ function sideOf(board: Board, state: State, row: Row, inner: number): Side {
     if (sprint) return sprintSide(board, sprint, inner);
   }
   const c = row.kind === 'thread' || row.kind === 'plan' ? cardOf(board, row.id) : undefined;
+  if (c?.column === 'building') return sessionSide(board, state, c, inner);
   return c ? threadSide(board, state, c, inner) : backlogSide(board, state, inner);
+}
+
+/** The thread the cursor is on, if it is on one: the thread whose run is asked for. */
+export function threadAt(board: Board, state: State): string {
+  const rows = rowsOf(board, state);
+  const row = rows[cursor(rows, state)]!;
+  return row.kind === 'thread' || row.kind === 'plan' ? row.id : '';
 }
 
 // ------------------------------------------------------------------ the brief, and the keys
@@ -428,8 +480,9 @@ function briefBody(b: Brief, inner: number, now: number): Bit[] {
 const KEYS: [string, string][] = [
   ['up, down, j, k', 'move through the queue'],
   ['enter', 'read what the cursor is on; open or close the backlog'],
-  ['esc', 'back to the queue'],
-  ['pgup, pgdn', 'scroll what is beside the queue; home and end, to its ends'],
+  ['tab', 'between the queue and what is beside it; esc goes back too'],
+  ['pgup, pgdn', 'scroll what is beside the queue: a session, or a thread'],
+  ['home, end', 'its start, and its end: a session follows its end again'],
   ['b', 'build a backlog thread, or carry on with a stopped one'],
   ['p', 'play a sprint: on it, or a thread of it, in the backlog'],
   ['s', 'stop the agent on a thread being built; it waits in Build'],
@@ -587,16 +640,17 @@ function sideLines(side: Side, state: State, w: number, h: number, p: Paint): st
   const top = topOf(state.scroll, side.body.length, room, side.follow);
   for (const bit of side.body.slice(top, top + room)) out.push(` ${ink(p, fit(bit.text, inner), bit.tone)} `);
   while (out.length < h) out.push(' '.repeat(w));
-  // More below than fits: the last line says so, in place of the text it covers.
+  // More below than fits: the last line says so, in place of the text it covers. A session scrolled up holds still, and says how to follow it again.
   const below = side.body.length - top - room;
-  if (below > 0) out[h - 1] = ` ${p.dim(fit(`… ${plural(below, 'more line')}: ${state.focus === 'side' ? 'down, or pgdn' : 'enter, then down'}`, inner))} `;
+  const how = side.follow ? 'end follows them again' : state.focus === 'side' ? 'down, or pgdn' : 'tab, then down';
+  if (below > 0) out[h - 1] = ` ${p.dim(fit(`… ${plural(below, 'more line')}: ${how}`, inner))} `;
   return out;
 }
 
 /** The keys that do something on the row the cursor is on. */
 function rowKeys(board: Board, state: State, row: Row): string {
-  if (state.focus === 'side') return 'up/down scroll · pgup/pgdn a page · home/end its ends · esc back to the queue';
-  const read = 'enter read it';
+  if (state.focus === 'side') return 'up/down scroll · pgup/pgdn a page · home/end its ends · tab back to the queue';
+  const read = 'tab read it';
   if (row.kind === 'backlog') return state.backlog ? 'enter close the list' : 'enter open the list';
   if (row.kind === 'sprint') {
     const n = sprintsWaiting(board).find((s) => s.sprint.id === row.id)?.cards.length ?? 0;
@@ -606,7 +660,7 @@ function rowKeys(board: Board, state: State, row: Row): string {
   if (row.kind === 'plan') return `a give the go-ahead · ${read}`;
   const c = cardOf(board, row.id);
   const answer = c?.question?.options.length ? `1-${Math.min(9, c.question.options.length)} answer it · ` : '';
-  if (row.section === 'building') return `s stop its agent · ${read}`;
+  if (row.section === 'building') return 's stop its agent · tab its session · pgup/pgdn scroll it';
   if (row.section === 'done') return `a approve it · ${read}`;
   if (row.section === 'backlog') {
     const sprint = sprintsWaiting(board).find((s) => s.sprint.id === c?.sprint)?.sprint.name;
@@ -771,6 +825,7 @@ export function key(state: State, k: string, board: Board | null): { state: Stat
     return { state: { ...fresh, at: rows[to]!.key, index: to, scroll: to === at ? fresh.scroll : null } };
   }
   if (k === 'esc') return { state: { ...fresh, focus: 'queue' } };
+  if (k === 'tab') return { state: { ...fresh, focus: fresh.focus === 'queue' ? 'side' : 'queue' } };
   if (k === 'enter') {
     if (row.kind === 'backlog') return { state: { ...fresh, backlog: !fresh.backlog } };
     return { state: { ...fresh, focus: 'side' } };
@@ -807,6 +862,9 @@ export function key(state: State, k: string, board: Board | null): { state: Stat
 }
 
 // ------------------------------------------------------------------ the loop
+
+/** How much of a run from before this screen was opened is asked for: its last lines, this many. */
+const HEARD_FIRST = 2000;
 
 /** What the loop needs from outside, so a test can run it with no terminal. */
 export interface Watching {
@@ -896,6 +954,33 @@ export function watchQueue(w: Watching): Promise<{ url: string; building: number
       }
     };
 
+    // The run of the thread the cursor is on: the end of it first, then only what is new. A thread no
+    // longer being built is asked about once more, for its agent's last words, and then has said all it will.
+    let hearing = false;
+    const hear = async (): Promise<void> => {
+      if (hearing || over || !board) return;
+      const id = threadAt(board, state);
+      const have = state.run?.id === id ? state.run : null;
+      const live = board.columns.building.some((c) => c.id === id);
+      if (!id || (have && !live && !have.live)) return;
+      hearing = true;
+      try {
+        const where = `api/run?id=${id}&from=${have ? have.next : -HEARD_FIRST}${have?.run ? `&run=${encodeURIComponent(have.run)}` : ''}`;
+        const answer = (await get(where)) as { run: string; from: number; next: number; lines: string[] };
+        const held = state.run?.id === id ? state.run : null;
+        // Another run than the one held, or not from where that had got to: what is held is replaced.
+        const anew = !held || held.run !== answer.run || answer.from !== held.next;
+        state = { ...state, run: { id, run: answer.run, next: answer.next, lines: anew ? answer.lines : [...held.lines, ...answer.lines], live } };
+        if (anew || answer.lines.length) draw();
+      } catch {
+        // The page is busy or gone: the next look asks again.
+      } finally {
+        hearing = false;
+      }
+      // He moved on while this was being asked: the thread he is on now is asked about at once.
+      if (!over && board && threadAt(board, state) !== id) void hear();
+    };
+
     let asked = 0;
     let shown = 0;
     const look = async (): Promise<void> => {
@@ -919,6 +1004,7 @@ export function watchQueue(w: Watching): Promise<{ url: string; building: number
         if (w.run && !board.runner.on) void post('runner', { on: true }).then(look);
       }
       draw();
+      void hear();
       void sizeUp();
     };
 
@@ -936,6 +1022,7 @@ export function watchQueue(w: Watching): Promise<{ url: string; building: number
         return;
       }
       draw();
+      void hear();
       if (action?.do !== 'post') return;
       const out = await post(action.action, action.body);
       state = { ...state, said: out.ok ? out.text || action.done : out.text || 'That did not work.', failed: !out.ok };

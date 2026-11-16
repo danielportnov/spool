@@ -202,16 +202,26 @@ The left side is the queue, top to bottom:
 - **Backlog**: a count. Enter opens it to a list: threads in no sprint, then each sprint with what
   waits in it.
 
-The right side is whatever the cursor is on, to read: a thread's why, what it waits on, its result
-and the steps to check it, and its last lines; a question with its options; a sprint with its goal.
-The top line says whether agents are on, how many threads are being built, how many things need
-you, and where the page is.
+The right side is whatever the cursor is on. A thread that is not being built is there to read:
+its why, what it waits on, its result and the steps to check it, and what its agent last said. A
+question shows its options, a sprint its goal. The top line says whether agents are on, how many
+threads are being built, how many things need you, and where the page is.
+
+On a thread being built, the right side is its agent's session, live. Its heading says what the
+agent was started with (the model and effort), how long it has been at it, the folder it is built
+in and its session. Under that is every line it has said, the newest at the foot, and the screen
+follows the end as lines arrive. Scroll up and it holds still while the agent goes on; `End`
+follows it again. Move to another building thread and its own lines are there at once. The lines
+from before you opened the screen come from the run's transcript in `.spool/runs/`, so a session
+can be read back to its start. A thread a chat is building has its lines in that chat, and the
+screen says so.
 
 | Key | What it does |
 | --- | --- |
 | `up` `down`, or `j` `k` | Move through the queue |
-| `Enter` | Read what the cursor is on: the arrows then scroll it, and `Esc` goes back. On the backlog, open or close its list |
-| `PgUp` `PgDn` `Home` `End` | Scroll what is beside the queue, from either side |
+| `Tab` | Between the queue and what is beside it: there, the arrows scroll it. `Enter` goes in too, and `Esc` comes back |
+| `Enter` | On the backlog, open or close its list |
+| `PgUp` `PgDn` `Home` `End` | Scroll what is beside the queue, from either side. A session scrolled up holds still; `End` follows it again |
 | `b` | Send a backlog thread to Build; on a thread you stopped, or one left unfinished, carry on |
 | `p` | Play a sprint: on its row in the open backlog, or on a thread in it |
 | `s` | Stop the agent on a thread being built. It waits in Build until you carry on |

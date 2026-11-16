@@ -36,53 +36,53 @@ function press(board: Board, state: State, ...keys: string[]): { state: State; a
 const QUEUE_80 = `
  ▐▚▌── spool · skyhop 0.16.0   agents on · 2 building · 2 need you · page :4747
 ────────────────────────────────────┬───────────────────────────────────────────
- NEEDS YOU  2                       │ t-4kq7  Tighter jump        building · 6m
-  ? d-9d2a  Which font for the… 1-3 │ Medium · Feel
+ NEEDS YOU  2                       │ t-4kq7  Tighter jump     opus · high · 6m
+  ? d-9d2a  Which font for the… 1-3 │ .spool/worktrees/t-4kq7  session 3b7f38ef
   ! t-e2b7  Credits screen  stopped │───────────────────────────────────────────
-                                    │ Why
- BUILDING  2 of 3                   │   The jump feels floaty at the top of the
-> * t-4kq7  Tighter jump         6m │   arc.
-     The small platform is 3px too… │
-  * t-b81c  Coins at sunset      2m │ What
-     The coins use the noon sprite… │   More gravity at the top of the arc, so
-                                    │   the fall starts sooner.
- BUILD  2              sprint: Feel │
-  1 t-c0de  Double jump           m │ Done when
-  2 t-e2b7  Credits screen  stopped │   A full jump takes under 600ms and still
-                                    │   clears the small platform.
+                                    │ Reading the jump code first.
+ BUILDING  2 of 3                   │ → Read: src/player/jump.ts
+> * t-4kq7  Tighter jump         6m │ → Edit: src/player/jump.ts
+     The small platform is 3px too… │ Gravity is up from 28 to 34 at the top
+  * t-b81c  Coins at sunset      2m │   of the arc.
+     The coins use the noon sprite… │ → Bash: npm test
+                                    │ ✗ 1 test failed: "clears the small
+ BUILD  2              sprint: Feel │   platform"
+  1 t-c0de  Double jump           m │ The small platform is 3px too far now.
+  2 t-e2b7  Credits screen  stopped │   Shortening the hang time instead.
+                                    │
  DONE, TO CHECK  2                  │
-  + t-5aa1  Coyote time     +38 -12 │ Last lines
-  + t-0b2c  Fix wall clip     +6 -2 │   Reading the jump code first.
- BACKLOG  5                         │ … 9 more lines: enter, then down
+  + t-5aa1  Coyote time     +38 -12 │
+  + t-0b2c  Fix wall clip     +6 -2 │
+ BACKLOG  5                         │
 ────────────────────────────────────┴───────────────────────────────────────────
 
- s stop its agent · enter read it
+ s stop its agent · tab its session · pgup/pgdn scroll it
  up/down move · g agents · / add · ? keys · q leave, agents carry on`;
 
 const QUEUE_120 = `
  ▐▚▌── spool · skyhop 0.16.0                                           agents on · 2 building · 2 need you · page :4747
 ────────────────────────────────────────────────┬───────────────────────────────────────────────────────────────────────
- NEEDS YOU  2                                   │ t-4kq7  Tighter jump                                    building · 6m
-  ? d-9d2a  Which font for the HUD?         1-3 │ Medium · Feel
+ NEEDS YOU  2                                   │ t-4kq7  Tighter jump                                 opus · high · 6m
+  ? d-9d2a  Which font for the HUD?         1-3 │ .spool/worktrees/t-4kq7                              session 3b7f38ef
   ! t-e2b7  Credits screen              stopped │───────────────────────────────────────────────────────────────────────
-                                                │ Why
- BUILDING  2 of 3                               │   The jump feels floaty at the top of the arc.
-> * t-4kq7  Tighter jump                     6m │
-     The small platform is 3px too far now. Sh… │ What
-  * t-b81c  Coins at sunset                  2m │   More gravity at the top of the arc, so the fall starts sooner.
-     The coins use the noon sprite at every ho… │
-                                                │ Done when
- BUILD  2                          sprint: Feel │   A full jump takes under 600ms and still clears the small platform.
+                                                │ Reading the jump code first.
+ BUILDING  2 of 3                               │ → Read: src/player/jump.ts
+> * t-4kq7  Tighter jump                     6m │ → Edit: src/player/jump.ts
+     The small platform is 3px too far now. Sh… │ Gravity is up from 28 to 34 at the top of the arc.
+  * t-b81c  Coins at sunset                  2m │ → Bash: npm test
+     The coins use the noon sprite at every ho… │ ✗ 1 test failed: "clears the small platform"
+                                                │ The small platform is 3px too far now. Shortening the hang time
+ BUILD  2                          sprint: Feel │   instead.
   1 t-c0de  Double jump                       m │
-  2 t-e2b7  Credits screen              stopped │ Last lines
-                                                │   Reading the jump code first.
- DONE, TO CHECK  2                              │   → Read: src/player/jump.ts
-  + t-5aa1  Coyote time                 +38 -12 │   → Edit: src/player/jump.ts
-  + t-0b2c  Fix wall clip                 +6 -2 │   Gravity is up from 28 to 34 at the top of the arc.
- BACKLOG  5                                     │   → Bash: npm test
-                                                │   ✗ 1 test failed: "clears the small platform"
-                                                │   The small platform is 3px too far now. Shortening the hang time
-                                                │     instead.
+  2 t-e2b7  Credits screen              stopped │
+                                                │
+ DONE, TO CHECK  2                              │
+  + t-5aa1  Coyote time                 +38 -12 │
+  + t-0b2c  Fix wall clip                 +6 -2 │
+ BACKLOG  5                                     │
+                                                │
+                                                │
+                                                │
                                                 │
                                                 │
                                                 │
@@ -98,10 +98,10 @@ const QUEUE_120 = `
                                                 │
 ────────────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────
 
- s stop its agent · enter read it
+ s stop its agent · tab its session · pgup/pgdn scroll it
  up/down move · g agents on/off · / add a thread · ? all keys · q leave, agents carry on`;
 
-test('the queue at 80 by 24: every section, with the thread the cursor is on beside it', () => {
+test('the queue at 80 by 24: every section, and beside it the session of the agent the cursor is on', () => {
   assert.equal(`\n${screen(fixture(), stateOf(80, 24, { at: 'building:t-4kq7' }), 80, 24)}`, QUEUE_80);
 });
 
@@ -185,7 +185,7 @@ test('enter opens the backlog to a list, sprints and their threads together, and
   assert.match(said, /^> # r-f331  Feel          2 waiting │/m);
   assert.match(said, /│ r-f331  Feel             sprint · running$/m);
   assert.match(said, /│ 2 of 7 done · 2 waiting$/m);
-  assert.match(said, /^ p play it: its 2 threads move to Build · enter read it$/m);
+  assert.match(said, /^ p play it: its 2 threads move to Build · tab read it$/m);
   state = press(board, state, ...Array(4).fill('up'), 'enter').state;
   assert.equal(state.backlog, false);
   assert.equal(rowsOf(board, state).filter((r) => r.section === 'backlog').length, 1);
@@ -243,12 +243,12 @@ test('each key is the POST the page makes for the same thing', () => {
   const plan = screen(more, stateOf(80, 24, { at: 'needs:t-91ab' }), 80, 24);
   assert.match(plan, /^> ! t-91ab  Plan the level ed… plan │/m);
   assert.match(plan, /│ Waits for your go-ahead: a gives it$/m);
-  assert.match(plan, /^ a give the go-ahead · enter read it$/m);
+  assert.match(plan, /^ a give the go-ahead · tab read it$/m);
   const asked = screen(more, stateOf(80, 24, { at: 'build:t-3e9b' }), 80, 24);
   assert.match(asked, /^> 3 t-3e9b  HUD shows the co… waits │/m);
   assert.match(asked, /│ t-3e9b  HUD shows the coin count  waiting$/m);
   assert.match(asked, /│ Needs your answer\n.*│   Which font for the HUD\?\n.*│   1  Pixel  \(I would pick\)\n.*│   2  Rounded$/m);
-  assert.match(asked, /^ 1-3 answer it · enter read it$/m);
+  assert.match(asked, /^ 1-3 answer it · tab read it$/m);
 });
 
 test('/ takes one line and files it; a paste is text, and esc leaves it', () => {
@@ -279,7 +279,7 @@ test('enter reads what is beside the queue, and it scrolls by the line and by th
   assert.match(said, /│ Result\n.*│   A jump within 90ms of leaving a ledge\n.*│   counts as if still on it\.$/m);
   assert.match(said, /│ To check\n.*│   1  Run npm start and walk off the first\n.*│      ledge\.$/m);
   assert.match(said, /│ … 5 more lines: down, or pgdn$/m);
-  assert.match(said, /^ up\/down scroll · pgup\/pgdn a page · home\/end its ends · esc back to the queue$/m);
+  assert.match(said, /^ up\/down scroll · pgup\/pgdn a page · home\/end its ends · tab back to the queue$/m);
 
   state = press(board, state, 'down', 'down').state;
   assert.equal(state.scroll, 2);
@@ -355,7 +355,7 @@ test('? shows every key, and any key goes back', () => {
   const state = press(board, stateOf(80, 24, { at: 'building:t-4kq7' }), '?').state;
   assert.equal(state.view, 'keys');
   const said = screen(board, state, 80, 24);
-  for (const name of ['up, down, j, k', 'enter', 'esc', 'pgup, pgdn', 'b', 'p', 's', 'a', '1 to 9', 'g', '/', '?', 'q']) {
+  for (const name of ['up, down, j, k', 'enter', 'tab', 'pgup, pgdn', 'home, end', 'b', 'p', 's', 'a', '1 to 9', 'g', '/', '?', 'q']) {
     assert.match(said, new RegExp(`^   ${name.replace(/[?/]/g, '\\$&')} +\\S`, 'm'), name);
   }
   assert.match(said, /q +leave\. The page stays up and its agents carry on$/m);
@@ -393,7 +393,7 @@ test('wide and odd letters, and whatever an agent prints, never break the screen
       assert.equal(said.split('\n').filter((line) => line.includes('│')).length, rows - 6, 'the line between the two sides runs unbroken');
     }
   }
-  const said = screen(board, stateOf(80, 24, { at: 'building:t-4kq7', scroll: 6 }), 80, 24);
-  assert.match(said, /│   red and a tab$/m);
-  assert.match(said, /│   bell and +clear +home$/m);
+  const said = screen(board, stateOf(80, 24, { at: 'building:t-4kq7' }), 80, 24);
+  assert.match(said, /│ red and a tab$/m);
+  assert.match(said, /│ bell and +clear +home$/m);
 });

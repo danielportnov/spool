@@ -104,7 +104,11 @@ those comments are the detail.
   screen, as lines of text, from the board and the interface's own `State`, and `key` turns a key
   into a new state and maybe an `Action`, which is one of the page's POSTs. `watchQueue` is the
   loop around them: it asks for the board about once a second, draws, and posts. Its top line
-  opens with the yarn mark's one-line form (`mark.ts`).
+  opens with the yarn mark's one-line form (`mark.ts`). Beside the queue it draws the session of
+  the agent the cursor is on, from the lines `/api/run` gives.
+- `heard.ts` reads a run back from its transcript as the lines that were heard, numbered
+  (`heardRun`), so a face can ask the page (`/api/run`) for a whole session once and then only
+  for what is new.
 - `term.ts` is the terminal under it, written by hand: `width`, `cut`, `fit` and `wrap` measure
   text as a terminal shows it, `keys` reads raw input into key names, and `openTerm` takes the
   screen over and gives it back on every way out.
