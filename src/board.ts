@@ -20,7 +20,7 @@ import { git, repoRoot } from './git.ts';
 import { type Item, isPlan, oneLine, reportFile, splitBody, whyOf } from './model.ts';
 import { age, sprintAbout, tableRows } from './render.ts';
 import { type Run as StartedWith, runOf } from './run.ts';
-import { blockers, children, dependents, docket, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
+import { type Review, blockers, children, dependents, docket, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
 import type { Workspace } from './store.ts';
 import type { Upkeep } from './upkeep.ts';
 import { watched } from './watch.ts';
@@ -149,8 +149,7 @@ function reasonOf(d: Item): string {
   return line.startsWith('For [[') ? '' : oneLine(line, 240);
 }
 
-function needsOf(ws: Workspace, spool: Item['spool']): Needs {
-  const queue = review(ws, spool);
+function needsOf(ws: Workspace, queue: Review): Needs {
   const why = reasonOf;
   const holds = (d: Item): string[] => dependents(ws, d).map((t) => oneLine(t.title, 70));
   const threads = (d: Item): string[] => dependents(ws, d).map((t) => t.id);
@@ -521,7 +520,7 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
     tags: [...new Set(all.flatMap((t) => t.tags))].sort(),
     versions: [...new Set(all.map((t) => t.version ?? '').filter(Boolean))].sort().reverse(),
     history: done.filter((t) => t.reviewed).length,
-    needs: needsOf(ws, spool),
+    needs: needsOf(ws, queue),
     runner: {
       builder: runner?.builder ?? 'headless',
       // Looked for only where it is shown: with a chat building.

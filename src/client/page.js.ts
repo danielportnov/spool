@@ -309,7 +309,7 @@ function spotOf(col, id) {
 function noteNode(c) {
   const ran = c.column === 'building' && ranNode(c, 'ran');
   if (c.done || (!c.note && !ran)) return null;
-  return el('div', { class: 'note' }, c.note, c.note && ran ? ' · ' : '', ran);
+  return el('div', { class: 'note' }, c.note && inline(c.note), c.note && ran ? ' · ' : '', ran);
 }
 
 function cardNode(c, b) {
@@ -1210,8 +1210,8 @@ function threadNode(c, b) {
             p.kind === 'asked' && el('span', { class: 'badge ask' }, '❓ Needs a call from you'),
             el('pre', {}, rich(p.text)),
             p === shipped && c.steps.length > 0 && [el('div', { class: 'note' }, 'To check'), stepsNode(c.steps)],
-            p.kind === 'shipped' && t.checked && el('div', { class: 'badge', style: 'display: block' }, '✓ Check passed: ' + t.checked),
-            p.kind === 'shipped' && t.commits.length > 0 && el('div', { class: 'mono', style: 'margin-top: 6px; color: var(--soft)' }, (t.commits.length === 1 ? 'commit ' : 'commits ') + t.commits.join(' · ')),
+            p === shipped && t.checked && el('div', { class: 'badge', style: 'display: block' }, '✓ Check passed: ' + t.checked),
+            p === shipped && t.commits.length > 0 && el('div', { class: 'mono', style: 'margin-top: 6px; color: var(--soft)' }, (t.commits.length === 1 ? 'commit ' : 'commits ') + t.commits.join(' · ')),
             asking && answersNode(c.question)));
       }),
       // A question with no line of its own in the log still has to be answerable here.
@@ -1646,8 +1646,8 @@ function archiveFocused() {
   const { all, lane, at } = spot();
   const list = lane >= 0 ? all[lane] : [];
   const next = list[at + 1] || list[at - 1];
-  focusId = next ? next.dataset.id : null;
-  post('archive', { id: c.id }, 'Archived: ' + c.title, () => post('unarchive', { id: c.id }, 'Back in the backlog: ' + c.title));
+  // Only once it has gone: a failed archive leaves the focus where it was.
+  post('archive', { id: c.id }, 'Archived: ' + c.title, () => post('unarchive', { id: c.id }, 'Back in the backlog: ' + c.title)).then((ok) => { if (ok) focusId = next ? next.dataset.id : null; });
 }
 function goTo(where) {
   const tab = document.querySelector('.tab[data-view="' + where + '"]');
