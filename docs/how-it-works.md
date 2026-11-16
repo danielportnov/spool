@@ -297,12 +297,20 @@ one.
 ## Other ways to run it
 
 **No chat at all, from the page.** `spool page --run`, or the **Agents** switch on the page, has the
-page build what is in Build: it starts your agent command on each thread, one at a time, shows what
-the agent prints on the card and in the ticket, and has a Stop that ends the agent and puts the
-thread back. A thread the agent finishes is done; one it asks a question on waits for you; one it
-walks away from is put back and not tried again until something about it changes. The page says
-what the agent last said, which is usually why. Use the page's runner or a chat's loop, not both:
-they would be two agents in one folder.
+page build what is in Build: it starts your agent command on a thread the moment it lands there,
+shows what the agent prints on the card and in the ticket, and has a Stop that ends the agent and
+puts the thread back. A thread the agent finishes is done; one it asks a question on waits for you;
+one it walks away from is put back and not tried again until something about it changes. The page
+says what the agent last said, which is usually why. Use the page's runner or a chat's loop, not
+both: they would be two agents in one folder.
+
+**How many at once.** One, unless you say more: every agent works in the project's own folder, and
+two there would trample each other's edits. `"parallel": 3` in `~/.config/spool/config.json` has the
+page build three threads at a time, each card showing its own agent and the Agents switch saying
+how many; the rest of Build waits for one to finish, and a thread dragged into Building goes to the
+front. It is read fresh, so no restart is needed. More than one at a time becomes the rule when
+each run gets a git worktree of its own. Until then, raise it only for threads that will not touch
+the same files.
 
 **Which of the two, picked on the page.** Left of the Agents switch are two picks. **Headless** is
 the page's own runner, as above. **Chat** is a Claude Code chat running the loop: the page then

@@ -101,7 +101,7 @@ test('the page restarts onto new code once no agent of its own is running, and t
 
   const page = await startPage(copy.cli, s, '--run', '--agent', worker, '--port', String(59500 + (process.pid % 1500)));
   try {
-    await until('the agent is heard working', async () => (await boardOf(page.url)).runner.current?.lines.length);
+    await until('the agent is heard working', async () => (await boardOf(page.url)).runner.running[0]?.lines.length);
     const first = await boardOf(page.url);
     assert.match(first.build, /^[0-9a-f]{12}$/, 'the board names the build that serves it');
     assert.ok((await (await fetch(page.url)).text()).includes(`const BUILD = '${first.build}';`), 'and the page knows which build it came from');
@@ -116,7 +116,7 @@ test('the page restarts onto new code once no agent of its own is running, and t
     fs.appendFileSync(path.join(copy.root, 'dist', 'watch.ts'), '\n// built again\n');
     await pause(3500);
     const during = await boardOf(page.url);
-    assert.deepEqual([during.build, during.runner.current?.id, s.json('show', jump).item.state], [first.build, jump, 'active']);
+    assert.deepEqual([during.build, during.runner.running[0]?.id, s.json('show', jump).item.state], [first.build, jump, 'active']);
 
     // The agent finishes. Nothing of this page's is being built, so it restarts: the same address, agents still on, the new build.
     fs.writeFileSync(go, '');
@@ -126,7 +126,7 @@ test('the page restarts onto new code once no agent of its own is running, and t
     });
     assert.equal(s.json('show', jump).item.status, 'done');
     assert.match(next.build, /^[0-9a-f]{12}$/);
-    assert.deepEqual([next.runner.on, next.runner.current, next.notice], [true, null, '']);
+    assert.deepEqual([next.runner.on, next.runner.running, next.notice], [true, [], '']);
     assert.ok((await (await fetch(page.url)).text()).includes(`const BUILD = '${next.build}';`), 'a page loaded now is the new one');
     await until('the page that took over says where it is', async () => /Restarted on the new build: http/.test(page.out()));
     // The page the human had open is the new one too, and nobody reloaded it.
@@ -138,7 +138,7 @@ test('the page restarts onto new code once no agent of its own is running, and t
     // The page that took over builds as the one before it did.
     assert.equal(await post(page.url, 'move', { id: coins, to: 'build' }), 200);
     await until('the next thread is built', async () => s.json('show', coins).item.status === 'done');
-    await until('its agent has gone', async () => !(await boardOf(page.url)).runner.current);
+    await until('its agent has gone', async () => !(await boardOf(page.url)).runner.running.length);
     assert.equal((await boardOf(page.url)).build, next.build, 'and with no new code, it stays as it is');
 
     // Stopping the process that was started stops the page that took over from it.

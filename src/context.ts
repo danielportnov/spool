@@ -67,8 +67,17 @@ export interface UserConfig {
    * not named here is built headless, by the page starting the agent command. Set on the page.
    */
   builder?: Record<string, string>;
-  /** How many agents the page runs at once, for every project: 1 unless set. */
+  /**
+   * How many agents the page runs at once, for every project: 1 unless set. Every agent works in
+   * the project's own folder, and two in one folder trample each other's edits.
+   */
   parallel?: number;
+}
+
+/** How many agents the page runs at once: a whole number, and one at least. */
+export function parallelOf(ctx: Ctx): number {
+  const asked = userConfig(ctx).parallel;
+  return typeof asked === 'number' && Number.isInteger(asked) && asked > 1 ? asked : 1;
 }
 
 /** Who builds a project's threads: the page, starting the agent command itself, or a chat running the loop. */

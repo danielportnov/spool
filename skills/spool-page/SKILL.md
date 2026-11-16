@@ -59,9 +59,12 @@ threads go straight to build. Offer to turn it on: `spool init --gate`.
 
 **Agents: on / off**, at the top right, is the page's own runner. On, the page
 builds what is in Build by itself, with no chat: it starts the agent command
-set on their machine for each thread and shows what it prints. Leave it off
-when you are the one building from this chat, or two agents will work in one
-folder. `spool page --run` starts with it on.
+set on their machine for each thread, the moment it lands in Build, and shows
+what it prints. It builds one thread at a time, or as many as `parallel` in
+their `~/.config/spool/config.json` says, and then the button says how many;
+agents share the project's folder until each run gets a worktree of its own,
+so one is the rule. Leave it off when you are the one building from this chat,
+or two agents will work in one folder. `spool page --run` starts with it on.
 
 **Headless | Chat**, to its left, is who builds. Headless is that runner.
 Chat is you: a chat running the loop. With Chat picked the page starts no
@@ -77,7 +80,7 @@ are built at the same time). Only on their word, never on your own.
 The page keeps itself current. When Spool is upgraded or rebuilt, the page
 restarts onto the new code once no agent of its own is running, at the same
 address, and the page they have open reloads itself. Do not stop and start it
-to pick up new code: stopping it ends the agent it is running.
+to pick up new code: stopping it ends the agents it is running.
 
 `spool page --status` says whether a page is up for this project, at what
 address, and who builds. `spool page --stop` ends it, as Ctrl-C would: only when

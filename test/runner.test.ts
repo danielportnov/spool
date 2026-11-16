@@ -66,7 +66,7 @@ test('with the runner on, the page builds what is moved to Build, with no chat a
     assert.deepEqual([built.by, built.summary], ['worker.sh', 'finished by worker.sh'], 'the agent is named by the program it is');
     assert.match(s.item(jump), /page: handed to `[^`]*worker\.sh`/);
     assert.match(fs.readFileSync(path.join(s.root, 'last-prompt.txt'), 'utf8'), /unattended[\s\S]*## Working a thread[\s\S]*YOUR TASK[\s\S]*Tighten the jump arc/);
-    const after = await until('the runner is idle again', async () => { const b = await board(); return !b.runner.current && b; });
+    const after = await until('the runner is idle again', async () => { const b = await board(); return !b.runner.running.length && b; });
     assert.deepEqual(after.runner.recent[0], { id: jump, title: 'Tighten the jump arc', outcome: 'done' });
     assert.equal(s.json('show', coins).item.state, 'proposed', 'what was not moved to build was not built');
 
@@ -109,12 +109,12 @@ test('an agent that walks away has its thread put back once; one that hangs can 
   const second = await startPage(s, '--run', '--agent', sleeper, '--port', String(51000 + (process.pid % 1500)));
   try {
     const board = async () => (await (await fetch(`${second.url}api/board`)).json()) as Record<string, any>;
-    const live = await until('the agent is heard working', async () => { const b = await board(); return b.runner.current?.lines.length && b; });
-    assert.deepEqual([live.runner.current.id, live.runner.current.lines], [hard, ['thinking hard']]);
+    const live = await until('the agent is heard working', async () => { const b = await board(); return b.runner.running[0]?.lines.length && b; });
+    assert.deepEqual([live.runner.running[0].id, live.runner.running[0].lines], [hard, ['thinking hard']]);
     assert.equal(s.json('show', hard).item.state, 'active');
     const stop = await fetch(`${second.url}api/stop`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': second.token }, body: '{}' });
     assert.equal(stop.status, 200);
-    const stopped = await until('the thread is back in build', async () => { const b = await board(); return !b.runner.current && b; });
+    const stopped = await until('the thread is back in build', async () => { const b = await board(); return !b.runner.running.length && b; });
     assert.deepEqual([stopped.runner.on, stopped.runner.recent[0].outcome], [false, 'stopped'], 'stopping also switches the runner off');
     assert.equal(s.json('show', hard).item.state, 'ready');
     assert.match(s.item(hard), /page: stopped from the page; back in build/);
@@ -134,10 +134,10 @@ test('a thread being built can be aborted straight to the backlog, from the page
   const page = await startPage(s, '--run', '--agent', sleeper, '--port', String(52500 + (process.pid % 1500)));
   try {
     const board = async () => (await (await fetch(`${page.url}api/board`)).json()) as Record<string, any>;
-    await until('the agent is heard working', async () => { const b = await board(); return b.runner.current?.lines.length && b; });
+    await until('the agent is heard working', async () => { const b = await board(); return b.runner.running[0]?.lines.length && b; });
     const post = (body: unknown) => fetch(`${page.url}api/abort`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': page.token }, body: JSON.stringify(body) });
     assert.equal((await post({ id: hard })).status, 200);
-    const after = await until('the agent is ended', async () => { const b = await board(); return !b.runner.current && b.runner.recent[0] && b; });
+    const after = await until('the agent is ended', async () => { const b = await board(); return !b.runner.running.length && b.runner.recent[0] && b; });
     assert.equal(after.runner.on, true, 'the runner stays on for the next thread');
     assert.match(after.runner.recent[0].outcome, /^back in the backlog; edits undone/);
     const back = s.json('show', hard).item;
@@ -193,13 +193,13 @@ test('a card dragged to any column: to the backlog, the agent is ended and every
     return { status: res.status, ...((await res.json()) as { ok: boolean; text: string }) };
   };
   try {
-    await until('the agent has made its changes', async () => { const b = await board(); return b.runner.current?.lines.includes('changing things') && b; });
+    await until('the agent has made its changes', async () => { const b = await board(); return b.runner.running[0]?.lines.includes('changing things') && b; });
     assert.equal(s.read('physics.txt'), 'gravity 20\n');
 
     // Building, dragged to the backlog.
     const back = await move(hard, 'proposed');
     assert.equal(back.status, 200, back.text);
-    const after = await until('the agent is ended and its work undone', async () => { const b = await board(); return !b.runner.current && b.runner.recent[0] && b; });
+    const after = await until('the agent is ended and its work undone', async () => { const b = await board(); return !b.runner.running.length && b.runner.recent[0] && b; });
     assert.match(after.runner.recent[0].outcome, /^back in the backlog; edits undone: \d+ uncommitted file\(s\) put back; 1 commit\(s\) reverted$/);
     assert.equal(s.json('show', hard).item.state, 'proposed');
     assert.deepEqual([s.read('physics.txt'), s.read('sound.txt'), s.exists('new.txt')], ['gravity 9\n', 'quiet\n', false]);
@@ -210,12 +210,12 @@ test('a card dragged to any column: to the backlog, the agent is ended and every
     s.git('checkout', '-q', '--', 'mine.txt');
     const now = await move(easy, 'building');
     assert.equal(now.status, 200, now.text);
-    await until('it is picked up and at work', async () => { const c = (await board()).runner.current; return c?.id === easy && c.lines.includes('changing things'); });
+    await until('it is picked up and at work', async () => { const c = (await board()).runner.running[0]; return c?.id === easy && c.lines.includes('changing things'); });
     // Building, dragged to Done: the human says it is finished, and the agent is ended.
     const done = await move(easy, 'done');
     assert.equal(done.status, 200, done.text);
     assert.equal(s.json('show', easy).item.status, 'done');
-    await until('the agent is ended', async () => !(await board()).runner.current);
+    await until('the agent is ended', async () => !(await board()).runner.running.length);
     // Done, dragged back to Build: undone, and waiting there.
     assert.equal((await move(easy, 'build')).status, 200);
     assert.equal(s.json('show', easy).item.state, 'ready');
@@ -246,7 +246,7 @@ test('a page stopped mid-build puts its thread back, and a page starting up resc
   const sleeper = agent(s, 'sleeper.sh', 'echo "thinking hard"; sleep 30');
   const gone = (child: ChildProcess): Promise<void> => new Promise((r) => (child.exitCode !== null || child.signalCode ? r() : child.once('exit', () => r())));
   const working = async (url: string) =>
-    until('the agent is heard working', async () => ((await (await fetch(`${url}api/board`)).json()) as Record<string, any>).runner.current?.lines.length);
+    until('the agent is heard working', async () => ((await (await fetch(`${url}api/board`)).json()) as Record<string, any>).runner.running[0]?.lines.length);
 
   try {
     // Ctrl-C on the page while its agent works: the thread is back in Build at once.
@@ -306,8 +306,8 @@ test('the agent’s stream is kept with the thread: its steps, a denied tool cal
   const { child, url } = await startPage(s, '--run', '--agent', worker, '--port', String(58000 + (process.pid % 1500)));
   try {
     const board = async () => (await (await fetch(`${url}api/board`)).json()) as Record<string, any>;
-    const live = await until('the steps are heard', async () => { const b = await board(); return b.runner.current?.lines.length >= 6 && b; });
-    assert.deepEqual(live.runner.current.lines.slice(0, 6), [
+    const live = await until('the steps are heard', async () => { const b = await board(); return b.runner.running[0]?.lines.length >= 6 && b; });
+    assert.deepEqual(live.runner.running[0].lines.slice(0, 6), [
       'session abc-123 · claude-opus-5-5',
       'Reading the jump code.',
       '→ Bash: rm -rf build',
@@ -315,7 +315,7 @@ test('the agent’s stream is kept with the thread: its steps, a denied tool cal
       'denied → Bash: rm -rf build',
       'finished · 3 turns — Could not clean the build.',
     ]);
-    await until('the run is over', async () => { const b = await board(); return !b.runner.current && b.runner.recent[0]; });
+    await until('the run is over', async () => { const b = await board(); return !b.runner.running.length && b.runner.recent[0]; });
     const item = s.item(jump);
     const kept = /page: session abc-123 · transcript (\.spool\/runs\/[\w-]+\/[\w-]+\.jsonl) · open it with `claude --resume abc-123`/.exec(item);
     assert.ok(kept, item);
@@ -338,7 +338,7 @@ test('the runner is off unless asked for: opening the page builds nothing', asyn
   const { child, url } = await startPage(s, '--port', String(52500 + (process.pid % 1500)));
   try {
     const b = (await (await fetch(`${url}api/board`)).json()) as Record<string, any>;
-    assert.deepEqual([b.runner.on, b.runner.agent, b.runner.current], [false, 'claude -p', null]);
+    assert.deepEqual([b.runner.on, b.runner.agent, b.runner.running], [false, 'claude -p', []]);
     await new Promise((r) => setTimeout(r, 1300));
     assert.equal(s.json('show', jump).item.state, 'ready');
   } finally {
