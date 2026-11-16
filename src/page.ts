@@ -153,14 +153,14 @@ interface Needs {
 }
 
 /** The first line of a decision is the reason given for it, unless it is only the pointer to its thread. */
-function whyOf(d: Item): string {
+function reasonOf(d: Item): string {
   const line = splitBody(d.body).main.split('\n')[0] ?? '';
   return line.startsWith('For [[') ? '' : oneLine(line, 240);
 }
 
 function needsOf(ws: Workspace, spool: Item['spool']): Needs {
   const queue = review(ws, spool);
-  const why = whyOf;
+  const why = reasonOf;
   const holds = (d: Item): string[] => dependents(ws, d).map((t) => oneLine(t.title, 70));
   const threads = (d: Item): string[] => dependents(ws, d).map((t) => t.id);
   return {
@@ -349,7 +349,7 @@ function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Threa
     commits: task.commits.map((c) => c.slice(0, 7)),
     cameFrom: from.map((i) => ({ id: i.id, title: i.title })),
     parts: children(ws, task).map((k) => ({ id: k.id, title: k.title, state: taskState(ws, k) })),
-    questions: asked.map((d) => ({ id: d.id, title: d.title, status: d.status, choice: d.choice ?? '', why: whyOf(d) })),
+    questions: asked.map((d) => ({ id: d.id, title: d.title, status: d.status, choice: d.choice ?? '', why: reasonOf(d) })),
   };
 }
 
