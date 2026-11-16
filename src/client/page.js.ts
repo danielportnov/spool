@@ -1502,6 +1502,9 @@ const LIMITS = [['weekly', 'Weekly'], ['fiveHour', '5-hour']];
 let targetsOpen = false;
 // What the slider of a limit with no target starts at, once it is switched on.
 const TARGET_START = 80;
+// The target's changes, sent in turn, and each limit's slider waiting for its keys to stop.
+let targetSends = Promise.resolve();
+const targetWait = {};
 const usedOf = (u, key) => (u.read && u.read.used[key] != null ? u.read.used[key] : null);
 const pct = (n) => (Math.round(n * 10) / 10) + '%';
 
@@ -1578,14 +1581,22 @@ function limitNode(key, name) {
   const row = el('div', { class: 'limit', 'data-limit': key }, el('label', { class: 'name' }, on, name), slide, el('span', { class: 'box' }, num, '%'), el('div', { class: 'now' }));
   const whole = (v) => Math.min(100, Math.max(1, Math.round(Number(v)) || TARGET_START));
   // Set: the number the slider or the box says, sent once it is let go of, or typed and left.
-  const set = (value) => {
-    const had = current ? current.usage.target[key] : undefined;
-    if ((had == null ? null : had) === value) return;
-    post('target', { [key]: value }, value == null ? 'No ' + name.toLowerCase() + ' target.' : name + ' target: ' + value + '%. The chat works up to it.');
+  // The slider moved by its keys says it changed at every step: it is sent once they stop. Sends go
+  // one after another, so the last number given is the one kept, whatever order they would arrive in.
+  const set = (value, wait) => {
+    clearTimeout(targetWait[key]);
+    const send = () => {
+      targetSends = targetSends.then(() => {
+        const had = current ? current.usage.target[key] : undefined;
+        if ((had == null ? null : had) === value) return;
+        return post('target', { [key]: value }, value == null ? 'No ' + name.toLowerCase() + ' target.' : name + ' target: ' + value + '%. The chat works up to it.');
+      });
+    };
+    if (wait) targetWait[key] = setTimeout(send, 300); else send();
   };
   on.addEventListener('change', () => { row.classList.toggle('off', !on.checked); slide.disabled = num.disabled = !on.checked; set(on.checked ? whole(num.value) : null); });
   slide.addEventListener('input', () => { num.value = slide.value; });
-  slide.addEventListener('change', () => set(whole(slide.value)));
+  slide.addEventListener('change', () => set(whole(slide.value), true));
   num.addEventListener('input', () => { if (Number(num.value) >= 1 && Number(num.value) <= 100) slide.value = String(Math.round(Number(num.value))); });
   num.addEventListener('change', () => { num.value = slide.value = String(whole(num.value)); set(Number(num.value)); });
   num.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); num.blur(); } });

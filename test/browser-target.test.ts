@@ -69,7 +69,8 @@ test('in Chat mode the header holds the usage target: a slider and a number, aga
     await weekly.locator('input[type="number"]').fill('70');
     await weekly.locator('input[type="number"]').press('Enter');
     await until('the typed target is kept', () => target().weekly === 70);
-    assert.equal(await weekly.locator('input[type="range"]').inputValue(), '70');
+    // A look at the board that set out before the change can draw the old number for a moment: the next one puts it right.
+    await until('the slider follows the box', async () => (await weekly.locator('input[type="range"]').inputValue()) === '70');
 
     // Slid: the box follows the slider as it moves, and the target is what it is let go at.
     const slider = weekly.locator('input[type="range"]');
