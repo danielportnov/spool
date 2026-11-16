@@ -27,9 +27,12 @@ const CODE_FILE = fileURLToPath(import.meta.url);
 export const CODE_DIR = path.dirname(CODE_FILE);
 export const CODE_EXT = path.extname(CODE_FILE);
 
-/** The code files beside this one. */
-function codeFiles(): string[] {
-  return fs.readdirSync(CODE_DIR).filter((name) => name.endsWith(CODE_EXT)).sort();
+/** The code files beside this one, and those in the folders beside it (the page's client is in one), each by its path from here. */
+function codeFiles(dir = ''): string[] {
+  return fs
+    .readdirSync(path.join(CODE_DIR, dir), { withFileTypes: true })
+    .flatMap((entry) => (entry.isDirectory() ? codeFiles(path.join(dir, entry.name)) : entry.name.endsWith(CODE_EXT) ? [path.join(dir, entry.name)] : []))
+    .sort();
 }
 
 /** The size and time of every code file: cheap to take, and different whenever a build has written. */

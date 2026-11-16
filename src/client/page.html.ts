@@ -1,0 +1,65 @@
+/**
+ * The page itself: the one document the server sends, whole.
+ *
+ * The markup is here; the styles (`page.css.ts`) and the script (`page.js.ts`) are put into it,
+ * so what is served is still a single page that loads nothing else. The server fills in
+ * `__TOKEN__` and `__BUILD__` as it sends it. Inside the string: no backticks, and no `${` but
+ * the two that place the styles and the script.
+ */
+
+import { CSS } from './page.css.ts';
+import { JS } from './page.js.ts';
+
+export const PAGE = String.raw`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spool</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧶%3C/text%3E%3C/svg%3E" id="icon">
+<script>
+// Light or dark: his pick in this browser, or else the system's, set on the root before anything is
+// drawn so the page never shows the other one first. Every colour follows the one attribute.
+const SYSTEM_DARK = matchMedia('(prefers-color-scheme: dark)');
+function paintTheme() {
+  let pick = 'system';
+  try { pick = localStorage.getItem('spool-theme') || 'system'; } catch (e) {}
+  if (!['system', 'light', 'dark'].includes(pick)) pick = 'system';
+  document.documentElement.dataset.theme = pick === 'system' ? (SYSTEM_DARK.matches ? 'dark' : 'light') : pick;
+  return pick;
+}
+paintTheme();
+SYSTEM_DARK.addEventListener('change', paintTheme);
+</script>
+<style>
+${CSS}</style>
+</head>
+<body>
+<div class="bar">
+  <div class="brand">🧶 <span id="project">Spool</span><span class="where" id="where"></span></div>
+  <div class="tabs">
+    <button class="tab" data-view="board">Board</button>
+    <button class="tab" data-view="backlog">Backlog</button>
+  </div>
+  <input class="search" id="search" placeholder="Search threads   /" autocomplete="off">
+  <div class="builder" id="builder" role="group" aria-label="Who builds" hidden><button data-builder="headless">Headless</button><button data-builder="chat">Chat</button></div>
+  <button class="runner" id="runner" hidden></button>
+  <button class="themer" id="themer"></button>
+</div>
+<div id="away" role="status" hidden></div>
+<div class="rule" id="rule" hidden></div>
+<div id="quick"></div>
+<section id="brief" aria-label="While you were away" hidden></section>
+<nav class="jump" id="jump" aria-label="Columns"></nav>
+<main id="board"></main>
+<main id="backlog" hidden></main>
+<div id="veil" hidden></div>
+<aside id="thread" hidden></aside>
+<div id="said"></div>
+<div id="layerveil" hidden></div>
+<div id="layer" role="dialog" aria-modal="true" hidden></div>
+<script>
+${JS}</script>
+</body>
+</html>
+`;
