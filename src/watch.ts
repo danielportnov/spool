@@ -3,8 +3,9 @@
  *
  * `spool watch` stays up and prints one line whenever something the loop
  * should act on changes: a thread that can now be built (moved to build on the
- * page, or freed by an answer), words the human added to a thread, or a note
- * nobody has filed. It prints nothing else, so every line is worth waking for.
+ * page, or freed by an answer), words the human added to a thread, a question
+ * an agent has just put to the human, or a note nobody has filed. It prints
+ * nothing else, so every line is worth waking for.
  *
  * It is what makes the loop reactive. A harness that can listen to a command's
  * output (Claude Code's Monitor) runs this and is woken by each line, so the
@@ -17,8 +18,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { Bare, Result } from './commands.ts';
-import { SpoolError, oneLine, splitBody } from './model.ts';
-import { ready, tasks } from './schedule.ts';
+import { type Item, SpoolError, isSettled, oneLine, splitBody } from './model.ts';
+import { dependents, ready, tasks } from './schedule.ts';
 import { Workspace } from './store.ts';
 
 interface Seen {
@@ -28,6 +29,8 @@ interface Seen {
   said: Map<string, Set<string>>;
   /** Notes nobody has filed. */
   inbox: Set<string>;
+  /** Questions waiting on the human, each with the line that tells of it. */
+  asks: Map<string, string>;
 }
 
 /**
@@ -75,6 +78,18 @@ export function watched(root: string): boolean {
   });
 }
 
+/**
+ * The line for a question an agent asked: its id, the thread it holds up, the question and its options,
+ * so a chat that builds can put it to the human without looking anything up.
+ */
+function asked(ws: Workspace, d: Item): string {
+  const thread = dependents(ws, d).find((t) => !isSettled(t));
+  const options = d.options.map((o, i) => `${i + 1}) ${oneLine(o, 80)}${d.recommend === i + 1 ? ' (recommended)' : ''}`);
+  return [`ask: ${d.id}`, thread ? `for ${thread.id} ${oneLine(thread.title, 90)} —` : '', `"${oneLine(d.title, 140)}"`, options.join('  ')]
+    .filter(Boolean)
+    .join(' ');
+}
+
 function look(
   cwd: string,
   now: () => Date,
@@ -85,11 +100,16 @@ function look(
     const open = tasks(ws, project).filter((t) => t.status !== 'done' && t.status !== 'dropped');
     const notes = new Map(ws.items.filter((i) => i.kind === 'note').map((n) => [n.id, oneLine(splitBody(n.body).main, 140)]));
     const titles = new Map(ws.items.map((i) => [i.id, oneLine(i.title, 90)]));
+    const spool = project ? ws.project(project) : undefined;
+    const questions = ws.items
+      .filter((i) => i.kind === 'decision' && i.status === 'open' && (!spool || i.spool === spool))
+      .sort((a, b) => a.created.localeCompare(b.created));
     return {
       seen: {
         ready: new Map(ready(ws, project).map((t) => [t.id, oneLine(t.title, 90)])),
         said: new Map(open.map((t) => [t.id, new Set(t.from.filter((id) => notes.has(id)))])),
         inbox: new Set(ws.items.filter((i) => i.kind === 'note' && i.status === 'new').map((n) => n.id)),
+        asks: new Map(questions.map((d) => [d.id, asked(ws, d)])),
       },
       roots: (project ? [ws.project(project)] : ws.spools).map((s) => real(s.root)),
       text: (note) => notes.get(note) ?? '',
@@ -110,6 +130,8 @@ export function changes(before: Seen, after: Seen, text: (note: string) => strin
     if (!had) continue;
     for (const note of notes) if (!had.has(note)) out.push(`reply: ${id} ${title(id)} — "${text(note)}"`);
   }
+  // A question is news once, as it is asked. One answered or dropped goes without a word.
+  for (const [id, line] of after.asks) if (!before.asks.has(id)) out.push(line);
   return out;
 }
 

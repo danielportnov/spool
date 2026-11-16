@@ -50,21 +50,62 @@ test('the watcher prints a line the moment the human gives the loop something to
     await until(3);
     assert.equal(lines[2], `reply: ${jump} Tighten the jump arc — "snappy, not heavy"`);
 
-    // An answer frees a thread: that is work to build too.
+    // A question an agent asks is news: the chat that builds puts it to the human. The thread it stops is not.
     s.sp('build', coins);
     await until(4);
     s.sp('ask', 'Outline, or teal?', '--option', 'Outline', '--option', 'Teal', '--for', coins);
-    await settle();
-    assert.equal(lines.length, 4, 'a thread that stops being buildable is not news');
-    s.sp('answer', s.json('review').questions[0].id, '1');
     await until(5);
-    assert.equal(lines[4], `build: ${coins} Make coins readable at sunset`);
+    const question = s.json('review').questions[0].id;
+    assert.equal(lines[4], `ask: ${question} for ${coins} Make coins readable at sunset — "Outline, or teal?" 1) Outline  2) Teal`);
+    await settle();
+    assert.equal(lines.length, 5, 'a thread that stops being buildable is not news');
+
+    // An answer frees a thread: that is work to build too. The question going is not news.
+    s.sp('answer', question, '1');
+    await until(6);
+    assert.equal(lines[5], `build: ${coins} Make coins readable at sunset`);
 
     // Claiming and finishing are the loop's own doing, and say nothing.
     s.sp('start', jump);
     s.sp('done', jump, '-m', 'Snappier');
     await settle();
-    assert.equal(lines.length, 5);
+    assert.equal(lines.length, 6);
+  } finally {
+    child.kill();
+    await gone(child);
+    s.cleanup();
+  }
+});
+
+test('the watcher tells of each question once, as it is asked, with its recommendation; a call an agent made itself is not one', async () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop', '--gate');
+  const coins = s.id('task', 'Make coins readable at sunset', '-s', 'xs');
+  s.sp('ask', 'Which licence?', '--option', 'MIT', '--option', 'Apache');
+  const { child, lines, until } = startWatch(s);
+  try {
+    await watchUp(child.pid);
+    await settle();
+    assert.deepEqual(lines, [], 'a question already waiting is not news');
+
+    s.sp('assume', 'Coin size', '--chose', '12px', '--for', coins);
+    await settle();
+    assert.deepEqual(lines, [], 'a receipt waits for their review, it asks nothing');
+
+    s.sp('ask', 'Outline, or teal?', '--option', 'Outline', '--option', 'Teal', '--recommend', '2', '--for', coins);
+    s.sp('ask', 'Ship the beta to testers?');
+    await until(2);
+    const asked = (title: string): string => s.json('review').questions.find((d: { title: string }) => d.title === title).id;
+    const outline = asked('Outline, or teal?');
+    const beta = asked('Ship the beta to testers?');
+    assert.deepEqual(lines, [
+      `ask: ${outline} for ${coins} Make coins readable at sunset — "Outline, or teal?" 1) Outline  2) Teal (recommended)`,
+      `ask: ${beta} "Ship the beta to testers?"`,
+    ]);
+
+    s.sp('answer', beta, 'Not yet');
+    await settle();
+    assert.equal(lines.length, 2, 'once only');
   } finally {
     child.kill();
     await gone(child);

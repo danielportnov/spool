@@ -2470,7 +2470,7 @@ export const COMMANDS: Command[] = [
     name: 'watch',
     group: 'setup',
     usage: 'watch [--interval <ms>] [-P <project>]',
-    summary: 'Stay up and print a line when work lands in build, the human replies on a thread, or a note arrives',
+    summary: 'Stay up and print a line when work lands in build, the human replies on a thread, an agent asks the human something, or a note arrives',
     options: { interval: { type: 'string' }, ...PROJECT },
     refusedWhenOff: true,
     bare: (call) => watch(call),
