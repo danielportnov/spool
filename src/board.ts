@@ -19,6 +19,7 @@ import { type Picking, type Runner, stoppedInBuild } from './engine.ts';
 import { git, repoRoot } from './git.ts';
 import { type Goals, goalsOf } from './goals.ts';
 import { type Item, isPlan, oneLine, reportFile, splitBody, whyOf } from './model.ts';
+import { attachLine, picturesOf } from './pictures.ts';
 import { age, sprintAbout, tableRows } from './render.ts';
 import { type Run as StartedWith, runOf } from './run.ts';
 import { type Review, blockers, children, dependents, docket, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
@@ -113,6 +114,8 @@ interface Thread {
   feed: Post[];
   /** The report an audit or a plan handed in, in full: the long read belongs on the page. */
   report: string;
+  /** The pictures kept with it, oldest first, each by the name the page asks `/api/picture` for. */
+  pictures: { name: string; as: string | null; by: string; at: string; caption: string }[];
   /** Who built it, as they signed themselves. */
   by: string;
   /** The project's check that passed before it was finished, as the command that ran. */
@@ -175,10 +178,13 @@ interface Post {
   who: string;
   /**
    * said: the human's words · post: an agent's note · shipped: it finished · asked: it needs a call ·
-   * decided: an agent made a call itself · event: bookkeeping.
+   * decided: an agent made a call itself · event: bookkeeping · picture: pictures attached, with
+   * their caption as the text.
    */
-  kind: 'said' | 'post' | 'shipped' | 'asked' | 'decided' | 'event';
+  kind: 'said' | 'post' | 'shipped' | 'asked' | 'decided' | 'event' | 'picture';
   text: string;
+  /** The pictures shown under the words, by name. */
+  pictures?: string[];
   /** The decision a post is about: the question asked, or the call made. */
   ref?: string;
 }
@@ -195,6 +201,8 @@ function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['
     text: s.text,
   }));
   const rest: Post[] = steps.map((s) => {
+    const attached = attachLine(s.what);
+    if (attached) return { at: s.at, who: s.who, kind: 'picture', text: attached.caption, pictures: attached.names };
     if (s.what.startsWith('done: ')) return { at: s.at, who: s.who, kind: 'shipped', text: s.what.slice(6) };
     const asked = /^waiting on d-[a-z0-9]+: (.*)$/.exec(s.what);
     if (asked) return { at: s.at, who: s.who, kind: 'asked', text: asked[1]! };
@@ -203,7 +211,27 @@ function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['
     return { at: s.at, who: s.who, kind: BOOKKEEPING.test(s.what) || s.who === 'human' ? 'event' : 'post', text: s.what };
   });
   // Stable: things said in the same minute keep the order they were written in, words first.
-  return [...words, ...rest].map((p, i) => ({ p, i })).sort((a, b) => a.p.at.localeCompare(b.p.at) || a.i - b.i).map((x) => x.p);
+  const story = [...words, ...rest].map((p, i) => ({ p, i })).sort((a, b) => a.p.at.localeCompare(b.p.at) || a.i - b.i).map((x) => x.p);
+  return withPictures(story);
+}
+
+/**
+ * Pictures sent with words, with no caption of their own, belong under those words: a reply and
+ * what was pasted into it are one post. Bookkeeping in between does not part them.
+ */
+function withPictures(story: Post[]): Post[] {
+  const out: Post[] = [];
+  let words: Post | undefined;
+  for (const p of story) {
+    if (p.kind === 'picture' && !p.text && words && words.who === p.who) {
+      words.pictures = [...(words.pictures ?? []), ...(p.pictures ?? [])];
+      continue;
+    }
+    out.push(p);
+    if (p.kind === 'said' || p.kind === 'post') words = p;
+    else if (p.kind !== 'event') words = undefined;
+  }
+  return out;
 }
 
 export interface Board {
@@ -362,6 +390,7 @@ function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Threa
     steps,
     feed: feedOf(ws, task, read.said, steps),
     report: readReport(task),
+    pictures: picturesOf(task).map(({ name, as, by, at, caption }) => ({ name, as, by, at, caption })),
     by: task.by ?? '',
     checked: task.checked ?? '',
     summary: task.summary ?? '',

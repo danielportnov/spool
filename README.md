@@ -181,6 +181,13 @@ version to narrow the board to it. Reply on a thread, say **Fine** to a call an 
 overrule it in a sentence, and press **Mark as complete** when you have looked at the change. Agents keep working while it is
 open, and you watch threads move.
 
+Much feedback is about how something looks, so a picture can go with it: paste a screenshot, or
+drop an image file, into the reply box, **+ Add** or `c`, and it waits under the box until you send.
+It shows under your words in the conversation, a click opens it full size, and the agent that builds
+the thread finds its path in its brief. Agents attach pictures too, with `spool attach`: a before and
+an after of anything that changes what is on screen. Pictures stay on your machine, in
+`.spool/runs/`, out of git.
+
 Keep several projects in one folder, each with its own spool? Start `spool page` in that folder and
 it shows them all: **All projects** first, a row each with what is building and what its agent last
 said, what needs you, what is done for you to check and how far its sprint has got, and above them

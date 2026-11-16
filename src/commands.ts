@@ -9,6 +9,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ParseArgsConfig } from 'node:util';
 import { agentsCommand } from './agents-switch.ts';
+import { ATTACH } from './attach.ts';
 import { builderCommand } from './builder.ts';
 import { effortOf, modelOf } from './agent.ts';
 import { morning, morningText } from './brief.ts';
@@ -1352,6 +1353,7 @@ export const COMMANDS: Command[] = [
       return { text: `Logged on ${item.id}.`, data: { id: item.id } };
     },
   },
+  ATTACH,
   {
     name: 'ask',
     group: 'agents',

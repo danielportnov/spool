@@ -12,6 +12,7 @@ import { lessonLine, lessonsFor } from './lessons.ts';
 import { BUILT_IN, fileFor, ledgerFor, matchSkills } from './skills.ts';
 import { sprintAbout } from './sprints.ts';
 import { goalsOf } from './goals.ts';
+import { type Picture, picturesOf } from './pictures.ts';
 import { type Candidate, SUGGEST, addLine, offerLine } from './suggest.ts';
 import type { Workspace } from './store.ts';
 import { workDir } from './worktree.ts';
@@ -213,9 +214,18 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
       out.push(p.dim(`      ${path.join(path.relative(task.spool.root, s.dir), 'SKILL.md')}`));
     }
   }
+  // What the human pasted to show what he means: the agent opens these to see it.
+  const pictures = picturesOf(task);
+  if (pictures.length) out.push('', 'PICTURES — open each one: they show what is meant', ...pictures.map((pic) => `  ${pictureLine(pic)}`));
   if (log.length) out.push('', 'LOG', ...log.slice(-8).map((l) => `  ${l}`));
   if (type === 'change') out.push('', p.dim(`commit trailer  Spool: ${task.id}      finish  spool done ${task.id} -m "<what changed>"`));
   return out.join('\n');
+}
+
+/** A picture as a brief or `spool show` lists it: where it is, and who attached it with what words. */
+function pictureLine(pic: Picture): string {
+  const about = [pic.as, pic.by, pic.caption && `“${pic.caption}”`].filter(Boolean).join(' · ');
+  return `${pic.path}${about ? `  (${about})` : ''}`;
 }
 
 /** `under` gives the lines to print beneath a project's count: where its board stands. */
@@ -661,6 +671,8 @@ export function showText(ws: Workspace, item: Item, p: Paint): string {
   if (item.summary) out.push(`  ${item.summary}`);
   if (item.steps.length) out.push('', 'TO CHECK', ...item.steps.map((s, i) => `  ${i + 1}. ${s}`));
   if (item.body) out.push('', item.body);
+  const pictures = item.kind === 'task' ? picturesOf(item) : [];
+  if (pictures.length) out.push('', 'PICTURES', ...pictures.map((pic) => `  ${pictureLine(pic)}`));
   const held = dependents(ws, item);
   if (held.length) out.push('', p.dim(`needed by ${held.map((t) => t.id).join(', ')}`));
   const kids = item.kind === 'task' ? children(ws, item) : [];
@@ -754,7 +766,7 @@ export function itemJson(ws: Workspace, item: Item, full = false): Record<string
       : {}),
     // A sprint says what it is for, and which threads are in it.
     ...(item.kind === 'sprint' ? { ...sprintAbout(item), threads: sprintTasks(ws, item).map((t) => t.id) } : {}),
-    ...(full ? { body, file: ws.file(item) } : {}),
+    ...(full ? { body, file: ws.file(item), ...(item.kind === 'task' ? { pictures: picturesOf(item) } : {}) } : {}),
   };
 }
 

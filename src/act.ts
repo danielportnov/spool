@@ -45,7 +45,7 @@ export type Body = Record<string, unknown>;
 export const text = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 /** What the page can do. Each is the command a person would have typed. */
-export function change(ctx: Ctx, action: string, body: Body, project?: string): { ok: boolean; text: string } {
+export function change(ctx: Ctx, action: string, body: Body, project?: string): { ok: boolean; text: string; id?: string } {
   const id = text(body.id);
   if (action === 'complete-all') {
     // Every finished thread still to check, approved in one go. Only threads: the calls agents made are not swept in.
@@ -83,9 +83,10 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     const task = (filed.data as { task?: { id?: string; status?: string } } | null)?.task;
     if (!filed.ok || !task?.id) return { ok: false, text: filed.text || 'it could not be filed' };
     // Adding it under Build is the human putting it in build; under Proposed it waits, gate or no gate.
-    if (to === 'build' && task.status === 'proposed') return act(ctx, ['build', task.id]);
-    if (to === 'proposed' && task.status !== 'proposed') return act(ctx, ['propose', task.id]);
-    return { ok: true, text: '' };
+    // The new thread's id goes back with it: pictures pasted into the box are attached to it next.
+    if (to === 'build' && task.status === 'proposed') return { ...act(ctx, ['build', task.id]), id: task.id };
+    if (to === 'proposed' && task.status !== 'proposed') return { ...act(ctx, ['propose', task.id]), id: task.id };
+    return { ok: true, text: '', id: task.id };
   }
   if (action === 'note') {
     const words = text(body.text);
@@ -97,10 +98,12 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     if (!captured.ok || !note) return { ok: false, text: captured.text || 'the note could not be saved' };
     if (!id) return { ok: true, text: '' };
     const filed = act(ctx, ['file', note, '--into', id]);
-    if (filed.ok || !/already (done|dropped)/.test(filed.text)) return filed;
+    // The thread the reply landed on goes back with it, for the pictures sent with it.
+    if (filed.ok || !/already (done|dropped)/.test(filed.text)) return { ...filed, id };
     // A reply on finished work is feedback on it: new work, linked to what it answers, and proposed like any other.
     const next = act(ctx, ['task', '--from', note, '--from', id, '--', oneLine(words.split('\n')[0]!, 110)]);
-    return next.ok ? { ok: true, text: 'That thread is finished, so your reply is a new proposed thread linked to it.' } : next;
+    const made = (next.data as { task?: { id?: string } } | null)?.task?.id;
+    return next.ok ? { ok: true, text: 'That thread is finished, so your reply is a new proposed thread linked to it.', id: made } : next;
   }
   if (action === 'sprint') {
     const name = text(body.name);

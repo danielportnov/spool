@@ -453,7 +453,7 @@ AI-suggested thread. It matches words, not meaning.
   leave.json     the leave that is live, if you gave one: your words, until when, what it allows
   items/         one markdown file per thread, question, note, sprint and skill record
   reports/       what audits and plans handed in
-  runs/          per thread: what its agent printed, and for a run, its journal and the copies an undo puts back; never in git
+  runs/          per thread: what its agent printed, its pictures (files/), and for a run, its journal and the copies an undo puts back; never in git
   worktrees/     a git worktree for each thread being built in one of its own; never in git
 ```
 
@@ -647,6 +647,7 @@ ones marked 🔒:
 | `spool file <n-id> --into <id>` | Attach a note to a thread, or set it aside |
 | `spool next [--claim]` · `start <t-id>` | The next thread in Build with its brief; claim it. `--worktree` gives it a git worktree of its own |
 | `spool log <id> <fact>` | Leave a note for whoever comes next |
+| `spool attach <t-id> <file…> [--as before\|after] [-m caption]` | Keep a picture with a thread: PNG, JPEG, GIF or WebP, told by its bytes, 5 MB and 20 a thread at most. It is copied into `.spool/runs/<id>/files/` under a name Spool gives, a line on the thread's log says who attached it and the caption, and the thread's brief names its path. `--as before` and `--as after` are the proof of a change you can see. A picture pasted or dropped into a box on the page is attached the same way |
 | `spool ask` · `assume` | Put a call to the human; or make it and leave a receipt |
 | `spool done <t-id> -m <summary> [--steps <step>…]` | Finish: record the commits, or hand in a report. Work in a worktree of its own is landed first. `--steps` (once a step, or `-` for one a line from stdin) says how to see a change working; a change finished without them says so |
 | `spool edit <id>` | Change a title, priority, size, kind, model, effort, tags, version, sprint, or the steps to check it by (`--steps`, `none` clears them); a sprint's version stamps its finished threads too |

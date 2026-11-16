@@ -130,7 +130,8 @@ async function post(action, body, done, undo) {
     }
     const out = await res.json();
     say(out.ok ? out.text || done : out.text || 'That did not work', out.ok ? undo : null);
-    return out.ok;
+    // Done, it says which thread it made or wrote on, where it did, for what is sent after it (pictures).
+    return out.ok && (out.id || true);
   } catch (e) {
     say('The page lost its server. Run spool page again.');
     return false;
@@ -355,11 +356,12 @@ function addNode(column, placeholder) {
     adding = null;
     addDraft = '';
     // If it could not be saved, their words go back in the box: nothing typed is ever thrown away.
-    if (!(await post('add', { text: words, to: column }, column === 'build' ? 'Added to build' : 'Added to the backlog'))) {
+    const made = await post('add', { text: words, to: column }, column === 'build' ? 'Added to build' : 'Added to the backlog');
+    if (!made) {
       adding = column;
       addDraft = words;
       redraw();
-    }
+    } else await sendPictures(made, 'add:' + column);
   };
   const box = el('textarea', { placeholder: placeholder,
     oninput: (e) => { addDraft = e.target.value; },
@@ -368,7 +370,8 @@ function addNode(column, placeholder) {
       if (e.key === 'Escape') { e.stopPropagation(); close(); }
     } });
   box.value = addDraft;
-  return el('div', { class: 'adding' }, box,
+  takePictures(box, 'add:' + column);
+  return el('div', { class: 'adding' }, box, trayNode('add:' + column),
     el('div', { class: 'acts' }, el('button', { class: 'go', onclick: save }, 'Add'), el('button', { onclick: close }, 'Cancel')));
 }
 
@@ -1162,16 +1165,20 @@ function stoppedNode(c, b) {
 function threadNode(c, b) {
   const t = c.thread;
   const save = (fields, done) => post('edit', { id: c.id, ...fields }, done);
+  // Pictures pasted into the box go with the reply, to the thread it landed on; with no words, they go alone.
   const reply = async () => {
-    if (!box.value.trim()) return;
-    if (await post('note', { id: c.id, text: box.value }, 'Posted to the thread')) drafts.delete(c.id);
+    if (!box.value.trim()) return pendingOf(c.id).length > 0 && sendPictures(c.id, c.id);
+    const landed = await post('note', { id: c.id, text: box.value }, 'Posted to the thread');
+    if (landed) { drafts.delete(c.id); await sendPictures(landed === true ? c.id : landed, c.id); }
   };
+  const ready = () => { send.disabled = !box.value.trim() && !pendingOf(c.id).length; };
   // Enter sends, as in any chat; Shift+Enter is a new line. A word still being composed (an IME) is left to finish.
   const box = el('textarea', { placeholder: 'Post your reply', rows: 2,
-    oninput: (e) => { drafts.set(c.id, e.target.value); send.disabled = !e.target.value.trim(); },
+    oninput: (e) => { drafts.set(c.id, e.target.value); ready(); },
     onkeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); reply(); } } });
   box.value = drafts.get(c.id) || '';
-  const send = el('button', { class: 'go', onclick: reply, disabled: !box.value.trim() }, 'Reply');
+  const send = el('button', { class: 'go', onclick: reply, disabled: !box.value.trim() && !pendingOf(c.id).length }, 'Reply');
+  takePictures(box, c.id);
   const lineage = [
     ...t.cameFrom.map((f) => 'Came out of: ' + f.title),
     ...t.parts.map((p) => 'Part: ' + p.title + ' (' + p.state + ')'),
@@ -1208,7 +1215,8 @@ function threadNode(c, b) {
           el('div', {}, byline(p.who, p.at),
             p.kind === 'shipped' && el('span', { class: 'badge' }, '✓ Shipped'),
             p.kind === 'asked' && el('span', { class: 'badge ask' }, '❓ Needs a call from you'),
-            el('pre', {}, rich(p.text)),
+            (p.text || !p.pictures) && el('pre', {}, rich(p.text)),
+            picturesNode(c, p),
             p === shipped && c.steps.length > 0 && [el('div', { class: 'note' }, 'To check'), stepsNode(c.steps)],
             p === shipped && t.checked && el('div', { class: 'badge', style: 'display: block' }, '✓ Check passed: ' + t.checked),
             p === shipped && t.commits.length > 0 && el('div', { class: 'mono', style: 'margin-top: 6px; color: var(--soft)' }, (t.commits.length === 1 ? 'commit ' : 'commits ') + t.commits.join(' · ')),
@@ -1229,8 +1237,8 @@ function threadNode(c, b) {
     lineage.length > 0 && [el('h3', {}, 'Linked'), lineage.map((l) => el('div', { class: 'note' }, l))],
 
     el('div', { class: 'compose' }, avatar('human'),
-      el('div', {}, box,
-        el('div', { class: 'acts' }, el('span', { class: 'hint' }, 'Enter to send · Shift+Enter for a new line'), send))),
+      el('div', {}, box, trayNode(c.id, ready),
+        el('div', { class: 'acts' }, el('span', { class: 'hint' }, 'Enter to send · Shift+Enter for a new line · Paste a picture to show it'), send))),
     changesNode(c),
     c.done && el('div', { class: 'finish' }, c.complete
       ? el('div', { class: 'ok' }, '✓ Complete. You approved this change.')
@@ -1809,17 +1817,19 @@ function quickAddNode() {
     quickDraft = '';
     closeLayer();
     // If it could not be saved, the box comes back with their words in it.
-    if (!(await post('add', { text: words, to: 'proposed', title, tags, ...(priority != null ? { priority } : {}) }, 'Added to the backlog: ' + title))) {
+    const made = await post('add', { text: words, to: 'proposed', title, tags, ...(priority != null ? { priority } : {}) }, 'Added to the backlog: ' + title);
+    if (!made) {
       quickDraft = words;
       openLayer('add');
-    }
+    } else await sendPictures(made, 'quick');
   };
   const box = el('textarea', { rows: 2, placeholder: 'What do you want added?   #tag  !0 to !3 for priority',
     oninput: () => { quickDraft = box.value; show(); },
     onkeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); save(); } } });
   box.value = quickDraft;
   show();
-  return [box, chips, el('div', { class: 'foot' }, 'Enter adds it to the backlog. Shift+Enter is a new line. Esc closes, and keeps what you typed.')];
+  takePictures(box, 'quick');
+  return [box, chips, trayNode('quick'), el('div', { class: 'foot' }, 'Enter adds it to the backlog. Shift+Enter is a new line. Paste a picture to send it too. Esc closes, and keeps what you typed.')];
 }
 
 // Esc closes the nearest thing: a box over the page, then the search, then the ticket, then lets go of the thread.

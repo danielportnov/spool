@@ -100,6 +100,12 @@ those comments are the detail.
 - `stream.ts` reads what a `claude -p` agent prints with `--output-format stream-json`
   (`streaming` adds the flags, `hearLine` reads a line) into the short lines a card shows, and
   says where each run's stream is kept (`transcriptFile`).
+- `pictures.ts` keeps pictures with a thread, in `.spool/runs/<id>/files/` beside its transcripts:
+  `attach` takes them in by their first bytes and within the limits, `picturesOf` lists them with
+  who attached each and the caption from the thread's log, and `pictureFile` is the only way the
+  server finds one to serve. `attach.ts` is the `spool attach` command over it; the page's paste
+  and drop write the bytes to a file and run that command. On the page, `client/pictures.js.ts`
+  and `pictures.css.ts` draw them.
 
 **Agents and models**
 

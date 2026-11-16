@@ -16,8 +16,10 @@
 
 import { type ChildProcess, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import * as fs from 'node:fs';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { type Body, act, change, text } from './act.ts';
 import { type Column, board, columnOf, diffOf } from './board.ts';
@@ -27,6 +29,7 @@ import { type Ctx, builderOf, saveBuilder } from './context.ts';
 import { detachPage, forgetPage, pageStatus, pageUp, rememberPage, stopPage } from './detach.ts';
 import { Runner } from './engine.ts';
 import { type Spool, SpoolError } from './model.ts';
+import { MAX_BYTES, pictureFile } from './pictures.ts';
 import { sprintReview } from './review.ts';
 import { taskState } from './schedule.ts';
 import { briefAcross, named, projectsOf } from './projects.ts';
@@ -236,6 +239,25 @@ export function startPage(
           ws.close();
         }
       }
+      if (req.method === 'GET' && url.pathname === '/api/picture') {
+        // A thread's picture, by the thread and the name Spool gave it. Both are checked against what is on disk.
+        const ws = Workspace.open(ctx.cwd, ctx.now);
+        let found: { file: string; type: string } | null = null;
+        try {
+          const task = ws.find(url.searchParams.get('id') ?? '');
+          found = task?.kind === 'task' ? pictureFile(task, url.searchParams.get('name') ?? '') : null;
+        } finally {
+          ws.close();
+        }
+        if (!found) return send(res, 404, 'text/plain', 'no such picture');
+        // A picture's name is never given twice in a thread, so the browser may keep it.
+        res.writeHead(200, { 'content-type': found.type, 'cache-control': 'private, max-age=86400', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'" });
+        return void res.end(fs.readFileSync(found.file));
+      }
+      if (req.method === 'POST' && url.pathname === '/api/attach') {
+        if (req.headers['x-spool-token'] !== token) return send(res, 403, 'application/json', JSON.stringify({ ok: false, text: 'reload the page' }));
+        return attachFrom(req, res, url);
+      }
       if (req.method === 'POST' && url.pathname.startsWith('/api/')) {
         if (req.headers['x-spool-token'] !== token) return send(res, 403, 'application/json', JSON.stringify({ ok: false, text: 'reload the page' }));
         const chunks: Buffer[] = [];
@@ -347,6 +369,48 @@ export function startPage(
       if (!(error instanceof SpoolError)) ctx.err(String(error));
     }
   });
+  /**
+   * A picture pasted or dropped on the page: the file's bytes as they are, the thread in the query.
+   * It is the one POST that is not JSON, and the one allowed more than 64,000 bytes. It is written to
+   * a file and handed to `spool attach`, as a person would, so it is held to the same rules.
+   */
+  const attachFrom = (req: http.IncomingMessage, res: http.ServerResponse, url: URL): void => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let tooLong = false;
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size <= MAX_BYTES) return void chunks.push(chunk);
+      if (!tooLong) send(res, 413, 'application/json', JSON.stringify({ ok: false, text: `That picture is too big: keep it under ${MAX_BYTES / 1024 / 1024} MB.` }));
+      tooLong = true;
+    });
+    req.on('end', () => {
+      if (tooLong) return;
+      const id = url.searchParams.get('id') ?? '';
+      if (!/^t-[a-z0-9]+$/.test(id)) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which thread?' }));
+      const ws = Workspace.open(ctx.cwd, ctx.now);
+      let spool: Spool | undefined;
+      let stray: string[];
+      try {
+        const asked = url.searchParams.get('project');
+        spool = asked === null ? own(ws) : named(ws, asked);
+        stray = spool ? strays(ws, spool, { id }) : [];
+      } finally {
+        ws.close();
+      }
+      if (!spool) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which project?' }));
+      if (stray.length) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: `${id} is another project's, not ${spool.name}'s` }));
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'spool-picture-'));
+      try {
+        const file = path.join(dir, 'pasted');
+        fs.writeFileSync(file, Buffer.concat(chunks));
+        const result = act(inProject(ws, spool), ['attach', id, file]);
+        send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify({ ok: result.ok, text: result.ok ? '' : result.text.replace(/^pasted /, 'That ') }));
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  };
   // Once, however many ports were tried first.
   server.once('listening', () => ready({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`, server, token }));
   const listen = (port: number, triesLeft: number): void => {

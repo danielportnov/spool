@@ -3,13 +3,15 @@
  *
  * The markup is here; the styles (`page.css.ts`) and the script (`page.js.ts`) are put into it,
  * so what is served is still a single page that loads nothing else. Each part of the page with files
- * of its own (the roadmap, a sprint's review, the projects) is joined after them. The server fills in
- * `__TOKEN__` and `__BUILD__` as it sends it. Inside the string: no backticks, and no `${` but
- * the two that place the styles and the script.
+ * of its own (the roadmap, a sprint's review, the projects, pictures) is joined after them. The
+ * server fills in `__TOKEN__` and `__BUILD__` as it sends it. Inside the string: no backticks, and
+ * no `${` but the two that place the styles and the script.
  */
 
 import { CSS } from './page.css.ts';
 import { JS } from './page.js.ts';
+import { PICTURES_CSS } from './pictures.css.ts';
+import { PICTURES_JS } from './pictures.js.ts';
 import { PROJECTS_CSS } from './projects.css.ts';
 import { PROJECTS_JS } from './projects.js.ts';
 import { REVIEW_CSS } from './review.css.ts';
@@ -39,7 +41,7 @@ paintTheme();
 SYSTEM_DARK.addEventListener('change', paintTheme);
 </script>
 <style>
-${CSS + ROADMAP_CSS + REVIEW_CSS + PROJECTS_CSS}</style>
+${CSS + ROADMAP_CSS + REVIEW_CSS + PROJECTS_CSS + PICTURES_CSS}</style>
 </head>
 <body>
 <div class="bar">
@@ -68,7 +70,7 @@ ${CSS + ROADMAP_CSS + REVIEW_CSS + PROJECTS_CSS}</style>
 <div id="layerveil" hidden></div>
 <div id="layer" role="dialog" aria-modal="true" hidden></div>
 <script>
-${JS + ROADMAP_JS + REVIEW_JS + PROJECTS_JS}</script>
+${JS + ROADMAP_JS + REVIEW_JS + PROJECTS_JS + PICTURES_JS}</script>
 </body>
 </html>
 `;
