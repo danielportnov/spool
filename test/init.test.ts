@@ -177,13 +177,13 @@ test('the loop skill is simple: show the spool, build what is in build, say when
 
   // The same list every time: every open thread, numbered, printed by the engine.
   assert.match(loop, /\*\*A spool 🧶 holds threads 🧵\.\*\*/);
-  assert.match(loop, /\*\*The same layout every time\*\*[\s\S]*\*\*cute, concise, professional and organized\*\*/);
-  assert.match(loop, /`spool overview --table` prints the list[\s\S]*Show it exactly as it comes[\s\S]*never renumber/);
-  assert.match(loop, /✅ \*\*Done since last time\*\*[\s\S]*\*\*🧶 <project>\*\*[\s\S]*\| # \| 🧵 Thread \| Difficulty \| Priority \| Note \|/);
-  assert.match(loop, /\*\*Every open thread has a row and a number\*\*/);
+  // Brief in the chat: the ask first, a few lines from the engine, and the page for everything else.
+  assert.match(loop, /\*\*Be brief\. The page holds the detail; the chat holds what they need to know\nnow\.\*\*/);
+  assert.match(loop, /\*\*Lead with what you need from them\*\*, or with the result\./);
+  assert.match(loop, /No tables, no plans, no lists of reasons in\n {2}the chat/);
+  assert.match(loop, /`spool overview --brief` prints the spool in a few lines[\s\S]*\*\*🧶 <project>\*\*[\s\S]*The board: <the page's address>/);
+  assert.match(loop, /\*\*They ask for the whole list\*\*[\s\S]*Then, and only then, `spool overview --table`/);
   assert.match(loop, /`spool loop --dry-run` then lists every thread that can be worked, in the\nexact order `spool next --claim` will hand them out/);
-  assert.match(loop, /Tiny · Small · Medium · Large · Huge/);
-  assert.match(loop, /Urgent · High · Normal · Someday/);
 
   // The gate: only the human moves a thread to build, and nothing else is ever built.
   assert.match(loop, /\*\*Nothing is built unless the human has moved it to build\.\*\*/);
@@ -203,7 +203,6 @@ test('the loop skill is simple: show the spool, build what is in build, say when
 
   // Its own ideas go in the spool as AI suggested, and wait like everything else.
   assert.match(loop, /### Add your own ideas[\s\S]*spool task "<the idea>" --suggested "<why[^"]*>" --size <size>[\s\S]*nobody starts it, you\n {2}included, until the human moves it to build/);
-  assert.match(loop, /\| 5 \| \*\*<feature>\*\* \| Small \| Normal \| 🟠 Proposed · ✨ AI suggested: <why> \|/);
 
   // What shipped gets a version: bumped, written up and tagged, and never pushed.
   assert.match(loop, /### A version for what shipped[\s\S]*Once per run[\s\S]*minor, 0\.3\.2 → 0\.4\.0[\s\S]*A major, or the first 1\.0,\n {3}is the human's call[\s\S]*`CHANGELOG\.md`[\s\S]*`git tag -a v<x\.y\.z>[\s\S]*The tag stays on this machine/);
@@ -292,7 +291,7 @@ test('install takes away a retired skill nobody edited, and the loop does its jo
 
   // What it did is in the loop's list, and no skill sends anyone to it.
   const loop = shipped('spool-loop');
-  assert.match(loop, /one line for what else waits[\s\S]*🔴 needs you, with the question and its options/);
+  assert.match(loop, /❓ <a question> \*\*a\*\* <option> · \*\*b\*\* <option>\. I'd pick \*\*a\*\*\./);
   assert.match(loop, /`spool approve --all`; it never covers plans/);
   assert.match(loop, /Never guess a go, an answer or an approval/);
   for (const name of SKILL_NAMES) assert.doesNotMatch(shipped(name), /spool-blockers|spool-overview|spool-help|spool-recorder/);

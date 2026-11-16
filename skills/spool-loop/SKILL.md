@@ -161,50 +161,40 @@ a skill".
 
 ## Show the spool
 
-The list is the one thing the human reads, so it has to tell them at a glance
-what the project's features are, what is going on, and what you are about to
-do. **The same layout every time**, so they learn where to look. Make it
-**cute, concise, professional and organized**:
+**Be brief. The page holds the detail; the chat holds what they need to know
+now.** They are usually reading on a phone, between other things.
 
-- **Concise:** every line earns its place. Names and numbers, not adjectives.
-- **Cute, lightly:** the 🧶 and 🧵, the colours, a warm word. Never a joke
-  that costs them a second line.
-- **Their terms:** a thread's name is the feature or the fix as they would say
-  it, a few words, not the title you filed it under. No ids.
+- **Lead with what you need from them**, or with the result. Never make them
+  read down to find the question.
+- **A few lines, not a document.** No tables, no plans, no lists of reasons in
+  the chat. Anything long is on the page: point at it.
+- **Their terms.** A thread's name is the feature or the fix as they would say
+  it. No ids.
+- **Cute, lightly:** the 🧶 and 🧵, a warm word. Never a joke that costs them a
+  second line.
 
-`spool overview --table` prints the list: one header line, one table of every
-open thread, one line for what else waits. Show it exactly as it comes. You
-may shorten a thread's name to the few words they would use for it; change
-nothing else, and never renumber. Above it, add what got done:
+`spool overview --brief` prints the spool in a few lines. Show that, in this
+shape, leaving out a line that is empty:
 
 ```
-✅ **Done since last time**
-- <feature> — <what they can see now>
+<what you need from them, or what just happened: one line>
 
-**🧶 <project>** · <N> threads open · <N> need you · <N> AI suggested
+**🧶 <project>** · <N> in build · <N> proposed · <N> need you
+Building: <thread>
+Next in build: <thread> · <thread>
+❓ <a question> **a** <option> · **b** <option>. I'd pick **a**.
 
-| # | 🧵 Thread | Difficulty | Priority | Note |
-| --- | --- | --- | --- | --- |
-| 1 | **<feature being built>** | Large | Normal | 🔵 Being built now |
-| 2 | **<feature, in a few words>** | Small | High | |
-| 3 | **<feature>** | Medium | High | 🔴 Needs you: <the question> **a** <option> · **b** <option>. I'd pick **a**. |
-| 4 | **<feature>** | Small | Normal | 🟠 Proposed |
-| 5 | **<feature>** | Small | Normal | 🟠 Proposed · ✨ AI suggested: <why> |
-| 6 | **<feature>** | Tiny | Normal | ⚪ On hold: "<their words>" |
+The board: <the page's address>
 ```
 
-**Every open thread has a row and a number**, so they can point at any of
-them: "build 4", "yes to 6", "drop 9". First what is being built, then what is
-in build in the order you will take it, then what is only proposed.
-
-| Column | Says |
-| --- | --- |
-| # | a number for every thread, yours to point at |
-| Difficulty | from its size: Tiny · Small · Medium · Large · Huge |
-| Priority | Urgent · High · Normal · Someday |
-| Note | 🔵 being built · 🔴 needs you, with the question and its options · 🟡 waiting on something · 🟠 proposed, not in build · ✨ AI suggested · ⚪ on hold. Empty when it is in build and simply next. |
-
-End with one line: the page has the detail and is where they move threads (`spool page`).
+- **The page is where the rest is.** If it is not open, start it
+  (`spool page`, in the background) and give its address. A thread has its own
+  place there: the address, then `#<t-id>`.
+- **They ask for the whole list** ("show me everything", "what's in the
+  spool")? Then, and only then, `spool overview --table`, exactly as it
+  comes: every open thread, numbered, so they can say "build 4" or "drop 9".
+- **A plan, an audit, a long answer?** It is the thread's report, read on its
+  ticket. In the chat: its headline in a line, and the link.
 
 ## Build what is in build
 
@@ -252,10 +242,10 @@ Then take the next one. The order is read again every time, so a thread they
 moved to build while you worked comes up in its turn. A question about one
 thread is never a reason to stop: put it through `spool ask` and take the next.
 
-**Nothing in build?** Do not build. Say which two or three proposed threads
-you would build first and why, a line each, for someone who knows nothing
-about the project; point them at the page (`spool page`); notify them, by
-"Reaching them"; and end the turn.
+**Nothing in build?** Do not build. Say which one or two proposed threads you
+would build first, a line each, for someone who knows nothing about the
+project; give the page's address; notify them, by "Reaching them"; and end
+the turn.
 
 **You hold the context, so put it where it lasts.** What they tell you about
 a thread goes on it in their words (`spool capture`, then
@@ -299,8 +289,8 @@ keeps a long run sharp.
 
 1. Give what shipped a version: see "A version for what shipped".
 2. Notify them, by "Reaching them".
-3. Say it in a few plain lines: what got done and how they can see each
-   thing, the new version, what is waiting on them, and when you will check back.
+3. Say it in a few plain lines, the ask first if there is one: what got done,
+   the new version, and what is waiting on them. The page has the rest.
 
 Then end the turn, and keep the schedule: answers and new threads arrive in
 between, and the next check back in picks them up.

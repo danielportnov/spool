@@ -403,9 +403,8 @@ export function sprintAbout(sprint: Item): { goal: string; why: string; doneWhen
  * table, one line for what else waits. It is printed here, and not drawn by
  * each agent, so it is the same every time it is shown.
  */
-function tableText(ws: Workspace, d: Docket): string {
-  const rows = tableRows(ws, d);
-  const cell = (text: string) => text.replace(/\|/g, '\\|');
+/** Where a project stands, in one line: the head of the loop's list, and of its short summary. */
+function standing(d: Docket, rows: TableRow[]): string {
   const needs = rows.filter((r) => r.mark === '🔴').length;
   const facts = [
     `${plural(rows.length - d.proposed.length - d.suggested.length - d.held.length, 'thread')} in build`,
@@ -415,7 +414,33 @@ function tableText(ws: Workspace, d: Docket): string {
     ...(d.held.length ? [`${d.held.length} on hold`] : []),
     `${d.done} done`,
   ];
-  const out = [`**🧶 ${d.spool.name}** · ${facts.join(' · ')}`, ''];
+  return `**🧶 ${d.spool.name}** · ${facts.join(' · ')}`;
+}
+
+/**
+ * The spool in a few lines, for a chat: where it stands, what is being built, what is next, and
+ * what needs the human, each on a line. Everything longer belongs on the page.
+ */
+function briefText(ws: Workspace, d: Docket): string {
+  const rows = tableRows(ws, d);
+  const names = (list: TableRow[], most: number): string =>
+    list.slice(0, most).map((r) => oneLine(r.item.title, 60)).join(' · ') + (list.length > most ? ` · +${list.length - most} more` : '');
+  const building = rows.filter((r) => r.mark === '🔵');
+  const next = rows.filter((r) => r.mark === '');
+  const asking = rows.filter((r) => r.mark === '🔴');
+  const out = [standing(d, rows)];
+  if (building.length) out.push(`Building: ${names(building, 2)}`);
+  if (next.length) out.push(`Next in build: ${names(next, 3)}`);
+  for (const r of asking.slice(0, 3)) out.push(`❓ ${r.note.replace(/^Needs you: /, '')}`);
+  if (asking.length > 3) out.push(`❓ +${asking.length - 3} more on the page`);
+  if (!building.length && !next.length) out.push(d.proposed.length ? 'Nothing is in build.' : 'Nothing is open.');
+  return out.join('\n');
+}
+
+function tableText(ws: Workspace, d: Docket): string {
+  const rows = tableRows(ws, d);
+  const cell = (text: string) => text.replace(/\|/g, '\\|');
+  const out = [standing(d, rows), ''];
   // Sprints that are not finished, each with what it is for: the plan the threads below serve.
   const sprints = ws.items
     .filter((i) => i.kind === 'sprint' && i.spool === d.spool && (i.status === 'planned' || i.status === 'running'))
@@ -443,11 +468,11 @@ function tableText(ws: Workspace, d: Docket): string {
   return out.join('\n');
 }
 
-/** The loop's list for one project, or for every project that has anything open. */
-export function overviewTable(ws: Workspace, spools: Spool[]): string {
+/** The loop's list for one project, or for every project that has anything open. With `brief`, a few lines each. */
+export function overviewTable(ws: Workspace, spools: Spool[], brief = false): string {
   const dockets = spools.map((s) => docket(ws, s));
   const shown = dockets.length > 1 ? dockets.filter((d) => tableRows(ws, d).length) : dockets;
-  return shown.map((d) => tableText(ws, d)).join('\n\n');
+  return shown.map((d) => (brief ? briefText(ws, d) : tableText(ws, d))).join('\n\n');
 }
 
 /** The spool of one project, or of every project that has anything on it. */

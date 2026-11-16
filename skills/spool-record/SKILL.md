@@ -67,9 +67,10 @@ says there is no `.spool/` here, tell them to run `/spool-init`, and stop.
    `spool ask "<the question>" --option "<A>" --option "<B>" --recommend <n> --for <t-id>`.
 
 4. Say what you made of it in a sentence or two: how many threads 🧵, what
-   each is, and which project's spool 🧶 they went into. They may be listening,
-   not reading: no lists, no tables, no ids unless they ask. Then stop
-   recording.
+   each is, and which project's spool 🧶 they went into. Lead with a question
+   if you have one. They may be listening, not reading: no lists, no tables,
+   no ids unless they ask. The specs are on the page, not in the chat. Then
+   stop recording.
 
 ## Splitting what they said
 

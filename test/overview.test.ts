@@ -95,6 +95,14 @@ test('--table prints the loop’s list: every open thread numbered, in the order
     '| 6 | **A Grand Prix mode** | Medium | Normal | ⚪ On hold: “just an idea” |',
   ]);
 
+  // --brief is the same spool in a few lines, for a chat: where it stands, what is being built and next, what needs them.
+  assert.deepEqual(s.sp('overview', '--brief').split('\n'), [
+    '**🧶 demo** · 4 threads in build · 1 needs you · 1 AI suggested · 1 on hold · 0 done',
+    'Building: Tighten the jump arc',
+    'Next in build: Add online multiplayer · Fix the typo | on the title screen',
+    "❓ Outline the coins, or turn them teal? **a** Outline · **b** Teal. I'd pick **a**.",
+  ]);
+
   // The same rows as data, and an idea the human took up keeps its mark in the order.
   assert.deepEqual(s.json('overview').projects[0].rows.map((r: { id: string }) => r.id).slice(0, 4), [jump, online, typo, coins]);
   s.sp('release', s.json('overview').projects[0].rows[4].id);

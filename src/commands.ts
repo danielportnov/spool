@@ -1416,16 +1416,17 @@ export const COMMANDS: Command[] = [
     name: 'overview',
     aliases: ['ov'],
     group: 'see',
-    usage: 'overview [<project>] [--table]',
-    summary: 'A project\'s whole spool 🧶, each thread 🧵 under its colour; --table prints the loop\'s numbered list for a chat',
-    options: { ...PROJECT, table: { type: 'boolean' } },
+    usage: 'overview [<project>] [--brief | --table]',
+    summary: 'A project\'s whole spool 🧶, each thread 🧵 under its colour; --brief is a few lines for a chat, --table the numbered list',
+    options: { ...PROJECT, table: { type: 'boolean' }, brief: { type: 'boolean' } },
     run({ ws, p, args, opts }) {
       const ref = str(opts.project) ?? str(args.join(' ').trim());
       const spools = ref ? [ws.project(ref)] : ws.spools;
       const json = (items: Item[]) => items.map((i) => itemJson(ws, i));
       return {
         // --table is the loop's list: every thread numbered, as markdown for a chat.
-        text: opts.table ? overviewTable(ws, spools) : overviewText(ws, spools, p),
+        // --brief is the spool in a few lines, for a chat; the page has the rest.
+        text: opts.brief ? overviewTable(ws, spools, true) : opts.table ? overviewTable(ws, spools) : overviewText(ws, spools, p),
         data: {
           workspace: ws.home.name,
           projects: spools.map((spool) => {
