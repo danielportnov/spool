@@ -75,6 +75,15 @@ an agent how to work ("keep going until midnight"), or saying go or no, is acted
 
 **Board.** Four columns: Backlog, Build, Building, Done.
 
+When anything has shipped that you have not looked at, or anything needs you, a panel sits above
+the columns: the morning brief, as `spool brief` gives it, titled with its headline ("4 threads
+shipped since you last looked · 2 need you"). Under it: what needs you (a question with its answer
+buttons, a plan, a thread that was stopped and what its agent last said), the few threads worth a
+look and why, and the rest by sprint, folded shut. Each line opens its thread. **All good: approve
+everything** approves every finished thread and every call an agent made; a new skill is still
+kept or dropped on its thread. Click the headline to fold the panel to that one line; it stays folded until another thread
+finishes. With nothing shipped and nothing needing you, the panel is not there.
+
 - **▶ Build** on a card, or a drag into Build, moves it there. **Not yet** moves it back.
 - **+ Add** at the foot of Backlog or Build adds a thread to that column.
 - **Add to Build** at the foot of the backlog moves everything the backlog is *showing*, after

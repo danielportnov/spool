@@ -25,7 +25,9 @@ the chat can stay short.
 What they can do on it:
 
 The page has two views. **Board** is four columns: Backlog, Build, Building,
-Done. **Backlog** is for planning: sprints to fill and play, under them
+Done. Above them, when anything has shipped that they have not looked at or
+anything needs them, is the morning brief: the same as `spool brief`, so do
+not repeat it in the chat when they have the board open. **Backlog** is for planning: sprints to fill and play, under them
 everything that is in no sprint, and at the foot what was archived. What waits on them is on its thread: a
 question on its card and ticket, a call an agent made as a post in its thread
 (**Fine**, or **Overrule** in their words), a plan's go-ahead and a new skill
@@ -53,6 +55,8 @@ and anything about no thread, sit in a strip at the top of the Backlog view.
 | **Undo this thread** | Takes back exactly what that thread changed, with their reason: to be done again, or dropped. |
 | **+ Add** at the foot of Proposed or Build | A new thread in that column, named from their first line, with all their words kept on it. Added under Build, it is in build. |
 | An answer button on a question | The thread it was holding up can move again. |
+| A line of the brief, above the columns | Opens that thread. The headline folds the brief to one line, until another thread finishes. |
+| **All good: approve everything**, at the foot of the brief | Approves every finished thread and every call agents made. A new skill is still kept or dropped on its thread. |
 
 The page says so if the build gate is off in this project, which means new
 threads go straight to build. Offer to turn it on: `spool init --gate`.

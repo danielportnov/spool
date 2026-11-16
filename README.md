@@ -218,6 +218,8 @@ only do what you allow it. To let it edit files and commit, say so once in
 - 🏷️ What ships gets a version: a bump, a changelog entry, and a tag that stays on your machine.
 - 🌅 Back in the morning? Ask "catch me up", or run `spool brief`: one screen with what shipped,
   the few threads worth checking and why, and what needs you. `spool approve --all` clears it.
+  The board opens with the same brief above its columns, each line a click from its thread, and
+  one button to approve the lot.
 
 ## The four skills
 

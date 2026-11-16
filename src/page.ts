@@ -32,6 +32,7 @@ import type { AddressInfo } from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { type Brief, morning } from './brief.ts';
 import { run } from './cli.ts';
 import type { Bare, Result } from './commands.ts';
 import { type Builder, type Ctx, builderOf, parallelOf, saveBuilder, userConfig } from './context.ts';
@@ -275,6 +276,8 @@ interface Board {
   /** Threads put out of sight, newest first: on no column, shown only in the Backlog view's Archived section. */
   archived: Card[];
   also: { assumptions: number; skills: number; inbox: number };
+  /** The morning brief, as `spool brief --json` gives it, for the panel above the columns. Null with nothing shipped and nothing needing him. */
+  brief: Brief | null;
 }
 
 const DIFFICULTY = { xs: 'Tiny', s: 'Small', m: 'Medium', l: 'Large', xl: 'Huge' } as const;
@@ -584,7 +587,34 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
       .sort((a, b) => b.archived!.localeCompare(a.archived!))
       .map((t) => card(ws, t, null, age(t.archived!, ws.now()) === 'now' ? 'Archived just now' : `Archived ${age(t.archived!, ws.now())} ago`, 'proposed', routing)),
     also: { assumptions: queue.assumptions.length, skills: queue.skills.length, inbox: queue.inbox.length },
+    brief: briefOf(ws, spool),
   };
+}
+
+/**
+ * The brief, kept per spool for as long as nothing it reads has changed. The board is asked for
+ * about once a second, and the brief asks git about every commit of every thread not yet
+ * reviewed. So it is made again only when an item of the spool changed: its state, or its updated
+ * stamp. A thread being built is left out of the stamps, since its agent touches it every few
+ * seconds and only its state (building, or gone quiet) changes what the brief says.
+ */
+const briefs = new Map<string, { key: string; brief: Brief | null }>();
+
+function briefOf(ws: Workspace, spool: Item['spool']): Brief | null {
+  const key = ws.items
+    .filter((i) => i.spool === spool)
+    .map((i) => {
+      const state = i.kind === 'task' ? taskState(ws, i) : i.status;
+      return `${i.id}:${state}:${i.reviewed ?? ''}:${state === 'active' ? '' : i.updated}`;
+    })
+    .join(' ');
+  const kept = briefs.get(spool.root);
+  if (kept?.key === key) return kept.brief;
+  const b = morning(ws, { project: spool });
+  const needs = b.needsYou.questions.length + b.needsYou.plans.length + b.needsYou.stopped.length;
+  const brief = b.shipped || needs ? b : null;
+  briefs.set(spool.root, { key, brief });
+  return brief;
 }
 
 // ------------------------------------------------------------------ the page runs the agents
@@ -2221,6 +2251,18 @@ const PAGE = String.raw`<!doctype html>
   .history { background: none; border: 0; padding: 6px; color: var(--soft); font-size: 13px; width: 100%; text-align: left; }
   .history:hover { color: var(--ink); }
 
+  /* while you were away: the morning brief, above the columns, one column that wraps */
+  #brief { margin: 12px 20px 0; max-width: 760px; background: var(--col); border-radius: 10px; padding: 8px; }
+  #brief .bhead { display: flex; gap: 8px; width: 100%; text-align: left; background: none; border: 0; padding: 4px 6px; font-weight: 600; overflow-wrap: anywhere; }
+  #brief .bhead .fold { color: var(--soft); flex: none; }
+  #brief h2 { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; margin: 12px 6px 8px; display: flex; gap: 8px; color: var(--soft); font-weight: 600; }
+  #brief h2 .count { background: var(--chip); border-radius: 999px; padding: 0 8px; }
+  #brief .card { margin-bottom: 7px; }
+  #brief .why { white-space: normal; }
+  #brief .sprint { margin: 8px 6px 6px; font-size: 13px; color: var(--soft); }
+  #brief .history { margin-top: 2px; }
+  #brief .foot { margin: 10px 0 0; }
+
   /* the backlog: sprints to fill and play, and everything not in one */
   #backlog { padding: 12px 20px 32px; max-width: 1100px; }
   .group { background: var(--col); border-radius: 10px; padding: 8px; margin-bottom: 14px; border: 2px solid transparent; }
@@ -2392,6 +2434,7 @@ const PAGE = String.raw`<!doctype html>
 </div>
 <div class="rule" id="rule" hidden></div>
 <div id="quick"></div>
+<section id="brief" aria-label="While you were away" hidden></section>
 <main id="board"></main>
 <main id="backlog" hidden></main>
 <div id="veil" hidden></div>
@@ -2828,6 +2871,78 @@ function drawBoard(b) {
       drop && addNode(key, key === 'build' ? 'What should be built?' : 'What do you want added?'),
       key === 'proposed' && cards.length > 0 && el('div', { style: 'margin-top: 8px' }, addAllNode('board', cards)));
   }));
+}
+
+// ---- while you were away: the morning brief, above the board's columns
+
+// The rest of what shipped stays folded shut until asked for.
+let briefRest = false;
+// Folded, the panel is its headline alone, until the set of finished threads in it changes.
+const briefSet = (r) => [...r.worthALook, ...r.alsoShipped.flatMap((g) => g.threads)].map((t) => t.id).sort().join(' ');
+function briefFolded(r) {
+  try { return localStorage.getItem('spool-brief-folded') === briefSet(r); } catch (e) { return false; }
+}
+function foldBrief(r, fold) {
+  try { if (fold) localStorage.setItem('spool-brief-folded', briefSet(r)); else localStorage.removeItem('spool-brief-folded'); } catch (e) {}
+  redraw();
+}
+
+// When it stopped: so long ago, or on a day.
+function briefWhen(at) {
+  const said = ago(at);
+  return !said || said === 'now' ? '' : /^\d+[mh]$/.test(said) ? ', ' + said + ' ago' : ', on ' + said;
+}
+
+function drawBrief(b) {
+  const box = document.getElementById('brief');
+  const r = b.brief;
+  box.hidden = view !== 'board' || !r;
+  if (box.hidden) { box.replaceChildren(); return; }
+  const folded = briefFolded(r);
+  const head = el('button', { class: 'bhead', 'aria-expanded': String(!folded), title: folded ? 'Show the brief' : 'Fold it to this line',
+    onclick: () => foldBrief(r, !folded) }, el('span', { class: 'fold' }, folded ? '▸' : '▾'), el('span', {}, r.headline));
+  if (folded) { box.replaceChildren(head); return; }
+  const n = r.needsYou;
+  const open = (id) => () => { if (id) openThread(id); };
+  const plural = (k, one) => k + ' ' + one + (k === 1 ? '' : 's');
+  const needs = [
+    ...n.questions.map((q) => {
+      const asked = b.needs.questions.find((x) => x.id === q.id);
+      return el('div', { class: 'card', 'data-id': q.id },
+        el('div', { class: 'title', onclick: open(asked && asked.threads[0]) }, '❓ ' + q.title),
+        q.blocks > 0 && el('div', { class: 'note' }, 'Holds up ' + plural(q.blocks, 'thread')),
+        answersNode(q));
+    }),
+    ...n.plans.map((t) => el('div', { class: 'card', 'data-id': t.id },
+      el('div', { class: 'title', onclick: open(t.id) }, '📋 Plan: ' + t.title),
+      t.summary && el('div', { class: 'note' }, t.summary),
+      el('div', { class: 'why' }, plural(t.parts, 'part') + (t.parts === 1 ? ' waits' : ' wait') + ' for your go-ahead'))),
+    ...n.stopped.map((t) => el('div', { class: 'card', 'data-id': t.id },
+      el('div', { class: 'title', onclick: open(t.id) }, '↺ ' + t.title),
+      el('div', { class: 'why' }, t.why + briefWhen(t.when)),
+      t.lastSaid && el('div', { class: 'note' }, 'Last said: “' + t.lastSaid + '”'))),
+  ];
+  const rest = r.alsoShipped.reduce((k, g) => k + g.threads.length, 0);
+  // Approving everything is what the brief's last line says: the finished threads, and the calls agents made.
+  const approve = async () => {
+    const ok = !r.shipped || await post('complete-all', {}, 'All marked as complete');
+    if (ok && r.calls.length) await post('approve-calls', {}, 'All approved');
+  };
+  box.replaceChildren(...[head,
+    needs.length > 0 && [el('h2', {}, 'Needs you', el('span', { class: 'count' }, String(needs.length))), needs],
+    r.worthALook.length > 0 && [el('h2', {}, 'Worth a look', el('span', { class: 'count' }, String(r.worthALook.length))),
+      r.worthALook.map((t) => el('div', { class: 'card', 'data-id': t.id },
+        el('div', { class: 'title', onclick: open(t.id) }, t.title),
+        t.summary && el('div', { class: 'note' }, t.summary),
+        el('div', { class: 'why' }, t.reasons.join(' · '))))],
+    rest > 0 && el('button', { class: 'history', 'aria-expanded': String(briefRest), onclick: () => { briefRest = !briefRest; redraw(); } },
+      (briefRest ? '▾ ' : '▸ ') + (r.worthALook.length ? 'Also shipped' : 'Shipped') + ' · ' + rest),
+    rest > 0 && briefRest && r.alsoShipped.map((g) => [
+      g.sprint && el('div', { class: 'sprint' }, '🏁 ' + g.sprint.title),
+      g.threads.map((t) => el('div', { class: 'card', 'data-id': t.id },
+        el('div', { class: 'title', onclick: open(t.id) }, t.title),
+        t.summary && el('div', { class: 'note' }, t.summary)))]),
+    r.approve && (r.shipped > 0 || r.calls.length > 0) && el('button', { class: 'foot go', onclick: approve }, 'All good: approve everything')].flat(3).filter(Boolean));
 }
 
 // ---- the backlog: sprints to fill and play, then everything that is in none
@@ -3566,6 +3681,7 @@ function draw(b) {
   }
   document.getElementById('board').hidden = view !== 'board';
   document.getElementById('backlog').hidden = view !== 'backlog';
+  drawBrief(b);
   if (view === 'board') drawBoard(b); else drawBacklog(b);
   const box = document.querySelector('.adding textarea, .adding input');
   if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
