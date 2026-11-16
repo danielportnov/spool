@@ -23,12 +23,13 @@ import { type Body, act, change, text } from './act.ts';
 import { type Column, board, columnOf, diffOf } from './board.ts';
 import { PAGE } from './client/page.html.ts';
 import type { Bare, Result } from './commands.ts';
-import { type Ctx, builderOf } from './context.ts';
+import { type Ctx, builderOf, saveBuilder } from './context.ts';
 import { detachPage, forgetPage, pageStatus, pageUp, rememberPage, stopPage } from './detach.ts';
 import { Runner } from './engine.ts';
-import { SpoolError } from './model.ts';
+import { type Spool, SpoolError } from './model.ts';
 import { sprintReview } from './review.ts';
 import { taskState } from './schedule.ts';
+import { briefAcross, named, projectsOf } from './projects.ts';
 import { Workspace } from './store.ts';
 import { CODE_DIR, CODE_EXT, Upkeep } from './upkeep.ts';
 
@@ -49,7 +50,7 @@ interface Started {
  *   - Building: this page builds it next, with agents switched on: now, if there is room. Where a chat builds, it waits in Build for the chat.
  *   - Done: the human marking it done; an agent of this page's on it is ended.
  */
-function moveThread(ctx: Ctx, runner: Runner, id: string, to: string): { ok: boolean; text: string; data?: unknown } {
+function moveThread(ctx: Ctx, runner: Runner, id: string, to: string, who: Who): { ok: boolean; text: string; data?: unknown } {
   if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
   if (!['proposed', 'build', 'building', 'done'].includes(to)) return { ok: false, text: 'a thread can be moved to the backlog, build, building or done' };
   let from: Column | null;
@@ -112,7 +113,8 @@ function moveThread(ctx: Ctx, runner: Runner, id: string, to: string): { ok: boo
     }
     if (state !== 'ready') return { ok: true, text: `In build, but it cannot start yet: it is ${state}.` };
     // With a chat building, the page starts nothing: the thread waits in Build for the chat to take.
-    if (runner.builder === 'chat') return { ok: true, text: `In build, for the chat to take: ${title}` };
+    if (who === 'chat') return { ok: true, text: `In build, for the chat to take: ${title}` };
+    if (who === 'elsewhere') return { ok: true, text: `In build, for its own page or a chat to take: ${title}` };
     runner.on = true;
     return { ok: true, text: runner.take(id) ? `Building now: ${title}` : `Next up, once an agent is free: ${title}` };
   }
@@ -129,6 +131,21 @@ function moveThread(ctx: Ctx, runner: Runner, id: string, to: string): { ok: boo
   }
   if (ours) runner.abort(id);
   return { ...done, text: `Done: ${title}` };
+}
+
+/** Who builds a project's threads, as a move sees it: this page's runner, a chat, or neither, since this page was started for another project. */
+type Who = 'page' | 'chat' | 'elsewhere';
+
+/**
+ * The ids a POST names, each to be an item of the project it was sent for: what is done on one
+ * project's board never reaches into another's.
+ */
+function strays(ws: Workspace, spool: Spool, body: Body): string[] {
+  const ids = [body.id, body.before, body.after, ...(Array.isArray(body.ids) ? body.ids : [])].map(text).filter((id) => /^[a-z]-[a-z0-9]+$/.test(id));
+  return ids.filter((id) => {
+    const item = ws.find(id);
+    return !!item && item.spool !== spool;
+  });
 }
 
 function send(res: http.ServerResponse, status: number, type: string, payload: string): void {
@@ -164,6 +181,13 @@ export function startPage(
   };
   const upkeep = new Upkeep(ctx, options.project, runner, options.restart ? handOver : undefined);
   runner.upkeep = () => upkeep.check();
+  // The project the page was started for, and whether its runner builds another. Started with no
+  // project named, it builds every project of the workspace; named, that one only.
+  const own = (ws: Workspace): Spool => (options.project ? ws.project(options.project) : ws.home);
+  const builds = (ws: Workspace, spool: Spool): boolean => !options.project || spool === own(ws);
+  const whoBuilds = (ws: Workspace, spool: Spool): Who => (!builds(ws, spool) ? 'elsewhere' : builderOf(ctx, spool.root) === 'chat' ? 'chat' : 'page');
+  /** A command run for one project: in its own folder, so it reads and writes that project's spool and no other. */
+  const inProject = (ws: Workspace, spool: Spool): Ctx => (spool === ws.home ? ctx : { ...ctx, cwd: spool.root });
   const server = http.createServer((req, res) => {
     const { port } = server.address() as AddressInfo;
     // Only a browser pointed at this machine: a name another site resolved here is refused.
@@ -174,7 +198,18 @@ export function startPage(
       if (req.method === 'GET' && url.pathname === '/api/board') {
         const ws = Workspace.open(ctx.cwd, ctx.now);
         try {
-          return send(res, 200, 'application/json', JSON.stringify(board(ws, options.project, runner, upkeep)));
+          // The project asked for, by its name on the workspace's own list; any other is the page's own.
+          const spool = named(ws, url.searchParams.get('project')) ?? own(ws);
+          const shown = board(ws, spool === ws.home ? undefined : spool.name, runner, upkeep, builderOf(ctx, spool.root));
+          const several = ws.spools.length > 1;
+          const workspace = {
+            projects: projectsOf(ws, (p) => builds(ws, p), (id) => runner.runs.get(id)?.lines),
+            current: spool.name,
+            // Started at the top with nobody named, the page opens on all of them.
+            opens: several && !options.project ? '' : own(ws).name,
+            brief: several && url.searchParams.get('home') === '1' ? briefAcross(ws) : null,
+          };
+          return send(res, 200, 'application/json', JSON.stringify({ ...shown, workspace }));
         } finally {
           ws.close();
         }
@@ -221,6 +256,26 @@ export function startPage(
             return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'not JSON' }));
           }
           const action = url.pathname.slice('/api/'.length);
+          // Which project this is for: one on the workspace's own list, or the page's own where none is named.
+          const ws = Workspace.open(ctx.cwd, ctx.now);
+          let spool: Spool | undefined;
+          let who: Who;
+          let stray: string[];
+          let several: boolean;
+          try {
+            spool = body.project === undefined ? own(ws) : named(ws, body.project);
+            who = spool ? whoBuilds(ws, spool) : 'page';
+            stray = spool ? strays(ws, spool, body) : [];
+            several = ws.spools.length > 1 && !options.project;
+          } finally {
+            ws.close();
+          }
+          if (!spool) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which project?' }));
+          if (stray.length) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: `${stray[0]} is another project's, not ${spool.name}'s` }));
+          const here = inProject(ws, spool);
+          if (who === 'elsewhere' && (action === 'runner' || action === 'builder')) {
+            return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: `This page builds ${options.project} only. Agents for ${spool.name} are run by its own page, or a chat.` }));
+          }
           // The runner is the page's own: switching it on or off, and stopping the agent it started.
           if (action === 'runner') {
             runner.on = body.on === true;
@@ -230,7 +285,8 @@ export function startPage(
           // Who builds: this page, starting the agent command, or a Claude Code chat running the loop.
           if (action === 'builder') {
             if (body.builder !== 'headless' && body.builder !== 'chat') return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'headless, or chat?' }));
-            runner.builder = body.builder;
+            // Kept by the project's folder: each project of the page has its own pick.
+            saveBuilder(ctx, spool.root, body.builder);
             const words =
               body.builder === 'chat'
                 ? `A Claude Code chat builds now: say /spool-loop in one. This page starts no agents.${runner.runs.size ? ' What it had started is built to the end.' : ''}`
@@ -239,7 +295,7 @@ export function startPage(
           }
           if (action === 'move' || action === 'abort') {
             // A thread moved to any column, from any column. Abort is the move straight back to the backlog.
-            const result = moveThread(ctx, runner, text(body.id), action === 'abort' ? 'proposed' : text(body.to));
+            const result = moveThread(here, runner, text(body.id), action === 'abort' ? 'proposed' : text(body.to), who);
             return send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify(result));
           }
           if (action === 'order') {
@@ -250,14 +306,26 @@ export function startPage(
             const spot = before ? `--before=${before}` : after ? `--after=${after}` : body.first === true ? '--first' : body.last === true ? '--last' : '';
             const ok = /^t-[a-z0-9]+$/.test(id) && spot && [before, after].every((t) => !t || /^t-[a-z0-9]+$/.test(t));
             if (!ok) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which thread, and where?' }));
-            const moved = moveThread(ctx, runner, id, 'build');
-            const result = moved.ok ? act(ctx, ['order', id, spot]) : moved;
+            const moved = moveThread(here, runner, id, 'build', who);
+            const result = moved.ok ? act(here, ['order', id, spot]) : moved;
             const words = result.ok ? (moved.text ? `${moved.text}. ` : '') + 'Build is in your order now.' : result.text;
             return send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify({ ...result, text: words }));
           }
           if (action === 'stop') {
             // Stop on a thread ends that thread's agent and no other. With no thread named, every agent is stopped and agents are switched off.
             const id = text(body.id);
+            if (!id && several) {
+              // One project's Stop, on a page that builds several: that project's agents only, and the rest build on.
+              const check = Workspace.open(ctx.cwd, ctx.now);
+              let mine: string[];
+              try {
+                mine = [...runner.runs.keys()].filter((r) => check.find(r)?.spool.root === spool.root);
+              } finally {
+                check.close();
+              }
+              for (const r of mine) runner.stop(r);
+              return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: `Stopped. What was being built in ${spool.name} is back in Build.` }));
+            }
             if (!id) {
               runner.stopAll();
               return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: 'Stopped. What was being built is back in Build, and agents are off.' }));
@@ -266,7 +334,7 @@ export function startPage(
             const words = stopped ? 'Stopped. It waits in Build until you carry on.' : 'No agent of this page is building that thread.';
             return send(res, stopped ? 200 : 400, 'application/json', JSON.stringify({ ok: stopped, text: words }));
           }
-          const result = change(ctx, action, body, options.project);
+          const result = change(here, action, body);
           send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify(result));
         });
         return;

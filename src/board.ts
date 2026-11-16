@@ -511,9 +511,14 @@ export function identicon(seed: string): string {
   return `<svg viewBox="0 0 7 7" role="img" aria-label="You" shape-rendering="crispEdges"><rect width="7" height="7" fill="#f0f0f0"/><g fill="hsl(${hue} ${sat}% ${light}%)">${cells.join('')}</g></svg>`;
 }
 
-/** The whole board for one project, read fresh from disk. */
-export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?: Upkeep): Board {
+/**
+ * The whole board for one project, read fresh from disk. `builder` is who builds this project,
+ * where the page knows it better than the runner does: a page showing several projects keeps
+ * the human's pick for each one, by its folder.
+ */
+export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?: Upkeep, builder?: Builder): Board {
   const spool = project ? ws.project(project) : ws.home;
+  const builds = builder ?? runner?.builder ?? 'headless';
   const d = docket(ws, spool);
   const columns: Record<Column, Card[]> = { proposed: [], build: [], building: [], done: [] };
   const routing = runner?.routing();
@@ -532,6 +537,7 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
   }
   const queue = review(ws, spool);
   const all = tasks(ws, spool);
+  const ours = new Set(all.map((t) => t.id));
   return {
     project: spool.name,
     you: identicon(spool.name),
@@ -545,17 +551,18 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
     history: done.filter((t) => t.reviewed).length,
     needs: needsOf(ws, queue),
     runner: {
-      builder: runner?.builder ?? 'headless',
+      builder: builds,
       // Looked for only where it is shown: with a chat building.
-      watching: runner?.builder === 'chat' && watched(spool.root),
+      watching: builds === 'chat' && watched(spool.root),
       on: !!runner?.on,
       agent: runner?.agent ?? '',
       parallel: runner?.parallel ?? 1,
-      running: [...(runner?.runs.values() ?? [])].map((run) => ({ id: run.id, seconds: Math.round((Date.now() - run.began) / 1000), lines: run.lines })),
+      // Only this project's: a page started over several projects builds all of them.
+      running: [...(runner?.runs.values() ?? [])].filter((run) => ours.has(run.id)).map((run) => ({ id: run.id, seconds: Math.round((Date.now() - run.began) / 1000), lines: run.lines })),
       // One carried on with that waits for room is no longer stopped. With a chat building, nothing holds a
       // stopped thread back: the chat takes whatever is in Build.
-      stopped: runner?.builder === 'chat' ? [] : all.filter((t) => stoppedInBuild(t) && !runner?.isNext(t.id)).map((t) => t.id),
-      recent: runner?.recent ?? [],
+      stopped: builds === 'chat' ? [] : all.filter((t) => stoppedInBuild(t) && !runner?.isNext(t.id)).map((t) => t.id),
+      recent: (runner?.recent ?? []).filter((r) => ours.has(r.id)),
     },
     sprints: ws.items
       .filter((i) => i.kind === 'sprint' && i.spool === spool && i.status !== 'dropped')
