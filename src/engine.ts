@@ -383,9 +383,9 @@ export class Runner {
     if (this.held || !this.on) return;
     // A chat builds here: nothing is started from the page.
     if (this.builder === 'chat') return;
-    // The user's number is for the whole page; a project whose threads would share its folder gets one of them at most.
+    // The number the board shows (`parallel`): the user's, or one where the threads would share the project's folder.
     // A thread that could not be started is not tried again until it changes, so each try here either starts one or moves on.
-    let room = parallelOf(this.ctx) - this.runs.size;
+    let room = this.parallel - this.runs.size;
     for (let tries = 0; room > 0 && tries < 100; tries++) {
       const out = this.handOut();
       if (out === 'none') return;
