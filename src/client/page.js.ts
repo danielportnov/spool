@@ -1542,7 +1542,9 @@ function drawTarget(b) {
       : used == null ? name + ' target: ' + goal + '% of your Claude plan. No usage read yet: the chat that builds reads it before each thread.' + change
       : name + ' usage ' + pct(used) + ' of your ' + goal + '% target, read ' + ago(u.read.at, true) + ' by ' + u.read.by + '. The chat that builds works up to it, then takes no new thread.' + change;
   }
-  chip.setAttribute('aria-label', chip.textContent.replace(/\s+/g, ' ').trim() + (shown ? ', usage target' : ''));
+  // Said in words to a screen reader: the meter is only a picture of them.
+  const said = shown && (shown[1] + ' usage ' + (usedOf(u, shown[0]) == null ? 'target ' : pct(usedOf(u, shown[0])) + ' of a target of ') + u.target[shown[0]] + '%');
+  chip.setAttribute('aria-label', said || 'Usage target');
   chip.setAttribute('aria-expanded', String(targetsOpen));
   if (targetsOpen) fillTargets(u);
 }
