@@ -3260,6 +3260,7 @@ function drawBrief(b) {
       r.worthALook.map((t) => el('div', { class: 'card', 'data-id': t.id },
         el('div', { class: 'title', onclick: open(t.id) }, t.title),
         t.summary && el('div', { class: 'note' }, t.summary),
+        t.steps.length > 0 && el('div', { class: 'note' }, 'To check', stepsNode(t.steps)),
         el('div', { class: 'why' }, t.reasons.join(' · '))))],
     rest > 0 && el('button', { class: 'history', 'aria-expanded': String(briefRest), onclick: () => { briefRest = !briefRest; redraw(); } },
       (briefRest ? '▾ ' : '▸ ') + (r.worthALook.length ? 'Also shipped' : 'Shipped') + ' · ' + rest),
@@ -3570,6 +3571,8 @@ function rich(text) {
   flush();
   return out;
 }
+// How to see a finished thread working, step by step as its agent wrote them: a numbered list, read as a post is.
+const stepsNode = (steps) => el('pre', {}, el('ol', {}, steps.map((s) => el('li', {}, inline(s)))));
 // A long run of bookkeeping between two posts is folded to its first and last line, a click from the rest.
 const unfolded = new Set();
 function folded(id, feed) {
@@ -3824,6 +3827,8 @@ function threadNode(c, b) {
     // A call an agent made is already a post in the conversation.
     ...t.questions.filter((q) => !t.feed.some((p) => p.ref === q.id)).map((q) => 'Asked: ' + q.title + (q.choice ? ' → ' + q.choice : ' → not answered yet')),
   ];
+  // A thread can be finished more than once: the steps are for how it stands now, so they go under the last result.
+  const shipped = t.feed.findLast((p) => p.kind === 'shipped');
 
   const title = el('h2', { contenteditable: 'plaintext-only', spellcheck: 'false', title: 'Click to rename',
     onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } if (e.key === 'Escape') { e.target.textContent = c.title; e.target.blur(); e.stopPropagation(); } },
@@ -3853,6 +3858,7 @@ function threadNode(c, b) {
             p.kind === 'shipped' && el('span', { class: 'badge' }, '✓ Shipped'),
             p.kind === 'asked' && el('span', { class: 'badge ask' }, '❓ Needs a call from you'),
             el('pre', {}, rich(p.text)),
+            p === shipped && c.steps.length > 0 && [el('div', { class: 'note' }, 'To check'), stepsNode(c.steps)],
             p.kind === 'shipped' && t.checked && el('div', { class: 'badge', style: 'display: block' }, '✓ Check passed: ' + t.checked),
             p.kind === 'shipped' && t.commits.length > 0 && el('div', { class: 'mono', style: 'margin-top: 6px; color: var(--soft)' }, (t.commits.length === 1 ? 'commit ' : 'commits ') + t.commits.join(' · ')),
             asking && answersNode(c.question)));
