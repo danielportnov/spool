@@ -3231,6 +3231,7 @@ function drawBrief(b) {
   const n = r.needsYou;
   const open = (id) => () => { if (id) openThread(id); };
   const plural = (k, one) => k + ' ' + one + (k === 1 ? '' : 's');
+  // What an agent wrote (a summary, its last words) is read as it is on a thread: code and bold shown, not typed out.
   const needs = [
     ...n.questions.map((q) => {
       const asked = b.needs.questions.find((x) => x.id === q.id);
@@ -3241,12 +3242,12 @@ function drawBrief(b) {
     }),
     ...n.plans.map((t) => el('div', { class: 'card', 'data-id': t.id },
       el('div', { class: 'title', onclick: open(t.id) }, '📋 Plan: ' + t.title),
-      t.summary && el('div', { class: 'note' }, t.summary),
+      t.summary && el('div', { class: 'note' }, inline(t.summary)),
       el('div', { class: 'why' }, plural(t.parts, 'part') + (t.parts === 1 ? ' waits' : ' wait') + ' for your go-ahead'))),
     ...n.stopped.map((t) => el('div', { class: 'card', 'data-id': t.id },
       el('div', { class: 'title', onclick: open(t.id) }, '↺ ' + t.title),
       el('div', { class: 'why' }, t.why + briefWhen(t.when)),
-      t.lastSaid && el('div', { class: 'note' }, 'Last said: “' + t.lastSaid + '”'))),
+      t.lastSaid && el('div', { class: 'note' }, 'Last said: “', inline(t.lastSaid), '”'))),
   ];
   const rest = r.alsoShipped.reduce((k, g) => k + g.threads.length, 0);
   // Approving everything is what the brief's last line says: the finished threads, and the calls agents made.
@@ -3259,7 +3260,7 @@ function drawBrief(b) {
     r.worthALook.length > 0 && [el('h2', {}, 'Worth a look', el('span', { class: 'count' }, String(r.worthALook.length))),
       r.worthALook.map((t) => el('div', { class: 'card', 'data-id': t.id },
         el('div', { class: 'title', onclick: open(t.id) }, t.title),
-        t.summary && el('div', { class: 'note' }, t.summary),
+        t.summary && el('div', { class: 'note' }, inline(t.summary)),
         t.steps.length > 0 && el('div', { class: 'note' }, 'To check', stepsNode(t.steps)),
         el('div', { class: 'why' }, t.reasons.join(' · '))))],
     rest > 0 && el('button', { class: 'history', 'aria-expanded': String(briefRest), onclick: () => { briefRest = !briefRest; redraw(); } },
@@ -3268,7 +3269,7 @@ function drawBrief(b) {
       g.sprint && el('div', { class: 'sprint' }, '🏁 ' + g.sprint.title),
       g.threads.map((t) => el('div', { class: 'card', 'data-id': t.id },
         el('div', { class: 'title', onclick: open(t.id) }, t.title),
-        t.summary && el('div', { class: 'note' }, t.summary)))]),
+        t.summary && el('div', { class: 'note' }, inline(t.summary))))]),
     r.approve && (r.shipped > 0 || r.calls.length > 0) && el('button', { class: 'foot go', onclick: approve }, 'All good: approve everything')].flat(3).filter(Boolean));
 }
 
