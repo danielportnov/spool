@@ -677,6 +677,8 @@ interface Run {
   stopped: boolean;
   /** The thread was moved back to the backlog, so once the agent is gone, what it changed is undone. */
   undo?: boolean;
+  /** Another run worked in the same folder while this one did: what is uncommitted there cannot be told apart. */
+  shared?: boolean;
 }
 
 /** What is settled about a run when its thread is handed out, before any program is started for it. */
@@ -888,7 +890,9 @@ export class Runner {
         ws.close();
       }
       // Without a record of how things were, nothing uncommitted is touched: it could be anyone's.
-      if (root && before) {
+      // The same holds where another agent was at work in the folder: some of it is that agent's.
+      if (root && before && run.shared) said.push('uncommitted files left as they are, since another agent was working in the same folder');
+      else if (root && before) {
         const now = dirtyPaths(root, dir) ?? [];
         const its = now.filter((p) => !before.has(p));
         discardPaths(root, its);
@@ -926,6 +930,16 @@ export class Runner {
     // A chat builds here: nothing is started from the page.
     if (this.builder === 'chat') return;
     for (let room = this.parallel - this.runs.size; room > 0; room--) if (!this.handOut()) return;
+  }
+
+  /** Take a run on. It takes the place of the run that chose its thread's model, where there was one. */
+  private keep(run: Run): void {
+    run.shared = this.runs.get(run.id)?.shared;
+    // Two agents in one folder: what either leaves uncommitted there cannot be told from the other's.
+    for (const other of this.runs.values()) {
+      if (other.id !== run.id && other.folder === run.folder) other.shared = run.shared = true;
+    }
+    this.runs.set(run.id, run);
   }
 
   /** Hand the next waiting thread to an agent. False if there is none to hand out. */
@@ -988,7 +1002,7 @@ export class Runner {
       env: { ...this.ctx.env, SPOOL_ROUTING: task.id },
     });
     const run: Run = { ...handed, child, lines: [`${ROUTER} is choosing the model…`], began: Date.now(), stopped: false };
-    this.runs.set(run.id, run);
+    this.keep(run);
     let out = '';
     child.stdout!.on('data', (chunk: Buffer) => {
       if (out.length < 1024 * 1024) out += chunk.toString('utf8');
@@ -1060,9 +1074,8 @@ export class Runner {
       detached: process.platform !== 'win32',
       env: { ...this.ctx.env, SPOOL_ACTOR: this.name(), SPOOL_TASK: task.id, SPOOL_PROMPT_FILE: file },
     });
-    // It takes the place of the run that chose its model, where there was one.
     const run: Run = { ...handed, child, lines: [], began: Date.now(), stopped: false };
-    this.runs.set(run.id, run);
+    this.keep(run);
     // Everything the agent prints is kept with the thread as it came, stderr as events of its own.
     let transcript: string | undefined;
     let keep: number | undefined;

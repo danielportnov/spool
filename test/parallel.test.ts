@@ -236,6 +236,51 @@ test('one thread at a time unless the user says more; a thread dragged into Buil
   }
 });
 
+test('two agents in one folder: a thread sent back to the backlog has its commits undone, and uncommitted files are left alone', async () => {
+  const s = new Sandbox();
+  s.gitInit();
+  fs.writeFileSync(path.join(s.root, '.git', 'info', 'exclude'), '.home/\n');
+  s.sp('init', '--name', 'skyhop', '--gate');
+  const [jump, coins] = ['Tighten the jump arc', 'Make coins readable at sunset'].map((title) => s.id('task', title)) as [string, string];
+  // Each agent leaves a file uncommitted. The one named in `.home/commits` also commits one, once it is named: two at once would trip over git's lock.
+  const named = path.join(s.root, '.home', 'commits');
+  const script = [
+    '#!/bin/sh',
+    'cat > /dev/null',
+    'echo draft > "draft-$SPOOL_TASK.txt"',
+    'echo "drafting"',
+    `while [ ! -f "${named}" ]; do sleep 0.1; done`,
+    `if [ "$(cat "${named}")" = "$SPOOL_TASK" ]; then`,
+    '  echo done > committed.txt',
+    '  git add committed.txt && git commit -q -m "Add a file" -m "Spool: $SPOOL_TASK" && echo "committed"',
+    'fi',
+    'sleep 300',
+  ];
+  s.write('agent.sh', `${script.join('\n')}\n`);
+  fs.chmodSync(path.join(s.root, 'agent.sh'), 0o755);
+  s.commitAll('start');
+  s.sp('build', jump, coins);
+  settings(s, { parallel: 2 });
+  // The port is another one from this file's first range: the tests here run one after another.
+  const page = await startPage(CLI, s, '--run', '--agent', path.join(s.root, 'agent.sh'), '--port', String(33000 + ((process.pid + 750) % 1500)));
+  try {
+    await until('both agents have left a file', async () => (await page.board()).runner.running.filter((run: { lines: string[] }) => run.lines.includes('drafting')).length === 2);
+    s.write(path.join('.home', 'commits'), jump);
+    await until('one of them has committed', async () => (await page.board()).runner.running[0].lines.includes('committed'));
+
+    assert.equal((await page.post('abort', { id: jump })).status, 200);
+    const after = await until('the agent is ended and its commit undone', async () => { const b = await page.board(); return b.runner.recent[0] && b; });
+    assert.equal(after.runner.recent[0].outcome, 'back in the backlog; edits undone: uncommitted files left as they are, since another agent was working in the same folder; 1 commit(s) reverted');
+    assert.equal(s.json('show', jump).item.state, 'proposed');
+    assert.deepEqual([s.exists('committed.txt'), s.exists(`draft-${jump}.txt`), s.exists(`draft-${coins}.txt`)], [false, true, true], 'what could be the other agent’s is not thrown away');
+    assert.deepEqual([running(after), s.json('show', coins).item.state], [[coins], 'active']);
+  } finally {
+    page.child.kill();
+    await gone(page.child);
+    s.cleanup();
+  }
+});
+
 test('the page does not restart onto new code until every one of its agents has gone', async () => {
   // The page is run from a copy of Spool, so that the code on disk can be changed under it.
   const copy = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'spool-copy-')));

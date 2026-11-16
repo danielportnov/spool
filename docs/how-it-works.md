@@ -318,7 +318,8 @@ page build three threads at a time, each card showing its own agent and the Agen
 how many; the rest of Build waits for one to finish, and a thread dragged into Building goes to the
 front. It is read fresh, so no restart is needed. More than one at a time becomes the rule when
 each run gets a git worktree of its own. Until then, raise it only for threads that will not touch
-the same files.
+the same files; and where two agents did share the folder, sending one's thread back to the backlog
+undoes its commits and leaves uncommitted files as they are, since they could be the other's.
 
 **Which of the two, picked on the page.** Left of the Agents switch are two picks. **Headless** is
 the page's own runner, as above. **Chat** is a Claude Code chat running the loop: the page then
