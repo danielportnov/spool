@@ -344,7 +344,7 @@ function readBody(main: string): { said: Thread['said']; spec: string } {
 // The words a spec puts in front of a part, and the plain heading each one gets on the page.
 const ABOUT: [RegExp, About['key'], string][] = [
   [/^(what|goal|change|the change)$/i, 'what', 'What changes'],
-  [/^(why|benefit|benefits|so that)$/i, 'why', 'How it helps Spool'],
+  [/^(why|benefit|benefits|so that)$/i, 'why', 'How it helps'],
   [/^(done when|finished when)$/i, 'done', 'Done when'],
 ];
 

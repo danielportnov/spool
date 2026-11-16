@@ -295,7 +295,7 @@ test('a spec reads as plain parts: what changes, how it helps, when it is done',
   const parts = aboutOf('What: pull issues in.\nWhy: Spool sits beside the tools a project has.\nDone when: an issue shows up\nas a thread.\n\nSee also the API notes.');
   assert.deepEqual(parts.map((p) => [p.key, p.label, p.text]), [
     ['what', 'What changes', 'pull issues in.'],
-    ['why', 'How it helps Spool', 'Spool sits beside the tools a project has.'],
+    ['why', 'How it helps', 'Spool sits beside the tools a project has.'],
     ['done', 'Done when', 'an issue shows up\nas a thread.'],
     ['other', 'More detail', 'See also the API notes.'],
   ]);

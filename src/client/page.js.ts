@@ -1148,7 +1148,7 @@ function undoNode(c) {
       el('button', { onclick: () => { undoing = ''; redraw(); } }, 'Cancel')));
 }
 
-// What a thread is, told plainly and in parts: the kind of work, what changes, how it helps Spool,
+// What a thread is, told plainly and in parts: the kind of work, what changes, how it helps the project,
 // when it is done, and why an agent thought of it. A spec with no parts falls back to the human's words.
 const KINDS = {
   change: ['🛠', 'A change', 'built, checked, and shipped in small commits'],
@@ -1156,7 +1156,7 @@ const KINDS = {
   plan: ['🗺', 'A plan', 'worked out and split into parts; nothing is built here'],
 };
 const ABOUT_ICON = { what: '🧵', why: '🌱', done: '🏁', other: '📝' };
-function describeNode(c) {
+function describeNode(c, b) {
   const t = c.thread;
   const parts = t.about.slice();
   if (!parts.some((p) => p.key === 'what') && t.said.length) parts.unshift({ key: 'what', label: 'What was asked for', text: t.said[0].text });
@@ -1168,7 +1168,8 @@ function describeNode(c) {
   return el('details', { class: 'desc', open: true, 'data-keep': 'about' },
     el('summary', {}, '🧶 About this thread'),
     el('div', { class: 'kind' }, kind[0] + ' ' + kind[1] + sized, el('span', {}, ' — ' + kind[2])),
-    parts.map((p) => part(ABOUT_ICON[p.key], p.label, p.text, p.key)),
+    // How it helps is said of the project it is in, by its own name.
+    parts.map((p) => part(ABOUT_ICON[p.key], p.key === 'why' && b.project ? p.label + ' ' + b.project : p.label, p.text, p.key)),
     c.suggested && part('✨', 'Why an agent suggested it', c.suggested, 'idea'));
 }
 
@@ -1241,7 +1242,7 @@ function threadNode(c, b) {
     title,
     waitNode(c, b),
     stoppedNode(c, b),
-    describeNode(c),
+    describeNode(c, b),
 
     // The thread itself: a conversation, oldest first. You said, Claude answered, and the moves in between.
     el('div', { class: 'feed' },
