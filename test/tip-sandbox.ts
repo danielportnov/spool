@@ -25,6 +25,7 @@ export function tipProject(): Sandbox {
   s.sp('init', '--name', 'tip-splitter', '--gate');
   s.gitInit();
   s.write('README.md', 'splits a bill\n');
+  s.write('package.json', JSON.stringify({ name: 'tip-splitter', version: '0.1.0' }));
   s.commitAll('Start');
   return s;
 }
