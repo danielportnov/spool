@@ -2588,6 +2588,10 @@ SYSTEM_DARK.addEventListener('change', paintTheme);
   #layer .hit.on { background: var(--chip); }
   #layer .hit .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #layer .hit .soft { color: var(--soft); font-size: 12px; white-space: nowrap; }
+  #thread .copyid { cursor: pointer; }
+  .copyid:hover, .copylink:hover { color: var(--ink); }
+  .copylink { background: none; border: 0; padding: 0 0 0 6px; color: var(--soft); vertical-align: -2px; }
+  .copylink svg { width: 13px; height: 13px; }
   #layer .foot { margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; color: var(--soft); }
   /* On a phone: the bar in two rows, one column of the board at a time, and nothing to tap under 36px. */
   .jump { display: none; }
@@ -2705,6 +2709,31 @@ function say(words) {
   box.classList.add('on');
   clearTimeout(say.t);
   say.t = setTimeout(() => box.classList.remove('on'), 2600);
+}
+
+// Copy words for him, and say so. Where the clipboard is not to be had, the old way still works.
+async function copy(words, done) {
+  try {
+    await navigator.clipboard.writeText(words);
+  } catch (e) {
+    const area = el('textarea', { style: 'position: fixed; opacity: 0' });
+    area.value = words;
+    document.body.append(area);
+    area.select();
+    const ok = document.execCommand('copy');
+    area.remove();
+    if (!ok) return say('Could not copy ' + words);
+  }
+  say(done);
+}
+const copyId = (id) => copy(id, 'Copied ' + id);
+// A ticket's own address: the page, with the thread after the #, and nothing else of where he is.
+const linkOf = (id) => location.origin + location.pathname + '#' + id;
+const LINK_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6.5 9.5a3 3 0 0 0 4.24 0l2.5-2.5a3 3 0 0 0-4.24-4.24l-.75.75"/><path d="M9.5 6.5a3 3 0 0 0-4.24 0l-2.5 2.5a3 3 0 0 0 4.24 4.24l.75-.75"/></svg>';
+function copyLinkNode(id) {
+  const node = el('button', { class: 'copylink', title: 'Copy a link to this thread', 'aria-label': 'Copy link', onclick: () => copy(linkOf(id), 'Copied the link to ' + id) });
+  node.innerHTML = LINK_ICON;
+  return node;
 }
 
 // The page's server hands out a new token each time it starts. A page left open across a restart
@@ -2896,7 +2925,7 @@ function cardNode(c, b) {
       c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '',
         onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o))),
     el('div', { class: 'meta' },
-      el('span', { class: 'key', title: 'Open the thread', onclick: () => openThread(c.id) }, c.id),
+      el('span', { class: 'key', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id),
       el('span', { class: 'push' }), facts(c), archiveNode(c), moves(c, b)));
   dragOf(node, c, c.column);
   return node;
@@ -2909,7 +2938,7 @@ function rowNode(c, b) {
       c.why && !c.done && el('div', { class: 'why', title: c.why }, c.why)),
     el('div', { class: 'right' },
       el('span', { class: 'state ' + c.column }, STATE[c.column]),
-      facts(c), el('span', { class: 'key', onclick: () => openThread(c.id) }, c.id), archiveNode(c), moves(c)));
+      facts(c), el('span', { class: 'key', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id), archiveNode(c), moves(c)));
   if (!c.done && c.column !== 'building') dragOf(node, c, 'row');
   return node;
 }
@@ -3237,7 +3266,7 @@ function archivedNode(b) {
   const rows = b.archived.filter(shows);
   const row = (c) => el('div', { class: 'row', 'data-id': c.id },
     el('div', {}, el('span', { title: c.title }, c.title), c.why && el('div', { class: 'why', title: c.why }, c.why)),
-    el('div', { class: 'right' }, el('span', {}, c.note), el('span', { class: 'key' }, c.id),
+    el('div', { class: 'right' }, el('span', {}, c.note), el('span', { class: 'key', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id),
       el('button', { class: 'act', title: 'Back to the backlog, just as it was', onclick: () => post('unarchive', { id: c.id }, 'Back in the backlog: ' + c.title) }, '↩ Bring back')));
   return el('div', { class: 'group', id: 'archived' },
     el('button', { class: 'history', 'aria-expanded': String(showArchived), onclick: () => { showArchived = !showArchived; redraw(); } },
@@ -3653,7 +3682,7 @@ function threadNode(c, b) {
     onblur: (e) => { const now = e.target.textContent.trim(); if (now && now !== c.title) save({ title: now }, 'Renamed'); else e.target.textContent = c.title; } }, c.title);
 
   const story = el('div', {},
-    el('div', { class: 'key' }, (c.n != null ? '#' + c.n + ' · ' : '') + c.id),
+    el('div', { class: 'key' }, c.n != null && '#' + c.n + ' · ', el('span', { class: 'copyid', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id), copyLinkNode(c.id)),
     title,
     waitNode(c, b),
     stoppedNode(c, b),
@@ -4193,10 +4222,11 @@ function findAll(words) {
   return all.map((x, i) => ({ x, i, r: rankOf(q, x.name, x.others) })).filter((m) => m.r >= 0)
     .sort((a, z) => a.r - z.r || a.i - z.i).map((m) => m.x).slice(0, 10);
 }
-function runHit(x) {
+function runHit(x, copying) {
   if (!x) return;
   closeLayer();
   if (x.kind === 'action') return x.run();
+  if (copying) return copyId(x.c.id);
   // An archived thread has no ticket: it is shown where it is kept, at the foot of the Backlog view.
   if (x.c.archived) {
     showArchived = true;
@@ -4215,7 +4245,7 @@ function findNode() {
     finding = { list: findAll(input.value), at: 0 };
     hits.replaceChildren(...(finding.list.length ? finding.list.map((x, i) => el('div', { class: 'hit', role: 'option',
       onmousemove: () => { if (finding.at !== i) { finding.at = i; mark(); } },
-      onclick: () => runHit(x) },
+      onclick: (e) => runHit(x, e.shiftKey) },
       el('span', { class: 'name' }, x.name),
       x.kind === 'thread'
         ? [el('span', { class: 'soft mono' }, x.c.id), el('span', { class: 'state ' + x.c.column }, x.c.archived ? 'Archived' : STATE[x.c.column])]
@@ -4226,10 +4256,10 @@ function findNode() {
     onkeydown: (e) => {
       const by = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
       if (by && finding.list.length) { e.preventDefault(); finding.at = (finding.at + by + finding.list.length) % finding.list.length; mark(); }
-      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); runHit(finding.list[finding.at]); }
+      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); runHit(finding.list[finding.at], e.shiftKey); }
     } });
   list();
-  return [input, hits];
+  return [input, hits, el('div', { class: 'foot' }, 'Enter opens or runs it. Shift+Enter copies a thread\'s id. Esc closes.')];
 }
 
 // Quick add: one box over the page, filed to the backlog as + Add files it. A #word in it is a tag

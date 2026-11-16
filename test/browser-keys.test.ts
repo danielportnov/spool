@@ -365,3 +365,47 @@ test('Cmd+K finds any thread by name, id or tag, and runs any action by name', a
     await page.context().close();
   }
 });
+
+test('a click on a thread\'s id copies it, and the ticket copies a link to itself', async (t) => {
+  if (!browser) return t.skip('no Chrome on this machine to drive');
+  const { page, problems } = await open('board');
+  const pasted = (): Promise<string> => page.evaluate('navigator.clipboard.readText()');
+  const said = page.locator('#said');
+  const ticket = page.locator('#thread');
+  try {
+    // On a card: copied, and the ticket stays shut.
+    await page.locator('#board .card[data-id="' + water + '"] .key').click();
+    assert.equal(await pasted(), water);
+    assert.equal(await said.innerText(), 'Copied ' + water);
+    assert.equal(await ticket.isHidden(), true, 'the ticket did not open');
+
+    // On a backlog row.
+    await page.keyboard.press('g');
+    await page.keyboard.press('l');
+    await page.locator('#backlog .row[data-id="' + pause + '"] .key').click();
+    assert.equal(await pasted(), pause);
+    assert.equal(await ticket.isHidden(), true);
+
+    // At the top of a ticket: the id, and beside it a link to the ticket.
+    await page.locator('#backlog .row[data-id="' + pause + '"] .title').click();
+    await ticket.getByRole('heading', { name: 'A pause menu that keeps the music' }).waitFor();
+    await ticket.locator('.copyid').click();
+    assert.equal(await pasted(), pause);
+    await ticket.getByRole('button', { name: 'Copy link' }).click();
+    assert.equal(await pasted(), url + '#' + pause);
+    assert.equal(await said.innerText(), 'Copied the link to ' + pause);
+    await shot(page, 'keys-6-ticket-link');
+    await page.keyboard.press('Escape');
+
+    // In the palette, Shift+Enter copies a thread's id.
+    await page.keyboard.press('ControlOrMeta+k');
+    await page.keyboard.type('water');
+    await page.keyboard.press('Shift+Enter');
+    await page.getByRole('dialog', { name: 'Find' }).waitFor({ state: 'hidden' });
+    assert.equal(await pasted(), water);
+    assert.equal(await ticket.isHidden(), true, 'and opens nothing');
+    assert.deepEqual(problems, [], 'the page logged no errors');
+  } finally {
+    await page.context().close();
+  }
+});

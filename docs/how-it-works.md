@@ -102,7 +102,7 @@ finishes. With nothing shipped and nothing needing you, the panel is not there.
   its name; every word is kept on the thread.
 - `Cmd+K` (`Ctrl+K` off a Mac) is a palette: type part of a thread's name, its id or a `#tag` to
   open it (archived ones too), or the name of an action: go to a view, switch who builds or the
-  agents, play a sprint, add a thread, show the keys. `Up` and `Down` choose, `Enter` runs it.
+  agents, play a sprint, add a thread, show the keys. `Up` and `Down` choose, `Enter` runs it, and `Shift+Enter` on a thread copies its id.
 
 **Backlog.** For planning: sprints stacked above the backlog. Create a sprint, drag threads into it,
 press **▶ Play sprint**. Notes nobody filed sit in a strip at the top (**Make it a thread**, or
@@ -120,7 +120,8 @@ agent answered and which agent it was, the moves in between, and a box to reply.
 plan's report is there in full. On the right, its fields: status, priority, difficulty, tags,
 version, sprint. Everything is editable. A finished ticket shows **what changed** (the files, the lines, the patch)
 and ends with **Mark as complete** and **Undo this thread**, which takes back exactly that thread's
-commits with your reason. A ticket has its own address (`#t-4kq7`), and
+commits with your reason. A ticket has its own address (`#t-4kq7`): the link icon beside its id
+copies it, and a click on a thread's id, on a card, a row or a ticket, copies the id. And
 `?view=backlog` opens the Backlog view.
 
 **In a background tab.** The tab's title and icon say what is going on: a count, `(2) skyhop`, of

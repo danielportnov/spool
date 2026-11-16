@@ -59,6 +59,7 @@ and anything about no thread, sit in a strip at the top of the Backlog view.
 | **All good: approve everything**, at the foot of the brief | Approves every finished thread and every call agents made. A new skill is still kept or dropped on its thread. |
 | `j` `k` `h` `l`, then `Enter`, `b` or `x` | The keyboard: move between cards, then open the thread, move it to Build, or archive it (`b` and `x` from the backlog only). `?` lists every key. |
 | `c`, then type and `Enter` | Quick add, from anywhere: a thread in the backlog, as **+ Add** makes one. `#word` is a tag and `!0` to `!3` the priority, left out of its name. |
+| A thread's id, on a card, a row or a ticket | Copies the id, and opens nothing. The link icon beside it on a ticket copies the ticket's address. |
 | `Cmd+K` (`Ctrl+K`) | Finds any thread by name, id or tag, archived ones too, and runs any action on the page by name. |
 
 The page says so if the build gate is off in this project, which means new
