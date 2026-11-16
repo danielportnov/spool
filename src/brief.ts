@@ -63,7 +63,7 @@ function entries(item: Item): Entry[] {
 }
 
 /** When a thread was finished: the log's last `done:` line, or failing that its last change. */
-function finishedAt(t: Item): number {
+export function finishedAt(t: Item): number {
   const done = entries(t).filter((e) => e.text.startsWith('done: ')).at(-1);
   return done?.at ?? Date.parse(t.updated);
 }
@@ -120,10 +120,10 @@ function lastSaid(t: Item): string | null {
   return own.at(-1)?.text ?? null;
 }
 
-/** The files a thread's commits changed, counted the way the page's diff counts them. */
-function filesChanged(t: Item, root: string | null): number {
-  if (!root || !t.commits.length) return 0;
+/** The files a thread's commits changed, as the page's diff finds them. */
+export function changedFiles(t: Item, root: string | null): Set<string> {
   const files = new Set<string>();
+  if (!root) return files;
   for (const sha of t.commits) {
     const stat = git(root, ['show', '--no-color', '--format=', '--numstat', sha]);
     if (!stat.ok) continue;
@@ -132,7 +132,12 @@ function filesChanged(t: Item, root: string | null): number {
       if (file) files.add(file);
     }
   }
-  return files.size;
+  return files;
+}
+
+/** How many files a thread's commits changed, counted the way the page's diff counts them. */
+function filesChanged(t: Item, root: string | null): number {
+  return changedFiles(t, root).size;
 }
 
 /** Why a finished thread is worth a look, and how much: the reasons are said to the human as they are. */

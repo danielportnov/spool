@@ -10,6 +10,7 @@
 import { run } from './cli.ts';
 import type { Ctx } from './context.ts';
 import { oneLine } from './model.ts';
+import { sprintReview } from './review.ts';
 import { review } from './schedule.ts';
 import { Workspace } from './store.ts';
 
@@ -157,6 +158,19 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
       ws.close();
     }
     return ids.length ? act(ctx, ['approve', ...ids]) : { ok: true, text: 'Nothing left to look at.' };
+  }
+  if (action === 'approve-sprint') {
+    // "Approve the sprint" on its review: its finished threads marked complete, and the calls agents made on them accepted, in one go.
+    if (!/^r-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which sprint?' };
+    const ws = Workspace.open(ctx.cwd, ctx.now);
+    let ids: string[];
+    try {
+      const { threads, calls } = sprintReview(ws, id).toApprove;
+      ids = [...threads, ...calls];
+    } finally {
+      ws.close();
+    }
+    return ids.length ? act(ctx, ['approve', ...ids]) : { ok: true, text: 'Nothing in it left to approve.' };
   }
   if (action === 'drop-skill') {
     return /^s-[a-z0-9]+$/.test(id) ? act(ctx, ['drop', id, '--message=dropped on the page']) : { ok: false, text: 'which skill?' };

@@ -121,6 +121,17 @@ last, how many threads are in no sprint, which opens the Backlog view. A thread'
 ticket. Drag it onto another sprint to move it there, or onto **In no sprint** to take it out. On a
 phone the sprints are a stack.
 
+**A sprint's review.** A sprint reached has **Review** on the Roadmap, and the one being played has
+**Review so far**. It opens in the Roadmap's place, with a link back: the sprint's name, your words
+for it or its goal, and its done-when beside whether every thread is done; a line saying how many
+threads, over how long, and how many files they changed; then each thread in a short block, with
+what it did in a line, its steps to check as a list you tick as you go (the ticks are yours, kept
+in that browser, and approve nothing), the calls its agent made with **Fine** and **Overrule**, and
+links to its ticket and its changes. Under them, anything undone or stopped on the way. At the foot,
+**Approve the sprint** marks every finished thread in it complete and accepts the calls made on
+them, and nothing outside it: `spool approve` with those ids. A sprint with no version yet says
+the loop cuts it once the sprint is reached; the page cuts none.
+
 **What waits on you is on its thread.** A question is answered on its card, or on its ticket with a
 button or in your own words. A call an agent made by itself is a post in its thread, "Decided: …"
 with the question and the why: **Fine**, or overrule it in a sentence and the rework is filed. A card
@@ -137,7 +148,7 @@ commits with your reason. While the page's own agent builds a thread, its card s
 effort it was started with, and its ticket names the agent's session with a button that copies
 `claude --resume <session>`, to open it in a terminal. A ticket has its own address (`#t-4kq7`): the link icon beside its id
 copies it, and a click on a thread's id, on a card, a row or a ticket, copies the id. And
-`?view=backlog` opens the Backlog view, `?view=roadmap` the Roadmap.
+`?view=backlog` opens the Backlog view, `?view=roadmap` the Roadmap, and `?review=<r-id>` a sprint's review.
 
 **In a background tab.** The tab's title and icon say what is going on: a count, `(2) skyhop`, of
 the threads waiting on you (a question, a plan wanting a go-ahead, finished work not yet marked

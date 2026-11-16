@@ -36,7 +36,9 @@ and anything about no thread, sit in a strip at the top of the Backlog view.
 **Roadmap** is the sprints in a row under the project's goals: reached, being
 played (with each thread's state and how far along it is), and planned, each
 with its play. When they ask where things are heading, or how a sprint is
-going, it is the view to point them at.
+going, it is the view to point them at. A sprint reached opens its review
+there: they read it as one piece of work, so when they come back to a
+finished sprint, point them at it rather than walking the threads in chat.
 
 | On the page | What it does |
 | --- | --- |
@@ -45,6 +47,8 @@ going, it is the view to point them at.
 | Drag a card up or down in **Build** | A line shows where it will land. Dropped there, that is its place: Build is built top first, by this page's agents, by `spool next` and by the loop. Dropped there from another column, it moves to Build in that place. |
 | **+ Create sprint**, then drag threads into it | A sprint is a named set of threads with no dates. Being in one starts nothing. |
 | **▶ Play sprint** | Everything in the sprint moves to Build at once. On the Backlog view and the Roadmap alike. |
+| **Review**, on a sprint on the Roadmap | The sprint's review: its goal and done-when, each thread with what it did, its steps as a tick list (ticks are theirs, kept in that browser), the calls made on it with **Fine** and **Overrule**, and what was undone on the way. |
+| **Approve the sprint**, at the foot of its review | Every finished thread in it marked complete, and the calls agents made on them accepted. Nothing outside the sprint. It cuts no version: the loop does, when the sprint is reached. |
 | A thread's line on the **Roadmap**, dragged onto another sprint | It moves to that sprint, as `spool edit <t-id> --sprint <sprint>` does; onto **In no sprint**, it leaves its sprint. Clicked, it opens its ticket. |
 | The search, or a sprint's pill | Narrows the board to what matches. |
 | **Add to Build**, at the foot of the backlog | Moves every thread the backlog is showing right now to Build, and none that a filter or the search has hidden. It asks once. |

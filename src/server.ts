@@ -27,6 +27,7 @@ import { type Ctx, builderOf } from './context.ts';
 import { detachPage, forgetPage, pageStatus, pageUp, rememberPage, stopPage } from './detach.ts';
 import { Runner } from './engine.ts';
 import { SpoolError } from './model.ts';
+import { sprintReview } from './review.ts';
 import { taskState } from './schedule.ts';
 import { Workspace } from './store.ts';
 import { CODE_DIR, CODE_EXT, Upkeep } from './upkeep.ts';
@@ -184,6 +185,17 @@ export function startPage(
         const ws = Workspace.open(ctx.cwd, ctx.now);
         try {
           return send(res, 200, 'application/json', JSON.stringify(diffOf(ws, id)));
+        } finally {
+          ws.close();
+        }
+      }
+      if (req.method === 'GET' && url.pathname === '/api/review') {
+        // A sprint's review, made when it is opened: it asks git about every thread, so the board does not carry it.
+        const id = url.searchParams.get('id') ?? '';
+        if (!/^r-[a-z0-9]+$/.test(id)) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which sprint?' }));
+        const ws = Workspace.open(ctx.cwd, ctx.now);
+        try {
+          return send(res, 200, 'application/json', JSON.stringify(sprintReview(ws, id)));
         } finally {
           ws.close();
         }

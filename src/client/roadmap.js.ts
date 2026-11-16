@@ -45,7 +45,8 @@ const threadCount = (n) => n + (n === 1 ? ' thread' : ' threads');
 function reachedLane(s) {
   return el('section', { class: 'lane past', 'data-sprint': s.id, 'aria-label': s.name },
     el('div', { class: 'lhead' }, el('span', { class: 'gname' }, s.name), s.version && el('span', { class: 'chip' }, 'v' + s.version)),
-    el('div', { class: 'gmeta' }, [s.reached && 'Reached ' + MONTH_DAY(s.reached), threadCount(s.total)].filter(Boolean).join(' · ')));
+    el('div', { class: 'gmeta' }, [s.reached && 'Reached ' + MONTH_DAY(s.reached), threadCount(s.total)].filter(Boolean).join(' · ')),
+    el('button', { class: 'act', onclick: () => openReview(s.id) }, 'Review'));
 }
 
 // What a sprint is for, as the Backlog view words it: its goal, the reason, when it is done, and which goal it serves.
@@ -74,7 +75,8 @@ function playingLane(s, rows) {
     s.vision && el('blockquote', { class: 'vision' }, s.vision),
     forNode(s, true),
     progressNode(s),
-    el('div', { class: 'rrows' }, rows.length ? rows.map(roadRow) : el('div', { class: 'empty' }, 'Nothing in it yet.'))), s.id);
+    el('div', { class: 'rrows' }, rows.length ? rows.map(roadRow) : el('div', { class: 'empty' }, 'Nothing in it yet.')),
+    s.done > 0 && el('button', { class: 'act', onclick: () => openReview(s.id) }, 'Review so far')), s.id);
 }
 
 // A sprint still to come: its goal, how much is in it, and its Play.
@@ -91,6 +93,7 @@ function plannedLane(s, rows) {
 
 function drawRoadmap(b) {
   const box = document.getElementById('roadmap');
+  if (reviewing) return drawReview(b, box);
   // A sprint's threads in the order they go: what is done, what is being built, what is in build, what waits.
   const rank = (c) => ['done', 'building', 'build', 'proposed'].indexOf(c.column);
   const inSprint = (s) => everyCard(b).filter((c) => c.sprint === s.id).map((c, i) => ({ c, i })).sort((x, y) => rank(x.c) - rank(y.c) || x.i - y.i).map((x) => x.c);

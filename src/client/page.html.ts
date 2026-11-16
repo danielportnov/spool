@@ -9,6 +9,8 @@
 
 import { CSS } from './page.css.ts';
 import { JS } from './page.js.ts';
+import { REVIEW_CSS } from './review.css.ts';
+import { REVIEW_JS } from './review.js.ts';
 import { ROADMAP_CSS } from './roadmap.css.ts';
 import { ROADMAP_JS } from './roadmap.js.ts';
 
@@ -34,7 +36,7 @@ paintTheme();
 SYSTEM_DARK.addEventListener('change', paintTheme);
 </script>
 <style>
-${CSS + ROADMAP_CSS}</style>
+${CSS + ROADMAP_CSS + REVIEW_CSS}</style>
 </head>
 <body>
 <div class="bar">
@@ -63,7 +65,7 @@ ${CSS + ROADMAP_CSS}</style>
 <div id="layerveil" hidden></div>
 <div id="layer" role="dialog" aria-modal="true" hidden></div>
 <script>
-${JS + ROADMAP_JS}</script>
+${JS + ROADMAP_JS + REVIEW_JS}</script>
 </body>
 </html>
 `;
