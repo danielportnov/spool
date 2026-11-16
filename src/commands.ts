@@ -263,7 +263,8 @@ function summaryOf({ args, opts }: Bare): string {
   const text = (str(opts.message) ?? args.slice(1).join(' ')).replace(/\r\n?/g, '\n');
   return text
     .split('\n')
-    .map((line) => line.trimEnd())
+    // Runs of spaces inside a line are one, as they were; what a line starts with is kept, so a nested list stays nested.
+    .map((line) => line.replace(/(\S)[ \t]+/g, '$1 ').trimEnd())
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();

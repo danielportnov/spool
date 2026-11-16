@@ -170,7 +170,7 @@ test('finished work needs a summary and waits in review until acknowledged', () 
   assert.match(s.fails('done', a), /the summary is missing/);
   s.sp('done', a, '-m', 'Did   the\nfirst thing');
   s.sp('done', b, 'Did the second thing');
-  assert.equal(s.json('show', a).item.summary, 'Did the first thing');
+  assert.equal(s.json('show', a).item.summary, 'Did the\nfirst thing');
   assert.match(s.fails('done', a, '-m', 'again'), /already done/);
 
   const review = s.json('review');

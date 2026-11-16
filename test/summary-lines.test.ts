@@ -14,7 +14,7 @@ test('the summary is kept with its line breaks, and shown whole or by its first 
   try {
     const t = s.id('task', 'Split the tip');
     s.sp('start', t);
-    s.sp('done', t, '-m', `${SUMMARY}  \r\n`, '--steps', 'Open the app');
+    s.sp('done', t, '-m', `${SUMMARY.replace('split two', 'split   two')}  \r\n`, '--steps', 'Open the app');
 
     // On disk and in --json, as written.
     assert.equal(s.json('show', t).item.summary, SUMMARY);
