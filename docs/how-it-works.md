@@ -313,10 +313,10 @@ is the same stop. **↩ Abort** goes further: back to the backlog, with what the
 undone.
 
 **How many at once.** One, unless you say more: every agent works in the project's own folder, and
-two there would trample each other's edits. `"parallel": 3` in `~/.config/spool/config.json` has the
-page build three threads at a time, each card showing its own agent and the Agents switch saying
-how many; the rest of Build waits for one to finish, and a thread dragged into Building goes to the
-front. It is read fresh, so no restart is needed. More than one at a time becomes the rule when
+two there would trample each other's edits. `spool builder --at-once 3`, kept as `"parallel": 3` in
+`~/.config/spool/config.json`, has the page build three threads at a time, each card showing its
+own agent and the Agents switch saying how many; the rest of Build waits for one to finish, and a
+thread dragged into Building goes to the front. It is read fresh, so no restart is needed. More than one at a time becomes the rule when
 each run gets a git worktree of its own. Until then, raise it only for threads that will not touch
 the same files; and where two agents did share the folder, sending one's thread back to the backlog
 undoes its commits and leaves uncommitted files as they are, since they could be the other's.
