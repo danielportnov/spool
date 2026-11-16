@@ -47,7 +47,7 @@ export const ROADMAP_CSS = String.raw`
   @media (max-width: 700px) {
     #roadmap { padding: 12px 16px 32px; }
     /* Three views in the bar: each tab a little narrower, so the project's name still has room. */
-    .tab { padding: 0 8px; }
+    .tab { padding: 0 6px; }
     .lanes { flex-direction: column; align-items: stretch; overflow-x: visible; }
     .lane, .lane.now, .lane.past { flex: none; min-width: 0; }
   }

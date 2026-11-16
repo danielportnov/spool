@@ -336,9 +336,7 @@ function cardNode(c, b) {
     noteNode(c),
     liveLine(c, b),
     b && liveOf(c, b) && liveOf(c, b).asking && permitNode(c, liveOf(c, b).asking, false),
-    c.question && el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title),
-      c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '',
-        onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o))),
+    c.question && el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title), optionsNode(c.question)),
     el('div', { class: 'meta' },
       el('span', { class: 'key', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id),
       el('span', { class: 'push' }), facts(c), archiveNode(c), moves(c, b)));
@@ -786,11 +784,15 @@ function sayNode(placeholder, label, send) {
   const box = el('input', { placeholder, onkeydown: (e) => { if (e.key === 'Enter' && box.value.trim()) send(box.value.trim()); } });
   return el('span', { class: 'say' }, box, el('button', { onclick: () => { if (box.value.trim()) send(box.value.trim()); } }, label));
 }
+// A question's options: side by side where they fit, and where they do not, one to a line, each as
+// wide as the line, so a short one is never a small button beside a wide block.
+function optionsNode(q) {
+  return el('div', { class: 'opts' }, q.options.map((o, i) => el('button', { class: q.recommend === i + 1 ? 'rec' : '', title: q.recommend === i + 1 ? 'Recommended' : '',
+    onclick: () => post('answer', { id: q.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)));
+}
 // A question is answered with one of its options, or in his own words.
 function answersNode(q) {
-  return el('div', { class: 'acts wrap' },
-    q.options.map((o, i) => el('button', { class: q.recommend === i + 1 ? 'rec' : '', title: q.recommend === i + 1 ? 'Recommended' : '',
-      onclick: () => post('answer', { id: q.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)),
+  return el('div', { class: 'acts wrap' }, optionsNode(q),
     sayNode('Or say what you want', 'Answer', (words) => post('answer', { id: q.id, choice: words }, 'Answered')));
 }
 // A call an agent made is fine by him, or he overrules it in his own words.
@@ -1182,8 +1184,7 @@ function waitNode(c, b) {
   const parts = {
     you: ['Needs you', [
       el('div', { class: 'what' }, w.text),
-      c.question && el('div', {}, c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '',
-        onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o))),
+      c.question && optionsNode(c.question),
       w.on.map(link)]],
     thread: ['Waiting on ' + (w.on.length === 1 ? 'another thread' : w.on.length + ' other threads'), [
       w.on.map(link),
@@ -1627,6 +1628,14 @@ for (const tab of document.querySelectorAll('.tab')) {
   });
 }
 document.getElementById('search').addEventListener('input', (e) => { query = e.target.value.trim(); redraw(); });
+// On a phone the search is a button, and the box opens over the bar's second row. It folds away
+// again when it is left empty.
+function openSearch() {
+  document.querySelector('.bar').classList.add('searching');
+  document.getElementById('search').focus();
+}
+document.getElementById('searchbtn').addEventListener('click', openSearch);
+document.getElementById('search').addEventListener('blur', (e) => { if (!e.target.value) document.querySelector('.bar').classList.remove('searching'); });
 if (/^#t-[a-z0-9]+$/.test(location.hash)) openId = location.hash.slice(1);
 document.getElementById('veil').addEventListener('click', closeThread);
 
@@ -1742,7 +1751,7 @@ const KEYS = [
   { key: 'g b', label: 'g then b', says: 'Go to the Board', run: () => goTo('board'), board: true },
   { key: 'g l', label: 'g then l', says: 'Go to the Backlog', run: () => goTo('backlog'), board: true },
   { key: 'g r', label: 'g then r', says: 'Go to the Roadmap', run: () => goTo('roadmap'), board: true },
-  { key: '/', label: '/', says: 'Search', run: () => document.getElementById('search').focus(), board: true },
+  { key: '/', label: '/', says: 'Search', run: () => openSearch(), board: true },
   { key: 'c', label: 'c', says: 'Add a thread to the backlog, from anywhere', run: () => openLayer('add') },
   { key: 'mod k', label: MAC ? '⌘ K' : 'Ctrl K', says: 'Find a thread, or run an action by name' },
   { key: 'Escape', label: 'Esc', says: 'Close what is open, or let go of the thread' },

@@ -35,6 +35,7 @@ export const CSS = String.raw`  :root {
   .tab { background: none; border: 0; border-bottom: 3px solid transparent; border-radius: 0; padding: 0 12px; color: var(--soft); font-weight: 600; }
   .tab.on { color: var(--ink); border-bottom-color: var(--accent); }
   .search { margin-left: auto; width: min(260px, 40vw); padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
+  .searchbtn { display: none; }
   .runner { white-space: nowrap; color: var(--soft); }
   .runner.on { color: var(--go); border-color: var(--go); font-weight: 600; }
   /* who builds: two picks side by side, the one in force filled in */
@@ -188,6 +189,11 @@ export const CSS = String.raw`  :root {
   .say { display: inline-flex; flex: 1 1 260px; gap: 6px; }
   .say input { flex: 1; min-width: 0; padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
   .acts.wrap { flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  /* A question's options: each grows to fill its line, so options that wrap are one to a line, at one width. */
+  div.opts { display: flex; flex-wrap: wrap; gap: 6px; }
+  div.opts > button { flex: 1 1 auto; max-width: 100%; margin: 0; }
+  .acts > div.opts { flex: 0 1 auto; }
+  .q div.opts, .notice div.opts { margin-top: 8px; }
   .need ul { margin: 6px 0 0; padding-left: 18px; color: var(--soft); font-size: 13px; }
 
   /* the ticket */
@@ -343,14 +349,20 @@ export const CSS = String.raw`  :root {
   /* On a phone: the bar in two rows, one column of the board at a time, and nothing to tap under 36px. */
   .jump { display: none; }
   @media (max-width: 700px) {
+    /* The first row is the project's name and the views; the second, the search, who builds, the
+       agents and the theme. The search is a button there, and its box opens over that row. */
     .bar { flex-wrap: wrap; height: auto; gap: 0 8px; padding: 0 16px; }
     .bar::after { content: ''; order: 4; flex-basis: 100%; }
-    .brand { order: 1; flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .brand { order: 1; flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 16px; }
+    .where { margin-left: 4px; }
     .tabs { order: 2; height: 44px; }
-    .themer { order: 3; }
-    .search { order: 5; flex: 1 1 80px; min-width: 0; width: auto; margin: 0 0 8px; }
+    .searchbtn { order: 5; display: inline-grid; place-items: center; width: 36px; padding: 0; margin: 0 0 8px; color: var(--soft); }
+    .searchbtn svg { width: 16px; height: 16px; }
+    .search { display: none; }
+    .bar.searching .search { display: block; position: absolute; z-index: 1; left: 16px; right: 16px; bottom: 8px; width: auto; margin: 0; background: var(--panel); }
     .builder { order: 6; margin: 0 0 8px; }
     .runner { order: 7; margin-bottom: 8px; }
+    .themer { order: 8; margin: 0 0 8px auto; width: 36px; height: 36px; }
     .rule, #away { padding-left: 16px; padding-right: 16px; }
     #quick { padding: 8px 16px 0; }
     .jump { display: flex; gap: 6px; padding: 8px 16px 0; }
