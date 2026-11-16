@@ -17,6 +17,7 @@ import { type Ctx, notify, saveUserConfig, userConfig } from './context.ts';
 import { doctor } from './doctor.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
 import { demo } from './demo.ts';
+import { dropLesson, keepLesson, lessonLine, lessons } from './lessons.ts';
 import { runLoop } from './loop.ts';
 import { servePage } from './page.ts';
 import { watch } from './watch.ts';
@@ -715,10 +716,43 @@ export const COMMANDS: Command[] = [
       for (const d of voided) out.push(p.dim(`  dropped the assumption behind it: ${d.id} ${oneLine(d.choice ?? d.title, 60)}`));
       if (orphans.length) out.push(p.dim(`  dropped ${orphans.length} unstarted ${t.type === 'plan' ? 'part(s)' : 'finding(s)'} that came from it`));
       if (!call.opts.drop) out.push(`It is back in the queue at p${t.priority}${why ? ' with your reason attached' : ''}.`);
-      return { text: out.join('\n'), data: { task: itemJson(ws, t), reverted, skipped, voided: voided.map((d) => d.id), orphans: orphans.map((k) => k.id) } };
+      // The human's reason outlives the thread: every agent here reads it from now on. An agent's own revert keeps none.
+      const lesson = why && actor === 'human' ? keepLesson(t, why, ws.now()) : undefined;
+      if (lesson) {
+        const n = lessons(ws).findIndex((l) => l.spool === lesson.spool && l.line === lesson.line) + 1;
+        out.push(`Your reason is kept as a lesson every agent here reads first. To forget it: spool lessons --drop ${n}`);
+      }
+      return {
+        text: out.join('\n'),
+        data: { task: itemJson(ws, t), reverted, skipped, voided: voided.map((d) => d.id), orphans: orphans.map((k) => k.id), lesson: lesson?.words },
+      };
     },
   },
 
+  {
+    name: 'lessons',
+    group: 'you',
+    usage: 'lessons [--drop <n>]',
+    summary: 'What you undid and why, as every agent reads it; --drop <n> forgets one',
+    human: true,
+    write: true,
+    options: { drop: { type: 'string' } },
+    run({ ws, p, opts }) {
+      const drop = str(opts.drop);
+      if (drop) {
+        const gone = dropLesson(ws, Number(drop));
+        return { text: `Forgotten: ${lessonLine(ws, gone)}`, data: { dropped: gone.words, thread: gone.thread } };
+      }
+      const all = lessons(ws);
+      if (!all.length) return { text: 'Nothing has been undone here with a reason.', data: { lessons: [] } };
+      const width = String(all.length).length;
+      const text = [
+        ...all.map((l, i) => `${String(i + 1).padStart(width)}  ${lessonLine(ws, l)}`),
+        p.dim(`Kept in each project's .spool/policy.md: edit a line there, or spool lessons --drop <n>.`),
+      ].join('\n');
+      return { text, data: { lessons: all.map((l) => ({ words: l.words, thread: l.thread, date: l.date, project: l.spool.name })) } };
+    },
+  },
   {
     name: 'release',
     group: 'you',

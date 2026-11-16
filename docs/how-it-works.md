@@ -347,7 +347,8 @@ ones marked 🔒:
 | `spool capture <words>` | Drop feedback in, exactly as said |
 | `spool answer <d-id> <choice>` | Answer a question, or overrule a call an agent made |
 | `spool approve <id…>` | Accept a call, finished work or a new skill; give a plan its go-ahead |
-| `spool revert <t-id> [-m why]` | Undo a thread's commits and reopen it with your reason |
+| `spool revert <t-id> [-m why]` | Undo a thread's commits and reopen it with your reason. The reason is kept as a lesson every agent reads first |
+| `spool lessons [--drop <n>]` | What you undid and why, newest first, as agents read it (kept in `.spool/policy.md`, yours to edit); `--drop` forgets one |
 | `spool review` | Everything waiting on you, most blocking first |
 | `spool brief [--since 8h]` | The morning brief: what shipped, what is worth a look and why, what needs you |
 

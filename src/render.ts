@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { type Item, type Spool, isPlan, isSettled, oneLine, reportFile, splitBody, whyOf } from './model.ts';
 import { type Docket, type Review, blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, stateOf, taskState, tasks } from './schedule.ts';
+import { lessonLine, lessonsFor } from './lessons.ts';
 import { BUILT_IN, fileFor, ledgerFor, matchSkills } from './skills.ts';
 import { type Candidate, SUGGEST, addLine, offerLine } from './suggest.ts';
 import type { Workspace } from './store.ts';
@@ -165,6 +166,13 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
     const report = reportOf(source);
     if (made) out.push(p.dim(`      ${made.text}`));
     if (report) out.push(p.dim(`      read ${path.relative(task.spool.root, path.join(source.spool.root, report))}`));
+  }
+
+  // The human undid this work, or the work it came from, and said why: the brief says it again.
+  const undone = lessonsFor(ws, task);
+  if (undone.length) {
+    out.push('', 'UNDONE BEFORE, AND WHY — do not do it again');
+    for (const l of undone) out.push(`  ${lessonLine(ws, l)}`);
   }
 
   const needs = task.needs.map((id) => ws.find(id)).filter((i): i is Item => !!i);

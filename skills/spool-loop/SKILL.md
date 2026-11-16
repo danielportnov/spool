@@ -381,6 +381,9 @@ A thread 🧵 is one piece of work in a project's spool 🧶. The commands call 
 task. Its brief says what type of work it is, and finishing means something
 different for each.
 
+Before you start, read "What was undone here, and why" in `spool prime`, and
+any "UNDONE BEFORE" in the brief: the human took that work back. Do not repeat it.
+
 **A change.** Make it, in small commits. Where the project has a check
 (`spool checks` says), `spool done` runs it first and refuses if it fails:
 fix what it found and run `spool done` again. The check is the human's. If

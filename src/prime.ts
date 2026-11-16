@@ -17,6 +17,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { rules, section } from './builtin.ts';
+import { lessonsSection, withoutLessons } from './lessons.ts';
 import { type Spool, oneLine } from './model.ts';
 import { ready, review, tasks, taskState } from './schedule.ts';
 import type { Workspace } from './store.ts';
@@ -152,7 +153,10 @@ export function prime(ws: Workspace, role: Role, contextOnly = false): string {
   if (!contextOnly) parts.push(WORKER, `${section('spool-loop', 'Working a thread')}\n`);
   const policy = path.join(ws.home.dir, 'policy.md');
   const text = fs.existsSync(policy) ? fs.readFileSync(policy, 'utf8').trim() : DEFAULT_POLICY.trim();
-  parts.push(`POLICY (${path.relative(ws.home.root, policy) || policy})\n\n${text}\n`);
+  parts.push(`POLICY (${path.relative(ws.home.root, policy) || policy})\n\n${withoutLessons(text)}\n`);
+  // What the human undid, and why: kept in the policy files, printed on its own, newest first.
+  const undone = lessonsSection(ws);
+  if (undone) parts.push(undone);
   const others = ws.spools.filter((s) => !s.home && fs.existsSync(path.join(s.dir, 'policy.md')));
   if (others.length) {
     parts.push(
