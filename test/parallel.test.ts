@@ -9,13 +9,12 @@
  */
 
 import assert from 'node:assert/strict';
-import { type ChildProcess, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { type Browser, type Page, chromium } from 'playwright-core';
-import { CLI, Sandbox } from './helpers.ts';
+import { type Browser, type Page as Tab } from 'playwright-core';
+import { CLI, type Page, Sandbox, openChrome, pause, startPage as startPageOf, until } from './helpers.ts';
 
 /** A stand-in agent that works on its thread until `go`, or `go-<thread>`, is in the sandbox; then it finishes it. */
 function worker(s: Sandbox): string {
@@ -71,59 +70,26 @@ function settings(s: Sandbox, config: Record<string, unknown>): void {
 
 type Board = Record<string, any>;
 
-interface Running {
-  child: ChildProcess;
-  url: string;
+interface Running extends Page {
   board: () => Promise<Board>;
   post: (action: string, body: unknown) => Promise<{ status: number; text: string }>;
 }
 
-function startPage(cli: string, s: Sandbox, ...args: string[]): Promise<Running> {
-  const child = spawn(process.execPath, [cli, 'page', '--no-open', '-C', s.root, ...args], {
-    env: { ...process.env, HOME: `${s.root}/.home`, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined, SPOOL_PAGE_RESUME: undefined },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return new Promise((resolve, reject) => {
-    let out = '';
-    const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
-    child.stdout!.on('data', (chunk: Buffer) => {
-      out += chunk.toString();
-      const found = /Spool page: (http:\/\/127\.0\.0\.1:\d+\/)/.exec(out);
-      if (!found) return;
-      clearTimeout(timer);
-      const url = found[1]!;
-      resolve({
-        child,
-        url,
-        board: async () => (await (await fetch(`${url}api/board`)).json()) as Board,
-        // The token is read each time: a page that restarted hands out a new one.
-        post: async (action, body) => {
-          const token = /const TOKEN = '([\w-]{20,})';/.exec(await (await fetch(url)).text())![1]!;
-          const res = await fetch(`${url}api/${action}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': token }, body: JSON.stringify(body) });
-          return { status: res.status, text: ((await res.json()) as { text: string }).text };
-        },
-      });
-    });
-    child.stderr!.on('data', (chunk: Buffer) => (out += chunk.toString()));
-  });
+async function startPage(cli: string, s: Sandbox, ...args: string[]): Promise<Running> {
+  const page = await startPageOf({ sandbox: s, cli }, ...args);
+  const { url } = page;
+  return {
+    ...page,
+    board: async () => (await (await fetch(`${url}api/board`)).json()) as Board,
+    // The token is read each time: a page that restarted hands out a new one.
+    post: async (action, body) => {
+      const token = /const TOKEN = '([\w-]{20,})';/.exec(await (await fetch(url)).text())![1]!;
+      const res = await fetch(`${url}api/${action}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': token }, body: JSON.stringify(body) });
+      return { status: res.status, text: ((await res.json()) as { text: string }).text };
+    },
+  };
 }
 
-/** Wait for something to become true. A page that is restarting is away for a moment: a look that finds nobody is tried again. */
-async function until<T>(what: string, look: () => Promise<T | false | undefined | null | 0 | ''>, seconds = 20): Promise<T> {
-  for (let i = 0; i < seconds * 20; i++) {
-    try {
-      const found = await look();
-      if (found) return found;
-    } catch {
-      // Nobody answered; look again.
-    }
-    await pause(50);
-  }
-  return assert.fail(`never happened: ${what}`);
-}
-
-const pause = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-const gone = (child: ChildProcess): Promise<void> => new Promise((r) => (child.exitCode !== null || child.signalCode ? r() : child.once('exit', () => r())));
 /** Which threads the page's agents are on, in the order they were started. */
 const running = (b: Board): string[] => b.runner.running.map((run: { id: string }) => run.id);
 /** Whether a program is still there. */
@@ -139,14 +105,14 @@ const alive = (pid: number): boolean => {
 /** The Chrome on this machine, where there is one: what a test checks on the open page is skipped without it. */
 async function chrome(): Promise<Browser | undefined> {
   try {
-    return await chromium.launch({ channel: 'chrome', headless: true });
+    return await openChrome();
   } catch {
     return undefined;
   }
 }
 
 /** With SPOOL_SHOTS set to a folder, a picture of the page as it is now is left there. */
-async function shot(tab: Page, name: string): Promise<void> {
+async function shot(tab: Tab, name: string): Promise<void> {
   const shots = process.env.SPOOL_SHOTS;
   if (!shots) return;
   fs.mkdirSync(shots, { recursive: true });
@@ -161,7 +127,7 @@ test('with parallel 3, three threads moved to Build are built at once, each by a
   const state = (id: string): string => s.json('show', id).item.state;
   settings(s, { parallel: 3 });
   const browser = await chrome();
-  const page = await startPage(CLI, s, '--run', '--agent', worker(s), '--port', String(33000 + (process.pid % 1500)));
+  const page = await startPage(CLI, s, '--run', '--agent', worker(s));
   try {
     assert.deepEqual([(await page.board()).runner.parallel, (await page.board()).runner.running], [3, []]);
 
@@ -208,7 +174,7 @@ test('with parallel 3, three threads moved to Build are built at once, each by a
     assert.deepEqual(after.runner.recent.map((r: { outcome: string }) => r.outcome), ['done', 'done', 'done', 'done']);
     assert.deepEqual(s.read('runs.txt').trim().split('\n').sort(), [jump, coins, score, mute].sort(), 'each thread was built once');
   } finally {
-    page.child.kill();
+    await page.stop();
     await browser?.close();
     s.cleanup();
   }
@@ -222,7 +188,7 @@ test('with parallel 1, one thread at a time; a thread dragged into Building is t
   const [jump, coins, score] = ['Tighten the jump arc', 'Make coins readable at sunset', 'Pause button under the score'].map((title) => s.id('task', title)) as [string, string, string];
   const state = (id: string): string => s.json('show', id).item.state;
   s.sp('build', jump, coins);
-  const page = await startPage(CLI, s, '--run', '--agent', worker(s), '--port', String(34500 + (process.pid % 1500)));
+  const page = await startPage(CLI, s, '--run', '--agent', worker(s));
   try {
     // One agent, and the second thread waits behind it.
     await until('the first thread is being built', async () => running(await page.board()).join() === jump);
@@ -244,7 +210,7 @@ test('with parallel 1, one thread at a time; a thread dragged into Building is t
     s.write('go', '');
     await until('every thread is done', async () => [jump, coins, score].every((id) => state(id) === 'done'));
   } finally {
-    page.child.kill();
+    await page.stop();
     s.cleanup();
   }
 });
@@ -264,7 +230,7 @@ test('the page does not restart onto new code until every one of its agents has 
   const state = (id: string): string => s.json('show', id).item.state;
   s.sp('build', jump, coins);
   settings(s, { parallel: 2 });
-  const page = await startPage(path.join(copy, 'dist', 'cli.ts'), s, '--run', '--agent', worker(s), '--port', String(36000 + (process.pid % 1500)));
+  const page = await startPage(path.join(copy, 'dist', 'cli.ts'), s, '--run', '--agent', worker(s));
   try {
     await until('both threads are being built', async () => running(await page.board()).length === 2);
     const first = (await page.board()).build;
@@ -280,11 +246,10 @@ test('the page does not restart onto new code until every one of its agents has 
 
     // The last agent goes, and the page restarts onto the new build with nothing lost.
     s.write('go', '');
-    const next = await until('the page is on the new build', async () => { const b = await page.board(); return b.build !== first && b; }, 30);
+    const next = await until('the page is on the new build', async () => { const b = await page.board(); return b.build !== first && b; });
     assert.deepEqual([state(coins), next.runner.on, next.runner.running, next.runner.parallel], ['done', true, [], 2]);
   } finally {
-    page.child.kill();
-    await gone(page.child);
+    await page.stop();
     s.cleanup();
     fs.rmSync(copy, { recursive: true, force: true });
   }
@@ -302,9 +267,9 @@ test('Stop on a thread ends its agent and no other: the thread waits in Build, s
   settings(s, { parallel: 3 });
   s.write(`deaf-${score}`, '');
   s.sp('build', jump, coins, score);
-  const port = String(37500 + (process.pid % 1500));
   const browser = await chrome();
-  let page = await startPage(CLI, s, '--run', '--agent', sleeper(s), '--port', port);
+  let page = await startPage(CLI, s, '--run', '--agent', sleeper(s));
+  const port = String(page.port);
   try {
     await until('three agents are heard working', async () => (await page.board()).runner.running.filter((run: { lines: string[] }) => run.lines.length).length === 3);
     const tab = browser ? await browser.newPage({ viewport: { width: 1440, height: 900 } }) : undefined;
@@ -394,8 +359,7 @@ test('Stop on a thread ends its agent and no other: the thread waits in Build, s
     await until('the dragged thread is stopped too', async () => { const b = await page.board(); return running(b).join() === score && b.runner.stopped.join() === [jump, coins].join(); });
 
     // A page that starts afresh still knows which threads were stopped: it builds the rest and leaves those.
-    page.child.kill();
-    await gone(page.child);
+    await page.stop();
     assert.deepEqual([jump, coins, score].map(state), ['ready', 'ready', 'ready']);
     page = await startPage(CLI, s, '--run', '--agent', sleeper(s), '--port', port);
     await until('what the page had been building is being built again', async () => running(await page.board()).join() === score);
@@ -403,8 +367,7 @@ test('Stop on a thread ends its agent and no other: the thread waits in Build, s
     const fresh = await page.board();
     assert.deepEqual([running(fresh), fresh.runner.stopped, runs(jump), runs(coins)], [[score], [jump, coins], 1, 2]);
   } finally {
-    page.child.kill();
-    await gone(page.child);
+    await page.stop();
     await browser?.close();
     for (const pid of everyPid()) if (alive(pid)) process.kill(pid, 'SIGKILL');
     s.cleanup();

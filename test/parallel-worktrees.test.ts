@@ -7,11 +7,10 @@
  */
 
 import assert from 'node:assert/strict';
-import { type ChildProcess, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { CLI, Sandbox } from './helpers.ts';
+import { CLI, type Page, Sandbox, pause, startPage as startPageOf, until } from './helpers.ts';
 
 /** Where a test keeps its own files: out of git's sight. */
 const kept = (s: Sandbox, name: string): string => path.join(s.root, '.home', 't', name);
@@ -53,59 +52,26 @@ function settings(s: Sandbox, config: Record<string, unknown>): void {
 
 type Board = Record<string, any>;
 
-interface Running {
-  child: ChildProcess;
+interface Running extends Page {
   board: () => Promise<Board>;
   post: (action: string, body: unknown) => Promise<{ status: number; text: string }>;
 }
 
-function startPage(s: Sandbox, port: number, ...args: string[]): Promise<Running> {
-  const child = spawn(process.execPath, [CLI, 'page', '--no-open', '-C', s.root, '--port', String(port), ...args], {
-    env: { ...process.env, HOME: `${s.root}/.home`, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined, SPOOL_PAGE_RESUME: undefined },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return new Promise((resolve, reject) => {
-    let out = '';
-    const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
-    child.stdout!.on('data', async (chunk: Buffer) => {
-      out += chunk.toString();
-      const found = /Spool page: (http:\/\/127\.0\.0\.1:\d+\/)/.exec(out);
-      if (!found) return;
-      clearTimeout(timer);
-      const url = found[1]!;
-      const token = /const TOKEN = '([\w-]{20,})';/.exec(await (await fetch(url)).text())![1]!;
-      resolve({
-        child,
-        board: async () => (await (await fetch(`${url}api/board`)).json()) as Board,
-        post: async (action, body) => {
-          const res = await fetch(`${url}api/${action}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': token }, body: JSON.stringify(body) });
-          return { status: res.status, text: ((await res.json()) as { text: string }).text };
-        },
-      });
-    });
-    child.stderr!.on('data', (chunk: Buffer) => (out += chunk.toString()));
-  });
+async function startPage(s: Sandbox, ...args: string[]): Promise<Running> {
+  const page = await startPageOf(s, ...args);
+  const { url, token } = page;
+  return {
+    ...page,
+    board: async () => (await (await fetch(`${url}api/board`)).json()) as Board,
+    post: async (action, body) => {
+      const res = await fetch(`${url}api/${action}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': token }, body: JSON.stringify(body) });
+      return { status: res.status, text: ((await res.json()) as { text: string }).text };
+    },
+  };
 }
 
-async function until<T>(what: string, look: () => Promise<T | false | undefined | null | 0 | ''>, seconds = 20): Promise<T> {
-  for (let i = 0; i < seconds * 20; i++) {
-    try {
-      const found = await look();
-      if (found) return found;
-    } catch {
-      // Nobody answered; look again.
-    }
-    await pause(50);
-  }
-  return assert.fail(`never happened: ${what}`);
-}
-
-const pause = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-const gone = (child: ChildProcess): Promise<void> => new Promise((r) => (child.exitCode !== null || child.signalCode ? r() : child.once('exit', () => r())));
 const running = (b: Board): string[] => b.runner.running.map((run: { id: string }) => run.id);
 const read = (file: string): string => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim() : '');
-/** The port for one test of this file: each its own, from this file's two ranges. */
-const port = (base: number, n: number): number => base + ((process.pid + n * 300) % 1500);
 
 test('three threads moved to Build are built at once, each in a worktree of its own, and land as three clean sets of commits', async () => {
   const s = repo();
@@ -113,7 +79,7 @@ test('three threads moved to Build are built at once, each in a worktree of its 
   const ids = ['Tighten the jump arc', 'Make coins readable at sunset', 'Pause button under the score'].map((title) => s.id('task', title));
   const state = (id: string): string => s.json('show', id).item.state;
   const worker = agent(s, [WAIT, 'echo "$SPOOL_TASK" > "file-$SPOOL_TASK.txt"', 'git add -A && git commit -q -m "Add a file for $SPOOL_TASK" -m "Spool: $SPOOL_TASK"', 'spool done "$SPOOL_TASK" -m "finished" > "$T/done-$SPOOL_TASK" 2>&1'].join('\n'));
-  const page = await startPage(s, port(9000, 0), '--run', '--agent', worker);
+  const page = await startPage(s, '--run', '--agent', worker);
   try {
     // Nothing set: three at once, since this project can have worktrees.
     assert.equal((await page.board()).runner.parallel, 3);
@@ -150,8 +116,7 @@ test('three threads moved to Build are built at once, each in a worktree of its 
     assert.equal(s.git('branch', '--list', 'spool/*'), '');
     for (const id of ids) assert.match(read(kept(s, `done-${id}`)), /landed 1 commit\(s\) on main/);
   } finally {
-    page.child.kill();
-    await gone(page.child);
+    await page.stop();
     s.cleanup();
   }
 });
@@ -164,7 +129,7 @@ test('a project with no git repository is built one thread at a time, in its own
   const worker = agent(s, ['echo "working"', WAIT, 'spool done "$SPOOL_TASK" -m "finished" > /dev/null'].join('\n'));
   settings(s, { parallel: 3 });
   s.sp('build', jump, coins);
-  const page = await startPage(s, port(10500, 0), '--run', '--agent', worker);
+  const page = await startPage(s, '--run', '--agent', worker);
   try {
     await until('the first is being built', async () => running(await page.board()).join() === jump);
     await pause(1500);
@@ -186,8 +151,7 @@ test('a project with no git repository is built one thread at a time, in its own
     await until('it is done', async () => state(jump) === 'done');
     assert.equal(s.item(jump).match(said)?.length, 1);
   } finally {
-    page.child.kill();
-    await gone(page.child);
+    await page.stop();
     s.cleanup();
   }
 });
@@ -201,7 +165,7 @@ test('Abort on a thread being built in a worktree leaves no worktree, no branch 
     ['echo "gravity 20" > physics.txt', 'git commit -q -am "Raise gravity" -m "Spool: $SPOOL_TASK"', 'echo draft > draft.txt', 'echo "committed"', 'sleep 30'].join('\n'),
   );
   s.sp('build', jump);
-  const page = await startPage(s, port(9000, 1), '--run', '--agent', worker);
+  const page = await startPage(s, '--run', '--agent', worker);
   try {
     await until('the agent has committed in its worktree', async () => (await page.board()).runner.running[0]?.lines.includes('committed'));
     const dir = path.join(s.root, '.spool', 'worktrees', jump);
@@ -218,8 +182,7 @@ test('Abort on a thread being built in a worktree leaves no worktree, no branch 
     assert.equal(s.git('worktree', 'list').split('\n').length, 1);
     assert.deepEqual([s.git('rev-parse', 'HEAD'), s.git('status', '--porcelain'), s.read('physics.txt')], [base, '', 'gravity 9\n'], 'no change in the checkout');
   } finally {
-    page.child.kill();
-    await gone(page.child);
+    await page.stop();
     s.cleanup();
   }
 });
@@ -229,7 +192,7 @@ test('Stop keeps the worktree, and Carry on builds the thread in it again', asyn
   const jump = s.id('task', 'Tighten the jump arc');
   const worker = agent(s, ['if [ -f draft.txt ]; then echo "found my draft"; else echo draft > draft.txt; echo "drafting"; fi', 'sleep 30'].join('\n'));
   s.sp('build', jump);
-  const page = await startPage(s, port(9000, 2), '--run', '--agent', worker);
+  const page = await startPage(s, '--run', '--agent', worker);
   try {
     await until('the agent has left a draft', async () => (await page.board()).runner.running[0]?.lines.includes('drafting'));
     const dir = path.join(s.root, '.spool', 'worktrees', jump);
@@ -244,8 +207,7 @@ test('Stop keeps the worktree, and Carry on builds the thread in it again', asyn
     assert.equal(read(kept(s, `cwd-${jump}`)), dir);
     assert.equal(s.git('worktree', 'list').split('\n').length, 2);
   } finally {
-    page.child.kill();
-    await gone(page.child);
+    await page.stop();
     s.cleanup();
   }
 });
@@ -257,7 +219,7 @@ test('parallel 1 builds one thread at a time, still in a worktree of its own', a
   const worker = agent(s, ['echo "working"', WAIT, 'spool done "$SPOOL_TASK" -m "finished" > /dev/null'].join('\n'));
   settings(s, { parallel: 1 });
   s.sp('build', jump, coins);
-  const page = await startPage(s, port(10500, 1), '--run', '--agent', worker);
+  const page = await startPage(s, '--run', '--agent', worker);
   try {
     await until('the first is being built', async () => running(await page.board()).join() === jump);
     await pause(1500);
@@ -268,8 +230,7 @@ test('parallel 1 builds one thread at a time, still in a worktree of its own', a
     await until('both are done', async () => state(jump) === 'done' && state(coins) === 'done');
     assert.equal(read(kept(s, `cwd-${coins}`)), path.join(s.root, '.spool', 'worktrees', coins));
   } finally {
-    page.child.kill();
-    await gone(page.child);
+    await page.stop();
     s.cleanup();
   }
 });

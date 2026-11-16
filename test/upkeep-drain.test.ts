@@ -8,12 +8,11 @@
  */
 
 import assert from 'node:assert/strict';
-import { type ChildProcess, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { CLI, Sandbox } from './helpers.ts';
+import { CLI, Sandbox, pause, startPage, until } from './helpers.ts';
 
 function copyOfSpool(): { root: string; cli: string } {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'spool-copy-')));
@@ -24,40 +23,6 @@ function copyOfSpool(): { root: string; cli: string } {
   return { root, cli: path.join(root, 'dist', 'cli.ts') };
 }
 
-function startPage(cli: string, s: Sandbox, ...args: string[]): Promise<{ child: ChildProcess; url: string }> {
-  const child = spawn(process.execPath, [cli, 'page', '--no-open', '-C', s.root, ...args], {
-    env: { ...process.env, HOME: `${s.root}/.home`, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined, SPOOL_PAGE_RESUME: undefined },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return new Promise((resolve, reject) => {
-    let out = '';
-    const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
-    child.stdout!.on('data', (chunk: Buffer) => {
-      out += chunk.toString();
-      const found = /Spool page: (http:\/\/127\.0\.0\.1:\d+\/)/.exec(out);
-      if (!found) return;
-      clearTimeout(timer);
-      resolve({ child, url: found[1]! });
-    });
-    child.stderr!.on('data', (chunk: Buffer) => (out += chunk.toString()));
-  });
-}
-
-async function until<T>(what: string, look: () => Promise<T | false | undefined | null | 0 | ''>, seconds = 30): Promise<T> {
-  for (let i = 0; i < seconds * 10; i++) {
-    try {
-      const found = await look();
-      if (found) return found;
-    } catch {
-      // Nobody answered; look again.
-    }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  return assert.fail(`never happened: ${what}`);
-}
-
-const pause = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-const gone = (child: ChildProcess): Promise<void> => new Promise((r) => (child.exitCode !== null || child.signalCode ? r() : child.once('exit', () => r())));
 type Board = Record<string, any>;
 const boardOf = async (url: string): Promise<Board> => (await (await fetch(`${url}api/board`)).json()) as Board;
 const running = (b: Board): string[] => b.runner.running.map((run: { id: string }) => run.id);
@@ -94,14 +59,15 @@ test('with new code on disk, the page starts nothing new, lets its agents finish
   const runs = (): string[] => (fs.existsSync(path.join(t, 'runs')) ? fs.readFileSync(path.join(t, 'runs'), 'utf8').trim().split('\n') : []);
   s.sp('build', jump, coins, score);
 
-  const page = await startPage(copy.cli, s, '--run', '--agent', worker, '--port', String(9000 + ((process.pid + 900) % 1500)));
+  const page = await startPage({ sandbox: s, cli: copy.cli }, '--run', '--agent', worker);
   try {
     await until('two are being built', async () => running(await boardOf(page.url)).join() === [jump, coins].join());
     const first = (await boardOf(page.url)).build;
 
     // New code lands, and one agent finishes. There is room for the third, but it is not started: the page is draining.
     fs.appendFileSync(path.join(copy.root, 'dist', 'watch.ts'), '\n// built again\n');
-    await pause(2500);
+    // The page has seen it before the agent finishes: from then on it starts nothing.
+    await until('the page sees the new build', async () => /^A new build of Spool is on disk/.test((await boardOf(page.url)).notice));
     fs.writeFileSync(path.join(t, `go-${jump}`), '');
     await until('the first is done and its agent gone', async () => state(jump) === 'done' && running(await boardOf(page.url)).join() === coins);
     await pause(2500);
@@ -117,8 +83,7 @@ test('with new code on disk, the page starts nothing new, lets its agents finish
     await until('the third is built by the page that took over', async () => state(score) === 'done');
     assert.deepEqual(runs().slice(2), [score], 'built once, after the others');
   } finally {
-    page.child.kill();
-    await gone(page.child);
+    await page.stop();
     s.cleanup();
     fs.rmSync(copy.root, { recursive: true, force: true });
   }

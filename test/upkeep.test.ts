@@ -7,13 +7,13 @@
  */
 
 import assert from 'node:assert/strict';
-import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { type Browser, chromium } from 'playwright-core';
-import { CLI, Sandbox } from './helpers.ts';
+import { type Browser } from 'playwright-core';
+import { CLI, Sandbox, gone, openChrome, pause, startPage, until } from './helpers.ts';
 
 /** A copy of Spool as a package of its own: its code in dist/, its skills, and a package.json beside them. */
 function copyOfSpool(pkg: Record<string, unknown> = {}): { root: string; cli: string } {
@@ -33,49 +33,6 @@ function agent(s: Sandbox, name: string, script: string): string {
   return file;
 }
 
-interface Running {
-  child: ChildProcess;
-  url: string;
-  /** Everything the page, and any page that took over from it, has printed. */
-  out: () => string;
-}
-
-function startPage(cli: string, s: Sandbox, ...args: string[]): Promise<Running> {
-  const child = spawn(process.execPath, [cli, 'page', '--no-open', '-C', s.root, ...args], {
-    env: { ...process.env, HOME: `${s.root}/.home`, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined, SPOOL_PAGE_RESUME: undefined },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return new Promise((resolve, reject) => {
-    let out = '';
-    const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
-    child.stdout!.on('data', (chunk: Buffer) => {
-      out += chunk.toString();
-      const found = /Spool page: (http:\/\/127\.0\.0\.1:\d+\/)/.exec(out);
-      if (!found) return;
-      clearTimeout(timer);
-      resolve({ child, url: found[1]!, out: () => out });
-    });
-    child.stderr!.on('data', (chunk: Buffer) => (out += chunk.toString()));
-  });
-}
-
-/** Wait for something to become true. A page that is restarting is away for a moment: a look that finds nobody is tried again. */
-async function until<T>(what: string, look: () => Promise<T | false | undefined | null | 0 | ''>, seconds = 30): Promise<T> {
-  for (let i = 0; i < seconds * 10; i++) {
-    try {
-      const found = await look();
-      if (found) return found;
-    } catch {
-      // Nobody answered; look again.
-    }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  return assert.fail(`never happened: ${what}`);
-}
-
-const pause = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-const gone = (child: ChildProcess): Promise<void> => new Promise((r) => (child.exitCode !== null || child.signalCode ? r() : child.once('exit', () => r())));
-
 type Board = Record<string, any>;
 const boardOf = async (url: string): Promise<Board> => (await (await fetch(`${url}api/board`)).json()) as Board;
 const tokenOf = async (url: string): Promise<string> => /const TOKEN = '([\w-]{20,})';/.exec(await (await fetch(url)).text())![1]!;
@@ -94,12 +51,12 @@ test('the page restarts onto new code once no agent of its own is running, and t
   const worker = agent(s, 'worker.sh', `echo "working"\nwhile [ ! -f "${go}" ]; do sleep 0.1; done\nspool done "$SPOOL_TASK" -m "finished" > /dev/null`);
   let browser: Browser | undefined;
   try {
-    browser = await chromium.launch({ channel: 'chrome', headless: true });
+    browser = await openChrome();
   } catch {
     browser = undefined; // No Chrome on this machine: the server is still tested, the open page is not.
   }
 
-  const page = await startPage(copy.cli, s, '--run', '--agent', worker, '--port', String(59500 + (process.pid % 1500)));
+  const page = await startPage({ sandbox: s, cli: copy.cli }, '--run', '--agent', worker);
   try {
     await until('the agent is heard working', async () => (await boardOf(page.url)).runner.running[0]?.lines.length);
     const first = await boardOf(page.url);
@@ -146,7 +103,7 @@ test('the page restarts onto new code once no agent of its own is running, and t
     await gone(page.child);
     await assert.rejects(fetch(page.url), 'nothing is left listening');
   } finally {
-    page.child.kill();
+    await page.stop();
     await browser?.close();
     s.cleanup();
     fs.rmSync(copy.root, { recursive: true, force: true });
@@ -181,7 +138,7 @@ test('Spool building Spool: once Build and Building are empty the page rebuilds 
   const worker = agent(s, 'worker.sh', 'spool done "$SPOOL_TASK" -m "finished" > /dev/null');
   const builds = (): number => (s.exists('builds.txt') ? s.read('builds.txt').trim().split('\n').length : 0);
 
-  const page = await startPage(copy.cli, s, '--run', '--agent', worker, '--port', String(61000 + (process.pid % 1500)));
+  const page = await startPage({ sandbox: s, cli: copy.cli }, '--run', '--agent', worker);
   try {
     // Opening the page rebuilds nothing: nothing has been built that it does not already show.
     const first = await boardOf(page.url);
@@ -210,8 +167,7 @@ test('Spool building Spool: once Build and Building are empty the page rebuilds 
     assert.match(told.notice, /^Rebuilding Spool failed \(exit \d+\), so this page is still the build from before: .*error TS1005: it does not compile$/);
     assert.deepEqual([told.build, builds()], [next.build, 1]);
   } finally {
-    page.child.kill();
-    await gone(page.child);
+    await page.stop();
     s.cleanup();
   }
 });
