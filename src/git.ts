@@ -26,6 +26,8 @@ const MAX_BUFFER = 1024 * 1024 * 1024;
 export interface GitResult {
   ok: boolean;
   out: string;
+  /** What git printed, exactly: for output where a leading space means something. */
+  raw: string;
   err: string;
 }
 
@@ -39,6 +41,7 @@ export function git(cwd: string, args: string[], input?: Buffer): GitResult {
   return {
     ok: result.status === 0,
     out: (result.stdout?.toString('utf8') ?? '').trim(),
+    raw: result.stdout?.toString('utf8') ?? '',
     err: (result.stderr?.toString('utf8') ?? '').trim(),
   };
 }
@@ -83,7 +86,8 @@ function outside(root: string, spoolDir: string): string[] {
 export function dirtyPaths(root: string, spoolDir: string): string[] | null {
   const result = git(root, ['status', '--porcelain', '-z', '--untracked-files=all', '--no-renames', ...outside(root, spoolDir)]);
   if (!result.ok) return null;
-  return result.out
+  // Untrimmed: a file changed and not staged starts its line with a space, and losing it cut the first name short.
+  return result.raw
     .split('\0')
     .filter(Boolean)
     .map((entry) => entry.slice(3));
