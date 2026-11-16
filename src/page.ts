@@ -42,14 +42,12 @@ import {
   EFFORTS,
   MODELS,
   ROUTER,
-  ROUTE_TIMEOUT_MS,
   type Routing,
   commandFor,
   parseRoute,
   pickFor,
   routeNote,
   routerCommand,
-  routerPrompt,
   suggestion,
 } from './agent.ts';
 import { dirtyPaths, discardPaths, git, repoRoot } from './git.ts';
@@ -58,9 +56,10 @@ import { prime } from './prime.ts';
 import { age, brief, paint, sprintAbout, tableRows } from './render.ts';
 import { type Run as StartedWith, runOf } from './run.ts';
 import { blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
+import { askRouter, endAgent, endGroup, pageRunning, promptFile, startSession } from './session.ts';
 import { atOnceIn, sharedFolderWhy } from './slots.ts';
 import { Workspace } from './store.ts';
-import { hearLine, streaming, transcriptFile } from './stream.ts';
+import { streaming } from './stream.ts';
 import { watched } from './watch.ts';
 import { closeWorktree, openWorktree, workDir } from './worktree.ts';
 
@@ -634,11 +633,6 @@ function briefOf(ws: Workspace, spool: Item['spool']): Brief | null {
 
 // ------------------------------------------------------------------ the page runs the agents
 
-const LIVE_LINES = 60;
-
-/** The file a page writes its agent's prompt to. It lives exactly as long as the agent. */
-const promptFile = (id: string, pid: number): string => path.join(os.tmpdir(), `spool-${id}-${pid}.md`);
-
 /** Whether the last claim on a thread was a page handing it to an agent, not someone starting it. */
 function handedByPage(task: Item): boolean {
   const claims = splitBody(task.body).log.filter((line) => /^- \S+ \S+ (page: handed to |[^:]+: (started|picked up after))/.test(line));
@@ -662,41 +656,6 @@ export function stoppedInBuild(task: Item): boolean {
   const said = splitBody(task.body).log.map((line) => /^- \S+ \S+ .+?: (.*)$/.exec(line)?.[1] ?? '');
   return STOP.test(said.filter((what) => STANDS.test(what)).at(-1) ?? '');
 }
-
-/** Whether a page on this machine, other than this one, has an agent on the thread right now. */
-function pageRunning(id: string): boolean {
-  let names: string[] = [];
-  try {
-    names = fs.readdirSync(os.tmpdir());
-  } catch {
-    return false;
-  }
-  return names.some((name) => {
-    const found = /^spool-(t-[a-z0-9]+)-(\d+)\.md$/.exec(name);
-    if (!found || found[1] !== id) return false;
-    const pid = Number(found[2]);
-    if (pid === process.pid) return false;
-    try {
-      process.kill(pid, 0);
-      return true;
-    } catch (error) {
-      return (error as NodeJS.ErrnoException).code === 'EPERM';
-    }
-  });
-}
-
-/** End a program started in a process group of its own, and everything it started. */
-function endGroup(child: ChildProcess, signal: NodeJS.Signals = 'SIGTERM'): void {
-  try {
-    if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, signal);
-    else child.kill(signal);
-  } catch {
-    child.kill(signal);
-  }
-}
-
-/** How long an agent told to end has to do so, before what is left of it is killed. */
-const END_GRACE_MS = 2000;
 
 /**
  * The folder a run's agent works in: the thread's own worktree, where `handOut` gave it one, or the
@@ -831,7 +790,7 @@ export class Runner {
     for (const run of runs) {
       run.stopped = true;
       this.putBack(run.id, 'the page was stopped; back in build');
-      this.end(run.child);
+      endAgent(run.child);
       fs.rmSync(promptFile(run.id, process.pid), { force: true });
     }
   }
@@ -887,7 +846,7 @@ export class Runner {
     const run = this.runs.get(id);
     if (!run) return false;
     run.stopped = true;
-    this.end(run.child);
+    endAgent(run.child);
     return true;
   }
 
@@ -1012,15 +971,6 @@ export class Runner {
     return line;
   }
 
-  /**
-   * End the agent and whatever it started: it runs in a group of its own, so the whole group is
-   * told. A stuck agent may not listen, so what is left of the group a moment later is killed.
-   */
-  private end(child: ChildProcess): void {
-    endGroup(child);
-    setTimeout(() => endGroup(child, 'SIGKILL'), END_GRACE_MS).unref();
-  }
-
   private tick(): void {
     this.held = !!this.upkeep?.();
     this.fill();
@@ -1142,28 +1092,7 @@ export class Runner {
    * and Stop ends Fable. If Fable cannot answer, the size decides.
    */
   private route(task: Item, handed: Handed, prompt: string, briefText: string, asker: string): void {
-    const child = spawn(asker, {
-      shell: true,
-      cwd: handed.folder,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      detached: process.platform !== 'win32',
-      env: { ...this.ctx.env, SPOOL_ROUTING: task.id },
-    });
-    const run: Run = { ...handed, child, lines: [`${ROUTER} is choosing the model…`], began: Date.now(), stopped: false };
-    this.keep(run);
-    let out = '';
-    child.stdout!.on('data', (chunk: Buffer) => {
-      if (out.length < 1024 * 1024) out += chunk.toString('utf8');
-    });
-    child.stderr!.on('data', () => {});
-    child.stdin!.on('error', () => {});
-    child.stdin!.end(routerPrompt(task, briefText));
-    const timer = setTimeout(() => this.end(child), ROUTE_TIMEOUT_MS);
-    let over = false;
-    const end = (code: number | null, how: string): void => {
-      if (over) return;
-      over = true;
-      clearTimeout(timer);
+    const child = askRouter(asker, task, briefText, { folder: handed.folder, env: this.ctx.env }, (code, how, out) => {
       if (run.stopped || this.runs.get(run.id) !== run) {
         this.settle(run, how);
         return;
@@ -1191,9 +1120,9 @@ export class Runner {
       // Someone took the thread back while Fable read it; there is nothing to start.
       if (still) this.start(task, handed, prompt, command);
       else this.settle(run, how);
-    };
-    child.on('error', (error) => end(null, `could not start (${error.message})`));
-    child.on('exit', (code, signal) => end(code, `exited ${code ?? signal}`));
+    });
+    const run: Run = { ...handed, child, lines: [`${ROUTER} is choosing the model…`], began: Date.now(), stopped: false };
+    this.keep(run);
   }
 
   /**
@@ -1212,97 +1141,12 @@ export class Runner {
   }
 
   private start(task: Item, handed: Handed, prompt: string, command: string): void {
-    const file = promptFile(task.id, process.pid);
-    fs.writeFileSync(file, prompt);
-    const child = spawn(command.replaceAll('{prompt_file}', file), {
-      shell: true,
-      cwd: handed.folder,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      // Its own process group, so stopping it stops what it started too.
-      detached: process.platform !== 'win32',
-      env: { ...this.ctx.env, SPOOL_ACTOR: this.name(), SPOOL_TASK: task.id, SPOOL_PROMPT_FILE: file },
+    const session = startSession(task, prompt, command, { folder: handed.folder, env: this.ctx.env, actor: this.name() }, {
+      note: (notes) => this.note(task.id, notes),
+      end: (how) => this.settle(run, how),
     });
-    const run: Run = { ...handed, child, lines: [], began: Date.now(), stopped: false };
+    const run: Run = { ...handed, ...session, stopped: false };
     this.keep(run);
-    // Everything the agent prints is kept with the thread as it came, stderr as events of its own.
-    let transcript: string | undefined;
-    let keep: number | undefined;
-    try {
-      transcript = transcriptFile(task.spool.dir, task.id, new Date(run.began));
-      keep = fs.openSync(transcript, 'a');
-    } catch {
-      transcript = undefined; // Nowhere to keep it; the run goes ahead without.
-    }
-    const shown = transcript ? path.relative(task.spool.root, transcript) : '';
-    const keepRaw = (text: string): void => {
-      if (keep === undefined) return;
-      try {
-        fs.writeSync(keep, text);
-      } catch {
-        // A full disk loses the transcript, not the run.
-      }
-    };
-    // What goes on the thread's log: its session, and each tool call it was refused.
-    const notes: string[] = [];
-    let session: string | undefined;
-    const hear = (line: string): void => {
-      // A line at a time, without the terminal's colour codes.
-      const heard = hearLine(line.replace(/\x1b\[[0-9;]*[A-Za-z]/g, ''));
-      for (const l of heard.lines) run.lines.push(l.slice(0, 400));
-      if (run.lines.length > LIVE_LINES) run.lines.splice(0, run.lines.length - LIVE_LINES);
-      let tell = false;
-      if (heard.session && !session) {
-        session = heard.session;
-        notes.push(`session ${session}${shown ? ` · transcript ${shown}` : ''} · open it with \`claude --resume ${session}\``);
-        tell = true;
-      }
-      for (const d of heard.denials ?? []) {
-        notes.push(`permission denied: ${d}`);
-        tell = true;
-      }
-      if (tell) this.note(task.id, notes);
-    };
-    const reader = (stderr: boolean) => {
-      let rest = '';
-      const take = (part: string): void => {
-        if (stderr && part.trim()) keepRaw(`${JSON.stringify({ type: 'stderr', text: part })}\n`);
-        hear(part);
-      };
-      return {
-        data: (chunk: Buffer): void => {
-          const text = chunk.toString('utf8');
-          if (!stderr) keepRaw(text);
-          const parts = (rest + text).split('\n');
-          rest = parts.pop() ?? '';
-          parts.forEach(take);
-        },
-        flush: (): void => {
-          if (rest) take(rest);
-          rest = '';
-        },
-      };
-    };
-    const out = reader(false);
-    const err = reader(true);
-    child.stdout!.on('data', out.data);
-    child.stderr!.on('data', err.data);
-    child.stdin!.on('error', () => {});
-    child.stdin!.end(prompt);
-    let over = false;
-    const end = (how: string): void => {
-      if (over) return;
-      over = true;
-      out.flush();
-      err.flush();
-      if (keep !== undefined) fs.closeSync(keep);
-      fs.rmSync(file, { force: true });
-      // A run with no session still says where its transcript is; notes the store was too busy for go now.
-      if (!session && transcript && fs.statSync(transcript).size > 0) notes.push(`transcript ${shown}`);
-      this.note(task.id, notes);
-      this.settle(run, how);
-    };
-    child.on('error', (error) => end(`could not start (${error.message})`));
-    child.on('exit', (code, signal) => end(`exited ${code ?? signal}`));
   }
 
   /** Write a run's notes on its thread and empty the list; if the store is busy they wait for the next try. */
