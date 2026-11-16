@@ -77,6 +77,7 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
   s.sp('build', coins);
   s.sp('ask', 'Outline the coins, or turn them teal?', '--option', 'Outline', '--option', 'Teal', '--recommend', '1', '--for', coins);
   const level = s.id('task', 'A daily challenge level', '-s', 'm');
+  for (const change of [['-p', '1'], ['--tag', 'daily'], ['--tag', 'levels'], ['--version', '1.5'], ['-s', 'l']]) s.sp('edit', level, ...change);
   const leaderboard = s.id('task', 'A leaderboard for the daily level', '-s', 's', '--needs', level);
   s.sp('build', leaderboard);
   const music = s.id('task', 'New music for the menu', '-s', 's');
@@ -154,9 +155,17 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
     await ticket.locator('.key', { hasText: level }).waitFor();
     assert.equal(await notice.count(), 0, 'the thread it waits on waits on nothing');
 
-    // Enter posts a reply; Shift+Enter is a new line in it.
+    // A long run of bookkeeping is folded to its first and last line, and opens with a click.
+    const fold = ticket.locator('.fold');
+    assert.equal(await fold.innerText(), '3 more');
+    assert.equal(await ticket.locator('.event').count(), 3);
+    await fold.click();
+    await until('the run is unfolded', async () => (await ticket.locator('.event').count()) === 5);
+
+    // Enter posts a reply; Shift+Enter is a new line in it. The button waits for words.
     await open(leaderboard);
     await ticket.getByPlaceholder('Post your reply').click();
+    assert.ok(await ticket.getByRole('button', { name: 'Reply' }).isDisabled(), 'nothing to send yet');
     await page.keyboard.type('Top ten only.');
     await page.keyboard.press('Shift+Enter');
     await page.keyboard.type('Friends first.');
@@ -176,6 +185,14 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
       await until('a new line arrives', async () => (await lines()) !== before);
     };
     assert.ok(await atFoot(), 'it opens at its foot, on the latest line');
+    // The agent at work is the newest post: who, for how long, and what it is doing now, ticking without a redraw.
+    const working = ticket.locator('.livepost');
+    assert.equal(await working.locator('.avatar .pulse').count(), 1);
+    assert.equal(await working.locator('.livenow').innerText(), (await lines()).split('\n').at(-1));
+    const since = working.locator('[data-since]');
+    const first = await since.innerText();
+    await until('the time ticks on', async () => (await since.innerText()) !== first);
+    assert.equal(await ticket.locator('.event code', { hasText: /^agent\.sh$/ }).count(), 1, 'the command it was handed, by its name');
     await newLine();
     assert.ok(await atFoot(), 'and follows what is added');
     await log.evaluate((n) => { n.scrollTop = 40; (n as unknown as { mark: boolean }).mark = true; });
@@ -187,6 +204,17 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
     await newLine();
     assert.ok(await atFoot(), 'back at its foot, it follows again');
     await shot(page, 'ticket-live');
+    await open(shipped);
+    await shot(page, 'ticket-done');
+    if (SHOTS) {
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await shot(page, 'dark-ticket-done');
+      await open(jump);
+      await shot(page, 'dark-ticket-live');
+      await page.keyboard.press('Escape');
+      await shot(page, 'dark-board');
+      await page.emulateMedia({ colorScheme: 'light' });
+    }
 
     assert.deepEqual(problems, [], 'the page logged no errors');
   } finally {

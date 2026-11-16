@@ -1979,7 +1979,7 @@ const PAGE = String.raw`<!doctype html>
   /* Only what waits on the human gets an edge: an answer, or a word after an agent gave up. */
   .card:has(> .flag.you) { box-shadow: inset 3px 0 0 var(--warn), var(--shadow); }
   .card:has(> .flag.stuck) { box-shadow: inset 3px 0 0 var(--hot), var(--shadow); }
-  .livelog { max-height: 260px; overflow: auto; background: var(--bg); border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .livelog { max-height: 220px; overflow: auto; margin-top: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; color: var(--soft); white-space: pre-wrap; overflow-wrap: anywhere; }
   .rule { padding: 8px 20px 0; color: var(--warn); font-size: 13px; }
   #quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 20px 0; font-size: 13px; min-height: 12px; }
   .pill { border-radius: 999px; padding: 2px 11px; background: var(--panel); border: 1px solid var(--line); color: var(--soft); }
@@ -2111,18 +2111,37 @@ const PAGE = String.raw`<!doctype html>
   .avatar svg { width: 26px; height: 26px; }
   .avatar.who22 { width: 22px; height: 22px; font-size: 11px; }
   .avatar.who22 svg { width: 15px; height: 15px; }
-  .byline { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+  .byline { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; min-height: 20px; }
   .byline b { font-weight: 650; }
   .byline .model { background: var(--chip); border-radius: 999px; padding: 0 8px; font-size: 12px; color: var(--soft); }
-  .byline .at { color: var(--soft); font-size: 13px; }
-  .post pre { margin: 3px 0 0; }
+  .byline .at, .sep { color: var(--soft); font-size: 13px; }
+  .byline .stop { margin-left: auto; align-self: center; }
+  .post pre { margin: 2px 0 0; line-height: 1.5; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; background: var(--chip); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
+  /* The agent at work: a calm pulse on its avatar, and a caret after what it is doing now. */
+  .avatar { position: relative; }
+  .avatar .pulse { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 50%; background: var(--blue); border: 2px solid var(--panel); animation: pulse 1.6s ease-in-out infinite; }
+  .livenow { margin-top: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow-wrap: anywhere; }
+  .caret { display: inline-block; width: 7px; height: 14px; margin-left: 3px; vertical-align: -2px; background: var(--blue); animation: blink 1.1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility: hidden; } }
+  @media (prefers-reduced-motion: reduce) { .pulse, .caret { animation: none !important; } }
   .post .badge { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--go); }
   .post .badge.ask { color: var(--warn); }
-  .event { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; position: relative; padding-bottom: 14px; font-size: 13px; color: var(--soft); }
+  .event { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; position: relative; padding-bottom: 10px; font-size: 13px; color: var(--soft); overflow-wrap: anywhere; }
   .event::before { content: ''; position: absolute; left: 19px; top: 0; bottom: 0; width: 2px; background: var(--line); }
-  .event .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); margin: 4px auto 0; position: relative; }
+  .event .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); margin: 6px auto 0; position: relative; box-shadow: 0 0 0 3px var(--panel); }
+  .event .sep { margin: 0 5px; }
+  .fold { justify-self: start; background: none; border: 0; padding: 0; color: var(--soft); font-size: 13px; }
+  .fold:hover { color: var(--ink); text-decoration: underline; }
+  .feed > .empty { padding: 0 0 14px 52px; }
   .compose { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; margin-top: 6px; }
-  .compose .acts { margin-top: 8px; justify-content: flex-end; }
+  .compose textarea { min-height: 44px; }
+  .compose .acts { margin-top: 8px; align-items: center; justify-content: flex-end; gap: 12px; }
+  .compose .hint { font-size: 12px; color: var(--soft); }
+  .compose button:disabled { opacity: .45; cursor: default; }
+  /* Where the keyboard is, in the ticket: one quiet ring, the palette's blue. */
+  #thread button:focus-visible, #thread a:focus-visible, #thread summary:focus-visible, #thread select:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  #thread textarea:focus, #thread input:focus { outline: none; border-color: var(--blue); }
   .notice { margin: 12px 0 0; padding: 10px 14px 12px; border-radius: 10px; background: var(--chip); border-left: 3px solid var(--soft); overflow-wrap: anywhere; }
   .notice .head { font-weight: 650; }
   .notice.you { border-left-color: var(--warn); } .notice.you .head { color: var(--warn); }
@@ -2338,7 +2357,7 @@ function liveLine(c, b) {
   const run = b && liveOf(c, b);
   const now = (run && run.lines.at(-1)) || c.live.note || 'starting…';
   return el('div', { class: 'live', title: 'What the agent is doing now, and how long it has been at it' },
-    el('span', { class: 'pulse' }), el('span', { class: 'now' }, now), el('span', { class: 'for' }, took(c.live.since)));
+    el('span', { class: 'pulse' }), el('span', { class: 'now' }, now), el('span', { class: 'for', 'data-since': c.live.since }, took(c.live.since)));
 }
 // What a thread waits on, as its card shows it: a small mark at the top, in the colour of who has to act.
 // The note under the title says the rest; a ticket says all of it.
@@ -2810,6 +2829,7 @@ const speaker = (who) => {
   if (claude) return { name: 'Claude', model: claude[1].trim(), kind: 'claude' };
   if (who === 'agent' || !who) return { name: 'Agent', model: '', kind: 'agent' };
   if (who === 'loop') return { name: 'The loop', model: '', kind: 'agent' };
+  if (who === 'page') return { name: 'The page', model: '', kind: 'agent' };
   return { name: who, model: '', kind: 'agent' };
 };
 // Claude's own mark, from docs/claude_logo.svg. It is Anthropic's trademark, shown only to say which agent did the work.
@@ -2826,9 +2846,62 @@ function avatar(who) {
 }
 function byline(who, at) {
   const s = speaker(who);
-  return el('div', { class: 'byline' }, el('b', {}, s.name), s.model && el('span', { class: 'model' }, s.model), el('span', { class: 'at' }, when(at)));
+  return el('div', { class: 'byline' }, el('b', {}, s.name), s.model && el('span', { class: 'model' }, s.model), at && [el('span', { class: 'sep' }, '·'), stamp(at)]);
 }
 const when = (at) => (at ? at.slice(5, 10).replace('-', '/') + ' ' + at.slice(11, 16) : '');
+// When something was said, the way a thread reads it: "now", "4m", "3h", then the day. The exact time is on hover,
+// and the clock on the page keeps it current.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const timeOf = (at) => Date.parse(String(at).replace(' ', 'T'));
+function ago(at) {
+  const then = timeOf(at);
+  if (isNaN(then)) return '';
+  const s = (Date.now() - then) / 1000;
+  if (s < 60) return 'now';
+  if (s < 3600) return Math.floor(s / 60) + 'm';
+  if (s < 86400) return Math.floor(s / 3600) + 'h';
+  const d = new Date(then);
+  return MONTHS[d.getMonth()] + ' ' + d.getDate() + (d.getFullYear() === new Date().getFullYear() ? '' : ', ' + d.getFullYear());
+}
+const stamp = (at) => (isNaN(timeOf(at)) ? null : el('time', { class: 'at', 'data-at': at, title: new Date(timeOf(at)).toLocaleString() }, ago(at)));
+// Words in backticks are code: shown as code, and a long path by its last part, whole on hover.
+function rich(text) {
+  return String(text).split(/\x60([^\x60\n]+)\x60/).map((part, i) => (i % 2
+    ? el('code', { title: part }, part.length > 40 ? part.replace(/\S*\/(\S+)/g, '$1') : part)
+    : part));
+}
+// A long run of bookkeeping between two posts is folded to its first and last line, a click from the rest.
+const unfolded = new Set();
+function folded(id, feed) {
+  if (unfolded.has(id)) return feed;
+  const out = [];
+  for (let i = 0; i < feed.length;) {
+    let j = i;
+    while (j < feed.length && feed[j].kind === 'event') j++;
+    if (j - i > 4) out.push(feed[i], { kind: 'fold', text: (j - i - 2) + ' more' }, feed[j - 1]);
+    else out.push(...feed.slice(i, j));
+    if (j < feed.length) out.push(feed[j]);
+    i = j + 1;
+  }
+  return out;
+}
+// While an agent works, it is the newest post in the thread: who, for how long, what it is doing now,
+// and its log as it comes. A chat building it has no log here, only the note it last left.
+function livePost(c, b) {
+  if (c.column !== 'building' || !c.live) return null;
+  const run = liveOf(c, b);
+  const who = c.thread.by || 'agent';
+  const s = speaker(who);
+  const face = avatar(who);
+  face.append(el('span', { class: 'pulse' }));
+  return el('div', { class: 'post livepost' }, face,
+    el('div', {},
+      el('div', { class: 'byline' }, el('b', {}, s.name), s.model && el('span', { class: 'model' }, s.model), el('span', { class: 'sep' }, '·'),
+        el('span', { class: 'at' }, 'working for ', el('span', { 'data-since': c.live.since }, took(c.live.since))),
+        run && el('button', { class: 'act stop', onclick: () => post('stop', {}, 'Stopped') }, '■ Stop the agent')),
+      el('div', { class: 'livenow' }, el('span', { class: 'nowtext' }, (run && run.lines.at(-1)) || c.live.note || 'starting…'), el('span', { class: 'caret' })),
+      run && el('div', { class: 'livelog', 'data-keep': 'livelog', 'data-follow': 'true' }, run.lines.join('\n') || 'starting…')));
+}
 
 // The open thread is in the address, so a ticket can be linked to and survives a reload.
 function openThread(id) { openId = id; history.replaceState(null, '', '#' + id); redraw(); }
@@ -2929,9 +3002,11 @@ function threadNode(c, b) {
     if (await post('note', { id: c.id, text: box.value }, 'Posted to the thread')) drafts.delete(c.id);
   };
   // Enter sends, as in any chat; Shift+Enter is a new line. A word still being composed (an IME) is left to finish.
-  const box = el('textarea', { placeholder: 'Post your reply', oninput: (e) => drafts.set(c.id, e.target.value),
+  const box = el('textarea', { placeholder: 'Post your reply', rows: 2,
+    oninput: (e) => { drafts.set(c.id, e.target.value); send.disabled = !e.target.value.trim(); },
     onkeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); reply(); } } });
   box.value = drafts.get(c.id) || '';
+  const send = el('button', { class: 'go', onclick: reply, disabled: !box.value.trim() }, 'Reply');
   const lineage = [
     ...t.cameFrom.map((f) => 'Came out of: ' + f.title),
     ...t.parts.map((p) => 'Part: ' + p.title + ' (' + p.state + ')'),
@@ -2951,9 +3026,13 @@ function threadNode(c, b) {
 
     // The thread itself: a conversation, oldest first. You said, Claude answered, and the moves in between.
     el('div', { class: 'feed' },
-      t.feed.map((p) => {
+      folded(c.id, t.feed).map((p) => {
+        if (p.kind === 'fold') {
+          return el('div', { class: 'event' }, el('div', { class: 'dot' }),
+            el('button', { class: 'fold', onclick: () => { unfolded.add(c.id); redraw(); } }, p.text));
+        }
         if (p.kind === 'event') {
-          return el('div', { class: 'event' }, el('div', { class: 'dot' }), el('div', {}, speaker(p.who).name + ' ' + p.text + ' · ' + when(p.at)));
+          return el('div', { class: 'event' }, el('div', { class: 'dot' }), el('div', {}, speaker(p.who).name + ' ', rich(p.text), p.at && [el('span', { class: 'sep' }, '·'), stamp(p.at)]));
         }
         if (p.kind === 'decided') return decidedNode(p.who, p.at, p.ref, p.text, b, t);
         const asking = p.kind === 'asked' && c.question && c.question.title === p.text;
@@ -2961,7 +3040,7 @@ function threadNode(c, b) {
           el('div', {}, byline(p.who, p.at),
             p.kind === 'shipped' && el('span', { class: 'badge' }, '✓ Shipped'),
             p.kind === 'asked' && el('span', { class: 'badge ask' }, '❓ Needs a call from you'),
-            el('pre', {}, p.text),
+            el('pre', {}, rich(p.text)),
             p.kind === 'shipped' && t.checked && el('div', { class: 'badge', style: 'display: block' }, '✓ Check passed: ' + t.checked),
             p.kind === 'shipped' && t.commits.length > 0 && el('div', { class: 'mono', style: 'margin-top: 6px; color: var(--soft)' }, (t.commits.length === 1 ? 'commit ' : 'commits ') + t.commits.join(' · ')),
             asking && answersNode(c.question)));
@@ -2972,17 +3051,17 @@ function threadNode(c, b) {
           answersNode(c.question))),
       // So does a call made for it with no line of its own, and a skill it taught.
       callsFor(b, c.id).filter((x) => !t.feed.some((p) => p.ref === x.id)).map((x) => decidedNode(x.by || 'agent', '', x.id, x.title + ' → ' + x.choice, b, t)),
-      skillsFor(b, c.id).map(skillPost)),
+      skillsFor(b, c.id).map(skillPost),
+      livePost(c, b),
+      !t.feed.length && !c.question && !c.live && el('div', { class: 'empty' }, 'Nothing has been said here yet.')),
 
-    liveOf(c, b) && [el('h3', { class: 'livehead' }, 'Live · ' + liveOf(c, b).seconds + 's'), el('div', { class: 'livelog', 'data-keep': 'livelog', 'data-follow': 'true' }, liveOf(c, b).lines.join('\n') || 'starting…'),
-      el('button', { style: 'margin-top: 8px', onclick: () => post('stop', {}, 'Stopped') }, '■ Stop the agent')],
     t.report && el('details', { class: 'desc', open: true, 'data-keep': 'report' }, el('summary', {}, c.type === 'plan' ? 'The plan' : 'The report'), el('pre', {}, t.report)),
 
     lineage.length > 0 && [el('h3', {}, 'Linked'), lineage.map((l) => el('div', { class: 'note' }, l))],
 
     el('div', { class: 'compose' }, avatar('human'),
       el('div', {}, box,
-        el('div', { class: 'acts' }, el('button', { class: 'go', onclick: reply }, 'Reply')))),
+        el('div', { class: 'acts' }, el('span', { class: 'hint' }, 'Enter to send · Shift+Enter for a new line'), send))),
     changesNode(c),
     c.done && el('div', { class: 'finish' }, c.complete
       ? el('div', { class: 'ok' }, '✓ Complete. You approved this change.')
@@ -3088,8 +3167,8 @@ function drawThread(b) {
 // What changes from second to second while an agent works, changed in place: the nodes stay, and so does the reader.
 function liveInPlace(pane, c, b) {
   const run = liveOf(c, b);
-  const head = pane.querySelector('.livehead');
-  if (head && run) head.textContent = 'Live · ' + run.seconds + 's';
+  const now = pane.querySelector('.livenow .nowtext');
+  if (now && run && run.lines.length) now.textContent = run.lines.at(-1);
   const log = pane.querySelector('.livelog');
   if (log && run) {
     const text = run.lines.join('\n') || 'starting…';
@@ -3226,6 +3305,11 @@ document.addEventListener('keydown', (e) => {
 });
 load();
 setInterval(load, 1500);
+// The clock: how long an agent has been at it, and how long ago things were said, kept current in place.
+setInterval(() => {
+  for (const node of document.querySelectorAll('[data-since]')) node.textContent = took(node.dataset.since);
+  for (const node of document.querySelectorAll('[data-at]')) node.textContent = ago(node.dataset.at);
+}, 1000);
 </script>
 </body>
 </html>
