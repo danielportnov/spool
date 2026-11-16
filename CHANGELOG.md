@@ -2,6 +2,16 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.15.0 · 2026-11-15
+
+- The page runs the agents: `spool page --run`, or the **Agents** switch. Press ▶ and the thread is
+  built with no chat open; the card shows what the agent is doing, and Stop ends it.
+- A **Needs you** tab: questions, plans, the calls agents made, new skills and unfiled notes, each
+  cleared with a click.
+- A finished ticket shows **what changed** and has **Undo this thread**.
+- Done means checked: `spool checks "npm test"`, and no thread is marked done unless it passes.
+- Sprints carry a goal, a reason and a done-when.
+
 ## 0.14.0 · 2026-11-15
 
 - A lock for the gate: `spool init --lock`. The commands that start work then run only for a person,
