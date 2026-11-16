@@ -12,7 +12,7 @@ import { agentsCommand } from './agents-switch.ts';
 import { builderCommand } from './builder.ts';
 import { effortOf, modelOf } from './agent.ts';
 import { morning, morningText } from './brief.ts';
-import { RETIRED, installSkills, installedIn, userSkillsDir } from './builtin.ts';
+import { HARNESSES, describe, harness, installFor, installedAnywhere, others } from './harness.ts';
 import { spawnSync } from 'node:child_process';
 import { type Ctx, notify, saveUserConfig, userConfig } from './context.ts';
 import { doctor } from './doctor.ts';
@@ -2117,7 +2117,7 @@ export const COMMANDS: Command[] = [
             : `The queue is kept in git with the rest of the project: ${SPOOL_DIR}/ is not ignored.`,
         );
       }
-      const skills = installedIn(userSkillsDir(ctx)) || installedIn(skillsDir(spool));
+      const skills = installedAnywhere(ctx, root);
       if (!skills) out.push('', 'The Spool skills are not installed for your agent yet. Once per machine:  spool install');
       if (fresh) {
         out.push(
@@ -2143,37 +2143,31 @@ export const COMMANDS: Command[] = [
   {
     name: 'install',
     group: 'setup',
-    usage: 'install [--here | --dir <skills directory>] [--force]',
-    summary: 'Put the Spool skills where your agent finds them; run it again after upgrading',
-    options: { here: { type: 'boolean' }, dir: { type: 'string' }, force: { type: 'boolean' } },
+    usage: 'install [--for claude|codex|cursor|gemini|all] [--here | --dir <skills directory>] [--force]',
+    summary: 'Put the Spool skills where your agent finds them (Claude Code unless --for names another); run it again after upgrading',
+    options: { for: { type: 'string' }, here: { type: 'boolean' }, dir: { type: 'string' }, force: { type: 'boolean' } },
     bare({ ctx, opts, p }) {
       if (opts.here && str(opts.dir)) throw new SpoolError('--here and --dir both say where', 'Use one of them');
-      // Default: the person's own skills, seen from every project. --here: this project's, to check in for a team.
-      let dir = userSkillsDir(ctx);
-      if (str(opts.dir)) dir = path.resolve(ctx.cwd, str(opts.dir)!);
-      else if (opts.here) {
-        const root = findHome(ctx.cwd) ?? ctx.cwd;
-        const config = fs.existsSync(path.join(root, SPOOL_DIR, 'config.json')) ? readConfig(root) : { version: 1 };
-        dir = skillsDir({ root, dir: path.join(root, SPOOL_DIR), name: path.basename(root), home: true, config });
+      // Default: Claude Code, in the person's own skills, seen from every project. --here: this project's, to check in for a team.
+      const asked = str(opts.for) ?? 'claude';
+      const all = asked.toLowerCase() === 'all';
+      if (all && str(opts.dir)) throw new SpoolError('--dir names one folder, and --for all is several harnesses', 'Name one harness with --for, or leave --dir out');
+      // All is Claude Code and every other harness found here: Spool does not make folders for an agent you do not have.
+      const targets = all ? [harness('claude'), ...others(ctx)] : [harness(asked)];
+      const done = targets.map((h) => installFor(ctx, h, { here: !!opts.here, dir: str(opts.dir), force: !!opts.force }));
+      const out = targets.flatMap((h, i) => [...(i ? [''] : []), ...describe(ctx, h, done[i]!, p)]);
+      if (all) {
+        const missing = HARNESSES.filter((h) => !targets.includes(h));
+        if (missing.length) out.push('', p.dim(`Not found on this machine: ${missing.map((h) => h.label).join(', ')}. --for <name> installs for one anyway.`));
+      } else if (!str(opts.for)) {
+        const seen = others(ctx);
+        if (seen.length) {
+          out.push('', 'Also on this machine:');
+          for (const h of seen) out.push(`  ${h.label.padEnd(12)}  spool install --for ${h.name}`);
+        }
       }
-      const done = installSkills(dir, !!opts.force);
-      const home = ctx.env.HOME;
-      const shown = home && dir.startsWith(home + path.sep) ? `~${dir.slice(home.length)}` : dir;
-      const out = [`Spool skills in ${p.bold(shown)}`];
-      for (const { name, outcome } of done) {
-        const gone = RETIRED[name];
-        const note =
-          outcome === 'removed'
-            ? `retired: ${gone}`
-            : outcome !== 'kept'
-              ? ''
-              : gone
-                ? `retired (${gone}), but edited here, so left alone; --force removes it`
-                : 'edited here, so left alone; --force replaces it';
-        out.push(`  ${outcome.padEnd(9)}  ${name}${note ? p.dim(`  · ${note}`) : ''}`);
-      }
-      out.push('', 'In your agent:  /spool-init in a project, then /spool-loop');
-      return { text: out.join('\n'), data: { dir, skills: done } };
+      const data = done.length === 1 && !all ? { dir: done[0]!.dir, skills: done[0]!.skills, harness: done[0]!.harness } : { harnesses: done };
+      return { text: out.join('\n'), data };
     },
   },
   {

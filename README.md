@@ -209,6 +209,34 @@ only do what you allow it. To let it edit files and commit, say so once in
 { "agent": "claude -p --permission-mode acceptEdits --allowedTools 'Bash(spool *)' 'Bash(git *)' Edit Write Read" }
 ```
 
+## Other agents
+
+Spool is built with Claude Code, and Claude Code is the only agent it is tried with end to end
+every day. The skills are plain [Agent Skills](https://agentskills.io), so other agents can load
+them too:
+
+```bash
+spool install --for codex     # or cursor, gemini, or all
+```
+
+| Agent | How it gets Spool | Where |
+| --- | --- | --- |
+| Claude Code | Native skills: `/spool-init` | `~/.claude/skills` |
+| Codex | Native skills: `$spool-init` | `~/.codex/skills` (or `$CODEX_HOME/skills`) |
+| Cursor | Native skills, in its agent: ask for spool-init | `~/.cursor/skills` |
+| Gemini CLI | The Spool block in `AGENTS.md`, and `spool prime` | nothing is installed |
+| Anything else | The same: `AGENTS.md`, `spool prime`, and `spool mcp` for an agent with no shell | |
+
+`--here` puts the copies in the project instead (`.codex/skills`, `.cursor/skills`), to check in
+for a team. `--for all` installs for Claude Code and every other agent found on this machine, and
+plain `spool install` names the ones it found. `spool doctor` says, for each, whether Spool is
+installed for it.
+
+For Codex and Cursor, the folders were read off the agents themselves: Codex lists the installed
+skills, and Cursor's agent loads that folder. A whole project has not yet been built through
+either. Gemini CLI has not been checked at all, so Spool writes nothing for it rather than guess.
+It reads `GEMINI.md` unless its settings name `AGENTS.md` too.
+
 ## While you're away
 
 - ⚡ The loop watches the spool. Press ▶ on the page and it starts within seconds; no timer, nobody typing.
@@ -236,7 +264,7 @@ only do what you allow it. To let it edit files and commit, say so once in
 - **Plain files.** One markdown file per thread in `.spool/`, ignored by git unless you choose to share it.
 - **A small CLI.** `spool` holds the queue, the lock, the order and the undo. The skills run it; you rarely type it.
 - **Several at once.** A thread can be built in a git worktree of its own (`spool start <id> --worktree`), and lands on your branch when its check passes there. Two or three agents work side by side without touching each other's files.
-- **Any agent.** The skills are plain [Agent Skills](https://agentskills.io). `spool mcp` serves the same commands as tools to an agent with no shell, and `spool loop` runs with no chat at all.
+- **Any agent.** The skills are plain [Agent Skills](https://agentskills.io), installed for Codex and Cursor too ([other agents](#other-agents)). `spool mcp` serves the same commands as tools to an agent with no shell, and `spool loop` runs with no chat at all.
 - **Your machine.** A repo's config is data and is never executed. The page listens on `127.0.0.1` only.
 
 The long version, with every idea and every command: [how it works](docs/how-it-works.md).

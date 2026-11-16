@@ -53,7 +53,9 @@ of what you meant. It is not a security boundary: a program running as you can d
 
 You use Spool by talking to your agent. The skills are plain [Agent Skills](https://agentskills.io)
 in [`skills/`](../skills): read them, edit them. `spool install` copies them to `~/.claude/skills`;
-a copy you have edited is kept when you upgrade.
+a copy you have edited is kept when you upgrade. `spool install --for codex` puts the same copies in
+`~/.codex/skills`, and `--for cursor` in `~/.cursor/skills`, on the same terms. Gemini CLI, and any
+other agent, gets the rules from the Spool block in `AGENTS.md` and from `spool prime`.
 
 **`/spool-init [folder]`** sets a project up: creates `.spool/`, works out the project's name and
 one-line description from its README, turns the gate on, and tells you what agents may decide by
@@ -454,7 +456,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | --- | --- |
 | `spool init [folder] [--gate \| --lock] [--share]` | Start a spool; does nothing where one exists |
 | `spool demo [folder] [--open]` | A throwaway sample project with threads in its spool, to try the page and the loop on |
-| `spool install [--here \| --dir path]` | Put the skills where your agent finds them |
+| `spool install [--for claude\|codex\|cursor\|gemini\|all] [--here \| --dir path]` | Put the skills where your agent finds them: Claude Code unless `--for` names another; it also names the other agents it finds here |
 | `spool checks [command \| --none]` | Name the command that must pass before a change is done here |
 | `spool builder [headless \| chat] [--at-once n]` | Say who builds here, and how many threads at once; with nothing after it, says what is set. The human's, like `spool build` |
 | `spool agents [on \| off]` | Switch the page's agents on or off, as its Agents button does; with nothing after it, says whether a page is up and its agents are on. On is the human's, like `spool build`, and refused while a chat builds; off is always allowed |

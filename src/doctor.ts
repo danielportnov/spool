@@ -12,6 +12,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Bare, Result } from './commands.ts';
 import { SKILL_NAMES, installedIn, userSkillsDir, version } from './builtin.ts';
+import { copies, installedFor, others } from './harness.ts';
 import { DEFAULT_AGENT } from './loop.ts';
 import { builderOf, userConfig } from './context.ts';
 import { git, repoRoot } from './git.ts';
@@ -163,6 +164,28 @@ export function diagnose({ ctx }: Bare): Finding[] {
     if (missing.length) add('skills', 'advice', `the Spool skills in ${dir} lack ${missing.join(', ')}`, ['spool install']);
     else if (old.length) add('skills', 'advice', `the Spool skills in ${dir} are from an older version than ${version()}`, ['spool install']);
     else add('skills', 'ok', `the Spool skills are installed and match ${version()}`);
+  }
+
+  // Every other agent found on this machine, and whether Spool is installed for it.
+  for (const h of others(ctx)) {
+    const id = `harness-${h.name}`;
+    if (h.fallback) {
+      const settings = path.join(ctx.env.HOME ?? '', '.gemini', 'settings.json');
+      const reads = fs.existsSync(settings) && fs.readFileSync(settings, 'utf8').includes('AGENTS.md');
+      if (reads) add(id, 'ok', `${h.label} is here: it reads the Spool block in AGENTS.md, and spool prime has the rules`);
+      else add(id, 'advice', `${h.label} is here: Spool has no native install for it, and it reads GEMINI.md, not AGENTS.md`, ['Have it read AGENTS.md too: context.fileName in ~/.gemini/settings.json']);
+      continue;
+    }
+    const at = installedFor(ctx, h, root && project ? root : undefined);
+    const fix = [`spool install --for ${h.name}`];
+    if (!at) {
+      add(id, 'advice', `${h.label} is here, but the Spool skills are not installed for it`, fix);
+      continue;
+    }
+    const { missing, old } = copies(at);
+    if (missing.length) add(id, 'advice', `the Spool skills for ${h.label} in ${at} lack ${missing.join(', ')}`, fix);
+    else if (old.length) add(id, 'advice', `the Spool skills for ${h.label} in ${at} are from an older version than ${version()}`, fix);
+    else add(id, 'ok', `the Spool skills are installed for ${h.label} and match ${version()}`);
   }
 
   const want = nodeWanted();
