@@ -20,9 +20,9 @@ function chosenProject() { return new URLSearchParams(location.search).get('proj
 // Asked for all of them, on a page started for one: the address says so, as it names a project.
 function allAsked() { return new URLSearchParams(location.search).has('all'); }
 
-// Where the board is asked for: the project the address names, or the page's own. The home view
-// also asks for the brief across every project.
-function boardUrl() { return '/api/board' + (chosenProject() ? projectQuery() : '?home=1'); }
+// Where the board is asked for: the project the address names, or the page's own. The home view,
+// once the page knows it is up, also asks for the brief across every project.
+function boardUrl() { return '/api/board' + (chosenProject() ? projectQuery() : current && atHome(current) ? '?home=1' : ''); }
 // How a link names the project it was copied on, so it opens on the same board.
 function projectQuery() { const p = chosenProject(); return p ? '?project=' + encodeURIComponent(p) : ''; }
 // Everything the page does is for the project it is showing: its name goes with each POST, and
@@ -198,6 +198,8 @@ function drawHome(b, box) {
   document.getElementById('where').textContent = '';
   document.getElementById('rule').hidden = true;
   document.getElementById('quick').replaceChildren();
+  // The first look did not know the home view was up, so it carried no brief: ask again now, for it.
+  if (!('brief' in w)) setTimeout(() => { last = ''; load(true); });
   box.replaceChildren(homeBrief(w.brief), el('div', { class: 'prows' }, w.projects.map(homeRow)));
 }
 `;

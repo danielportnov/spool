@@ -89,7 +89,7 @@ test('a page started over several projects knows them all, and each board is tha
     assert.equal((await board()).runner.builder, 'headless');
 
     // The home view's brief, across every project, comes only when the home view asks for it.
-    assert.equal((await board()).workspace.brief, null);
+    assert.equal('brief' in (await board()).workspace, false);
     const home = await board('?home=1');
     assert.deepEqual(home.workspace.brief.needsYou.questions.map((q: any) => [q.title, q.project]), [['Sunday or Monday?', 'apps/tidy_up']]);
   } finally {
@@ -124,7 +124,7 @@ test('with one project, the board carries it alone', async () => {
     const b = (await (await fetch(`${page.url}api/board`)).json()) as Record<string, any>;
     assert.deepEqual(b.workspace.projects.map((p: any) => p.name), ['skyhop']);
     assert.equal(b.workspace.opens, 'skyhop', 'nothing to open but its own board');
-    assert.equal(b.workspace.brief, null);
+    assert.equal('brief' in b.workspace, false);
   } finally {
     await page.stop();
     s.cleanup();

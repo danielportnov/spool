@@ -207,7 +207,8 @@ export function startPage(
             current: spool.name,
             // Started at the top with nobody named, the page opens on all of them.
             opens: several && !options.project ? '' : own(ws).name,
-            brief: several && url.searchParams.get('home') === '1' ? briefAcross(ws) : null,
+            // Asked for by the home view alone; left out otherwise, so the page knows to ask.
+            brief: several && url.searchParams.get('home') === '1' ? briefAcross(ws) : undefined,
           };
           return send(res, 200, 'application/json', JSON.stringify({ ...shown, workspace }));
         } finally {
