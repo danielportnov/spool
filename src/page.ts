@@ -78,6 +78,8 @@ interface Thread {
   /** The human's own words, each as they said it. */
   said: { text: string; note: string; on: string }[];
   spec: string;
+  /** The spec read as plain parts, each under a heading the page can mark: what it is, why, when it is done. */
+  about: About[];
   /** Everything that happened to it, oldest first. */
   steps: { at: string; who: string; what: string }[];
   /**
@@ -96,6 +98,13 @@ interface Thread {
   cameFrom: { id: string; title: string }[];
   parts: { id: string; title: string; state: string }[];
   questions: { id: string; title: string; status: string; choice: string }[];
+}
+
+/** One part of a thread's description: what changes, how it helps, when it is done, or anything else written. */
+interface About {
+  key: 'what' | 'why' | 'done' | 'other';
+  label: string;
+  text: string;
 }
 
 /** What waits on the human besides threads: the decisions the page exists to put in front of them. */
@@ -210,6 +219,40 @@ function readBody(main: string): { said: Thread['said']; spec: string } {
   return { said, spec: spec.join('\n\n').trim() };
 }
 
+// The words a spec puts in front of a part, and the plain heading each one gets on the page.
+const ABOUT: [RegExp, About['key'], string][] = [
+  [/^(what|goal|change|the change)$/i, 'what', 'What changes'],
+  [/^(why|benefit|benefits|so that)$/i, 'why', 'How it helps Spool'],
+  [/^(done when|finished when)$/i, 'done', 'Done when'],
+];
+
+/**
+ * A spec is written as "What: … / Why: … / Done when: …" lines, more or less. Read it into parts,
+ * each under its heading, so the page can lay them out instead of showing one block of text.
+ * Text under no known label is kept as it was, as more detail; a blank line ends a labelled part.
+ */
+export function aboutOf(spec: string): About[] {
+  const parts: About[] = [];
+  let open = false;
+  for (const line of spec.split('\n')) {
+    const labelled = /^\s*(?:[-*]\s+)?\**([A-Za-z][A-Za-z ]{0,18}?)\**:\s*(.*)$/.exec(line);
+    const known = labelled ? ABOUT.find(([pattern]) => pattern.test(labelled[1]!.trim())) : undefined;
+    if (labelled && known) {
+      parts.push({ key: known[1], label: known[2], text: labelled[2]!.replace(/^\*+\s*/, '') });
+      open = true;
+    } else if (!line.trim()) {
+      if (parts.at(-1)?.key !== 'other') open = false;
+      else parts.at(-1)!.text += '\n';
+    } else if (open || parts.at(-1)?.key === 'other') {
+      parts.at(-1)!.text += '\n' + line;
+    } else {
+      parts.push({ key: 'other', label: 'More detail', text: line });
+      open = true;
+    }
+  }
+  return parts.map((p) => ({ ...p, text: p.text.trim() })).filter((p) => p.text);
+}
+
 function readReport(task: Item): string {
   try {
     return fs.readFileSync(reportFile(task), 'utf8').trim();
@@ -228,6 +271,7 @@ function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Threa
   const read = readBody(main);
   return {
     ...read,
+    about: aboutOf(read.spec),
     steps,
     feed: feedOf(ws, task, read.said, steps),
     report: readReport(task),
@@ -1018,6 +1062,14 @@ const PAGE = String.raw`<!doctype html>
   .compose .acts { margin-top: 8px; justify-content: flex-end; }
   details.desc { margin: 12px 0 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
   details.desc summary { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); cursor: pointer; }
+  details.desc .kind { margin: 10px 0 4px; font-weight: 600; }
+  details.desc .kind span { font-weight: 400; color: var(--soft); }
+  details.desc .part { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; padding: 9px 0 0; margin-top: 9px; border-top: 1px solid var(--line); }
+  details.desc .part .icon { font-size: 18px; line-height: 1.2; text-align: center; }
+  details.desc .part .label { font-size: 12px; font-weight: 650; letter-spacing: .03em; text-transform: uppercase; color: var(--soft); }
+  details.desc .part pre { margin: 2px 0 0; }
+  details.desc .part.why .label { color: var(--go); }
+  details.desc .part.done .label { color: var(--blue); }
   .changes { margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
   .changes .file { display: flex; gap: 10px; font-size: 13px; padding: 2px 0; }
   .changes .file span:first-child { flex: 1; overflow-wrap: anywhere; }
@@ -1576,6 +1628,30 @@ function undoNode(c) {
       el('button', { onclick: () => { undoing = ''; redraw(); } }, 'Cancel')));
 }
 
+// What a thread is, told plainly and in parts: the kind of work, what changes, how it helps Spool,
+// when it is done, and why an agent thought of it. A spec with no parts falls back to the human's words.
+const KINDS = {
+  change: ['🛠', 'A change', 'built, checked, and shipped in small commits'],
+  audit: ['🔍', 'An audit', 'a look and a report; each finding is filed as its own thread'],
+  plan: ['🗺', 'A plan', 'worked out and split into parts; nothing is built here'],
+};
+const ABOUT_ICON = { what: '🧵', why: '🌱', done: '🏁', other: '📝' };
+function aboutNode(c) {
+  const t = c.thread;
+  const parts = t.about.slice();
+  if (!parts.some((p) => p.key === 'what') && t.said.length) parts.unshift({ key: 'what', label: 'What was asked for', text: t.said[0].text });
+  const kind = KINDS[c.type] || KINDS.change;
+  const sized = c.difficulty ? ' · ' + c.difficulty.toLowerCase() + ' job' : '';
+  const part = (icon, label, text, key) => el('div', { class: 'part ' + key },
+    el('div', { class: 'icon' }, icon),
+    el('div', {}, el('div', { class: 'label' }, label), el('pre', {}, text)));
+  return el('details', { class: 'desc', open: true },
+    el('summary', {}, '🧶 About this thread'),
+    el('div', { class: 'kind' }, kind[0] + ' ' + kind[1] + sized, el('span', {}, ' — ' + kind[2])),
+    parts.map((p) => part(ABOUT_ICON[p.key], p.label, p.text, p.key)),
+    c.suggested && part('✨', 'Why an agent suggested it', c.suggested, 'idea'));
+}
+
 // A ticket, the way a board has always shown one: the story on the left, its fields on the right.
 function threadNode(c, b) {
   const t = c.thread;
@@ -1595,10 +1671,7 @@ function threadNode(c, b) {
   const story = el('div', {},
     el('div', { class: 'key' }, (c.n != null ? '#' + c.n + ' · ' : '') + c.id),
     title,
-    (t.spec || c.suggested) && el('details', { class: 'desc', open: true },
-      el('summary', {}, 'Description'),
-      c.suggested && el('pre', {}, '✨ Why the agent suggested it: ' + c.suggested),
-      t.spec && el('pre', {}, t.spec)),
+    aboutNode(c),
 
     // The thread itself: a conversation, oldest first. You said, Claude answered, and the moves in between.
     el('div', { class: 'feed' },

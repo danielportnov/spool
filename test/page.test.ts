@@ -311,3 +311,16 @@ test('the page says so where there is no spool', () => {
   assert.match(s.fails('page', '--no-open'), /no \.spool|spool init/i);
   s.cleanup();
 });
+
+test('a spec reads as plain parts: what changes, how it helps, when it is done', async () => {
+  const { aboutOf } = await import('../src/page.ts');
+  const parts = aboutOf('What: pull issues in.\nWhy: Spool sits beside the tools a project has.\nDone when: an issue shows up\nas a thread.\n\nSee also the API notes.');
+  assert.deepEqual(parts.map((p) => [p.key, p.label, p.text]), [
+    ['what', 'What changes', 'pull issues in.'],
+    ['why', 'How it helps Spool', 'Spool sits beside the tools a project has.'],
+    ['done', 'Done when', 'an issue shows up\nas a thread.'],
+    ['other', 'More detail', 'See also the API notes.'],
+  ]);
+  assert.deepEqual(aboutOf('Just a sentence: nothing labelled.').map((p) => p.key), ['other']);
+  assert.deepEqual(aboutOf(''), []);
+});
