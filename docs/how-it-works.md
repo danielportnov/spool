@@ -732,7 +732,10 @@ agent the page runs needs your yes for a tool call.
 ## Every command
 
 People rarely type these; the skills do. `spool help <command>` has the details, and every command
-takes `--json`, `-C <dir>` and `--as <name>`.
+takes `--json`, `-C <dir>` and `--as <name>`. Text is taken as given even where it starts with a dash
+(`spool goals --edit "- a goal"`, `spool task "--steps takes several"`); the one word that cannot be
+told from an option is one of the command's own, and that goes joined with `=` (`-m` as
+`--message="--json"`) or after `--`.
 
 **Yours** — run by an agent only on your word, and where the gate is locked, not at all for the
 ones marked 🔒:
@@ -750,7 +753,7 @@ ones marked 🔒:
 | `spool answer <d-id> <choice>` | Answer a question, or overrule a call an agent made |
 | `spool approve <id…>` | Accept a call, finished work or a new skill; give a plan its go-ahead |
 | `spool revert <t-id> [-m why]` | Undo a thread's commits and reopen it with your reason. The reason is kept as a lesson every agent reads first. Given a run's thread, it puts back every item the run changed and touches no code |
-| `spool goals [--edit -]` | Where the project is going: what it is for and the two or three things it is heading towards, as every agent reads it first (kept in `.spool/goals.md`); `--edit` replaces it |
+| `spool goals [--edit <text> \| -]` | Where the project is going: what it is for and the two or three things it is heading towards, as every agent reads it first (kept in `.spool/goals.md`); `--edit` replaces it |
 | `spool lessons [--drop <n>]` | What you undid and why, newest first, as agents read it (kept in `.spool/policy.md`, yours to edit); `--drop` forgets one |
 | `spool review` | Everything waiting on you, most blocking first |
 | `spool brief [--since 8h]` | The morning brief: what shipped, what is worth a look and why, what needs you |

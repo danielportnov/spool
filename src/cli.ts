@@ -72,6 +72,67 @@ function find(name: string): Command {
   throw new SpoolError(`no command "${name}"`, close.length ? `Did you mean: ${close.join(', ')}?` : 'See: spool help');
 }
 
+/**
+ * A command's words made safe for `parseArgs`, which reads any value that starts with a dash as a
+ * mistake: `--edit "- first goal"`, `-m "-1 is now refused"`. Here an option that takes a value
+ * takes the word after it, whatever it starts with, unless that word is itself one of the
+ * command's options. A word that starts with a dash but is no option and has a space in it is
+ * text (a title such as "--steps takes several steps"), not a flag. Options go first, spelled
+ * `--name=value`, and the words after `--`, so nothing is read twice.
+ *
+ * `follows` says which words came straight after an option's value, by their place among the
+ * words: `--steps "a" "b"` gives the steps "b".
+ */
+export function readable(argv: string[], options: Options): { args: string[]; follows: Record<string, number[]> } {
+  const byShort = new Map(Object.entries(options).flatMap(([name, o]) => (o.short ? [[o.short, name] as const] : [])));
+  const nameOf = (arg: string): string | undefined => {
+    if (arg.startsWith('--')) {
+      const name = arg.slice(2).split('=')[0]!;
+      return Object.hasOwn(options, name) ? name : undefined;
+    }
+    return /^-[^-]$/.test(arg) ? byShort.get(arg[1]!) : undefined;
+  };
+  const flags: string[] = [];
+  const words: string[] = [];
+  const follows: Record<string, number[]> = {};
+  let after: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === '--') {
+      words.push(...argv.slice(i + 1));
+      break;
+    }
+    const name = arg.length > 1 && arg.startsWith('-') ? nameOf(arg) : undefined;
+    if (name === undefined) {
+      if (arg.length > 1 && arg.startsWith('-') && !/\s/.test(arg)) {
+        // No option of this command, and not text either: parseArgs says so.
+        flags.push(arg);
+        after = undefined;
+        continue;
+      }
+      if (after) (follows[after] ??= []).push(words.length);
+      words.push(arg);
+      continue;
+    }
+    after = undefined;
+    const next = argv[i + 1];
+    if (options[name]!.type !== 'string' || arg.includes('=')) {
+      flags.push(arg);
+      continue;
+    }
+    if (next === undefined || next === '--') throw new Error(`Option '${arg}' needs a value`);
+    // The one word that cannot be told apart: it is an option of this command. parseArgs says it is ambiguous.
+    if (nameOf(next) !== undefined) {
+      flags.push(arg);
+      continue;
+    }
+    flags.push(`--${name}=${next}`);
+    after = name;
+    i++;
+  }
+  return { args: [...flags, '--', ...words], follows };
+}
+
 function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
   // Globals may come before the command name; after it, parseArgs handles them.
   let json = false;
@@ -125,15 +186,17 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
   const command = find(name);
   let values: Values;
   let positionals: string[];
+  const options = { ...GLOBAL, ...command.options };
   try {
-    ({ values, positionals } = parseArgs({
-      args: rest,
-      options: { ...GLOBAL, ...command.options },
-      allowPositionals: true,
-      strict: true,
-    }) as { values: Values; positionals: string[] });
+    const { args } = readable(rest, options);
+    ({ values, positionals } = parseArgs({ args, options, allowPositionals: true, strict: true }) as { values: Values; positionals: string[] });
   } catch (error) {
-    throw new SpoolError((error as Error).message.split('. To specify')[0]!, `usage: spool ${command.usage}`);
+    const message = (error as Error).message.split(/\.?\s*(?:Did you forget|To specify)/)[0]!;
+    // What cannot be told from an option is still given as text, one of two ways: the help says which.
+    const dash = /ambiguous|Unknown option/.test(message)
+      ? `\n  Text that starts with a dash: join it to its option with = (--<option>="--like this"), or put it after -- (spool ${command.name} -- "--like this").`
+      : '';
+    throw new SpoolError(message, `usage: spool ${command.usage}${dash}`);
   }
   if (wantHelp || values.help) return { result: { text: commandHelp(command) }, json };
   json ||= !!values.json;
