@@ -14,7 +14,7 @@ import { parseArgs } from 'node:util';
 import { COMMANDS, type Command, type Options, type Result, type Values } from './commands.ts';
 import { version } from './builtin.ts';
 import type { Ctx } from './context.ts';
-import { inColor, mark } from './mark.ts';
+import { canUnwind, inColor, mark, unwind } from './mark.ts';
 import { SpoolError } from './model.ts';
 import { paint } from './render.ts';
 import { Workspace, findHome } from './store.ts';
@@ -84,8 +84,14 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
     const arg = argv[i]!;
     if (arg === '--json') json = true;
     else if (arg === '-h' || arg === '--help') wantHelp = true;
-    else if (arg === '-V' || arg === '--version') return { result: { text: (art && mark(ctx, { lines: versioned() })) || version(), data: { version: version() } }, json };
-    else if (arg === '--as') actor = argv[++i];
+    else if (arg === '-V' || arg === '--version') {
+      // With --unwind the thread is drawn writing the word, a frame at a time, and nothing more is printed here.
+      if (art && argv[i + 1] === '--unwind' && canUnwind(ctx)) {
+        void unwind(ctx, { lines: versioned() });
+        return { result: { text: '' }, json };
+      }
+      return { result: { text: (art && mark(ctx, { lines: versioned() })) || version(), data: { version: version() } }, json };
+    } else if (arg === '--as') actor = argv[++i];
     else if (arg === '-C' || arg === '--cwd') cwd = argv[++i];
     else throw new SpoolError(`unknown option ${arg}`, 'See: spool help');
   }

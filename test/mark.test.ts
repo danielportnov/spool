@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { run } from '../src/cli.ts';
 import type { Ctx } from '../src/context.ts';
-import { MARK_HEIGHT, MARK_LINE, MARK_ROWS, MARK_WIDTH, accent, mark, markLine, markRows } from '../src/mark.ts';
+import { MARK_HEIGHT, MARK_LINE, MARK_ROWS, MARK_WIDTH, accent, canUnwind, mark, markLine, markRows, unwind } from '../src/mark.ts';
 import { Sandbox } from './helpers.ts';
 
 const VERSION = (JSON.parse(fs.readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as { version: string }).version;
@@ -67,6 +67,7 @@ test('with colour off it is the same shapes in plain characters: no codes, and n
     assert.equal(mark(ctx), PLAIN);
     assert.equal(markLine(ctx), MARK_LINE);
     assert.deepEqual(markRows(ctx), [...MARK_ROWS]);
+    assert.equal(canUnwind(ctx), false);
   }
   for (const row of mark(terminal({ COLORTERM: 'truecolor' })).split('\n')) assert.doesNotMatch(row, / $/);
 });
@@ -77,6 +78,7 @@ test('with nobody at the terminal there is no mark at all', () => {
     assert.equal(mark(ctx, { lines: ['v1'] }), '');
     assert.equal(markLine(ctx), '');
     assert.deepEqual(markRows(ctx), []);
+    assert.equal(canUnwind(ctx), false);
   }
 });
 
@@ -195,4 +197,56 @@ test('typed at a colour terminal, --version carries the orange', () => {
   const dumb = terminal({ TERM: 'dumb' });
   run(['--version'], dumb);
   assert.doesNotMatch(dumb.written[0]!, /\x1b/);
+});
+
+test('unwind draws the thread writing the word, frame over frame, and leaves the finished mark', async () => {
+  const ctx = terminal({ COLORTERM: 'truecolor' });
+  assert.equal(await unwind(ctx, { lines: ['v1.2.3'], ms: 0 }), true);
+  const frames = ctx.written;
+  assert.equal(frames.length, 9);
+  assert.doesNotMatch(frames[0]!, /\x1b\[\d+A/, 'the first frame is drawn where the cursor is');
+  for (const frame of frames.slice(1)) assert.ok(frame.startsWith(`\x1b[${MARK_HEIGHT}A`), 'each later one goes back up the mark’s own rows');
+  // The cursor only ever goes up, by the mark's height, and nothing is erased.
+  assert.deepEqual([...new Set(frames.join('').match(/\x1b\[[0-9;]*[A-HJKST]/g))], [`\x1b[${MARK_HEIGHT}A`]);
+
+  const shown = frames.map((frame) => bare(frame.replace(/^\x1b\[\d+A/, '')).split('\n'));
+  // The ball is whole from the first frame; the line grows and never shrinks.
+  for (const rows of shown) assert.deepEqual(rows.map((row) => row.slice(0, 11).trimEnd()), MARK_ROWS.map((row) => row.slice(0, 11).trimEnd()));
+  assert.doesNotMatch(shown[0]!.join(''), /[\u2500-\u257f]/u, 'no thread yet');
+  const drawn = shown.map((rows) => rows.join('').replace(/ /g, '').length);
+  assert.deepEqual(drawn, [...drawn].sort((a, b) => a - b));
+  assert.equal(shown.at(-1)!.join('\n'), bare(mark(ctx, { lines: ['v1.2.3'] })), 'the last frame is the mark, with its text');
+  for (const rows of shown.slice(0, -1)) assert.doesNotMatch(rows.join('\n'), /v1\.2\.3/);
+});
+
+test('unwind does nothing without a person, colour, a cursor to move, the room, or when motion is turned off', async () => {
+  const quiet = [
+    terminal({ COLORTERM: 'truecolor' }, { tty: false }),
+    terminal({ COLORTERM: 'truecolor' }, { color: false }),
+    terminal({ COLORTERM: 'truecolor', NO_COLOR: '1' }),
+    terminal({ COLORTERM: 'truecolor', SPOOL_NO_MOTION: '1' }),
+    terminal({ COLORTERM: 'truecolor', TERM: 'dumb' }),
+    terminal({ COLORTERM: 'truecolor', TERM: '' }),
+    terminal({ COLORTERM: 'truecolor' }, { columns: 40 }),
+  ];
+  for (const ctx of quiet) {
+    assert.equal(canUnwind(ctx), false);
+    assert.equal(await unwind(ctx, { ms: 0 }), false);
+    assert.deepEqual(ctx.written, []);
+  }
+
+  // Asked for where it cannot be drawn, --version --unwind is --version.
+  const still = terminal({ COLORTERM: 'truecolor', SPOOL_NO_MOTION: '1' });
+  run(['--version', '--unwind'], still);
+  assert.deepEqual(still.written.map(bare), [mark(terminal({}, { color: false }), { lines: [`v${VERSION}`] })]);
+  const piped = terminal({ COLORTERM: 'truecolor' }, { tty: false, color: false });
+  run(['--version', '--unwind'], piped);
+  assert.deepEqual(piped.written, [VERSION]);
+
+  // Asked for where it can, the frames are all it prints.
+  const moving = terminal({ COLORTERM: 'truecolor' });
+  assert.equal(run(['--version', '--unwind'], moving), 0);
+  for (let i = 0; i < 200 && moving.written.length < 9; i++) await new Promise((done) => setTimeout(done, 25));
+  assert.equal(moving.written.length, 9);
+  assert.equal(bare(moving.written.at(-1)!.replace(/^\x1b\[\d+A/, '')), mark(terminal({}, { color: false }), { lines: [`v${VERSION}`] }));
 });

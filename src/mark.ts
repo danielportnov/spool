@@ -45,6 +45,8 @@ export const MARK_HEIGHT = ART.length;
 export const MARK_LINE = `${SMALL.knot}${SMALL.thread} ${SMALL.word}`;
 /** Below this many columns the ball and a line of text beside it no longer fit, and the one-line form is shown. */
 export const NARROW = 60;
+/** The column the thread starts in: left of it is the ball. */
+const THREAD_FROM = 11;
 /** What stands between the mark and the text beside it. */
 const GAP = '   ';
 
@@ -115,15 +117,15 @@ function wraps(ctx: Ctx): Record<string, [string, string]> {
   };
 }
 
-/** One row of the art, coloured. */
-function paintRow(row: number, wrap: Record<string, [string, string]>): string {
+/** One row of the art, coloured. The ball is always whole; of the thread and the word, only the columns below `upTo` are drawn, for `unwind`. */
+function paintRow(row: number, wrap: Record<string, [string, string]>, upTo = MARK_WIDTH): string {
   const chars = [...ART[row]!];
   const kinds = [...PAINT[row]!];
   let out = '';
   let open = '';
   let gap = '';
   chars.forEach((ch, i) => {
-    if (ch === ' ') {
+    if (ch === ' ' || (i >= upTo && 'tw'.includes(kinds[i]!))) {
       gap += ' ';
       return;
     }
@@ -185,4 +187,34 @@ export function markLine(ctx: Ctx): string {
   if (!inColor(ctx)) return MARK_LINE;
   const wrap = wraps(ctx);
   return `${wrap.a![0]}${SMALL.knot}${wrap.a![1]}${wrap.t![0]}${SMALL.thread}${wrap.t![1]} \x1b[1m${SMALL.word}\x1b[22m`;
+}
+
+/** Whether `unwind` would draw anything here: a person at a colour terminal that can move its cursor, wide enough, and motion not turned off. */
+export function canUnwind(ctx: Ctx): boolean {
+  if (!shown(ctx) || !inColor(ctx) || ctx.env.SPOOL_NO_MOTION) return false;
+  // A terminal that does not name itself cannot be trusted to move the cursor; in a narrow one the rows would wrap.
+  if (!ctx.env.TERM) return false;
+  return ctx.columns === undefined || ctx.columns >= NARROW;
+}
+
+/**
+ * Draw the mark with the thread running out of the ball and writing the word, over about 400ms,
+ * and leave the finished mark in place, with `lines` beside it. Each frame is drawn over the last:
+ * the cursor goes back up the mark's own rows and nowhere else. Does nothing, and says so by
+ * resolving false, where `canUnwind` is false.
+ */
+export async function unwind(ctx: Ctx, { lines = [], frames = 8, ms = 50 }: { lines?: string[]; frames?: number; ms?: number } = {}): Promise<boolean> {
+  if (!canUnwind(ctx)) return false;
+  const wrap = wraps(ctx);
+  const up = `\x1b[${MARK_HEIGHT}A`;
+  const span = MARK_WIDTH - THREAD_FROM;
+  for (let frame = 0; frame <= frames; frame++) {
+    const upTo = THREAD_FROM + Math.round((span * frame) / frames);
+    const rows = ART.map((_, row) => paintRow(row, wrap, upTo));
+    // Every frame only adds to the one before, so nothing needs wiping. The text arrives with the last stroke.
+    const drawn = frame === frames ? withLines(ctx, rows, lines) : rows;
+    ctx.out(`${frame ? up : ''}${drawn.join('\n')}`);
+    if (frame < frames) await new Promise((done) => setTimeout(done, ms));
+  }
+  return true;
 }
