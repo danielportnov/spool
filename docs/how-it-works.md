@@ -94,6 +94,9 @@ finishes. With nothing shipped and nothing needing you, the panel is not there.
   sprint narrow the whole board.
 - Done shows what is still for you to check. **✓** approves one; **Mark all as complete** approves
   the rest; completed threads are kept behind a **History** line.
+- The keyboard: `j` and `k` move down and up a column (or the Backlog view's rows), `h` and `l`
+  between columns, `Enter` opens the thread, `b` moves it to Build and `x` archives it (both from
+  the backlog only), `Esc` closes or lets go, `g b` and `g l` switch views, `?` lists the keys.
 
 **Backlog.** For planning: sprints stacked above the backlog. Create a sprint, drag threads into it,
 press **▶ Play sprint**. Notes nobody filed sit in a strip at the top (**Make it a thread**, or

@@ -2565,6 +2565,17 @@ SYSTEM_DARK.addEventListener('change', paintTheme);
   #said { position: fixed; z-index: 5; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   #said.on { opacity: 1; }
 
+  /* The keyboard: the thread it is on, and the small boxes it opens over the page. They are one
+     family with the ticket: its radius, its border, its shadow and its veil. */
+  .card.kfocus, .row.kfocus { outline: 2px solid var(--blue); outline-offset: 1px; }
+  #layerveil { position: fixed; inset: 0; background: rgba(0, 0, 0, .35); z-index: 6; }
+  /* Over an open ticket its veil is already down: a second one would only darken the page. */
+  #veil:not([hidden]) ~ #layerveil { background: transparent; }
+  #layer { position: fixed; z-index: 7; top: 12vh; left: 50%; transform: translateX(-50%); width: min(560px, calc(100vw - 32px)); max-height: 76vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 24px 64px rgba(0, 0, 0, .3); padding: 14px 16px; }
+  #layer h3 { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); margin: 4px 0 10px; }
+  #layer .keyrow { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; padding: 3px 0; font-size: 13px; }
+  #layer kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+  #layer .foot { margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; color: var(--soft); }
   /* On a phone: the bar in two rows, one column of the board at a time, and nothing to tap under 36px. */
   .jump { display: none; }
   @media (max-width: 700px) {
@@ -2613,6 +2624,8 @@ SYSTEM_DARK.addEventListener('change', paintTheme);
 <div id="veil" hidden></div>
 <aside id="thread" hidden></aside>
 <div id="said"></div>
+<div id="layerveil" hidden></div>
+<div id="layer" role="dialog" aria-modal="true" hidden></div>
 <script>
 const TOKEN = '__TOKEN__';
 // Which build of Spool this page came from. The board names the build that serves it now.
@@ -3860,6 +3873,7 @@ function draw(b) {
   const box = document.querySelector('.adding textarea, .adding input');
   if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
   drawThread(b);
+  markFocus();
 }
 
 // The board lives in a background tab, where its title and icon are all that shows. Both say what
@@ -4006,12 +4020,161 @@ for (const tab of document.querySelectorAll('.tab')) {
 document.getElementById('search').addEventListener('input', (e) => { query = e.target.value.trim(); redraw(); });
 if (/^#t-[a-z0-9]+$/.test(location.hash)) openId = location.hash.slice(1);
 document.getElementById('veil').addEventListener('click', closeThread);
+
+// ---- the keyboard: one table of keys, one handler for them, and the boxes they open
+
+// The thread the keyboard is on, by its id: the cards are built again every second, so a node would not last.
+let focusId = null;
+// The lists j and k move along: each column of the board, or the Backlog view's rows top to bottom.
+function lanes() {
+  if (view === 'board') return [...document.querySelectorAll('#board .col')].map((col) => [...col.querySelectorAll('.card[data-id]')]);
+  return [[...document.querySelectorAll('#backlog .row[data-id]')]];
+}
+function markFocus() {
+  for (const node of document.querySelectorAll('.kfocus')) node.classList.remove('kfocus');
+  const node = focusId && lanes().flat().find((n) => n.dataset.id === focusId);
+  if (node) node.classList.add('kfocus');
+  return node;
+}
+function focusOn(id) {
+  focusId = id;
+  const node = markFocus();
+  if (node) node.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+// Where the focus is: which list, and how far down it. With none, the first thread there is.
+function spot() {
+  const all = lanes();
+  for (let i = 0; i < all.length; i++) {
+    const at = all[i].findIndex((n) => n.dataset.id === focusId);
+    if (at >= 0) return { all, lane: i, at };
+  }
+  return { all, lane: -1, at: -1 };
+}
+function firstThread(all) {
+  const lane = all.find((l) => l.length);
+  if (lane) focusOn(lane[0].dataset.id);
+}
+function upDown(by) {
+  const { all, lane, at } = spot();
+  if (lane < 0) return firstThread(all);
+  const list = all[lane];
+  focusOn(list[Math.max(0, Math.min(list.length - 1, at + by))].dataset.id);
+}
+// h and l: the next column that has a card in it, as near the same height as it has.
+function across(by) {
+  const { all, lane, at } = spot();
+  if (lane < 0) return firstThread(all);
+  for (let i = lane + by; i >= 0 && i < all.length; i += by) {
+    if (all[i].length) return focusOn(all[i][Math.min(at, all[i].length - 1)].dataset.id);
+  }
+}
+// The focused thread as the board knows it, and whether it is an archived one.
+function focused() {
+  if (!current || !focusId) return null;
+  const live = everyCard(current).find((c) => c.id === focusId);
+  if (live) return live;
+  const gone = current.archived.find((c) => c.id === focusId);
+  return gone ? { ...gone, archived: true } : null;
+}
+function openFocused() {
+  const c = focused();
+  if (c && !c.archived) openThread(c.id);
+}
+// b and x do just what the card's own buttons do, and only where the card shows them.
+function buildFocused() {
+  const c = focused();
+  if (c && !c.archived && c.column === 'proposed') post('move', { id: c.id, to: 'build' }, 'In build: ' + c.title);
+}
+function archiveFocused() {
+  const c = focused();
+  if (!c || c.archived || c.column !== 'proposed') return;
+  // The card is about to go: the focus moves on to the one after it, or before it at the foot.
+  const { all, lane, at } = spot();
+  const list = lane >= 0 ? all[lane] : [];
+  const next = list[at + 1] || list[at - 1];
+  focusId = next ? next.dataset.id : null;
+  post('archive', { id: c.id }, 'Archived: ' + c.title);
+}
+function goTo(where) {
+  const tab = document.querySelector('.tab[data-view="' + where + '"]');
+  if (tab) tab.click();
+}
+
+// What is over the page: nothing, or one of the keyboard's boxes ('keys').
+let layer = null;
+function closeLayer() {
+  layer = null;
+  document.getElementById('layer').hidden = document.getElementById('layerveil').hidden = true;
+  document.getElementById('layer').replaceChildren();
+}
+function openLayer(kind) {
+  const box = document.getElementById('layer');
+  layer = kind;
+  box.replaceChildren(...LAYERS[kind]().flat(3).filter(Boolean));
+  box.setAttribute('aria-label', { keys: 'Keys' }[kind]);
+  box.hidden = document.getElementById('layerveil').hidden = false;
+  const input = box.querySelector('textarea, input');
+  if (input) input.focus();
+}
+document.getElementById('layerveil').addEventListener('click', closeLayer);
+
+const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+// Every key the page answers to. The sheet that ? opens is drawn from this table, so it cannot fall behind.
+// "board" keys act on the focused thread, and wait while a ticket is open.
+const KEYS = [
+  { key: 'j', label: 'j  k', says: 'Next and previous thread in a column or list', run: () => upDown(1), board: true },
+  { key: 'k', run: () => upDown(-1), board: true },
+  { key: 'h', label: 'h  l', says: 'The column to the left, and to the right', run: () => across(-1), board: true },
+  { key: 'l', run: () => across(1), board: true },
+  { key: 'Enter', label: 'Enter', says: 'Open its ticket', run: openFocused, board: true },
+  { key: 'b', label: 'b', says: 'Move it to Build, from the backlog', run: buildFocused, board: true },
+  { key: 'x', label: 'x', says: 'Archive it, from the backlog', run: archiveFocused, board: true },
+  { key: 'g b', label: 'g then b', says: 'Go to the Board', run: () => goTo('board'), board: true },
+  { key: 'g l', label: 'g then l', says: 'Go to the Backlog', run: () => goTo('backlog'), board: true },
+  { key: '/', label: '/', says: 'Search', run: () => document.getElementById('search').focus(), board: true },
+  { key: 'Escape', label: 'Esc', says: 'Close what is open, or let go of the thread' },
+  { key: '?', label: '?', says: 'This list', run: () => (layer === 'keys' ? closeLayer() : openLayer('keys')) },
+];
+
+const LAYERS = {
+  keys: () => [
+    el('h3', {}, 'Keys'),
+    KEYS.filter((k) => k.label).map((k) => el('div', { class: 'keyrow' },
+      el('span', {}, k.label.split(' ').filter(Boolean).map((part) => [part === 'then' ? part : el('kbd', {}, part), ' '])), el('span', {}, k.says))),
+    el('div', { class: 'foot' }, 'Keys wait while you type in a box. Esc closes this.'),
+  ],
+};
+
+// Esc closes the nearest thing: a box over the page, then the search, then the ticket, then lets go of the thread.
+function escape(at, typing) {
+  if (layer) return closeLayer();
+  if (at && at.id === 'search') { at.value = ''; query = ''; at.blur(); redraw(); return; }
+  if (openId && !adding && !(at && at.isContentEditable)) return closeThread();
+  if (!typing && focusId) { focusId = null; markFocus(); }
+}
+
+// g waits a moment for the key that says where to go.
+let chord = '';
+let chordAt = 0;
 document.addEventListener('keydown', (e) => {
+  if (e.isComposing) return;
   const at = document.activeElement;
   const typing = at && (['TEXTAREA', 'INPUT', 'SELECT'].includes(at.tagName) || at.isContentEditable);
-  if (e.key === 'Escape' && at && at.id === 'search') { at.value = ''; query = ''; at.blur(); redraw(); return; }
-  if (e.key === 'Escape' && openId && !adding && !(at && at.isContentEditable)) closeThread();
-  if (e.key === '/' && !typing) { e.preventDefault(); document.getElementById('search').focus(); }
+  if (e.key === 'Escape') return escape(at, typing);
+  if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+  let name = e.key;
+  if (chord && Date.now() - chordAt < 1500) name = chord + ' ' + e.key;
+  chord = '';
+  if (name === 'g' && !layer && !openId) { chord = 'g'; chordAt = Date.now(); e.preventDefault(); return; }
+  const hit = KEYS.find((k) => k.key === name && k.run);
+  if (!hit) return;
+  // A box over the page takes no keys but its own; a ticket that is open takes none of the board's.
+  if (layer && hit.key !== '?') return;
+  if (hit.board && openId) return;
+  // Enter on a button or a link presses it, as it always has.
+  if (hit.key === 'Enter' && at && at !== document.body && at.matches('button, a, summary, [tabindex]')) return;
+  e.preventDefault();
+  hit.run();
 });
 load();
 setInterval(load, 1500);

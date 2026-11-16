@@ -57,6 +57,7 @@ and anything about no thread, sit in a strip at the top of the Backlog view.
 | An answer button on a question | The thread it was holding up can move again. |
 | A line of the brief, above the columns | Opens that thread. The headline folds the brief to one line, until another thread finishes. |
 | **All good: approve everything**, at the foot of the brief | Approves every finished thread and every call agents made. A new skill is still kept or dropped on its thread. |
+| `j` `k` `h` `l`, then `Enter`, `b` or `x` | The keyboard: move between cards, then open the thread, move it to Build, or archive it (`b` and `x` from the backlog only). `?` lists every key. |
 
 The page says so if the build gate is off in this project, which means new
 threads go straight to build. Offer to turn it on: `spool init --gate`.
