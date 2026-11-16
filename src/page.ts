@@ -1678,7 +1678,13 @@ export function startPage(
       if (error.code === 'EADDRINUSE' && triesLeft > 0 && !options.port) listen(port + 1, triesLeft - 1);
       // A page taking over keeps the address the open page already has: wait for the last one to let go of it.
       else if (error.code === 'EADDRINUSE' && triesLeft > 0 && options.resumed) setTimeout(() => listen(port, triesLeft - 1), 150);
-      else ctx.err(`spool: the page could not start: ${error.message}`);
+      else {
+        ctx.err(`spool: the page could not start: ${error.message}`);
+        // With no page there is nothing to stay up for, and nothing should go on building: end the process once the message is out.
+        runner.close();
+        process.exitCode = 1;
+        process.stderr.write('', () => process.exit(1));
+      }
     });
     server.listen(port, '127.0.0.1');
   };
