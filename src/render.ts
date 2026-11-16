@@ -210,7 +210,8 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
   return out.join('\n');
 }
 
-export function statusText(ws: Workspace, p: Paint, project?: string): string {
+/** `under` gives the lines to print beneath a project's count: where its board stands. */
+export function statusText(ws: Workspace, p: Paint, project?: string, under: (spool: Spool) => string[] = () => []): string {
   const spools = project ? [ws.project(project)] : ws.spools;
   const out: string[] = [];
   if (ws.spools.length > 1) out.push(p.bold(ws.home.name) + p.dim(` · ${plural(ws.spools.length, 'project')}`));
@@ -233,7 +234,7 @@ export function statusText(ws: Workspace, p: Paint, project?: string): string {
   for (const spool of spools) {
     const mine = tasks(ws).filter((t) => t.spool === spool);
     if (!mine.length) {
-      out.push('', `${p.bold(spool.name)}  ${p.dim('no threads yet')}`);
+      out.push('', `${p.bold(spool.name)}  ${p.dim('no threads yet')}`, ...under(spool).map((line) => `  ${p.dim(line)}`));
       continue;
     }
     const count = (state: string) => mine.filter((t) => taskState(ws, t) === state).length;
@@ -245,6 +246,7 @@ export function statusText(ws: Workspace, p: Paint, project?: string): string {
       `${count('done')} done`,
     ];
     out.push('', `${p.bold(spool.name)}  ${p.dim(counts.join(' · '))}`);
+    for (const line of under(spool)) out.push(`  ${line.startsWith('Build is not moving') ? p.yellow(line) : p.dim(line)}`);
     // Ready work is listed in the order it will be picked, so the top of the list is what happens next.
     const rank = (t: Item) => order.indexOf(taskState(ws, t).replace('stale', 'ready')) * 10_000 + (turn.get(t.id) ?? 9_999);
     const open = mine

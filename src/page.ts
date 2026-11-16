@@ -642,7 +642,7 @@ const STOP = /^stopped (from the page|while .* was building it); back in build$/
  * say how the thread came to wait in Build, the last is a stop. A note or an edit since changes
  * nothing; moving it, or an agent taking it, does.
  */
-function stoppedInBuild(task: Item): boolean {
+export function stoppedInBuild(task: Item): boolean {
   if (task.status !== 'open') return false;
   const said = splitBody(task.body).log.map((line) => /^- \S+ \S+ .+?: (.*)$/.exec(line)?.[1] ?? '');
   return STOP.test(said.filter((what) => STANDS.test(what)).at(-1) ?? '');

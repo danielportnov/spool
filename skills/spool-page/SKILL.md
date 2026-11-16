@@ -93,7 +93,8 @@ address, and the page they have open reloads itself. Do not stop and start it
 to pick up new code: stopping it ends the agents it is running.
 
 `spool page --status` says whether a page is up for this project, at what
-address, and who builds. `spool page --stop` ends it, as Ctrl-C would: only when
+address, and who builds. `spool status` says it too, under the counts, and
+when Build has work and nothing is being built, the reason in one line. `spool page --stop` ends it, as Ctrl-C would: only when
 they ask.
 
 Agents keep working while the page is open, and it shows threads move as they do.

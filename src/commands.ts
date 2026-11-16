@@ -82,6 +82,7 @@ import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, wr
 import { SPOOL_DIR, Workspace, findFolder, findHome, readConfig, skillsDir, worktreeOwner } from './store.ts';
 import { alikeIn, alikeLines, similarLines, similarTo } from './similar.ts';
 import { SUGGEST, suggestSkills } from './suggest.ts';
+import { standingLines, standingOf } from './standing.ts';
 import { type Landing, type Opened, closeWorktree, land, openWorktree } from './worktree.ts';
 
 export type Options = NonNullable<ParseArgsConfig['options']>;
@@ -1736,12 +1737,13 @@ export const COMMANDS: Command[] = [
     usage: 'status [-P <project>]',
     summary: 'One screen: what is ready, active, blocked, and waiting on you',
     options: { ...PROJECT },
-    run({ ws, p, opts }) {
+    run({ ws, ctx, p, opts }) {
       const project = str(opts.project);
       const spools = project ? [ws.project(project)] : ws.spools;
       const queue = review(ws, project);
+      const standing = new Map(spools.map((spool) => [spool, standingOf(ctx, ws, spool)]));
       return {
-        text: statusText(ws, p, project),
+        text: statusText(ws, p, project, (spool) => standingLines(standing.get(spool)!)),
         data: {
           workspace: ws.home.name,
           projects: spools.map((spool) => {
@@ -1754,6 +1756,7 @@ export const COMMANDS: Command[] = [
               active: count('active'),
               blocked: count('blocked'),
               done: count('done'),
+              board: standing.get(spool),
             };
           }),
           waiting: Object.fromEntries(Object.entries(queue).map(([key, items]) => [key, (items as Item[]).length])),
