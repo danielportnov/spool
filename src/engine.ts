@@ -381,8 +381,6 @@ export class Runner {
   /** Start an agent on each waiting thread there is room for. */
   private fill(): void {
     if (this.held || !this.on) return;
-    // A chat builds here: nothing is started from the page.
-    if (this.builder === 'chat') return;
     // The number the board shows (`parallel`): the user's, or one where the threads would share the project's folder.
     // A thread that could not be started is not tried again until it changes, so each try here either starts one or moves on.
     let room = this.parallel - this.runs.size;
@@ -420,7 +418,13 @@ export class Runner {
       const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
       try {
         // A thread an agent of this page's is on is never handed out twice, however long it has gone quiet.
-        const waiting = ready(ws, this.project).filter((t) => !this.runs.has(t.id));
+        // Nor is one of a project where a chat builds: there nothing is started from the page.
+        const chat = new Map<string, boolean>();
+        const chatBuilds = (t: Item): boolean => {
+          if (!chat.has(t.spool.root)) chat.set(t.spool.root, builderOf(this.ctx, t.spool.root) === 'chat');
+          return chat.get(t.spool.root)!;
+        };
+        const waiting = ready(ws, this.project).filter((t) => !this.runs.has(t.id) && !chatBuilds(t));
         // What was dragged into Building and still waits comes first; the rest of Build follows, top first.
         this.first = this.first.filter((id) => waiting.some((t) => t.id === id));
         // A project whose threads would share its folder, with an agent at work there already: the rest of it waits.
