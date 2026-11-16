@@ -1,29 +1,7 @@
 import assert from 'node:assert/strict';
-import { type ChildProcess, spawn } from 'node:child_process';
 import * as http from 'node:http';
 import { test } from 'node:test';
-import { CLI, Sandbox } from './helpers.ts';
-
-/** Start the real server for a project and wait for the address it prints. */
-function startPage(s: Sandbox, ...args: string[]): Promise<{ child: ChildProcess; url: string }> {
-  const child = spawn(process.execPath, [CLI, 'page', '--no-open', '-C', s.root, ...args], {
-    env: { ...process.env, HOME: `${s.root}/.home` },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return new Promise((resolve, reject) => {
-    let out = '';
-    const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
-    child.stdout!.on('data', (chunk: Buffer) => {
-      out += chunk.toString();
-      const found = /Spool page: (http:\/\/127\.0\.0\.1:\d+\/)/.exec(out);
-      if (found) {
-        clearTimeout(timer);
-        resolve({ child, url: found[1]! });
-      }
-    });
-    child.stderr!.on('data', (chunk: Buffer) => (out += chunk.toString()));
-  });
-}
+import { Sandbox, startPage } from './helpers.ts';
 
 test('the page shows the spool as a board, and what is done on it is saved to the spool', async () => {
   const s = new Sandbox();
@@ -35,7 +13,7 @@ test('the page shows the spool as a board, and what is done on it is saved to th
   s.sp('ask', 'Outline the coins, or turn them teal?', '--option', 'Outline', '--option', 'Teal', '--recommend', '1', '--for', coins);
   const question = s.json('review').questions[0].id;
 
-  const { child, url } = await startPage(s, '--port', String(41000 + (process.pid % 2000)));
+  const { url, stop } = await startPage(s);
   try {
     // The page carries the token its own buttons need; nothing else on the machine is told it.
     const html = await (await fetch(url)).text();
@@ -222,7 +200,7 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.equal((await post('note', { id: coins, text: '   ' })).status, 400);
     assert.equal((await fetch(`${url}nope`)).status, 404);
   } finally {
-    child.kill();
+    await stop();
     s.cleanup();
   }
 });
@@ -246,7 +224,7 @@ test('a finished ticket shows what its commits changed, and Undo takes exactly t
   s.commitAll(`Add a sound\n\nSpool: ${sound}`);
   s.sp('done', sound, '-m', 'It goes boing');
 
-  const { child, url } = await startPage(s, '--port', String(47000 + (process.pid % 2000)));
+  const { url, stop } = await startPage(s);
   try {
     const token = /const TOKEN = '([\w-]{20,})';/.exec(await (await fetch(url)).text())![1]!;
     const post = (action: string, body: unknown) =>
@@ -272,7 +250,7 @@ test('a finished ticket shows what its commits changed, and Undo takes exactly t
     assert.equal(s.exists('sound.txt'), false);
     assert.equal(s.json('show', sound).item.status, 'dropped');
   } finally {
-    child.kill();
+    await stop();
     s.cleanup();
   }
 });
@@ -285,7 +263,7 @@ test('where the gate is locked, the page is where work is moved to build', async
   s.sp('edit', jump, '--sprint', 'Polish');
   assert.match(s.fails('build', jump), /its gate is locked/);
 
-  const { child, url } = await startPage(s, '--port', String(45000 + (process.pid % 2000)));
+  const { url, stop } = await startPage(s);
   try {
     const token = /const TOKEN = '([\w-]{20,})';/.exec(await (await fetch(url)).text())![1]!;
     const post = (action: string, body: unknown) =>
@@ -301,7 +279,7 @@ test('where the gate is locked, the page is where work is moved to build', async
     assert.equal(s.json('show', jump).item.state, 'ready');
     assert.match(s.item(jump), /human: moved to build with the sprint Polish/);
   } finally {
-    child.kill();
+    await stop();
     s.cleanup();
   }
 });

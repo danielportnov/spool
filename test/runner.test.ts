@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { type ChildProcess, spawn } from 'node:child_process';
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { CLI, Sandbox } from './helpers.ts';
+import { CLI, type Page, Sandbox, gone, pause, startPage, until } from './helpers.ts';
 
 /** A stand-in agent: a shell script that reads its prompt and drives the real CLI. */
 function agent(s: Sandbox, name: string, script: string): string {
@@ -13,35 +13,6 @@ function agent(s: Sandbox, name: string, script: string): string {
   return file;
 }
 
-function startPage(s: Sandbox, ...args: string[]): Promise<{ child: ChildProcess; url: string; token: string }> {
-  const child = spawn(process.execPath, [CLI, 'page', '--no-open', '-C', s.root, ...args], {
-    env: { ...process.env, HOME: `${s.root}/.home`, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return new Promise((resolve, reject) => {
-    let out = '';
-    const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
-    child.stdout!.on('data', async (chunk: Buffer) => {
-      out += chunk.toString();
-      const found = /Spool page: (http:\/\/127\.0\.0\.1:\d+\/)/.exec(out);
-      if (!found) return;
-      clearTimeout(timer);
-      const token = /const TOKEN = '([\w-]{20,})';/.exec(await (await fetch(found[1]!)).text())![1]!;
-      resolve({ child, url: found[1]!, token });
-    });
-    child.stderr!.on('data', (chunk: Buffer) => (out += chunk.toString()));
-  });
-}
-
-async function until<T>(what: string, look: () => Promise<T | false | undefined>): Promise<T> {
-  for (let i = 0; i < 160; i++) {
-    const found = await look();
-    if (found) return found;
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  return assert.fail(`never happened: ${what}`);
-}
-
 test('with the runner on, the page builds what is moved to Build, with no chat at all', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop', '--gate');
@@ -49,14 +20,14 @@ test('with the runner on, the page builds what is moved to Build, with no chat a
   const coins = s.id('task', 'Make coins readable at sunset');
   const worker = agent(s, 'worker.sh', 'echo "reading the brief"; echo "raising gravity"; spool done "$SPOOL_TASK" -m "finished by $SPOOL_ACTOR" > /dev/null');
 
-  const { child, url, token } = await startPage(s, '--run', '--agent', worker, '--port', String(48000 + (process.pid % 1500)));
+  const { url, token, stop } = await startPage(s, '--run', '--agent', worker);
   const board = async () => (await (await fetch(`${url}api/board`)).json()) as Record<string, any>;
   const post = (action: string, body: unknown) =>
     fetch(`${url}api/${action}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': token }, body: JSON.stringify(body) });
   try {
     // On, and idle: nothing is in Build, so nothing is built. A proposed thread is never touched.
     assert.deepEqual([(await board()).runner.on, (await board()).runner.agent], [true, worker]);
-    await new Promise((r) => setTimeout(r, 1300));
+    await pause(1300);
     assert.equal(s.json('show', jump).item.state, 'proposed');
 
     // The human presses play. Nobody types anything, and the thread ends up done.
@@ -73,12 +44,12 @@ test('with the runner on, the page builds what is moved to Build, with no chat a
     // Switched off, it leaves Build alone; switched on again, it picks the thread up.
     assert.equal((await post('runner', { on: false })).status, 200);
     await post('move', { id: coins, to: 'build' });
-    await new Promise((r) => setTimeout(r, 1300));
+    await pause(1300);
     assert.equal(s.json('show', coins).item.state, 'ready');
     await post('runner', { on: true });
     await until('the second thread is built', async () => s.json('show', coins).item.status === 'done');
   } finally {
-    child.kill();
+    await stop();
     s.cleanup();
   }
 });
@@ -91,7 +62,7 @@ test('an agent that walks away has its thread put back once; one that hangs can 
   const runs = path.join(s.root, 'runs.txt');
   const quitter = agent(s, 'quitter.sh', `echo run >> "${runs}"; echo "permission denied: cannot edit files" >&2; exit 3`);
 
-  const first = await startPage(s, '--run', '--agent', quitter, '--port', String(49500 + (process.pid % 1500)));
+  const first = await startPage(s, '--run', '--agent', quitter);
   try {
     const board = async () => (await (await fetch(`${first.url}api/board`)).json()) as Record<string, any>;
     const told = await until('the runner says how it went', async () => { const b = await board(); return b.runner.recent[0] && b; });
@@ -99,14 +70,14 @@ test('an agent that walks away has its thread put back once; one that hangs can 
     const back = s.json('show', hard).item;
     assert.deepEqual([back.state, back.by], ['ready', undefined]);
     assert.match(s.item(hard), /page: agent exited 3 without finishing; back in build/);
-    await new Promise((r) => setTimeout(r, 2300));
+    await pause(2300);
     assert.equal(fs.readFileSync(runs, 'utf8').trim().split('\n').length, 1, 'not tried again in a spin');
   } finally {
-    first.child.kill();
+    await first.stop();
   }
 
   const sleeper = agent(s, 'sleeper.sh', 'echo "thinking hard"; sleep 30');
-  const second = await startPage(s, '--run', '--agent', sleeper, '--port', String(51000 + (process.pid % 1500)));
+  const second = await startPage(s, '--run', '--agent', sleeper);
   try {
     const board = async () => (await (await fetch(`${second.url}api/board`)).json()) as Record<string, any>;
     const live = await until('the agent is heard working', async () => { const b = await board(); return b.runner.running[0]?.lines.length && b; });
@@ -119,7 +90,7 @@ test('an agent that walks away has its thread put back once; one that hangs can 
     assert.equal(s.json('show', hard).item.state, 'ready');
     assert.match(s.item(hard), /page: stopped from the page; back in build/);
   } finally {
-    second.child.kill();
+    await second.stop();
     s.cleanup();
   }
 });
@@ -131,7 +102,7 @@ test('a thread being built can be aborted straight to the backlog, from the page
   const next = s.id('task', 'Next one');
   s.sp('build', hard);
   const sleeper = agent(s, 'sleeper.sh', 'echo "thinking hard"; sleep 30');
-  const page = await startPage(s, '--run', '--agent', sleeper, '--port', String(52500 + (process.pid % 1500)));
+  const page = await startPage(s, '--run', '--agent', sleeper);
   try {
     const board = async () => (await (await fetch(`${page.url}api/board`)).json()) as Record<string, any>;
     await until('the agent is heard working', async () => { const b = await board(); return b.runner.running[0]?.lines.length && b; });
@@ -143,10 +114,10 @@ test('a thread being built can be aborted straight to the backlog, from the page
     const back = s.json('show', hard).item;
     assert.deepEqual([back.state, back.by], ['proposed', undefined]);
     assert.match(s.item(hard), /aborted while sleeper\.sh was building it; moved back to proposed/);
-    await new Promise((r) => setTimeout(r, 1300));
+    await pause(1300);
     assert.equal(s.json('show', next).item.state, 'proposed', 'nothing else was picked up');
   } finally {
-    page.child.kill();
+    await page.stop();
   }
 
   // An agent the page did not start: the thread is taken off it, and its done is refused.
@@ -187,7 +158,7 @@ test('a card dragged to any column: to the backlog, the agent is ended and every
   fs.writeFileSync(path.join(s.root, 'mine.txt'), 'the human, half way\n');
   s.sp('build', hard);
 
-  const page = await startPage(s, '--run', '--agent', worker, '--port', String(54000 + (process.pid % 1500)));
+  const page = await startPage(s, '--run', '--agent', worker);
   const board = async () => (await (await fetch(`${page.url}api/board`)).json()) as Record<string, any>;
   const move = async (id: string, to: string) => {
     const res = await fetch(`${page.url}api/move`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': page.token }, body: JSON.stringify({ id, to }) });
@@ -226,7 +197,7 @@ test('a card dragged to any column: to the backlog, the agent is ended and every
     assert.equal(s.json('show', easy).item.state, 'ready');
     assert.equal((await move(easy, 'nowhere')).status, 400);
   } finally {
-    page.child.kill();
+    await page.stop();
   }
 
   // The same from the command line: a done thread, undone and back in the backlog; one being built, stopped and back in build.
@@ -249,13 +220,14 @@ test('a page stopped mid-build puts its thread back, and a page starting up resc
   const hard = s.id('task', 'Too hard');
   s.sp('build', hard);
   const sleeper = agent(s, 'sleeper.sh', 'echo "thinking hard"; sleep 30');
-  const gone = (child: ChildProcess): Promise<void> => new Promise((r) => (child.exitCode !== null || child.signalCode ? r() : child.once('exit', () => r())));
   const working = async (url: string) =>
     until('the agent is heard working', async () => ((await (await fetch(`${url}api/board`)).json()) as Record<string, any>).runner.running[0]?.lines.length);
+  const started: Page[] = [];
 
   try {
     // Ctrl-C on the page while its agent works: the thread is back in Build at once.
-    const first = await startPage(s, '--run', '--agent', sleeper, '--port', String(53000 + (process.pid % 1500)));
+    const first = await startPage(s, '--run', '--agent', sleeper);
+    started.push(first);
     await working(first.url);
     assert.equal(s.json('show', hard).item.state, 'active');
     first.child.kill('SIGINT');
@@ -264,21 +236,25 @@ test('a page stopped mid-build puts its thread back, and a page starting up resc
     assert.match(s.item(hard), /page: the page was stopped; back in build/);
 
     // A page killed outright cannot put anything back: the next page to start does.
-    const second = await startPage(s, '--run', '--agent', sleeper, '--port', String(54500 + (process.pid % 1500)));
+    const second = await startPage(s, '--run', '--agent', sleeper);
+    started.push(second);
     await working(second.url);
     second.child.kill('SIGKILL');
     await gone(second.child);
     assert.equal(s.json('show', hard).item.state, 'active', 'left marked as handed out');
 
     const worker = agent(s, 'worker.sh', 'spool done "$SPOOL_TASK" -m "finished" > /dev/null');
-    const third = await startPage(s, '--run', '--agent', worker, '--port', String(56000 + (process.pid % 1500)));
+    const third = await startPage(s, '--run', '--agent', worker);
     try {
       await until('the rescued thread is built', async () => s.json('show', hard).item.status === 'done');
       assert.match(s.item(hard), /page: its page had stopped with nobody working it; back in build/);
     } finally {
-      third.child.kill();
+      await third.stop();
     }
   } finally {
+    for (const page of started) await page.stop();
+    // The agent of the page killed outright was left running, as it would be: end it here.
+    spawnSync('pkill', ['-f', sleeper]);
     s.cleanup();
   }
 });
@@ -308,7 +284,7 @@ test('the agent’s stream is kept with the thread: its steps, a denied tool cal
   const stream = path.join(s.root, 'stream.jsonl');
   fs.writeFileSync(stream, events.map((e) => JSON.stringify(e)).join('\n') + '\n');
   const worker = agent(s, 'worker.sh', `cat "${stream}"; echo "a warning" >&2; sleep 1; exit 1`);
-  const { child, url } = await startPage(s, '--run', '--agent', worker, '--port', String(58000 + (process.pid % 1500)));
+  const { url, stop } = await startPage(s, '--run', '--agent', worker);
   try {
     const board = async () => (await (await fetch(`${url}api/board`)).json()) as Record<string, any>;
     const live = await until('the steps are heard', async () => { const b = await board(); return b.runner.running[0]?.lines.length >= 6 && b; });
@@ -330,7 +306,7 @@ test('the agent’s stream is kept with the thread: its steps, a denied tool cal
     assert.deepEqual(saved[4], { type: 'stderr', text: 'a warning' });
     assert.equal(fs.readFileSync(path.join(s.root, '.spool', 'runs', '.gitignore'), 'utf8').split('\n')[1], '*', 'transcripts stay out of git');
   } finally {
-    child.kill();
+    await stop();
     s.cleanup();
   }
 });
@@ -340,14 +316,14 @@ test('the runner is off unless asked for: opening the page builds nothing', asyn
   s.sp('init', '--name', 'skyhop', '--gate');
   const jump = s.id('task', 'Tighten the jump arc');
   s.sp('build', jump);
-  const { child, url } = await startPage(s, '--port', String(52500 + (process.pid % 1500)));
+  const { url, stop } = await startPage(s);
   try {
     const b = (await (await fetch(`${url}api/board`)).json()) as Record<string, any>;
     assert.deepEqual([b.runner.on, b.runner.agent, b.runner.running], [false, 'claude -p', []]);
-    await new Promise((r) => setTimeout(r, 1300));
+    await pause(1300);
     assert.equal(s.json('show', jump).item.state, 'ready');
   } finally {
-    child.kill();
+    await stop();
     s.cleanup();
   }
 });
@@ -361,7 +337,7 @@ test('with Chat picked, the page starts no agent: a chat builds, the pick is kep
   const config = (): Record<string, any> => JSON.parse(fs.readFileSync(path.join(s.root, '.home', '.config', 'spool', 'config.json'), 'utf8'));
   const quiet = (): Promise<void> => new Promise((r) => setTimeout(r, 1300));
 
-  let page = await startPage(s, '--run', '--agent', worker, '--port', String(62500 + (process.pid % 1500)));
+  let page = await startPage(s, '--run', '--agent', worker);
   const board = async () => (await (await fetch(`${page.url}api/board`)).json()) as Record<string, any>;
   const post = (action: string, body: unknown) =>
     fetch(`${page.url}api/${action}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': page.token }, body: JSON.stringify(body) });
@@ -395,8 +371,8 @@ test('with Chat picked, the page starts no agent: a chat builds, the pick is kep
     watch = undefined;
 
     // The pick outlives the page.
-    page.child.kill();
-    page = await startPage(s, '--run', '--agent', worker, '--port', String(39000 + (process.pid % 1500)));
+    await page.stop();
+    page = await startPage(s, '--run', '--agent', worker);
     assert.equal((await board()).runner.builder, 'chat');
     await quiet();
     assert.equal(s.json('show', jump).item.state, 'ready', 'a page started with --run still starts nothing');
@@ -407,7 +383,7 @@ test('with Chat picked, the page starts no agent: a chat builds, the pick is kep
     assert.deepEqual(config().builder, {}, 'headless is what a project is with nothing kept');
   } finally {
     watch?.kill();
-    page.child.kill();
+    await page.stop();
     s.cleanup();
   }
 });

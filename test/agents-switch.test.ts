@@ -1,31 +1,9 @@
 import assert from 'node:assert/strict';
-import { type ChildProcess, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { CLI, Sandbox } from './helpers.ts';
-
-const PORT = 7500 + (process.pid % 1500);
-
-function startPage(s: Sandbox, ...args: string[]): Promise<{ child: ChildProcess; url: string }> {
-  const child = spawn(process.execPath, [CLI, 'page', '--no-open', '-C', s.root, ...args], {
-    env: { ...process.env, HOME: `${s.root}/.home`, XDG_CONFIG_HOME: undefined, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return new Promise((resolve, reject) => {
-    let out = '';
-    const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
-    child.stdout!.on('data', (chunk: Buffer) => {
-      out += chunk.toString();
-      const found = /Spool page: (http:\/\/127\.0\.0\.1:\d+\/)/.exec(out);
-      if (!found) return;
-      clearTimeout(timer);
-      resolve({ child, url: found[1]! });
-    });
-    child.stderr!.on('data', (chunk: Buffer) => (out += chunk.toString()));
-  });
-}
+import { Sandbox, startPage } from './helpers.ts';
 
 /** The page's record, where src/detach.ts keeps it. */
 function recordFile(s: Sandbox): string {
@@ -40,7 +18,7 @@ test('spool agents says whether the page’s agents are on, and switches them as
   assert.match(s.sp('agents', 'off'), /^No Spool page is up/, 'stopping what is not running is no failure');
   assert.match(s.fails('agents', 'sideways'), /"sideways" is not on or off/);
 
-  const { child, url } = await startPage(s, '--port', String(PORT));
+  const { url, stop } = await startPage(s);
   const board = async () => (await (await fetch(`${url}api/board`)).json()) as { runner: { on: boolean } };
   try {
     // The token is in the record, which only this user may read.
@@ -61,8 +39,7 @@ test('spool agents says whether the page’s agents are on, and switches them as
     assert.equal(s.sp('agents', 'off'), 'Agents are off.');
     assert.match(s.sp('agents'), /A chat builds here \(Chat\)/);
   } finally {
-    child.kill('SIGTERM');
-    await new Promise((r) => child.once('exit', r));
+    await stop();
     s.cleanup();
   }
 });
@@ -70,7 +47,7 @@ test('spool agents says whether the page’s agents are on, and switches them as
 test('where the gate is locked, an agent is refused on, but may always switch them off', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop', '--lock');
-  const { child, url } = await startPage(s, '--port', String(PORT + 1));
+  const { url, stop } = await startPage(s);
   const board = async () => (await (await fetch(`${url}api/board`)).json()) as { runner: { on: boolean } };
   try {
     assert.match(s.fails('agents', 'on'), /spool agents on is the human's alone in skyhop: its gate is locked/);
@@ -82,8 +59,7 @@ test('where the gate is locked, an agent is refused on, but may always switch th
     assert.equal(s.sp('agents', 'off'), 'Agents are off.');
     assert.equal((await board()).runner.on, false);
   } finally {
-    child.kill('SIGTERM');
-    await new Promise((r) => child.once('exit', r));
+    await stop();
     s.cleanup();
   }
 });
