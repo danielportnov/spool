@@ -39,7 +39,7 @@ test('two near-duplicates among fifteen unrelated threads are listed as one pair
   assert.match(out, /both say: .*jump.*floaty/);
   assert.match(out, new RegExp(`spool file ${noteB} --into ${a}, then spool drop ${b}`));
   assert.match(out, new RegExp(`spool archive ${b}`));
-  assert.match(out, /^1 pair look alike\.$/m);
+  assert.match(out, /^1 pair looks alike\.$/m);
 });
 
 test('a wish said a little differently is found, though the bar at filing lets it by', () => {

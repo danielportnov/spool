@@ -141,6 +141,6 @@ export function alikeLines(ws: Workspace, pairs: Alike[], p: Paint): string[] {
     out.push(p.dim(`    both say: ${words.join(', ')}. To merge ${b.id} into ${a.id}: ${merge}. Or: spool archive ${b.id}`));
     out.push('');
   }
-  out.push(`${pairs.length} ${pairs.length === 1 ? 'pair' : 'pairs'} look alike.`);
+  out.push(pairs.length === 1 ? '1 pair looks alike.' : `${pairs.length} pairs look alike.`);
   return out;
 }
