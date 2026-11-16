@@ -1084,7 +1084,8 @@ export function queueFor(
  * no terminal to take over, and the caller prints the status as it always did.
  */
 export function openQueue(ctx: Ctx, options: { run?: boolean } = {}): Result | undefined {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) return undefined;
+  // A terminal that cannot move its cursor would only be filled with codes.
+  if (!process.stdin.isTTY || !process.stdout.isTTY || ctx.env.TERM === 'dumb') return undefined;
   const end = (code: number): void => {
     process.exitCode = code;
     process.stdout.write('', () => process.stderr.write('', () => process.exit(code)));
