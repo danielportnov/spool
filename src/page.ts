@@ -15,7 +15,7 @@
  *
  * Everything the page does is an ordinary command run in-process, as the
  * human: `build`, `propose`, `order`, `capture`, `task`, `file`, `edit`, `answer`, `approve`,
- * `sprint`, `play`, `drop`, `revert`. So the page can do
+ * `sprint`, `play`, `drop`, `revert`, `archive`. So the page can do
  * nothing the command line cannot, and every rule the commands enforce holds
  * here too.
  *
@@ -250,6 +250,8 @@ interface Board {
   /** The sprints, oldest first: what is in each and how far along it is. */
   sprints: { id: string; name: string; status: string; goal: string; why: string; doneWhen: string; total: number; done: number; waiting: number }[];
   columns: Record<Column, Card[]>;
+  /** Threads put out of sight, newest first: on no column, shown only in the Backlog view's Archived section. */
+  archived: Card[];
   also: { assumptions: number; skills: number; inbox: number };
 }
 
@@ -260,7 +262,8 @@ const HISTORY_SHOWN = 60;
 
 /** Which column a thread sits in. On hold is the human saying not yet, so it sits with what is not in build. */
 function columnOf(state: string): Column | null {
-  if (state === 'proposed' || state === 'held') return 'proposed';
+  // An archived thread is off the board, but it is still the backlog's: moved anywhere, it moves from there.
+  if (state === 'proposed' || state === 'held' || state === 'archived') return 'proposed';
   if (state === 'ready' || state === 'stale' || state === 'blocked') return 'build';
   if (state === 'active') return 'building';
   if (state === 'done') return 'done';
@@ -517,6 +520,10 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
         };
       }),
     columns,
+    archived: all
+      .filter((t) => taskState(ws, t) === 'archived')
+      .sort((a, b) => b.archived!.localeCompare(a.archived!))
+      .map((t) => card(ws, t, null, age(t.archived!, ws.now()) === 'now' ? 'Archived just now' : `Archived ${age(t.archived!, ws.now())} ago`, 'proposed', routing)),
     also: { assumptions: queue.assumptions.length, skills: queue.skills.length, inbox: queue.inbox.length },
   };
 }
@@ -1566,6 +1573,11 @@ function change(ctx: Ctx, action: string, body: Body, project?: string): { ok: b
     const why = text(body.why);
     return act(ctx, ['revert', id, ...(why ? [`--message=${why}`] : []), ...(body.drop === true ? ['--drop'] : [])]);
   }
+  if (action === 'archive' || action === 'unarchive') {
+    // Out of sight, not dropped; and back again, just as it was.
+    if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
+    return act(ctx, ['archive', ...(action === 'unarchive' ? ['--undo'] : []), id]);
+  }
   if (action === 'complete') {
     // "Mark as complete" is the human saying the change is good: the same as approving it.
     if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
@@ -1960,6 +1972,9 @@ const PAGE = String.raw`<!doctype html>
   .prio.p0 { color: var(--hot); } .prio.p1 { color: var(--accent); } .prio.p3 { color: var(--blue); }
   .size { border-radius: 999px; background: var(--chip); padding: 0 7px; font-weight: 600; }
   .act { padding: 2px 9px; font-size: 12px; }
+  .arch { width: 24px; height: 24px; padding: 0; display: inline-grid; place-items: center; color: var(--soft); }
+  .arch:hover { color: var(--ink); }
+  .arch svg { width: 14px; height: 14px; }
   .tick { width: 24px; height: 24px; padding: 0; border-radius: 50%; color: var(--go); font-weight: 700; }
   .tick:hover { background: var(--go); border-color: var(--go); color: #fff; }
   .empty { color: var(--soft); font-size: 13px; padding: 8px 6px; }
@@ -2133,6 +2148,8 @@ try {
 } catch (e) {}
 // Completed threads are history: kept, and out of the way until asked for.
 let showHistory = false;
+// Archived threads are out of sight: their section at the foot of the backlog stays folded until opened.
+let showArchived = false;
 // What the board is narrowed to: { kind: 'tag' | 'version' | 'sprint', value }, and whatever is typed in the search.
 let only = null;
 let query = '';
@@ -2268,6 +2285,15 @@ function moves(c, b) {
     c.done && !c.complete && el('button', { class: 'tick', title: 'Mark as complete', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓'),
   ];
 }
+// Archiving: a thread waiting in the backlog put out of sight, not dropped. One click, and one click back.
+const ARCHIVE_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="3.5" rx="1"/><path d="M2.75 6v6.75a.75.75 0 0 0 .75.75h9a.75.75 0 0 0 .75-.75V6M6.5 9h3"/></svg>';
+function archiveNode(c) {
+  if (c.column !== 'proposed') return null;
+  const node = el('button', { class: 'arch', title: 'Archive: out of sight, not dropped. It is kept under Archived, at the foot of the Backlog view.', 'aria-label': 'Archive',
+    onclick: () => post('archive', { id: c.id }, 'Archived: ' + c.title) });
+  node.innerHTML = ARCHIVE_ICON;
+  return node;
+}
 function dragOf(node, c, from) {
   node.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', c.id + ' ' + from); node.classList.add('dragging'); busy = true; });
   node.addEventListener('dragend', () => { node.classList.remove('dragging'); unland(); busy = false; });
@@ -2314,7 +2340,7 @@ function cardNode(c, b) {
         onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o))),
     el('div', { class: 'meta' },
       el('span', { class: 'key', title: 'Open the thread', onclick: () => openThread(c.id) }, c.id),
-      el('span', { class: 'push' }), facts(c), moves(c, b)));
+      el('span', { class: 'push' }), facts(c), archiveNode(c), moves(c, b)));
   dragOf(node, c, c.column);
   return node;
 }
@@ -2326,7 +2352,7 @@ function rowNode(c, b) {
       c.why && !c.done && el('div', { class: 'why', title: c.why }, c.why)),
     el('div', { class: 'right' },
       el('span', { class: 'state ' + c.column }, STATE[c.column]),
-      facts(c), el('span', { class: 'key', onclick: () => openThread(c.id) }, c.id), moves(c)));
+      facts(c), el('span', { class: 'key', onclick: () => openThread(c.id) }, c.id), archiveNode(c), moves(c)));
   if (!c.done && c.column !== 'building') dragOf(node, c, 'row');
   return node;
 }
@@ -2572,7 +2598,22 @@ function drawBacklog(b) {
       loose.length ? loose.map((c) => rowNode(c, b)) : el('div', { class: 'empty' }, 'Everything is in a sprint, or built.'),
       addNode('proposed', 'What do you want added?'),
       loose.length > 0 && el('div', { style: 'margin-top: 8px; max-width: 320px' }, addAllNode('backlog', loose))), ''),
-    ...finished.map((s) => sprintNode(s, b)));
+    ...finished.map((s) => sprintNode(s, b)),
+    archivedNode(b));
+}
+
+// The foot of the backlog: what was archived, folded shut, each with its way back.
+function archivedNode(b) {
+  if (!b.archived.length) return '';
+  const rows = b.archived.filter(shows);
+  const row = (c) => el('div', { class: 'row', 'data-id': c.id },
+    el('div', {}, el('span', { title: c.title }, c.title), c.why && el('div', { class: 'why', title: c.why }, c.why)),
+    el('div', { class: 'right' }, el('span', {}, c.note), el('span', { class: 'key' }, c.id),
+      el('button', { class: 'act', title: 'Back to the backlog, just as it was', onclick: () => post('unarchive', { id: c.id }, 'Back in the backlog: ' + c.title) }, '↩ Bring back')));
+  return el('div', { class: 'group', id: 'archived' },
+    el('button', { class: 'history', 'aria-expanded': String(showArchived), onclick: () => { showArchived = !showArchived; redraw(); } },
+      (showArchived ? '▾ Archived' : '▸ Archived') + ' · ' + b.archived.length),
+    showArchived && (rows.length ? rows.map(row) : el('div', { class: 'empty' }, 'Nothing archived matches.')));
 }
 
 // ---- what waits on him: on the thread it is about, or at the top of the backlog when it is about none

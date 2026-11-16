@@ -8,7 +8,7 @@
 import { type Item, type Spool, isPlan, isSettled } from './model.ts';
 import type { Workspace } from './store.ts';
 
-export type TaskState = 'proposed' | 'ready' | 'held' | 'blocked' | 'active' | 'stale' | 'done' | 'dropped';
+export type TaskState = 'proposed' | 'ready' | 'held' | 'archived' | 'blocked' | 'active' | 'stale' | 'done' | 'dropped';
 
 /** Tasks that came from `item`: the parts of a plan, the findings of an audit. */
 export function children(ws: Workspace, item: Item): Item[] {
@@ -39,7 +39,8 @@ export function blockers(ws: Workspace, task: Item): Item[] {
 
 /** The tasks put in a sprint, whatever state they are in. */
 export function sprintTasks(ws: Workspace, sprint: Item): Item[] {
-  return ws.items.filter((i) => i.kind === 'task' && i.sprint === sprint.id && i.status !== 'dropped');
+  // An archived thread stays in its sprint, out of sight: playing the sprint does not move it.
+  return ws.items.filter((i) => i.kind === 'task' && i.sprint === sprint.id && i.status !== 'dropped' && !(i.archived && i.status !== 'active' && i.status !== 'done'));
 }
 
 /** The sprint a task is in, if it is in one that still exists. */
@@ -59,6 +60,9 @@ function leaseMs(task: Item): number {
 
 export function taskState(ws: Workspace, task: Item): TaskState {
   if (task.status === 'done' || task.status === 'dropped') return task.status;
+  // Out of sight, not dropped: whatever it was before it waits under that, untouched. One being
+  // built is never archived, so a claim always wins.
+  if (task.archived && task.status !== 'active') return 'archived';
   // Proposed is the gate: it has not been moved to build, so nothing else about it matters yet.
   if (task.status === 'proposed') return 'proposed';
   if (task.hold) return 'held';
@@ -232,7 +236,7 @@ export function docket(ws: Workspace, spool: Spool): Docket {
   const queue = review(ws, spool);
   const mine = tasks(ws, spool);
   const big = (t: Item) => t.type === 'plan' || t.size === 'xl';
-  const live = mine.filter((t) => !['done', 'dropped', 'held', 'proposed'].includes(taskState(ws, t)));
+  const live = mine.filter((t) => !['done', 'dropped', 'held', 'proposed', 'archived'].includes(taskState(ws, t)));
   const rest = live.filter((t) => !big(t));
   const state = (t: Item) => taskState(ws, t);
   return {

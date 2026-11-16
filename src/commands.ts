@@ -468,6 +468,9 @@ function claim(call: Call, task: Item, force: boolean): void {
   if (state === 'held') {
     throw new SpoolError(`${task.id} is on hold: ${task.hold}`, `Only the human releases it: spool release ${task.id}`);
   }
+  if (state === 'archived') {
+    throw new SpoolError(`${task.id} is archived`, `Only the human brings it back: spool archive --undo ${task.id}`);
+  }
   if (state === 'blocked') {
     throw new SpoolError(
       `${task.id} is blocked on ${blockers(ws, task).map((b) => b.id).join(', ')}`,
@@ -738,6 +741,43 @@ export const COMMANDS: Command[] = [
   },
 
   {
+    name: 'archive',
+    group: 'you',
+    usage: 'archive <t-id…> [--undo]',
+    summary: 'Put backlog work out of sight, not dropped: off the board and the lists, never built, until you bring it back with --undo or move it to build',
+    human: true,
+    write: true,
+    options: { undo: { type: 'boolean' } },
+    run({ ws, args, actor, p, opts }) {
+      if (!args.length) throw new SpoolError(`what to ${opts.undo ? 'bring back' : 'archive'} is missing`, opts.undo ? 'See what is archived: spool list --archived' : 'spool archive <t-id>');
+      const tasks = args.map((ref) => ws.get(ref, 'task'));
+      for (const t of tasks) {
+        if (opts.undo) {
+          if (!t.archived) throw new SpoolError(`${t.id} is not archived`);
+          continue;
+        }
+        if (isClosed(t)) throw new SpoolError(`${t.id} is already ${t.status}`);
+        // Only what is waiting: work being built is stopped first, with its own verb.
+        if (t.status === 'active') throw new SpoolError(`${t.id} is being built by ${t.by ?? 'someone'}`, `Stop it first: spool propose --abort ${t.id}`);
+      }
+      for (const t of tasks) {
+        if (opts.undo) {
+          t.archived = undefined;
+          addLog(t, actor, 'brought back from the archive', ws.now());
+        } else {
+          if (t.archived) continue;
+          t.archived = timestamp(ws.now());
+          addLog(t, actor, 'archived', ws.now());
+        }
+        ws.save(t);
+      }
+      return {
+        text: `${opts.undo ? 'Brought back' : 'Archived'}:\n${tasks.map((t) => `  ${itemLine(ws, t, p)}`).join('\n')}`,
+        data: { [opts.undo ? 'restored' : 'archived']: tasks.map((t) => itemJson(ws, t)) },
+      };
+    },
+  },
+  {
     name: 'build',
     group: 'you',
     usage: 'build <t-id…> [--abort]',
@@ -764,11 +804,12 @@ export const COMMANDS: Command[] = [
           ws.save(t);
           continue;
         }
-        // Moving something to build is the human saying start: it clears a hold as well.
-        if (t.status !== 'proposed' && !t.hold) continue;
-        addLog(t, actor, t.hold ? `moved to build (was on hold: ${t.hold})` : 'moved to build', ws.now());
+        // Moving something to build is the human saying start: it clears a hold as well, and brings back an archived thread.
+        if (t.status !== 'proposed' && !t.hold && !t.archived) continue;
+        addLog(t, actor, t.hold ? `moved to build (was on hold: ${t.hold})` : t.archived ? 'moved to build (was archived)' : 'moved to build', ws.now());
         if (t.status === 'proposed') t.status = 'open';
         t.hold = undefined;
+        t.archived = undefined;
         ws.save(t);
       }
       return { text: `In build:\n${tasks.map((t) => `  ${itemLine(ws, t, p)}`).join('\n')}`, data: { build: tasks.map((t) => itemJson(ws, t)) } };
@@ -1621,8 +1662,8 @@ export const COMMANDS: Command[] = [
     name: 'list',
     aliases: ['ls'],
     group: 'see',
-    usage: 'list [-k <kind>] [-s <state>] [-t <type>] [--size <sizes>] [--search <words>] [-P <project>] [--all]',
-    summary: 'Find items; closed ones too with --all or --search',
+    usage: 'list [-k <kind>] [-s <state>] [-t <type>] [--size <sizes>] [--search <words>] [-P <project>] [--all | --archived]',
+    summary: 'Find items; closed ones too with --all or --search; only the archived threads with --archived',
     options: {
       kind: { type: 'string', short: 'k' },
       status: { type: 'string', short: 's' },
@@ -1630,6 +1671,7 @@ export const COMMANDS: Command[] = [
       size: { type: 'string' },
       search: { type: 'string' },
       all: { type: 'boolean', short: 'a' },
+      archived: { type: 'boolean' },
       ...PROJECT,
     },
     run({ ws, p, opts }) {
@@ -1649,9 +1691,11 @@ export const COMMANDS: Command[] = [
       }
       const search = str(opts.search);
       const status = str(opts.status)?.toLowerCase();
-      if (status) items = items.filter((i) => stateOf(ws, i) === status || i.status === status);
+      if (opts.archived) items = items.filter((i) => stateOf(ws, i) === 'archived');
+      else if (status) items = items.filter((i) => stateOf(ws, i) === status || (i.status === status && stateOf(ws, i) !== 'archived'));
       else if (search) items = items.filter((i) => i.status !== 'dropped');
-      else if (!opts.all) items = items.filter((i) => !isClosed(i));
+      // Archived threads are out of sight: they are listed when asked for, by --archived or --all.
+      else if (!opts.all) items = items.filter((i) => !isClosed(i) && stateOf(ws, i) !== 'archived');
       if (search) {
         const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
         items = items.filter((i) => {
@@ -1799,7 +1843,7 @@ export const COMMANDS: Command[] = [
           if (item.status === 'done' && !item.summary) warnings.push(`${item.id} is done with no summary`);
           // The human agrees to work by its reason, so an open thread with none is worth a word. An idea an agent
           // suggested carries its reason with it.
-          if (!isClosed(item) && !whyOf(item) && !item.suggested) {
+          if (!isClosed(item) && !item.archived && !whyOf(item) && !item.suggested) {
             warnings.push(`${item.id} has no Why: line in its spec, so nobody can see why it exists`);
           }
           if (taskState(ws, item) === 'stale') warnings.push(`${item.id} was claimed by ${item.by ?? 'someone'} and has gone quiet`);

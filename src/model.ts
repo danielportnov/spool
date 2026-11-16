@@ -124,6 +124,12 @@ export interface Item {
   /** Tasks: why this is parked. A task on hold is never handed out; only the human releases it. */
   hold?: string;
   /**
+   * Tasks: when it was put out of sight. An archived thread is not dropped: it keeps its status,
+   * its hold and its sprint, and leaves the board, the lists and the counts until it is brought
+   * back. It is never handed out. Moving it to build brings it back.
+   */
+  archived?: string;
+  /**
    * Tasks: an agent's own idea, and why it suggests it. Nobody asked for it, so it starts on hold
    * and joins the work only when the human says yes. The reason stays, as where the thread came from.
    */
@@ -185,6 +191,7 @@ const FIELDS: readonly (readonly [string, FieldType])[] = [
   ['started', 'string'],
   ['by', 'string'],
   ['hold', 'string'],
+  ['archived', 'string'],
   ['suggested', 'string'],
   ['needs', 'tokens'],
   ['from', 'tokens'],

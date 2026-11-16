@@ -22,8 +22,8 @@ the chat can stay short.
 What they can do on it:
 
 The page has two views. **Board** is four columns: Backlog, Build, Building,
-Done. **Backlog** is for planning: sprints to fill and play, and under them
-everything that is in no sprint. What waits on them is on its thread: a
+Done. **Backlog** is for planning: sprints to fill and play, under them
+everything that is in no sprint, and at the foot what was archived. What waits on them is on its thread: a
 question on its card and ticket, a call an agent made as a post in its thread
 (**Fine**, or **Overrule** in their words), a plan's go-ahead and a new skill
 on the ticket. A card with something to look at says so. Notes nobody filed,
@@ -39,6 +39,7 @@ and anything about no thread, sit in a strip at the top of the Backlog view.
 | The search, or a sprint's pill | Narrows the board to what matches. |
 | **Add to Build**, at the foot of the backlog | Moves every thread the backlog is showing right now to Build, and none that a filter or the search has hidden. It asks once. |
 | **Sort** and **Show** at the top of a column | Sorts or filters that column alone. The order agents build in does not change. Build sorted another way takes a drop as a move, not a place. |
+| The box icon on a backlog card or row | Archives it: out of sight, not dropped. It leaves the board and the lists, is never built, and waits under **Archived** at the foot of the Backlog view, folded shut. **↩ Bring back** there, or moving it to Build, returns it as it was. |
 | The quiet line under a card's name | Why the thread exists, from the `Why:` line of its spec. Cut short; the whole of it on hover. |
 | Open a card | The ticket: what they said, what was done and by which agent, and everything that happened, with its fields at the side. |
 | Change a field on the ticket | Its name, status, priority, difficulty, tags or version. Tags and versions are theirs to invent. |

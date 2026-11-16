@@ -134,7 +134,7 @@ Two threads land in the backlog, in your words. Nothing is built until you move 
 | --- | --- | --- | --- |
 | Every new thread. Yours, or an agent's ✨. | The ones you picked. | An agent has it. | Shipped, and undoable. |
 
-1. **Threads start in the backlog.** Agents size them, explain them and suggest their own. They cannot start them.
+1. **Threads start in the backlog.** Agents size them, explain them and suggest their own. They cannot start them. One you do not want to see, archive: it is kept, out of the way, a click from coming back.
 2. **You move a thread to Build.** Drag it, press ▶, or say "build that one". Or group a few into a **sprint** and press ▶ on the sprint.
 3. **The loop builds it.** One thread at a time, in order, a line when it starts and a line when it ships.
 4. **You can take it back.** "Undo that" reverts everything that thread changed, and nothing else.

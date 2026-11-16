@@ -46,6 +46,7 @@ const MARK: Record<string, string> = {
   stale: '▷',
   blocked: '◌',
   held: '⏸',
+  archived: '▪',
   done: '✓',
   dropped: '✗',
   open: '?',
@@ -101,6 +102,7 @@ export function itemLine(ws: Workspace, item: Item, p: Paint, showProject = true
     if (state === 'blocked') notes.push(`needs ${blockers(ws, item).map((b) => b.id).join(', ')}`);
     if (state === 'proposed') notes.push(item.suggested ? 'proposed · AI suggested' : 'proposed');
     if (state === 'held') notes.push(`on hold: ${oneLine(item.hold ?? '', 60)}`);
+    if (state === 'archived') notes.push(age(item.archived!, ws.now()) === 'now' ? 'archived just now' : `archived ${age(item.archived!, ws.now())} ago`);
     if (state === 'active') notes.push(`${item.by ?? 'someone'}, ${age(item.updated, ws.now())}`);
     if (state === 'stale') notes.push(`${item.by ?? 'someone'} went quiet ${age(item.updated, ws.now())} ago`);
     if (state === 'done' || state === 'dropped') notes.push(awaitsGoAhead(ws, item) ? 'awaiting go-ahead' : state);

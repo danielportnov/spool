@@ -122,7 +122,7 @@ function map(ws: Workspace): string {
   const lines: string[] = ['PROJECTS'];
   const width = Math.max(...ws.spools.map((s) => s.name.length));
   for (const spool of ws.spools) {
-    const open = tasks(ws).filter((t) => t.spool === spool && !['done', 'dropped'].includes(taskState(ws, t)));
+    const open = tasks(ws).filter((t) => t.spool === spool && !['done', 'dropped', 'archived'].includes(taskState(ws, t)));
     const what = about(spool);
     lines.push(`  ${spool.name.padEnd(width)}  ${open.length} open${what ? `  · ${what}` : ''}`);
   }
