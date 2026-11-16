@@ -2583,6 +2583,11 @@ SYSTEM_DARK.addEventListener('change', paintTheme);
   #layer kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
   #layer textarea, #layer input { display: block; width: 100%; min-height: 0; border: 0; border-radius: 0; background: transparent; padding: 4px 2px; font-size: 15px; outline: none; resize: none; }
   #layer .chips:empty { display: none; }
+  #layer .hits { margin: 8px -8px 0; padding-top: 6px; border-top: 1px solid var(--line); }
+  #layer .hit { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+  #layer .hit.on { background: var(--chip); }
+  #layer .hit .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #layer .hit .soft { color: var(--soft); font-size: 12px; white-space: nowrap; }
   #layer .foot { margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; color: var(--soft); }
   /* On a phone: the bar in two rows, one column of the board at a time, and nothing to tap under 36px. */
   .jump { display: none; }
@@ -4119,7 +4124,7 @@ function openLayer(kind) {
   const box = document.getElementById('layer');
   layer = kind;
   box.replaceChildren(...LAYERS[kind]().flat(3).filter(Boolean));
-  box.setAttribute('aria-label', { keys: 'Keys', add: 'Quick add' }[kind]);
+  box.setAttribute('aria-label', { keys: 'Keys', add: 'Quick add', find: 'Find' }[kind]);
   box.hidden = document.getElementById('layerveil').hidden = false;
   const input = box.querySelector('textarea, input');
   if (input) input.focus();
@@ -4141,6 +4146,7 @@ const KEYS = [
   { key: 'g l', label: 'g then l', says: 'Go to the Backlog', run: () => goTo('backlog'), board: true },
   { key: '/', label: '/', says: 'Search', run: () => document.getElementById('search').focus(), board: true },
   { key: 'c', label: 'c', says: 'Add a thread to the backlog, from anywhere', run: () => openLayer('add') },
+  { key: 'mod k', label: MAC ? '⌘ K' : 'Ctrl K', says: 'Find a thread, or run an action by name' },
   { key: 'Escape', label: 'Esc', says: 'Close what is open, or let go of the thread' },
   { key: '?', label: '?', says: 'This list', run: () => (layer === 'keys' ? closeLayer() : openLayer('keys')) },
 ];
@@ -4153,7 +4159,78 @@ const LAYERS = {
     el('div', { class: 'foot' }, 'Keys wait while you type in a box. Esc closes this.'),
   ],
   add: quickAddNode,
+  find: findNode,
 };
+
+// The palette: any thread on the board by its name, id or tag, and anything the page can do by name.
+function actionsOf(b) {
+  const chat = b.runner.builder === 'chat';
+  return [
+    { name: 'Go to the Board', hint: 'g b', run: () => goTo('board') },
+    { name: 'Go to the Backlog', hint: 'g l', run: () => goTo('backlog') },
+    { name: 'Switch who builds to ' + (chat ? 'Headless' : 'Chat'), run: () => post('builder', { builder: chat ? 'headless' : 'chat' }, '') },
+    !chat && { name: b.runner.on ? 'Switch agents off' : 'Switch agents on', run: () => post('runner', { on: !b.runner.on }, '') },
+    ...b.sprints.filter((x) => x.waiting > 0).map((x) => ({ name: 'Play sprint: ' + x.name, run: () => post('play', { id: x.id }, x.name + ' is running') })),
+    { name: 'Add a thread', hint: 'c', run: () => openLayer('add') },
+    { name: 'Show the keys', hint: '?', run: () => openLayer('keys') },
+  ].filter(Boolean).map((a) => ({ ...a, kind: 'action', others: [] }));
+}
+// How well a name matches: it starts with what was typed, then a word in it does (or an id or a tag), then anywhere.
+function rankOf(q, name, others) {
+  const n = name.toLowerCase();
+  if (n.startsWith(q)) return 0;
+  if ((' ' + n).includes(' ' + q) || others.some((o) => o.startsWith(q))) return 1;
+  if (n.includes(q) || others.some((o) => o.includes(q))) return 2;
+  return -1;
+}
+function findAll(words) {
+  if (!current) return [];
+  const q = words.trim().toLowerCase();
+  const threads = [...everyCard(current), ...current.archived.map((c) => ({ ...c, archived: true }))]
+    .map((c) => ({ kind: 'thread', c, name: c.title, others: [c.id, ...c.tags.map((t) => '#' + t)] }));
+  const all = [...actionsOf(current), ...threads];
+  if (!q) return all.slice(0, 10);
+  return all.map((x, i) => ({ x, i, r: rankOf(q, x.name, x.others) })).filter((m) => m.r >= 0)
+    .sort((a, z) => a.r - z.r || a.i - z.i).map((m) => m.x).slice(0, 10);
+}
+function runHit(x) {
+  if (!x) return;
+  closeLayer();
+  if (x.kind === 'action') return x.run();
+  // An archived thread has no ticket: it is shown where it is kept, at the foot of the Backlog view.
+  if (x.c.archived) {
+    showArchived = true;
+    focusId = x.c.id;
+    if (view !== 'backlog') goTo('backlog'); else redraw();
+    return focusOn(x.c.id);
+  }
+  focusId = x.c.id;
+  openThread(x.c.id);
+}
+let finding = { list: [], at: 0 };
+function findNode() {
+  const hits = el('div', { class: 'hits', role: 'listbox' });
+  const mark = () => [...hits.children].forEach((n, i) => { n.classList.toggle('on', i === finding.at); n.setAttribute('aria-selected', String(i === finding.at)); });
+  const list = () => {
+    finding = { list: findAll(input.value), at: 0 };
+    hits.replaceChildren(...(finding.list.length ? finding.list.map((x, i) => el('div', { class: 'hit', role: 'option',
+      onmousemove: () => { if (finding.at !== i) { finding.at = i; mark(); } },
+      onclick: () => runHit(x) },
+      el('span', { class: 'name' }, x.name),
+      x.kind === 'thread'
+        ? [el('span', { class: 'soft mono' }, x.c.id), el('span', { class: 'state ' + x.c.column }, x.c.archived ? 'Archived' : STATE[x.c.column])]
+        : el('span', { class: 'soft' }, x.hint ? x.hint : 'Action'))) : [el('div', { class: 'empty' }, 'Nothing matches.')]));
+    mark();
+  };
+  const input = el('input', { placeholder: 'Find a thread, or an action', autocomplete: 'off', oninput: list,
+    onkeydown: (e) => {
+      const by = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+      if (by && finding.list.length) { e.preventDefault(); finding.at = (finding.at + by + finding.list.length) % finding.list.length; mark(); }
+      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); runHit(finding.list[finding.at]); }
+    } });
+  list();
+  return [input, hits];
+}
 
 // Quick add: one box over the page, filed to the backlog as + Add files it. A #word in it is a tag
 // and !0 to !3 its priority, shown under the box and left out of the name; the words are kept whole.
@@ -4209,6 +4286,11 @@ document.addEventListener('keydown', (e) => {
   if (e.isComposing) return;
   const at = document.activeElement;
   const typing = at && (['TEXTAREA', 'INPUT', 'SELECT'].includes(at.tagName) || at.isContentEditable);
+  // The palette's own shortcut works from anywhere, a box being typed in included.
+  if ((MAC ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    return layer === 'find' ? closeLayer() : openLayer('find');
+  }
   if (e.key === 'Escape') return escape(at, typing);
   if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
   let name = e.key;

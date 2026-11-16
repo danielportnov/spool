@@ -100,6 +100,9 @@ finishes. With nothing shipped and nothing needing you, the panel is not there.
 - `c`, from anywhere on the page, opens one box: type, press `Enter`, and it is in the backlog.
   A `#word` in it is a tag and `!0` to `!3` its priority (`spool task -p`, `--tag`), left out of
   its name; every word is kept on the thread.
+- `Cmd+K` (`Ctrl+K` off a Mac) is a palette: type part of a thread's name, its id or a `#tag` to
+  open it (archived ones too), or the name of an action: go to a view, switch who builds or the
+  agents, play a sprint, add a thread, show the keys. `Up` and `Down` choose, `Enter` runs it.
 
 **Backlog.** For planning: sprints stacked above the backlog. Create a sprint, drag threads into it,
 press **▶ Play sprint**. Notes nobody filed sit in a strip at the top (**Make it a thread**, or

@@ -57,9 +57,11 @@ const s = new Sandbox();
 s.sp('init', '--name', 'skyhop', '--gate');
 const jump = s.id('task', 'Tighten the jump arc', '-s', 's');
 const coins = s.id('task', 'Make coins readable at sunset');
-const pause = s.id('task', 'A pause menu that keeps the music');
+const pause = s.id('task', 'A pause menu that keeps the music', '--tag', 'audio');
 const water = s.id('task', 'Water that slows the player');
 s.sp('build', water);
+const cloud = s.id('task', 'An old cloud level');
+s.sp('archive', cloud);
 const state = (id: string): string => s.json('show', id).item.state;
 
 before(async () => {
@@ -273,6 +275,91 @@ test('c opens quick add from anywhere: Enter files it to the backlog, with its #
     await page.keyboard.type('Rain on the second world');
     await page.keyboard.press('Enter');
     await page.locator('#backlog .row', { hasText: 'Rain on the second world' }).waitFor();
+    assert.deepEqual(problems, [], 'the page logged no errors');
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('Cmd+K finds any thread by name, id or tag, and runs any action by name', async (t) => {
+  if (!browser) return t.skip('no Chrome on this machine to drive');
+  const { page, problems } = await open('board');
+  const palette = page.getByRole('dialog', { name: 'Find' });
+  const hits = palette.locator('.hit .name');
+  const ticket = page.locator('#thread');
+  try {
+    // From anywhere, a box being typed in included.
+    await page.keyboard.press('/');
+    await page.keyboard.press('ControlOrMeta+k');
+    await palette.waitFor();
+    assert.ok((await hits.count()) <= 10, 'ten at most');
+    assert.equal(await hits.first().innerText(), 'Go to the Board', 'with nothing typed, the actions come first');
+
+    // A name: the thread whose title starts with it is first, and Enter opens its ticket.
+    await page.keyboard.type('water');
+    assert.equal(await hits.first().innerText(), 'Water that slows the player');
+    await shot(page, 'keys-5-palette');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await shot(page, 'keys-5-palette-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.keyboard.press('Enter');
+    await palette.waitFor({ state: 'hidden' });
+    await ticket.getByRole('heading', { name: 'Water that slows the player' }).waitFor();
+    await page.keyboard.press('Escape');
+    await ticket.waitFor({ state: 'hidden' });
+    assert.equal(await focus(page), water, 'the focus is left on it');
+
+    // An id, and a tag.
+    await page.keyboard.press('ControlOrMeta+k');
+    await page.keyboard.type(jump);
+    assert.deepEqual(await hits.allInnerTexts(), ['Tighten the jump arc']);
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.type('#audio');
+    assert.deepEqual(await hits.allInnerTexts(), ['A pause menu that keeps the music']);
+    // Esc closes it, and Cmd+K again does too.
+    await page.keyboard.press('Escape');
+    await palette.waitFor({ state: 'hidden' });
+    await page.keyboard.press('ControlOrMeta+k');
+    await palette.waitFor();
+    await page.keyboard.press('ControlOrMeta+k');
+    await palette.waitFor({ state: 'hidden' });
+
+    // An archived thread is found too, and shown where it is kept.
+    await page.keyboard.press('ControlOrMeta+k');
+    await page.keyboard.type('cloud');
+    assert.deepEqual(await hits.allInnerTexts(), ['An old cloud level']);
+    await page.keyboard.press('Enter');
+    await page.locator('#archived .row[data-id="' + cloud + '"]').waitFor();
+    assert.equal(await focus(page), cloud);
+
+    // Actions by name, and Up and Down to choose among them.
+    await page.keyboard.press('ControlOrMeta+k');
+    await page.keyboard.type('go to');
+    assert.deepEqual(await hits.allInnerTexts(), ['Go to the Board', 'Go to the Backlog']);
+    const chosen = palette.locator('.hit.on .name');
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await chosen.innerText(), 'Go to the Backlog');
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await chosen.innerText(), 'Go to the Board', 'and round to the top');
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('Enter');
+    await page.locator('#board').waitFor();
+    await page.keyboard.press('ControlOrMeta+k');
+    await page.keyboard.type('who builds');
+    assert.deepEqual(await hits.allInnerTexts(), ['Switch who builds to Chat']);
+    await page.keyboard.press('Enter');
+    await page.locator('#builder button.on', { hasText: 'Chat' }).waitFor();
+    await page.keyboard.press('ControlOrMeta+k');
+    await page.keyboard.type('who builds');
+    assert.deepEqual(await hits.allInnerTexts(), ['Switch who builds to Headless']);
+    await page.keyboard.press('Enter');
+    await page.locator('#builder button.on', { hasText: 'Headless' }).waitFor();
+    await page.keyboard.press('ControlOrMeta+k');
+    await page.keyboard.type('add a');
+    await page.keyboard.press('Enter');
+    await page.getByRole('dialog', { name: 'Quick add' }).waitFor();
+    await page.keyboard.press('Escape');
     assert.deepEqual(problems, [], 'the page logged no errors');
   } finally {
     await page.context().close();
