@@ -297,8 +297,14 @@ keeps a long run sharp.
 
 1. Give what shipped a version: see "A version for what shipped".
 2. Notify them, by "Reaching them".
-3. Say it in a few plain lines, the ask first if there is one: what got done,
-   the new version, and what is waiting on them. The page has the rest.
+3. `spool brief` prints the morning brief: a headline, what needs them, the
+   few finished threads worth a look and why, the rest a line each, and the
+   calls agents made. Show it as it comes, then the new version in a line. It
+   is short on purpose; the page has the rest.
+
+They come back and ask "catch me up", "what did the agents do", "what
+happened overnight"? That is `spool brief` too; `--since 8h` or
+`--since yesterday` when they name a time.
 
 Then end the turn, and keep the schedule: answers and new threads arrive in
 between, and the next check back in picks them up.

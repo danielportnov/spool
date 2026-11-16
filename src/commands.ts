@@ -9,6 +9,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ParseArgsConfig } from 'node:util';
 import { effortOf, modelOf } from './agent.ts';
+import { morning, morningText } from './brief.ts';
 import { RETIRED, installSkills, installedIn, userSkillsDir } from './builtin.ts';
 import { spawnSync } from 'node:child_process';
 import { type Ctx, notify, saveUserConfig, userConfig } from './context.ts';
@@ -517,6 +518,17 @@ export const COMMANDS: Command[] = [
         Object.entries(queue).map(([key, items]) => [key, (items as Item[]).map((i) => itemJson(ws, i, key === 'questions'))]),
       );
       return { text: reviewText(ws, queue, p), data: json };
+    },
+  },
+  {
+    name: 'brief',
+    group: 'you',
+    usage: 'brief [--since <8h | yesterday | a date>] [-P <project>]',
+    summary: 'The morning brief: what shipped, what is worth a look, and what needs you, on one screen',
+    options: { since: { type: 'string' }, ...PROJECT },
+    run({ ws, p, opts }) {
+      const b = morning(ws, { since: str(opts.since), project: str(opts.project) });
+      return { text: morningText(ws, b, p), data: b };
     },
   },
   {
