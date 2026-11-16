@@ -342,9 +342,9 @@ out in plain code, the same way every time:
 | 5 · Too big | Sized large or huge, and not a plan |
 | 6 · The order | The backlog as it ranks now, every priority you set yourself (read from the threads' logs), and Build's line |
 
-It also marks the threads to leave alone (in Build, on hold, or ones you had a hand on in the last
-7 days), and says how many new ideas the run may file: 5, or none while 10 earlier ones still wait
-for your answer. `--json` gives the same as data. Spool calls no model for any of this. Matching
+It also marks the threads to leave alone (in Build, on hold, put in a sprint by you, or ones you
+had a hand on in the last 7 days), and says how many new ideas the run may file: 5, or none while
+10 earlier ones still wait for your answer. `--json` gives the same as data. Spool calls no model for any of this. Matching
 is by shared words, and words usual across the project's own titles are left out, so sharing
 "page" proves nothing.
 
