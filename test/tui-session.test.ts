@@ -163,7 +163,7 @@ test('wide letters in what an agent says wrap inside the session, and never past
   const board = fixture();
   board.columns.building.push(card('t-9zzz', '全角のタイトル', 'building', { live: { since: '2026-01-01T11:59:00Z', note: '' }, worktree: '.spool/worktrees/t-9zzz' }));
   const lines = ['日本語の行がとても長くて折り返さなければならない場合のテストです。', '→ Read: src/プレイヤー/ジャンプ.ts', '👩‍💻 pairing 👩‍💻 with 👩‍💻 emoji 👩‍💻 that 👩‍💻 join 👩‍💻 and é marks', 'a\ttab, a bell\x07 and \x1b[31mcolour\x1b[0m'];
-  board.runner.running.push({ id: 't-9zzz', seconds: 60, lines });
+  board.runner.running.push({ id: 't-9zzz', seconds: 60, lines, listens: false, asking: null });
   for (const [cols, rows] of [[80, 24], [93, 27], [120, 40]] as const) {
     const said = beside(board, stateOf(cols, rows, { at: 'building:t-9zzz' }), cols, rows);
     for (const line of said) assert.ok(width(line) <= cols - Math.max(36, Math.min(48, Math.floor(cols * 0.4))) - 1, line);

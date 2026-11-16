@@ -29,7 +29,6 @@ import * as path from 'node:path';
 import { ROUTE_TIMEOUT_MS, routerPrompt } from './agent.ts';
 import type { Ctx } from './context.ts';
 import type { Item } from './model.ts';
-import { oneLine } from './model.ts';
 import { type Ask, allowLine, denyLine, hearLine, interruptLine, listens, runDir, sessionOf, transcriptFile, userLine } from './stream.ts';
 
 /** How many of the lines an agent has printed are kept to show: the newest. */
@@ -271,12 +270,14 @@ export function startSession(
     if (lines.length > LIVE_LINES) lines.splice(0, lines.length - LIVE_LINES);
   };
   let sent = 0;
-  // What Spool says to a session: written to it, kept in the transcript as an event of Spool's own, and shown.
-  const tell = (line: string, event: Record<string, unknown>, shown: string): boolean => {
+  // What Spool says to a session: written to it, and kept in the transcript as an event of Spool's own, which is
+  // heard like any other line. So what is shown now is what the transcript reads back as later.
+  const tell = (line: string, event: Record<string, unknown>): boolean => {
     if (!live.listens) return false;
     child.stdin!.write(`${line}\n`);
-    keepRaw(`${JSON.stringify({ type: 'spool', ...event })}\n`);
-    show(shown);
+    const kept = JSON.stringify({ type: 'spool', ...event });
+    keepRaw(`${kept}\n`);
+    hear(kept);
     return true;
   };
   const live: Session = {
@@ -287,18 +288,18 @@ export function startSession(
     lost: false,
     listens: listens(command),
     say: (text) => {
-      if (!tell(userLine(text), { event: 'said', text }, `you: ${oneLine(text, 300)}`)) return false;
+      if (!tell(userLine(text), { event: 'said', text })) return false;
       live.waiting = undefined;
       return true;
     },
-    interrupt: () => tell(interruptLine(`spool-${++sent}`), { event: 'interrupt' }, 'told to stop what it is doing'),
+    interrupt: () => tell(interruptLine(`spool-${++sent}`), { event: 'interrupt' }),
     asking: [],
     answer: (id, how, reason = '', person = false) => {
       const at = live.asking.findIndex((ask) => ask.id === id);
       const ask = live.asking[at];
       if (!ask) return false;
       const yes = how !== 'no';
-      if (!tell(yes ? allowLine(ask, how === 'run') : denyLine(ask, reason), { event: 'answered', ask: id, call: ask.call, answer: how, ...(person ? { by: 'human' } : {}) }, `${yes ? 'allowed' : 'refused'} → ${ask.call}`)) return false;
+      if (!tell(yes ? allowLine(ask, how === 'run') : denyLine(ask, reason), { event: 'answered', ask: id, call: ask.call, answer: how, ...(person ? { by: 'human' } : {}) })) return false;
       live.asking.splice(at, 1);
       // A no a person gave is on the thread's log in their words: it is not said again when the turn ends.
       if (!yes && person) refused.push(ask.call);
@@ -339,18 +340,12 @@ export function startSession(
   // What goes on the thread's log: its session, and each tool call it was refused.
   const notes: string[] = [];
   let session: string | undefined;
-  // A session says which it is at the start of every turn: once is enough to show.
-  let opened = '';
   // The calls a person refused, which the turn's last event will list among those it was denied.
   const refused: string[] = [];
   const hear = (line: string): void => {
     // A line at a time, without the terminal's colour codes.
     const heard = hearLine(line.replace(/\x1b\[[0-9;]*[A-Za-z]/g, ''));
-    for (const l of heard.lines) {
-      if (l === opened) continue;
-      if (heard.session && l.startsWith(`session ${heard.session}`)) opened = l;
-      show(l);
-    }
+    for (const l of heard.lines) show(l);
     if (heard.lost) live.lost = true;
     let log = false;
     // The id on the line that says there is no such session is not a session.

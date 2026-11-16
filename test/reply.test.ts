@@ -10,6 +10,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
 import { Runner } from '../src/engine.ts';
+import { heardRun } from '../src/heard.ts';
 import { interruptLine, listening, listens, userLine } from '../src/stream.ts';
 import { claude, engineCtx, printed, recorded } from './claude.ts';
 import { CLI, Sandbox, pause, startPage, until } from './helpers.ts';
@@ -81,10 +82,14 @@ test('what the human writes on a thread being built is said to its agent, once, 
     assert.equal(s.item(jump).match(/passed on to the agent/g)?.length, 1);
 
     // It finishes. Its turn over and nothing left to do, its input is closed, and it goes as an agent always did.
+    const shown = runner.runs.get(jump)!.lines;
     fs.writeFileSync(go, '');
     await until('the agent has gone', () => !runner.runs.size);
     assert.deepEqual(runner.recent.map((r) => r.outcome), ['done']);
     assert.deepEqual(transcript(s, jump).filter((e) => e.type === 'spool'), [{ type: 'spool', event: 'said', text: 'keep gravity at 34' }]);
+    // What was said to it is in its transcript among what it said, so the run reads back line for line as it was shown.
+    assert.deepEqual(heardRun(path.join(s.root, '.spool'), jump).lines, shown);
+    assert.equal(shown.indexOf('you: keep gravity at 34'), shown.indexOf('apple') + 1);
   } finally {
     runner.close();
     s.cleanup();

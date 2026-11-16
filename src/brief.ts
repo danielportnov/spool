@@ -116,7 +116,7 @@ function lastSaid(t: Item): string | null {
     const said = newest
       .split('\n')
       .flatMap((line) => hearLine(line).lines)
-      .filter((l) => !/^(→ |✗ |session |denied → )/.test(l));
+      .filter((l) => !/^(→ |✗ |session |denied → |asks → |allowed → |refused → |you: |told to stop )/.test(l));
     if (said.length) return said.at(-1)!;
   }
   const own = entries(t).filter((e) => !['page', 'loop', 'human'].includes(e.actor) && !/^(started|handed to|done:|moved to build)/.test(e.text));

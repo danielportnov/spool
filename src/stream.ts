@@ -239,6 +239,12 @@ export function hearLine(line: string): Heard {
     for (const c of e.message.content) {
       if (c?.type === 'tool_result' && c.is_error) lines.push(`✗ ${short(textOf(c.content)) || 'the tool failed'}`);
     }
+  } else if (e.type === 'spool') {
+    // What Spool itself said to the session. It is kept in the transcript between the agent's own lines, so that a
+    // run reads back as it was shown: the human's words, their answer to a question, and being told to stop.
+    if (e.event === 'said' && typeof e.text === 'string') lines.push(`you: ${short(e.text, 300)}`);
+    else if (e.event === 'interrupt') lines.push('told to stop what it is doing');
+    else if (e.event === 'answered' && typeof e.call === 'string') lines.push(`${e.answer === 'no' ? 'refused' : 'allowed'} → ${e.call}`);
   } else if (e.type === 'control_request' && e.request?.subtype === 'can_use_tool' && typeof e.request_id === 'string' && typeof e.request.tool_name === 'string') {
     const r = e.request;
     const call = toolCall(r.tool_name, r.input);

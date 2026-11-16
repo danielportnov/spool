@@ -134,8 +134,8 @@ export function fixture(): Board {
       agent: 'claude -p',
       parallel: 3,
       running: [
-        { id: 't-4kq7', seconds: 372, lines: JUMP_LINES },
-        { id: 't-b81c', seconds: 130, lines: ['→ Read: src/world/coins.ts', 'The coins use the noon sprite at every hour.'] },
+        { id: 't-4kq7', seconds: 372, lines: JUMP_LINES, listens: true, asking: null },
+        { id: 't-b81c', seconds: 130, lines: ['→ Read: src/world/coins.ts', 'The coins use the noon sprite at every hour.'], listens: true, asking: null },
       ],
       stopped: ['t-e2b7'],
       recent: [],
