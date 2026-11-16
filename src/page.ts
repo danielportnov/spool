@@ -1896,7 +1896,9 @@ export function servePage({ ctx, opts }: Bare): Result {
   if (opts.status) return pageStatus(ctx, root);
   if (opts.stop) return stopPage(ctx, root);
   // One page to a project: a second start points at the first instead of taking the next port.
-  const up = resumed ? undefined : pageUp(ctx, root);
+  // Asked for a port of its own, it is given one: something is counting on that address (a preview pane, a test).
+  const there = resumed ? undefined : pageUp(ctx, root);
+  const up = there && (port === undefined || new URL(there.url).port === String(port)) ? there : undefined;
   if (up) {
     if (!opts['no-open'] && !opts.detach) openUrl(up.url);
     return { text: `The Spool page is already up for this project: ${up.url}` };
