@@ -4,6 +4,13 @@ What shipped in each version of Spool, newest first.
 
 ## Unreleased
 
+- The page keeps itself current. When it finds new code of Spool's on disk (an upgrade, a rebuild)
+  and no agent of its own is running, it restarts onto it, at the same address and with agents as
+  they were, and the page you have open reloads itself. Nothing is restarted under an agent, and a
+  build that does not start is left alone.
+- Spool building Spool: a page that builds Spool's own checkout runs `npm run build` there once
+  Build and Building are both empty, never while a thread is being built, so what is marked done is
+  what the page shows. If the rebuild fails, the page stays as it was and says why.
 - Fable picks who builds each thread: before a `claude` agent starts one, Fable reads it and
   chooses the model and the effort, leaning bigger and heavier, and says why on the thread. Your
   pick on the ticket's **Model** field, or `spool edit <id> --model <m> --effort <e>`, always wins.

@@ -250,6 +250,13 @@ walks away from is put back and not tried again until something about it changes
 what the agent last said, which is usually why. Use the page's runner or a chat's loop, not both:
 they would be two agents in one folder.
 
+The page keeps itself current. When the code of Spool on disk is no longer the code the page
+started from, after an upgrade or a rebuild, it restarts onto it once no agent of its own is
+running, at the same address, and the page you have open reloads itself. Where the project is
+Spool's own checkout, the page also runs `npm run build` there each time Build and Building have
+both emptied, and never while a thread is being built, so finished work on Spool shows on the page
+with no step of yours. A rebuild that fails changes nothing, and the page says why.
+
 **No chat at all, from a terminal.** `spool loop` is a runner of its own: it claims the next thread in Build, starts
 your agent command in that project with the rules and the brief on stdin, and looks again when it
 exits. `spool loop --watch 5` keeps looking. The agent command comes from your own machine
