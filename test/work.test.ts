@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
+import { shipped } from '../src/builtin.ts';
 import { type Sandbox, spool } from './helpers.ts';
 
 /** Claim tasks one after another, the way a loop would, and return the order they came out in. */
@@ -216,9 +217,11 @@ test('the protocols teach sizing, audits and plans to both roles', () => {
   assert.match(worker, /one\npick in four to large work/);
   assert.match(worker, /`spool done` says when the steps\nyou just took match earlier finished threads[\s\S]*`spool skills --suggest` prints the line that offers it/);
   const recorder = s.sp('prime', 'recorder');
-  assert.match(recorder, /\| a look and a report \| `spool audit "<what to examine, and through whose eyes>"/);
-  assert.match(recorder, /\| something big or open \| `spool plan "<the objective>"/);
-  assert.match(recorder, /\| "go ahead with the plan" \| `spool approve <t-id>`/);
+  assert.match(recorder, /\| a look and a report[^|]*\| `spool audit "<what to examine, and through whose eyes>"/);
+  assert.match(recorder, /\| something big or open[^|]*\| `spool plan "<the objective>"/);
+  // A plan's go-ahead is an answer, not something to record: that row is in /spool's table.
+  assert.doesNotMatch(recorder, /spool approve/);
+  assert.match(shipped('spool'), /\| "go ahead with the plan" \| `spool approve <t-id>`/);
 
   // With --context a worker gets the policy and the state of the queue, and none of the rules.
   const context = s.sp('prime', 'worker', '--context');

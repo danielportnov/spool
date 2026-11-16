@@ -235,8 +235,9 @@ test('the recorder records one message, and decides the split and the size itsel
   assert.match(recorder, /One message, then out: never keep recording what they say next\./);
   assert.doesNotMatch(recorder, /Stay in this role|You are the recorder/);
   assert.match(String(parseFrontmatter(recorder).data.get('description')), /records that one message and nothing else[\s\S]*\/spool-record <what to add, and where>/);
-  assert.match(recorder, /## Splitting what they said[\s\S]*never ask them how to split[\s\S]*`--needs <the earlier thread>`[\s\S]*`--from <note-id>`\n {2}on each/);
-  assert.match(recorder, /Size every thread as you file it[\s\S]*Never ask them how\nbig something is\./);
+  assert.match(recorder, /## Splitting what they said[\s\S]*never ask them how to split[\s\S]*`--from <note-id>`\n {2}on each/);
+  assert.match(recorder, /\| a change that waits on another \| the same `spool task`, with `--needs <the earlier thread>` \|/);
+  assert.match(recorder, /\*\*Size every thread as you file it:\*\*[\s\S]*Never ask them how big something is\./);
   assert.doesNotMatch(recorder, /Leave it off/, 'no thread is filed without a size');
 });
 
