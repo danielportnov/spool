@@ -1636,7 +1636,7 @@ const KINDS = {
   plan: ['🗺', 'A plan', 'worked out and split into parts; nothing is built here'],
 };
 const ABOUT_ICON = { what: '🧵', why: '🌱', done: '🏁', other: '📝' };
-function aboutNode(c) {
+function describeNode(c) {
   const t = c.thread;
   const parts = t.about.slice();
   if (!parts.some((p) => p.key === 'what') && t.said.length) parts.unshift({ key: 'what', label: 'What was asked for', text: t.said[0].text });
@@ -1671,7 +1671,7 @@ function threadNode(c, b) {
   const story = el('div', {},
     el('div', { class: 'key' }, (c.n != null ? '#' + c.n + ' · ' : '') + c.id),
     title,
-    aboutNode(c),
+    describeNode(c),
 
     // The thread itself: a conversation, oldest first. You said, Claude answered, and the moves in between.
     el('div', { class: 'feed' },
