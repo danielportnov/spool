@@ -186,7 +186,8 @@ const alive = (pid: number): boolean => {
 export function endLeftover(kept: Kept): void {
   const pid = kept.pid;
   if (!pid || !kept.session || process.platform === 'win32' || !alive(pid)) return;
-  const command = spawnSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }).stdout ?? '';
+  // The whole command, however long: the session is named at its far end.
+  const command = spawnSync('ps', ['-ww', '-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }).stdout ?? '';
   if (!command.includes(kept.session)) return;
   const wait = (ms: number): void => {
     for (const until = Date.now() + ms; alive(pid) && Date.now() < until; ) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);

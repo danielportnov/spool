@@ -428,6 +428,7 @@ export class Runner {
           spoke: picked.unheard ? Date.now() : undefined,
         };
         fresh.command = this.afresh(this.command(task, models, asItRan(task)));
+        task.by = this.name();
         task.started = timestamp(ws.now());
         addLog(task, 'page', 'its page had stopped with nobody working it; carried on where it was', ws.now());
         addLog(task, 'page', `handed to \`${again.command}\``, ws.now());
@@ -770,7 +771,7 @@ export class Runner {
   private handOut(): HandOut {
     let task: Item | undefined;
     let handed: Handed;
-    let fresh: Start = { prompt: '', command: this.agent };
+    const fresh: Start = { prompt: '', command: this.agent };
     let again: Start | undefined;
     let asker: string | undefined;
     let briefText = '';
