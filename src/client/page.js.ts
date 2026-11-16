@@ -221,7 +221,6 @@ function took(since) {
 // agent, which carries on or is told no. The card says it in short; the ticket shows the call whole, as it was written,
 // and there a no can say why, which the agent is told too.
 function permitNode(c, a, onTicket) {
-  const sayWhy = onTicket;
   const answer = (how, done, why) => post('permit', { id: c.id, ask: a.ask, answer: how, why: why || '' }, done);
   return el('div', { class: 'q' },
     onTicket ? [el('div', {}, '🔐 May it run this?' + (a.why ? ' ' + a.why + '.' : '')), el('pre', { class: 'mono' }, a.full)]
@@ -229,7 +228,7 @@ function permitNode(c, a, onTicket) {
     el('button', { onclick: () => answer('once', 'Allowed once') }, 'Allow once'),
     a.rest && el('button', { title: 'It is not asked again in this run: ' + a.rest, onclick: () => answer('run', 'Allowed for this run') }, 'Allow for this run'),
     el('button', { onclick: () => answer('no', 'Refused') }, 'No'),
-    sayWhy && sayNode('Why not?', 'No, because', (why) => answer('no', 'Refused', why)));
+    onTicket && sayNode('Why not?', 'No, because', (why) => answer('no', 'Refused', why)));
 }
 // The line a Building card shows: what the agent is doing now, and for how long. The runner's own output is the freshest.
 function liveLine(c, b) {
