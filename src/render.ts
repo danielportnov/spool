@@ -433,6 +433,8 @@ function briefText(ws: Workspace, d: Docket): string {
   const next = rows.filter((r) => r.mark === '');
   const asking = rows.filter((r) => r.mark === '🔴');
   const out = [standing(d, rows)];
+  // The sprint being played is the plan right now: its goal, and how far along it is.
+  for (const s of openSprints(ws, d.spool).filter((s) => s.status === 'running')) out.push(sprintLine(ws, s));
   if (building.length) out.push(`Building: ${names(building, 2)}`);
   if (next.length) out.push(`Next in build: ${names(next, 3)}`);
   for (const r of asking.slice(0, 3)) out.push(`❓ ${r.note.replace(/^Needs you: /, '')}`);
@@ -441,29 +443,72 @@ function briefText(ws: Workspace, d: Docket): string {
   return out.join('\n');
 }
 
+/** The sprints of a project that are not finished: the one being played first, then the planned ones in the order they were made. */
+function openSprints(ws: Workspace, spool: Spool): Item[] {
+  const rank = (s: Item) => (s.status === 'running' ? 0 : 1);
+  return ws.items
+    .filter((i) => i.kind === 'sprint' && i.spool === spool && (i.status === 'planned' || i.status === 'running'))
+    .sort((a, b) => rank(a) - rank(b) || a.created.localeCompare(b.created));
+}
+
+/** A sprint in one line: its name, where it stands, how far along it is, and what it is for. */
+function sprintLine(ws: Workspace, s: Item): string {
+  const inIt = sprintTasks(ws, s);
+  const goal = sprintAbout(s).goal;
+  return `🏁 **${s.title}** · ${s.status} · ${inIt.filter((t) => t.status === 'done').length} of ${inIt.length} done${goal ? ` — ${oneLine(goal, 140)}` : ''}`;
+}
+
+export interface ListGroup {
+  /** The sprint these threads are in; none for the loose threads. */
+  sprint?: Item;
+  rows: TableRow[];
+}
+
+/**
+ * The list's rows under the plan they serve: each unfinished sprint with its threads, the one
+ * being played first, then the threads in no sprint. A row keeps the number its place in line
+ * gave it, so a number means the same thread wherever it is shown, here or on the page.
+ */
+export function listGroups(ws: Workspace, d: Docket, rows: TableRow[] = tableRows(ws, d)): ListGroup[] {
+  const groups: ListGroup[] = openSprints(ws, d.spool).map((sprint) => ({ sprint, rows: [] }));
+  const loose: TableRow[] = [];
+  for (const r of rows) {
+    const sprint = sprintOf(ws, r.item);
+    (groups.find((g) => g.sprint === sprint)?.rows ?? loose).push(r);
+  }
+  return [...groups, ...(loose.length ? [{ rows: loose }] : [])];
+}
+
 function tableText(ws: Workspace, d: Docket): string {
   const rows = tableRows(ws, d);
   const cell = (text: string) => text.replace(/\|/g, '\\|');
   const out = [standing(d, rows), ''];
-  // Sprints that are not finished, each with what it is for: the plan the threads below serve.
-  const sprints = ws.items
-    .filter((i) => i.kind === 'sprint' && i.spool === d.spool && (i.status === 'planned' || i.status === 'running'))
-    .sort((a, b) => a.created.localeCompare(b.created));
-  for (const s of sprints) {
-    const inIt = sprintTasks(ws, s);
-    const goal = sprintAbout(s).goal;
-    out.push(`🏁 **${s.title}** · ${s.status} · ${inIt.filter((t) => t.status === 'done').length} of ${inIt.length} done${goal ? ` — ${oneLine(goal, 140)}` : ''}`);
+  const groups = listGroups(ws, d, rows);
+  if (!rows.length) {
+    // Nothing open, and the plan is still worth a line: what each unfinished sprint is for.
+    for (const g of groups) out.push(sprintLine(ws, g.sprint!));
+    return `${out.join('\n').trimEnd()}\n\nNothing is open.`;
   }
-  if (sprints.length) out.push('');
-  if (!rows.length) return `${out.join('\n').trimEnd()}\n\nNothing is open.`;
-  out.push('| # | 🧵 Thread | Difficulty | Priority | Note |', '| --- | --- | --- | --- | --- |');
-  for (const r of rows) {
-    const t = r.item;
-    const name = `${t.type === 'plan' ? 'Plan: ' : t.type === 'audit' ? 'Audit: ' : ''}${oneLine(t.title, 70)}`;
-    // Why it exists rides with its name, in one line, so the human can agree to it without opening it.
-    const why = whyOf(t) ? ` — ${cell(oneLine(whyOf(t), 90))}` : '';
-    const difficulty = t.size ? DIFFICULTY[t.size] : '—';
-    out.push(`| ${r.n} | **${cell(name)}**${why} | ${difficulty} | ${URGENCY[t.priority ?? 2] ?? 'Normal'} | ${cell(`${r.mark} ${r.note}`.trim())} |`);
+  const table = (list: TableRow[]) => {
+    out.push('| # | 🧵 Thread | Difficulty | Priority | Note |', '| --- | --- | --- | --- | --- |');
+    for (const r of list) {
+      const t = r.item;
+      const name = `${t.type === 'plan' ? 'Plan: ' : t.type === 'audit' ? 'Audit: ' : ''}${oneLine(t.title, 70)}`;
+      // Why it exists rides with its name, in one line, so the human can agree to it without opening it.
+      const why = whyOf(t) ? ` — ${cell(oneLine(whyOf(t), 90))}` : '';
+      const difficulty = t.size ? DIFFICULTY[t.size] : '—';
+      out.push(`| ${r.n} | **${cell(name)}**${why} | ${difficulty} | ${URGENCY[t.priority ?? 2] ?? 'Normal'} | ${cell(`${r.mark} ${r.note}`.trim())} |`);
+    }
+  };
+  // With no sprint there is nothing to group by: one table, as it has always been.
+  if (groups.length === 1 && !groups[0]!.sprint) table(rows);
+  else {
+    groups.forEach((g, i) => {
+      if (i) out.push('');
+      out.push(g.sprint ? sprintLine(ws, g.sprint) : '🧵 **Loose threads** · in no sprint');
+      if (g.rows.length) out.push('');
+      if (g.rows.length) table(g.rows);
+    });
   }
   const also = [
     ...(d.also.assumptions ? [plural(d.also.assumptions, 'call') + ' agents made on their own'] : []),

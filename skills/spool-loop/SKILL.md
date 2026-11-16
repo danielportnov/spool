@@ -196,6 +196,9 @@ The board: <the page's address>
 - **They ask for the whole list** ("show me everything", "what's in the
   spool")? Then, and only then, `spool overview --table`, exactly as it
   comes: every open thread, numbered, so they can say "build 4" or "drop 9".
+  It is grouped by sprint: the one being played first, under its goal and how
+  far along it is, then planned sprints, then loose threads. A number is a
+  thread's place in line, so numbers in a group can skip; use them as printed.
 - **Every thread says why it exists**, beside its name: the `Why:` line of its
   spec. That is what they agree to, so a thread with none is worth fixing:
   `spool check` names them.
@@ -235,7 +238,7 @@ Repeat until `spool next --claim` says nothing is ready:
 
 **Sprints.** They may group threads into a sprint on the page and press play
 on it: every thread in it lands in build at once, and you build them like any
-others. A sprint has no dates; it is over when its last thread is done, and
+others. `spool next` hands them out ahead of other work of the same urgency. A sprint has no dates; it is over when its last thread is done, and
 `spool done` says so. Say it too, in a line, and give it its version then.
 You may draft one from the backlog: say what it is for
 (`spool sprint "<name>" --goal "<what it is for>" --why "<why now>"

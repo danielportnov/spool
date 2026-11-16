@@ -49,6 +49,11 @@ export function sprintOf(ws: Workspace, task: Item): Item | undefined {
   return sprint && sprint.kind === 'sprint' && sprint.status !== 'dropped' ? sprint : undefined;
 }
 
+/** Whether a task is in a sprint the human has pressed play on and that is not finished yet. */
+export function inPlayingSprint(ws: Workspace, task: Item): boolean {
+  return sprintOf(ws, task)?.status === 'running';
+}
+
 /** Tasks that list `item` in their needs. */
 export function dependents(ws: Workspace, item: Item): Item[] {
   return ws.items.filter((i) => i.kind === 'task' && i.needs.includes(item.id));
@@ -112,7 +117,11 @@ export function isLarge(ws: Workspace, task: Item): boolean {
  * Priority comes first: it is the human's urgency. Within a priority the
  * smallest goes first, because quick wins are the cheapest progress there is —
  * except that one pick in `largeEvery` goes to large work, so a flood of small
- * things can never starve it. Whose turn it is comes from the `started` stamps
+ * things can never starve it. Within the same priority and the same lane, a
+ * sprint the human pressed play on goes ahead of everything else: they made it
+ * the plan, so its threads are what they mean by next. It sits under the lane
+ * so the turn for large work still holds while a sprint is full of small things.
+ * Whose turn it is comes from the `started` stamps
  * on the tasks themselves; there is no counter to keep. The list is the whole
  * sequence played forward, so what `status` shows is what `next` will do.
  */
@@ -126,6 +135,7 @@ export function ready(ws: Workspace, project?: Scope): Item[] {
   }
   const pool = scope.filter((t) => ['ready', 'stale'].includes(taskState(ws, t)));
   const large = new Map(pool.map((t) => [t.id, isLarge(ws, t)]));
+  const playing = new Map(pool.map((t) => [t.id, inPlayingSprint(ws, t) ? 0 : 1]));
   const order: Item[] = [];
   const placed = pool.filter((t) => t.place !== undefined).sort((a, b) => a.place! - b.place! || a.id.localeCompare(b.id));
   for (const t of placed) {
@@ -140,6 +150,7 @@ export function ready(ws: Workspace, project?: Scope): Item[] {
       (a, b) =>
         (a.priority ?? 2) - (b.priority ?? 2) ||
         lane(a) - lane(b) ||
+        playing.get(a.id)! - playing.get(b.id)! ||
         effort(a) - effort(b) ||
         a.created.localeCompare(b.created) ||
         a.id.localeCompare(b.id),

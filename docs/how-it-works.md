@@ -110,7 +110,11 @@ Everything the page does is an ordinary command run as you: `build`, `propose`, 
 
 Every time it runs, the loop does three things:
 
-1. **Shows the spool**: `spool overview --table` prints every open thread, numbered.
+1. **Shows the spool**: `spool overview --table` prints every open thread, numbered, under the
+   plan it serves: the sprint being played first, with its goal and how far along it is, then the
+   planned sprints in the order they were made, then the loose threads in no sprint. A number is
+   the thread's place in line, so it means the same thread here and on the page, and a group's
+   numbers can skip.
 2. **Builds what is in Build**, one thread at a time. For each: a line saying what it is starting
    and its plan, the work in small commits, then `spool done` with what changed and how you can
    see it.
@@ -180,7 +184,8 @@ Anything sized `xl` is a plan: nothing that big is built in one go.
 **Order.** Within Build: first what you put in its place, by dragging a card up or down on the page
 or with `spool order`, top first. Then the rest: the most urgent first (Urgent, High, Normal,
 Someday), then the smallest, with one pick in four kept for large work so quick wins never starve
-it. A thread that leaves Build, taken by an agent or sent back to the backlog, loses its place.
+it. Among threads of the same urgency and the same turn, a sprint you pressed play on goes before
+everything else. A thread that leaves Build, taken by an agent or sent back to the backlog, loses its place.
 
 ## Sprints
 
