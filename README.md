@@ -17,6 +17,9 @@ npm install -g github:danielportnov/spool && spool install
 
 Then, in Claude Code inside your project: `/spool-init`, and after it `/spool-page`. That's it.
 
+Want to see it first, away from your own code? `spool demo --open` makes a throwaway project with a
+few threads in it and opens its board.
+
 ## New to this? Set up in five minutes
 
 **What you need**
@@ -67,6 +70,19 @@ spool install
 
 The first downloads and builds Spool, which takes a minute. The second gives Claude Code four new
 commands, called skills. Nothing is added to your project yet.
+
+**Try it first, if you like**
+
+```bash
+spool demo --open
+```
+
+This makes a small sample project in a temporary folder, a bill splitter with a test, and fills its
+spool with threads: some in the backlog, one ready to build, one waiting on a question, a sprint and
+two finished. Its board opens in your browser. Drag a thread to Build, press play on the sprint,
+answer the question. Nothing is built until a thread is in Build, and to have Claude build it, open
+that folder in Claude Code and type `/spool-loop`. None of your own projects are touched, and it
+prints how to delete it.
 
 **4. Set up your project**
 

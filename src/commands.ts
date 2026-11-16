@@ -15,6 +15,7 @@ import { spawnSync } from 'node:child_process';
 import { type Ctx, notify, saveUserConfig, userConfig } from './context.ts';
 import { doctor } from './doctor.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
+import { demo } from './demo.ts';
 import { runLoop } from './loop.ts';
 import { servePage } from './page.ts';
 import { watch } from './watch.ts';
@@ -1838,6 +1839,14 @@ export const COMMANDS: Command[] = [
       }
       return { text: out.join('\n'), data: { root, created: fresh, wrote, skills, shared: !local } };
     },
+  },
+  {
+    name: 'demo',
+    group: 'setup',
+    usage: 'demo [<folder>] [--open]',
+    summary: 'Make a throwaway sample project with threads in its spool, to try the page and the loop on; --open opens its board',
+    options: { open: { type: 'boolean' } },
+    bare: (call) => demo(call),
   },
   {
     name: 'install',

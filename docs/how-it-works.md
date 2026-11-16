@@ -360,6 +360,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | Command | What it does |
 | --- | --- |
 | `spool init [folder] [--gate \| --lock] [--share]` | Start a spool; does nothing where one exists |
+| `spool demo [folder] [--open]` | A throwaway sample project with threads in its spool, to try the page and the loop on |
 | `spool install [--here \| --dir path]` | Put the skills where your agent finds them |
 | `spool checks [command \| --none]` | Name the command that must pass before a change is done here |
 | `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it; changes nothing |
