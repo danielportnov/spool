@@ -79,7 +79,7 @@ import {
 } from './schedule.ts';
 import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, writeSkill } from './skills.ts';
 import { SPOOL_DIR, Workspace, findFolder, findHome, readConfig, skillsDir } from './store.ts';
-import { similarLines, similarTo } from './similar.ts';
+import { alikeIn, alikeLines, similarLines, similarTo } from './similar.ts';
 import { SUGGEST, suggestSkills } from './suggest.ts';
 
 export type Options = NonNullable<ParseArgsConfig['options']>;
@@ -1677,8 +1677,8 @@ export const COMMANDS: Command[] = [
     name: 'list',
     aliases: ['ls'],
     group: 'see',
-    usage: 'list [-k <kind>] [-s <state>] [-t <type>] [--size <sizes>] [--search <words>] [-P <project>] [--all | --archived]',
-    summary: 'Find items; closed ones too with --all or --search; only the archived threads with --archived',
+    usage: 'list [-k <kind>] [-s <state>] [-t <type>] [--size <sizes>] [--search <words>] [-P <project>] [--all | --archived | --alike]',
+    summary: 'Find items; closed ones too with --all or --search; only the archived threads with --archived; open threads that look alike with --alike',
     options: {
       kind: { type: 'string', short: 'k' },
       status: { type: 'string', short: 's' },
@@ -1687,10 +1687,15 @@ export const COMMANDS: Command[] = [
       search: { type: 'string' },
       all: { type: 'boolean', short: 'a' },
       archived: { type: 'boolean' },
+      alike: { type: 'boolean' },
       ...PROJECT,
     },
     run({ ws, p, opts }) {
       const spool = str(opts.project) ? ws.project(str(opts.project)) : undefined;
+      if (opts.alike) {
+        const pairs = alikeIn(ws, spool);
+        return { text: alikeLines(ws, pairs, p).join('\n'), data: { pairs: pairs.map((m) => ({ a: itemJson(ws, m.a), b: itemJson(ws, m.b), score: Math.round(m.score * 100) / 100, words: m.words })) } };
+      }
       let items = ws.items.filter((i) => !spool || i.spool === spool);
       if (str(opts.kind)) {
         const want = str(opts.kind)!.toLowerCase();

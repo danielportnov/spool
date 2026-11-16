@@ -273,6 +273,7 @@ else they say, take every part of it:
 | "do X first", "X before Y", about threads in build | `spool order <t-id> --first`, or `--before <t-id>` |
 | "that one can wait", "X is urgent" | `spool edit <id> -p <0-3>` |
 | "park that until the launch" | `spool hold <t-id> -m "<their words>"` |
+| "tidy the backlog", "what is duplicated" | `spool list --alike`, then propose merges, archives and drops in a few lines; act only on their yes |
 | "archive that", "get it out of the way" | `spool archive <t-id>`; it is kept, and `spool archive --undo <t-id>` brings it back |
 | "drop that", "no", about any thread | `spool drop <t-id> -m "<their words>"` |
 | "go ahead with the plan" | `spool approve <t-id>`, always by id, one plan at a time |

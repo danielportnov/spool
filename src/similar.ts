@@ -15,6 +15,7 @@
 
 import { type Item, splitBody, tokens } from './model.ts';
 import { type Paint, itemLine } from './render.ts';
+import { taskState } from './schedule.ts';
 import type { Workspace } from './store.ts';
 
 /** The thresholds, in one place so they are easy to change. */
@@ -29,6 +30,9 @@ export const SIMILAR = {
   droppedDays: 90,
   /** Threads named at most. */
   shown: 3,
+  /** Listing the backlog (`list --alike`): a list a person reads, not a nudge on every filing, so a little lower. Three words in common still. */
+  alikeShared: 3,
+  alikeDice: 0.5,
 } as const;
 
 export interface Similar {
@@ -55,6 +59,12 @@ function droppedBecause(item: Item): string | undefined {
   return undefined;
 }
 
+/** How much two sets of words have in common: the words, and the share of all the words used (Dice). */
+function compare(a: Set<string>, b: Set<string>): { shared: number; score: number; words: string[] } {
+  const words = [...a].filter((t) => b.has(t));
+  return { shared: words.length, score: (2 * words.length) / (a.size + b.size || 1), words };
+}
+
 /** Threads in the project that say what this new one says. Closest first. */
 export function similarTo(ws: Workspace, task: Item): Similar[] {
   const mine = wordsOf(task);
@@ -68,10 +78,7 @@ export function similarTo(ws: Workspace, task: Item): Similar[] {
     const how = other.status === 'dropped' ? 'dropped' : other.status === 'done' ? 'done' : 'open';
     if (how === 'done' && days(other) > SIMILAR.doneDays) continue;
     if (how === 'dropped' && days(other) > SIMILAR.droppedDays) continue;
-    const theirs = wordsOf(other);
-    let shared = 0;
-    for (const t of mine) if (theirs.has(t)) shared++;
-    const score = (2 * shared) / (mine.size + theirs.size || 1);
+    const { shared, score } = compare(mine, wordsOf(other));
     if (shared < SIMILAR.minShared || score < SIMILAR.minDice) continue;
     out.push({ match: { item: other, how, ...(how === 'dropped' ? { why: droppedBecause(other) } : {}) }, score });
   }
@@ -94,5 +101,46 @@ export function similarLines(ws: Workspace, task: Item, similar: Similar[], p: P
   const open = similar.find((m) => m.how === 'open');
   if (open && note) out.push(p.dim(`  To add these words to ${open.item.id} instead: spool file ${note} --into ${open.item.id}, then spool drop ${task.id}`));
   out.push(p.dim('  Or leave it as it is.'));
+  return out;
+}
+
+export interface Alike {
+  /** The older of the two: the one to keep. */
+  a: Item;
+  b: Item;
+  score: number;
+  words: string[];
+}
+
+/** Pairs of open threads (proposed, in build or on hold) that look like each other, closest first. Each pair once; changes nothing. */
+export function alikeIn(ws: Workspace, spool?: Item['spool']): Alike[] {
+  const open = ws.items.filter(
+    (i) => i.kind === 'task' && (!spool || i.spool === spool) && !['done', 'dropped', 'archived'].includes(taskState(ws, i)),
+  );
+  const words = new Map(open.map((i) => [i.id, wordsOf(i)]));
+  const out: Alike[] = [];
+  for (let x = 0; x < open.length; x++) {
+    for (let y = x + 1; y < open.length; y++) {
+      const [a, b] = open[x]!.created <= open[y]!.created ? [open[x]!, open[y]!] : [open[y]!, open[x]!];
+      if (a.from.some((id) => b.from.includes(id))) continue;
+      const { shared, score, words: common } = compare(words.get(a.id)!, words.get(b.id)!);
+      if (shared >= SIMILAR.alikeShared && score >= SIMILAR.alikeDice) out.push({ a, b, score, words: common });
+    }
+  }
+  return out.sort((p, q) => q.score - p.score || p.a.created.localeCompare(q.a.created));
+}
+
+/** What a person reads: each pair as two thread lines, then the words they share and how to join or shelve them. */
+export function alikeLines(ws: Workspace, pairs: Alike[], p: Paint): string[] {
+  if (!pairs.length) return ['Nothing alike: no two open threads share enough words.'];
+  const out: string[] = [];
+  for (const { a, b, words } of pairs) {
+    const notes = b.from.filter((id) => ws.find(id)?.kind === 'note');
+    const merge = [...notes.map((n) => `spool file ${n} --into ${a.id}`), `spool drop ${b.id}`].join(', then ');
+    out.push(`  ${itemLine(ws, a, p)}`, `  ${itemLine(ws, b, p)}`);
+    out.push(p.dim(`    both say: ${words.join(', ')}. To merge ${b.id} into ${a.id}: ${merge}. Or: spool archive ${b.id}`));
+    out.push('');
+  }
+  out.push(`${pairs.length} ${pairs.length === 1 ? 'pair' : 'pairs'} look alike.`);
   return out;
 }
