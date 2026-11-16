@@ -473,7 +473,17 @@ history.
 
 **A folder of projects.** Set Spool up in a folder that holds several projects and each keeps its
 own spool; from the top you see and record into all of them, and from inside one you see just that
-one.
+one. The page is the same: started at the top, it opens on **All projects**, a row for each project
+(what is building and its agent's last line, what needs you, what is done to check, the sprint being
+played) under the brief across all of them. The project's name in the bar is a menu of every project,
+with what each holds and a mark on those that need you; choosing one shows its board in place, and
+the address says which (`?project=<name>`, beside `?view=` and `#<thread>`). Every click on a board
+is for that project: the page sends its name, the server takes only a name on the workspace's own
+list and runs the command in that project's folder, and an id that belongs to another project is
+refused. Started at the top, the page's runner builds every project's threads, each in its own
+folder and worktrees, with the at-once number shared across them; **Headless** or **Chat** is kept
+per project, and a project set to Chat is left to its chat. Started with `-P <project>`, it builds
+that one only, and the other boards say their agents are run by their own page or a chat.
 
 ## Other ways to run it
 
@@ -649,7 +659,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool builder [headless \| chat] [--at-once n]` | Say who builds here, and how many threads at once; with nothing after it, says what is set. The human's, like `spool build` |
 | `spool agents [on \| off]` | Switch the page's agents on or off, as its Agents button does; with nothing after it, says whether a page is up and its agents are on. On is the human's, like `spool build`, and refused while a chat builds; off is always allowed |
 | `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it; changes nothing |
-| `spool page [--run] [--agent cmd] [--port n] [--no-open]` | The board; `--run` has it build what is in Build too |
+| `spool page [--run] [--agent cmd] [--port n] [--no-open] [-P project]` | The board; `--run` has it build what is in Build too. In a folder of projects it shows them all, one click apart |
 | `spool page -d \| --status \| --stop` | The board in the background, with no browser opened; whether it is up, and where; end it |
 | `spool watch` | Print a line when there is something for the loop to do |
 | `spool loop [--watch s] [--agent cmd]` | The runner with no chat |

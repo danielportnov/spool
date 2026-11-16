@@ -175,6 +175,15 @@ version to narrow the board to it. Reply on a thread, say **Fine** to a call an 
 overrule it in a sentence, and press **Mark as complete** when you have looked at the change. Agents keep working while it is
 open, and you watch threads move.
 
+Keep several projects in one folder, each with its own spool? Start `spool page` in that folder and
+it shows them all: **All projects** first, a row each with what is building and what its agent last
+said, what needs you, what is done for you to check and how far its sprint has got, and above them
+the brief across every one. Click a row, or pick a project from the menu on its name in the bar,
+for that project's board; the address names it (`?project=apps/tidy_up`), so a link opens the right
+one. What you do on one project's board is done to that project and no other. The page's agents
+build every project under it, each in its own folder and worktrees, three at a time across all of
+them; Headless or Chat is picked per project.
+
 ![The Backlog view: sprints to fill and play, and the backlog under them](docs/spool-backlog.png)
 
 ![A thread, opened: what you said, what Claude did, and the ticket's fields](docs/spool-ticket.png)

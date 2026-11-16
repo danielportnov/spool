@@ -100,7 +100,7 @@ async function copy(words, done) {
 }
 const copyId = (id) => copy(id, 'Copied ' + id);
 // A ticket's own address: the page, with the thread after the #, and nothing else of where he is.
-const linkOf = (id) => location.origin + location.pathname + '#' + id;
+const linkOf = (id) => location.origin + location.pathname + projectQuery() + '#' + id;
 const LINK_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6.5 9.5a3 3 0 0 0 4.24 0l2.5-2.5a3 3 0 0 0-4.24-4.24l-.75.75"/><path d="M9.5 6.5a3 3 0 0 0-4.24 0l-2.5 2.5a3 3 0 0 0 4.24 4.24l.75-.75"/></svg>';
 function copyLinkNode(id) {
   const node = el('button', { class: 'copylink', title: 'Copy a link to this thread', 'aria-label': 'Copy link', onclick: () => copy(linkOf(id), 'Copied the link to ' + id) });
@@ -116,7 +116,7 @@ async function freshToken() {
   if (found) token = found[1];
 }
 function send(action, body) {
-  return fetch('/api/' + action, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': token }, body: JSON.stringify(body) });
+  return fetch('/api/' + action, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': token }, body: JSON.stringify(withProject(body)) });
 }
 
 async function post(action, body, done, undo) {
@@ -962,7 +962,7 @@ function livePost(c, b) {
 
 // The open thread is in the address, so a ticket can be linked to and survives a reload.
 function openThread(id) { openId = id; history.replaceState(null, '', '#' + id); redraw(); }
-function closeThread() { openId = null; history.replaceState(null, '', location.pathname); redraw(); }
+function closeThread() { openId = null; history.replaceState(null, '', location.pathname + location.search); redraw(); }
 
 // What a thread changed, fetched when asked for and kept: the files, the lines, and the patch itself.
 const diffs = new Map();
@@ -1311,7 +1311,8 @@ function threadNode(c, b) {
 // Which ticket is on screen, and the board it was drawn from (redraw() clears that, to draw it again).
 let drawnId = null;
 let drawnFrom = '';
-const steady = (b) => JSON.stringify(b, (k, v) => (k === 'seconds' || k === 'lines' ? undefined : v));
+// The list of projects is left out too: it carries what each agent said last, and the ticket draws none of it.
+const steady = (b) => JSON.stringify(b, (k, v) => (k === 'seconds' || k === 'lines' || k === 'workspace' ? undefined : v));
 function atFoot(node) { return node.scrollHeight - node.scrollTop - node.clientHeight < 8; }
 
 function drawThread(b) {
@@ -1362,6 +1363,8 @@ function liveInPlace(pane, c, b) {
 function draw(b) {
   YOU = b.you || '';
   document.getElementById('project').textContent = b.project;
+  // A page over several projects: the switcher, and the home view of them all when it is up.
+  if (drawProjects(b)) return;
   drawTab(b);
   document.getElementById('where').textContent = b.version ? 'v' + b.version : '';
   // Two things are still worth a line: a project where the gate is off, because there the board
@@ -1419,6 +1422,7 @@ function draw(b) {
       + ' It runs: ' + b.runner.agent + (b.runner.parallel > 1 ? ', on up to ' + b.runner.parallel + ' threads at once' : '') + '.' + lately;
     runner.onclick = () => post('runner', { on: !b.runner.on }, '');
   }
+  drawElsewhere(b);
   document.getElementById('board').hidden = view !== 'board';
   document.getElementById('backlog').hidden = view !== 'backlog';
   document.getElementById('roadmap').hidden = view !== 'roadmap';
@@ -1528,12 +1532,13 @@ async function load(now) {
   const at = document.activeElement;
   if (!now && (busy || (at && at.id !== 'search' && (['TEXTAREA', 'INPUT', 'SELECT'].includes(at.tagName) || at.isContentEditable)))) return;
   try {
-    const res = await fetch('/api/board');
+    const res = await fetch(boardUrl());
     if (!res.ok) throw new Error('no board');
     const text = await res.text();
     connected(true);
     if (text === last) return;
     const b = JSON.parse(text);
+    if (!fromHere(b)) return;
     if (b.build && b.build !== BUILD && renew(b.build)) return;
     last = text;
     current = b;

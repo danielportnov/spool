@@ -116,4 +116,6 @@ when Build has work and nothing is being built, the reason in one line. `spool p
 they ask.
 
 Agents keep working while the page is open, and it shows threads move as they do.
-`spool page -P <project>` shows one project of a folder of them.
+In a folder of projects, `spool page` at the top shows them all: it opens on **All projects**, and
+the project's name in the bar switches between their boards. Point at one with
+`<address>?project=<name>`; `spool page -P <project>` starts a page for one project only.
