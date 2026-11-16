@@ -84,7 +84,7 @@ test('with nobody at the terminal there is no mark at all', () => {
 
 test('in colour the ball is the page’s orange: 24 bits where the terminal has them, one of the 256 otherwise', () => {
   // The two ends of the range are the page's own accents, light and dark.
-  const page = fs.readFileSync(fileURLToPath(new URL('../src/page.ts', import.meta.url)), 'utf8');
+  const page = fs.readFileSync(fileURLToPath(new URL('../src/client/page.css.ts', import.meta.url)), 'utf8');
   const hex = (rgb: readonly number[]) => `#${rgb.map((n) => n.toString(16).padStart(2, '0')).join('')}`;
   assert.ok(page.includes(`--accent: ${hex(accent({ COLORFGBG: '0;15' }).body.rgb)};`), 'the light page’s accent');
   assert.ok(page.includes(`--accent: ${hex(accent({ COLORFGBG: '15;0' }).body.rgb)};`), 'the dark page’s accent');
