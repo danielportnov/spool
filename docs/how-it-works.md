@@ -80,8 +80,13 @@ it. See "The loop", below.
 
 **`/spool-record <what you want, and where>`** files one message. Your words are captured exactly,
 split into threads, each given a size and a short spec (what, why, done when), and put in the
-backlog. The chat carries on as it was. Only ideas, wishes, feedback and bugs become threads: telling
-an agent how to work ("keep going until midnight"), or saying go or no, is acted on, not recorded.
+backlog, in the sprint it serves if there is one. The chat carries on as it was. Only ideas, wishes,
+feedback and bugs become threads: telling an agent how to work ("keep going until midnight") is
+acted on, not recorded, and a go, a no or an answer is `/spool`'s.
+
+A skill Spool no longer ships is taken away by the next `spool install`, unless you edited your
+copy. `spool doctor` names one that is still there, and a project whose Spool block in `AGENTS.md`
+is not the one this version writes: `spool init --refresh` writes it again.
 
 ## The page
 
@@ -672,7 +677,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool checks [command \| --none]` | Name the command that must pass before a change is done here |
 | `spool builder [headless \| chat] [--at-once n]` | Say who builds here, and how many threads at once; with nothing after it, says what is set. The human's, like `spool build` |
 | `spool agents [on \| off]` | Switch the page's agents on or off, as its Agents button does; with nothing after it, says whether a page is up and its agents are on. On is the human's, like `spool build`, and refused while a chat builds; off is always allowed |
-| `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it; changes nothing |
+| `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it. After an upgrade it also names a retired skill that is still installed, for any agent, and a Spool block in `AGENTS.md` that is not the one this version writes; changes nothing |
 | `spool page [--run] [--agent cmd] [--port n] [--no-open] [-P project]` | The board; `--run` has it build what is in Build too. In a folder of projects it shows them all, one click apart |
 | `spool page -d \| --status \| --stop` | The board in the background, with no browser opened; whether it is up, and where; end it |
 | `spool watch` | Print a line when there is something for the loop to do |

@@ -5,17 +5,21 @@
  * agent's output. This reads the same places the runner, the page and the loop read, in the same
  * order, and changes nothing. A check is fine, wrong (a run will fail or cannot start) or advice
  * (a run works, but something is easier with it). Only wrong ones fail the command.
+ *
+ * It also names what an upgrade leaves behind: a skill Spool has retired, still where an agent
+ * finds it, and a Spool block in the project's agents file that is not the one this version writes.
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Bare, Result } from './commands.ts';
-import { SKILL_NAMES, installedIn, userSkillsDir, version } from './builtin.ts';
-import { copies, installedFor, others } from './harness.ts';
+import { SKILL_NAMES, installedIn, retiredIn, userSkillsDir, version } from './builtin.ts';
+import { HARNESSES, copies, installedFor, others } from './harness.ts';
 import { DEFAULT_AGENT } from './loop.ts';
 import { builderOf, userConfig } from './context.ts';
 import { git, repoRoot } from './git.ts';
+import { blockIn } from './prime.ts';
 import { SPOOL_DIR, findHome, readConfig, skillsDir } from './store.ts';
 import { watched } from './watch.ts';
 
@@ -186,6 +190,39 @@ export function diagnose({ ctx }: Bare): Finding[] {
     if (missing.length) add(id, 'advice', `the Spool skills for ${h.label} in ${at} lack ${missing.join(', ')}`, fix);
     else if (old.length) add(id, 'advice', `the Spool skills for ${h.label} in ${at} are from an older version than ${version()}`, fix);
     else add(id, 'ok', `the Spool skills are installed for ${h.label} and match ${version()}`);
+  }
+
+  // A skill Spool no longer ships, still where an agent finds it: its command is in the agent's list, and does what it did.
+  for (const h of HARNESSES) {
+    const places: [string | undefined, string][] = [
+      [h.userDir?.(ctx), ''],
+      [root && project ? h.projectDir?.(root) : undefined, ' --here'],
+    ];
+    for (const [at, here] of places) {
+      const found = at ? retiredIn(at) : [];
+      if (!at || !found.length) continue;
+      const names = found.map((f) => `${f.name}${f.edited ? ' (edited there, so spool install leaves it)' : ''}`);
+      // An untouched copy is taken away by the install; an edited one is theirs, so the fix names that folder and no other.
+      const folder = (name: string): string => (/^[\w./~@+-]+$/.test(path.join(at, name)) ? path.join(at, name) : `"${path.join(at, name)}"`);
+      add(`retired-${h.name}${here ? '-here' : ''}`, 'advice', `${found.length > 1 ? 'retired Spool skills are' : 'a retired Spool skill is'} still installed for ${h.label} in ${at}: ${names.join(', ')}`, [
+        ...(found.some((f) => !f.edited) ? [`spool install${h.name === 'claude' ? '' : ` --for ${h.name}`}${here}`] : []),
+        ...found.filter((f) => f.edited).map((f) => `rm -r ${folder(f.name)}`),
+      ]);
+    }
+  }
+
+  // The pointer every agent reads first. One an older Spool wrote may name a skill that is gone.
+  if (root) {
+    const blocks = ['CLAUDE.md', 'AGENTS.md']
+      .filter((name) => fs.existsSync(path.join(root, name)))
+      .map((name) => ({ name, block: blockIn(fs.readFileSync(path.join(root, name), 'utf8')) }));
+    const other = blocks.filter((b) => b.block === 'other').map((b) => b.name);
+    const current = blocks.filter((b) => b.block === 'current').map((b) => b.name);
+    if (other.length) {
+      add('block', 'advice', `the Spool block in ${other.join(' and ')} is not the one this version writes: it is from an older Spool, or was edited`, ['spool init --refresh']);
+    } else if (current.length) {
+      add('block', 'ok', `${current.join(' and ')} ${current.length > 1 ? 'have' : 'has'} the Spool block this version writes`);
+    }
   }
 
   const want = nodeWanted();

@@ -16,7 +16,7 @@ test('init lays down the store, the policy and a pointer for agents', () => {
   assert.match(out, /The queue stays on this machine: git ignores \.spool\/\./);
 
   // The pointer sends any agent to the skills, and one with no skills to the CLI's copy of the rules.
-  assert.match(s.read('AGENTS.md'), /<!-- spool:start -->[\s\S]*`\/spool-init`, `\/spool`, `\/spool-loop` and `\/spool-record`[\s\S]*spool prime[\s\S]*<!-- spool:end -->/);
+  assert.match(s.read('AGENTS.md'), /<!-- spool:start -->[\s\S]*`\/spool-init` sets a project up, `\/spool` steers it and opens the board,\n`\/spool-loop` makes a chat the builder, and `\/spool-record` files an idea\.[\s\S]*spool prime[\s\S]*<!-- spool:end -->/);
 
   // What comes next is said to an agent, not typed here. The skills are per machine, not per project.
   assert.match(out, /skills are not installed for your agent yet[\s\S]*spool install/);

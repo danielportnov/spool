@@ -16,7 +16,7 @@ them, you pick the ones worth building, and Claude builds them while you do some
 
 Spool itself has no cloud and no account of its own: it is plain files in your repo. You bring Claude.
 
-![The Spool page: a board with Backlog, Build, Building and Done](docs/spool-page.png)
+![The Spool page: a board with Backlog, Build, Building and Done](docs/spool-board.png)
 
 ## Already use Claude Code?
 
@@ -131,7 +131,7 @@ Done.
 | The board did not open | Go to the address Claude printed, usually `http://127.0.0.1:4747`. |
 | Nothing gets built | Is the thread under **Build**? Then type `/spool why is nothing building`, or run `spool status`: one line says why. |
 | Claude keeps asking permission | Choose **Yes, and don't ask again** for `spool` commands. |
-| You do not know what is missing | Run `spool doctor`. It checks git, the agent, your check and the skills, and prints the line that fixes each. |
+| You do not know what is missing | Run `spool doctor`. It checks git, the agent, your check and the skills, and prints the line that fixes each. After an upgrade it also says when an old skill, or an old Spool block in `AGENTS.md`, is still there. |
 
 ## Every day
 
@@ -151,7 +151,7 @@ Two threads land in the backlog, in your words, each in the sprint it serves if 
 
 1. **Threads start in the backlog.** Agents size them, explain them and suggest their own. They cannot start them. One you do not want to see, archive: it is kept, out of the way, a click from coming back.
 2. **You move a thread to Build.** Drag it, press ▶, or say "build that one". Or group a few into a **sprint** and press ▶ on the sprint. Say what you want a stretch of work to achieve and the agent makes the sprint for you: your words, a goal, and the threads that get there. Above the sprints sit the project's goals, a few lines on where it is heading, agreed with you at set-up: every agent reads them first, and each sprint says which one it serves.
-3. **The loop builds it.** In order, a line when it starts and a line when it ships: three at a time where your chat can start subagents and the project is a git repository, each in a worktree of its own; one at a time otherwise.
+3. **It gets built,** by the board's own agents or by a chat running `/spool-loop`, whichever you picked. In order, three threads at a time where the project is a git repository, each in a worktree of its own; one at a time otherwise. A chat says a line when a thread starts and a line when it ships.
 4. **You can take it back.** "Undo that" reverts everything that thread changed, and nothing else. Say why, and the reason is kept as a lesson: every agent reads it before it works, so you never say it twice. `spool lessons` lists them; `spool lessons --drop <n>` forgets one.
 
 **Nothing is built unless you put it in Build.** That is the contract.
@@ -290,12 +290,17 @@ It reads `GEMINI.md` unless its settings name `AGENTS.md` too.
 
 ## The four skills
 
-| | |
+You use Spool by talking to Claude. There are four skills, short enough to read: [`skills/`](skills).
+
+| You type | What it is for |
 | --- | --- |
-| `/spool-init` | Set Spool up in a repo, or in a folder of repos. Once. |
-| `/spool` | Say what you want, in any chat: "open the board", "build that one", "catch me up", "why is nothing building". |
-| `/spool-loop` | Makes that chat the builder: it builds what is in Build, then watches for more. |
-| `/spool-record <idea>` | Files one message as threads. The chat carries on as it was. |
+| `/spool-init` | Sets Spool up in a repo, or in a folder of repos, and asks who builds. Once. |
+| `/spool` | Whatever you want to say about the spool or the board, in any chat: "open the board", "build that one", "what needs me", "catch me up", "why is nothing building", "switch to chat mode". The answer is a few lines; the detail is on the board. |
+| `/spool-loop` | Makes that chat the builder: it builds what is in Build, several threads at once, then watches for more. |
+| `/spool-record <idea>` | Files one message as threads, in your words. The chat carries on as it was. |
+
+Upgrading? `spool install` brings your copies up to date and takes away a skill that has been
+retired, and `spool doctor` says if an old one, or an old Spool block in `AGENTS.md`, is still there.
 
 ## Under the hood
 

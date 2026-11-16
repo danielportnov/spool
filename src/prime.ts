@@ -82,17 +82,21 @@ const BLOCK_END = '<!-- spool:end -->';
 const BLOCK = `${BLOCK_START}
 ## Spool
 
-This project's work queue lives in \`.spool/\`. The human drives it by talking to you, through the
-Spool skills: \`/spool-init\`, \`/spool\`, \`/spool-loop\` and \`/spool-record\`. The \`spool\` CLI is your tool for it: never edit those
-files by hand, and never ask the human to run a command you can run.
+This project's work queue lives in \`.spool/\`. It is the project's spool 🧶, and each piece of work
+in it is a thread 🧵; the commands call a thread a task. The human drives it by talking to you,
+through four skills: \`/spool-init\` sets a project up, \`/spool\` steers it and opens the board,
+\`/spool-loop\` makes a chat the builder, and \`/spool-record\` files an idea. The \`spool\` CLI is
+your tool for it: never edit those files by hand, and never ask the human to run a command you
+can run.
 
 - The human gives an idea, a wish, feedback or a bug about the project, even in passing:
   \`spool capture "<their exact words>"\`, then file it with \`spool task "<title>" --from <note-id>\`.
   The \`spool-record\` skill has the rules.
 - Not everything they say is a note. An instruction to you about the work ("work the backlog
   until midnight", "use subagents") is done, not recorded. A go, a no or a choice is a verb:
-  \`spool build\`, \`spool propose\`, \`spool answer\`. In a long message, capture each idea on its own
-  and act on the rest. Not sure whether it is an idea or an instruction? Record nothing and act.
+  \`spool build\`, \`spool propose\`, \`spool answer\`; the \`spool\` skill has the table. In a long
+  message, capture each idea on its own and act on the rest. Not sure whether it is an idea or
+  an instruction? Record nothing and act.
 - Asked to do some work: \`spool status\` first. If it is already a task, \`spool start <id>\`, and
   work it by the worker's rules (\`spool prime worker\`), so the work is on record and can be undone.
 - No skills in your harness? \`spool prime\` prints the worker's rules, \`spool prime recorder\` the recorder's.
@@ -104,6 +108,18 @@ export function upsertBlock(existing: string): string {
   const end = existing.indexOf(BLOCK_END);
   if (start >= 0 && end > start) return existing.slice(0, start) + BLOCK + existing.slice(end + BLOCK_END.length);
   return `${existing.trimEnd()}${existing.trim() ? '\n\n' : ''}${BLOCK}\n`;
+}
+
+/**
+ * Whether an agent instructions file has Spool's block, and whether it is the one this version
+ * writes. One that differs is from an older Spool, or was edited: either way it may send an agent
+ * to a skill that is gone, and `spool init --refresh` writes it again.
+ */
+export function blockIn(existing: string): 'none' | 'current' | 'other' {
+  const start = existing.indexOf(BLOCK_START);
+  const end = existing.indexOf(BLOCK_END);
+  if (start < 0 || end <= start) return 'none';
+  return upsertBlock(existing) === existing ? 'current' : 'other';
 }
 
 /** One line on what a project is: its config, or failing that the top of its README. */

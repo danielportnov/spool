@@ -117,19 +117,30 @@ export function installedIn(dir: string): boolean {
 export type Outcome = 'installed' | 'updated' | 'current' | 'kept' | 'removed';
 
 /**
+ * The retired skills still lying in a skills directory. `edited` is one somebody changed, or that
+ * Spool never stamped: `spool install` takes the others away and leaves that one.
+ */
+export function retiredIn(dir: string): { name: string; edited: boolean }[] {
+  return Object.keys(RETIRED).flatMap((name) => {
+    const file = path.join(dir, name, 'SKILL.md');
+    if (!fs.existsSync(file)) return [];
+    return [{ name, edited: !untouched(fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n')) }];
+  });
+}
+
+/**
  * Copy the skills into a skills directory. A copy nobody has edited is brought
  * up to date; one somebody has edited is kept unless `force` says otherwise.
  * A retired skill is removed on the same terms: only a copy Spool wrote and
  * nobody has touched since, or any copy with `force`.
  */
 export function installSkills(dir: string, force = false): { name: string; outcome: Outcome }[] {
-  const retired = Object.keys(RETIRED).flatMap((name) => {
+  const retired = retiredIn(dir).map(({ name, edited }) => {
+    if (edited && !force) return { name, outcome: 'kept' as Outcome };
     const file = path.join(dir, name, 'SKILL.md');
-    if (!fs.existsSync(file)) return [];
-    if (!untouched(fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n')) && !force) return [{ name, outcome: 'kept' as Outcome }];
     fs.rmSync(file);
     if (!fs.readdirSync(path.dirname(file)).length) fs.rmdirSync(path.dirname(file));
-    return [{ name, outcome: 'removed' as Outcome }];
+    return { name, outcome: 'removed' as Outcome };
   });
   const current = SKILL_NAMES.map((name): { name: string; outcome: Outcome } => {
     const file = path.join(dir, name, 'SKILL.md');
