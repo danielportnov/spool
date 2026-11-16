@@ -2358,6 +2358,8 @@ SYSTEM_DARK.addEventListener('change', paintTheme);
   .over { border-color: var(--go) !important; }
   .col h2 { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; margin: 5px 6px 10px; display: flex; gap: 8px; color: var(--soft); font-weight: 600; }
   .col h2 .count { background: var(--chip); border-radius: 999px; padding: 0 8px; }
+  /* In the light theme the chip's grey is the column's own, so a pill on a column was not there to see: it takes the line's, and reads as it does in the dark. */
+  [data-theme="light"] :is(.col h2 .count, #brief h2 .count, .ghead .state, .prog) { background: var(--line); }
   .tools { display: flex; gap: 6px; margin: -4px 4px 8px; }
   .tools select { flex: 1; min-width: 0; padding: 2px 4px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--soft); font-size: 12px; cursor: pointer; }
   .tools select:hover { border-color: var(--line); }
