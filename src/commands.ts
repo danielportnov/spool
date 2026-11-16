@@ -9,7 +9,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ParseArgsConfig } from 'node:util';
 import { RETIRED, installSkills, installedIn, userSkillsDir } from './builtin.ts';
-import { type Ctx, notify } from './context.ts';
+import { spawnSync } from 'node:child_process';
+import { type Ctx, notify, saveUserConfig, userConfig } from './context.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
 import { runLoop } from './loop.ts';
 import { servePage } from './page.ts';
@@ -57,7 +58,7 @@ import {
 } from './render.ts';
 import { blockers, children, dependents, docket, findCycle, ready, review, sprintOf, sprintTasks, stateOf, taskState } from './schedule.ts';
 import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, writeSkill } from './skills.ts';
-import { SPOOL_DIR, type Workspace, findFolder, findHome, readConfig, skillsDir } from './store.ts';
+import { SPOOL_DIR, Workspace, findFolder, findHome, readConfig, skillsDir } from './store.ts';
 import { SUGGEST, suggestSkills } from './suggest.ts';
 
 export type Options = NonNullable<ParseArgsConfig['options']>;
@@ -73,6 +74,8 @@ export interface Bare {
 
 export interface Call extends Bare {
   ws: Workspace;
+  /** Whatever the command's `before` step found out, done while nothing was locked. */
+  before?: unknown;
 }
 
 export interface Result {
@@ -98,6 +101,11 @@ export interface Command {
   run?: (call: Call) => Result;
   /** For commands that manage the workspace themselves. */
   bare?: (call: Bare) => Result;
+  /**
+   * Slow work to do first, before the store is opened and locked: its result arrives as `call.before`.
+   * It may refuse the command by throwing.
+   */
+  before?: (call: Bare) => unknown;
 }
 
 // ------------------------------------------------------------------ helpers
@@ -179,6 +187,40 @@ function versionOf(v: unknown): string | undefined {
   if (given === 'none') return '';
   if (!/^[\w.+-]{1,24}$/.test(given)) throw new SpoolError(`"${given}" is not a version`, 'One short word, such as 0.9.0 or none');
   return given;
+}
+
+/**
+ * The project's own check: the command its human named as the proof a change is sound (the tests, a
+ * build). It runs before a change can be finished, and a failure refuses the finish. It runs with
+ * nothing locked, since tests take as long as they take and the page must stay usable meanwhile.
+ */
+const CHECK_MINUTES = 30;
+function runCheck({ ctx, args }: Bare): { command: string; seconds: number } | undefined {
+  if (!args[0]) return undefined;
+  const ws = Workspace.open(ctx.cwd, ctx.now);
+  let root: string;
+  try {
+    const task = ws.find(args[0]) ?? ws.get(args[0], 'task');
+    // Only a change is checked: an audit or a plan hands in words, and its parts are checked as they are built.
+    if (task.kind !== 'task' || task.type || task.status === 'done') return undefined;
+    root = task.spool.root;
+  } catch {
+    return undefined; // Not something that can be finished: the command itself says why.
+  } finally {
+    ws.close();
+  }
+  const command = userConfig(ctx).checks?.[root];
+  if (!command) return undefined;
+  const began = Date.now();
+  const ran = spawnSync(command, { shell: true, cwd: root, encoding: 'utf8', timeout: CHECK_MINUTES * 60_000, maxBuffer: 64 * 1024 * 1024, env: ctx.env });
+  const seconds = Math.round((Date.now() - began) / 1000);
+  if (ran.status === 0) return { command, seconds };
+  const tail = `${ran.stdout ?? ''}\n${ran.stderr ?? ''}`.trim().split('\n').slice(-15).join('\n  ');
+  const how = ran.error ? `could not run (${ran.error.message})` : ran.signal ? `was stopped (${ran.signal})` : `failed (exit ${ran.status})`;
+  throw new SpoolError(
+    `the check ${how}: ${command}`,
+    `It has to pass before this can be finished. Fix what it found and run spool done again.\n  If the check itself is wrong, that is the human's to change: put it to them with spool ask.${tail ? `\n\n  ${tail}` : ''}`,
+  );
 }
 
 /**
@@ -738,6 +780,47 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: 'checks',
+    group: 'setup',
+    usage: 'checks [<command…> | --none] [-P <project>]',
+    summary: 'Name the command that must pass before a change can be finished here (your tests, a build); kept on your machine',
+    human: true,
+    options: { none: { type: 'boolean' }, ...PROJECT },
+    run({ ws, ctx, args, opts }) {
+      const spool = str(opts.project) ? ws.project(str(opts.project)) : ws.home;
+      const now = userConfig(ctx).checks?.[spool.root];
+      if (!args.length && !opts.none) {
+        return {
+          text: now
+            ? `${spool.name} is checked with: ${now}\n  It runs before every spool done on a change there, and a failure refuses it.`
+            : `${spool.name} has no check: a change is done when the agent says so.\n  Name one: spool checks "npm test"`,
+          data: { project: spool.name, check: now ?? null },
+        };
+      }
+      // An agent may name a check where there is none, on the human's word. Changing or removing one is
+      // the human's alone: a check an agent can switch off proves nothing.
+      if (now && !ctx.tty && !ctx.human) {
+        throw new SpoolError(
+          `the check for ${spool.name} is the human's to change`,
+          'They type it in their own terminal. If the check is wrong, put it to them with spool ask; do not work round it.',
+        );
+      }
+      const command = opts.none ? '' : args.join(' ').trim();
+      const file = saveUserConfig(ctx, (config) => {
+        const checks = { ...(config.checks ?? {}) };
+        if (command) checks[spool.root] = command;
+        else delete checks[spool.root];
+        config.checks = checks;
+      });
+      return {
+        text: command
+          ? `${spool.name} is now checked with: ${command}\n  Kept in ${file}, on this machine, not in the project.`
+          : `${spool.name} has no check any more.`,
+        data: { project: spool.name, check: command || null },
+      };
+    },
+  },
+  {
     name: 'propose',
     group: 'you',
     usage: 'propose <t-id…>',
@@ -915,8 +998,10 @@ export const COMMANDS: Command[] = [
       report: { type: 'string' },
     },
     reads: 'report',
+    before: runCheck,
     run(call) {
       const { ws, p, actor } = call;
+      const checked = call.before as { command: string; seconds: number } | undefined;
       const t = first(call, 'which task', 'task');
       if (isClosed(t)) throw new SpoolError(`${t.id} is already ${t.status}`);
       const type = t.type ?? 'change';
@@ -983,6 +1068,8 @@ export const COMMANDS: Command[] = [
         fs.writeFileSync(reportPath, `${report.trim()}\n`);
       }
       t.status = 'done';
+      t.checked = checked?.command;
+      if (checked) addLog(t, actor, `check passed: ${checked.command} (${checked.seconds}s)`, ws.now());
       t.summary = summary;
       t.commits = [...commits];
       t.skills = uniq([...t.skills, ...used]);
@@ -994,6 +1081,7 @@ export const COMMANDS: Command[] = [
       const gated = kids.filter((k) => k.needs.includes(t.id) && k.status === 'open');
       const ready = uniq([...dependents(ws, t), ...kids]).filter((r) => taskState(ws, r) === 'ready');
       const out = [`${p.bold(t.id)} done.`];
+      if (checked) out.push(p.green(`  check passed: ${checked.command} (${checked.seconds}s)`));
       if (fs.existsSync(reportPath)) out.push(p.dim(`  ${type === 'plan' ? 'plan' : 'report'}  ${path.relative(t.spool.root, reportPath)}`));
       if (type === 'audit') out.push(p.dim(`  ${kids.length} finding(s) filed from it`));
       let told = false;

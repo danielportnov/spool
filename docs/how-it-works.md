@@ -125,6 +125,18 @@ project's own version file (minor for something new, patch for fixes; a major is
 `CHANGELOG.md` entry, a commit, and a tag that stays on your machine. Each thread is stamped with
 the version it shipped in.
 
+## Done means checked
+
+Name the command that proves a change is sound in your project — the tests, a build:
+
+    spool checks "npm test"
+
+From then on `spool done` runs it before a change can be finished, and a failure refuses the finish
+and shows the agent what broke. The thread records the check that passed, and its ticket shows it.
+The command is kept on your machine (`~/.config/spool/config.json`), never in the project, because
+it is run: a repository must not be able to name a program for Spool to start. An agent may set a
+check where there is none, on your word; changing or removing one takes you, at your own terminal.
+
 ## When an agent reaches a choice
 
 It does one of two things, and the policy decides which.
@@ -295,6 +307,7 @@ ones marked 🔒:
 | --- | --- |
 | `spool init [folder] [--gate \| --lock] [--share]` | Start a spool; does nothing where one exists |
 | `spool install [--here \| --dir path]` | Put the skills where your agent finds them |
+| `spool checks [command \| --none]` | Name the command that must pass before a change is done here |
 | `spool page [--port n] [--no-open]` | The board |
 | `spool watch` | Print a line when there is something for the loop to do |
 | `spool loop [--watch s] [--agent cmd]` | The runner with no chat |

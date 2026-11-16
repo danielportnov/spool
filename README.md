@@ -157,6 +157,7 @@ The pictures are a made-up project.
 - 🔔 It notifies you when Build is empty, or when it needs a call that is yours.
 - ❓ A question stops one thread, never the loop. It asks with options and a recommendation, and moves on.
 - 🧾 A call it makes by itself leaves a receipt you can overrule.
+- ✅ Name your tests once (`spool checks "npm test"`) and no thread can be marked done unless they pass.
 - 🏷️ What ships gets a version: a bump, a changelog entry, and a tag that stays on your machine.
 
 ## The four skills

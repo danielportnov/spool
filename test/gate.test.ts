@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { test } from 'node:test';
 import { Sandbox, spool } from './helpers.ts';
 
@@ -188,5 +190,45 @@ test('locking is one step up from the gate, and init --gate never undoes it', ()
   assert.equal(JSON.parse(s.read('.spool/config.json')).gate, 'locked');
   const later = s.id('task', 'Filed after the lock');
   assert.match(s.fails('build', later), /its gate is locked/);
+  s.cleanup();
+});
+
+test('done means checked: the project’s own check runs first, and a failure refuses the finish', () => {
+  const s = spool();
+  const jump = s.id('task', 'Tighten the jump arc');
+  s.sp('start', jump);
+
+  // The human names the check. It is kept on their machine, never in the project.
+  assert.match(s.sp('checks'), /demo has no check: a change is done when the agent says so/);
+  const set = s.sp('checks', 'test -f passed.txt');
+  assert.match(set, /^demo is now checked with: test -f passed\.txt\n {2}Kept in .*\.config\/spool\/config\.json, on this machine, not in the project\./);
+  assert.deepEqual(JSON.parse(s.read('.spool/config.json')), { version: 1, name: 'demo' }, 'the project never names a program to run');
+  assert.deepEqual(Object.values(JSON.parse(s.read('.home/.config/spool/config.json')).checks), ['test -f passed.txt']);
+
+  // It fails: the thread is not finished, and the agent is told what to do and what not to.
+  const refused = s.fails('done', jump, '-m', 'Snappier');
+  assert.match(refused, /the check failed \(exit 1\): test -f passed\.txt[\s\S]*It has to pass before this can be finished[\s\S]*that is the human's to change/);
+  assert.equal(s.json('show', jump).item.state, 'active');
+
+  // It passes: finished, and the thread says what was run.
+  s.write('passed.txt', 'ok');
+  assert.match(s.sp('done', jump, '-m', 'Snappier'), /done\.\n {2}check passed: test -f passed\.txt \(\d+s\)/);
+  const done = s.json('show', jump).item;
+  assert.deepEqual([done.state, done.checked], ['done', 'test -f passed.txt']);
+  assert.match(s.item(jump), /agent: check passed: test -f passed\.txt \(\d+s\)/);
+
+  // An audit hands in words, not code: nothing is run for it.
+  fs.rmSync(path.join(s.root, 'passed.txt'));
+  const audit = s.id('audit', 'How does it feel to a new player?');
+  s.sp('start', audit);
+  assert.equal(s.exec(['done', audit, '-m', 'Two things', '--report', '-'], { stdin: 'The jump, and the coins.' }).code, 0);
+
+  // An agent cannot switch the check off or swap it for an easier one; the human, at their terminal, can.
+  assert.match(s.fails('checks', '--none'), /the check for demo is the human's to change[\s\S]*do not work round it/);
+  assert.match(s.fails('checks', 'true'), /the check for demo is the human's to change/);
+  assert.match(s.exec(['checks', '--none'], { tty: true }).out, /demo has no check any more/);
+  const coins = s.id('task', 'Coins');
+  s.sp('start', coins);
+  assert.equal(s.json('done', coins, '-m', 'Outlined').task.checked, undefined);
   s.cleanup();
 });

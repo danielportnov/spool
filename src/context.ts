@@ -44,6 +44,28 @@ export interface UserConfig {
   notify?: string;
   /** Shell command `spool loop` starts for each task; the prompt arrives on stdin. */
   agent?: string;
+  /**
+   * For each project, by the path of its folder: the command that must pass before a change there
+   * can be finished. It is kept here, on the user's machine, and not in the project, because it is
+   * run: a repository must never be able to name a program for Spool to start.
+   */
+  checks?: Record<string, string>;
+}
+
+function userConfigFile(ctx: Ctx): string {
+  const base = ctx.env.XDG_CONFIG_HOME || (ctx.env.HOME ? path.join(ctx.env.HOME, '.config') : '');
+  return base ? path.join(base, 'spool', 'config.json') : '';
+}
+
+/** Change the user's own settings, leaving everything else in the file as it was. */
+export function saveUserConfig(ctx: Ctx, change: (config: UserConfig) => void): string {
+  const file = userConfigFile(ctx);
+  if (!file) throw new Error('no home directory to keep settings in');
+  const config = userConfig(ctx);
+  change(config);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`);
+  return file;
 }
 
 export function userConfig(ctx: Ctx): UserConfig {

@@ -85,6 +85,8 @@ interface Thread {
   report: string;
   /** Who built it, as they signed themselves. */
   by: string;
+  /** The project's check that passed before it was finished, as the command that ran. */
+  checked: string;
   summary: string;
   commits: string[];
   cameFrom: { id: string; title: string }[];
@@ -101,7 +103,7 @@ interface Post {
 }
 
 /** The queue's own log lines: what moved where. Anything else an agent logged is something it had to say. */
-const BOOKKEEPING = /^(started|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |reverted|reopened|dropped|agreed|filed )/;
+const BOOKKEEPING = /^(started|check passed|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |reverted|reopened|dropped|agreed|filed )/;
 
 function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['steps']): Post[] {
   const words: Post[] = said.map((s) => ({
@@ -191,6 +193,7 @@ function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Threa
     feed: feedOf(ws, task, read.said, steps),
     report: readReport(task),
     by: task.by ?? '',
+    checked: task.checked ?? '',
     summary: task.summary ?? '',
     commits: task.commits.map((c) => c.slice(0, 7)),
     cameFrom: from.map((i) => ({ id: i.id, title: i.title })),
@@ -1182,6 +1185,7 @@ function threadNode(c, b) {
             p.kind === 'shipped' && el('span', { class: 'badge' }, '✓ Shipped'),
             p.kind === 'asked' && el('span', { class: 'badge ask' }, '❓ Needs a call from you'),
             el('pre', {}, p.text),
+            p.kind === 'shipped' && t.checked && el('div', { class: 'badge', style: 'display: block' }, '✓ Check passed: ' + t.checked),
             p.kind === 'shipped' && t.commits.length > 0 && el('div', { class: 'mono', style: 'margin-top: 6px; color: var(--soft)' }, (t.commits.length === 1 ? 'commit ' : 'commits ') + t.commits.join(' · ')),
             asking && el('div', {}, c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '', style: 'margin: 8px 6px 0 0',
               onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)))));
@@ -1241,6 +1245,7 @@ function threadNode(c, b) {
       (v) => post('assign', { id: c.id, sprint: v }, v ? 'In the sprint' : 'Back in the backlog'))),
     c.type !== 'change' && field('Type', el('div', { class: 'val' }, c.type)),
     (c.column === 'building' || c.done) && field('Built by', el('div', { class: 'val' }, whoIs(t.by))),
+    c.done && field('Check', el('div', { class: 'val' }, t.checked ? '✓ Passed: ' + t.checked : 'None was run')),
     c.suggested && field('Came from', el('div', { class: 'val' }, '✨ AI suggested')),
     field('Created', el('div', { class: 'val' }, c.created.slice(0, 10))),
     field('Updated', el('div', { class: 'val' }, c.updated.slice(0, 16).replace('T', ' '))));

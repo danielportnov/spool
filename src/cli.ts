@@ -113,9 +113,11 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
   const base = { ctx: scoped, args: positionals, opts: values, actor, p: paint(scoped.color) };
   if (command.bare) return { result: command.bare(base), json };
 
+  // Anything slow a command has to do first is done here, before the store is locked for it.
+  const before = command.before?.(base);
   const ws = Workspace.open(scoped.cwd, scoped.now, !!command.write);
   try {
-    return { result: command.run!({ ...base, ws }), json };
+    return { result: command.run!({ ...base, ws, before }), json };
   } finally {
     ws.close();
   }

@@ -139,6 +139,8 @@ export interface Item {
   version?: string;
   /** Tasks: the sprint it has been put in, by id. */
   sprint?: string;
+  /** Tasks: the project's check that passed before this was finished, as the command that was run. */
+  checked?: string;
   /** Tasks: names of the skills used. */
   skills: string[];
   /** When the human acknowledged a finished task, an assumption or a new skill. */
@@ -182,6 +184,7 @@ const FIELDS: readonly (readonly [string, FieldType])[] = [
   ['tags', 'tokens'],
   ['version', 'string'],
   ['sprint', 'string'],
+  ['checked', 'string'],
   ['skills', 'tokens'],
   ['reviewed', 'string'],
   ['path', 'string'],

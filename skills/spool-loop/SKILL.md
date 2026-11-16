@@ -365,7 +365,11 @@ A thread 🧵 is one piece of work in a project's spool 🧶. The commands call 
 task. Its brief says what type of work it is, and finishing means something
 different for each.
 
-**A change.** Make it, in small commits. End every commit message with the trailer
+**A change.** Make it, in small commits. Where the project has a check
+(`spool checks` says), `spool done` runs it first and refuses if it fails:
+fix what it found and run `spool done` again. The check is the human's. If
+it is wrong, ask them (`spool ask`); never switch it off or work round it.
+End every commit message with the trailer
 
     Spool: <task-id>
 
