@@ -61,6 +61,29 @@ export interface UserConfig {
    * run: a repository must never be able to name a program for Spool to start.
    */
   checks?: Record<string, string>;
+  /**
+   * For each project, by the path of its folder: who builds what is in Build. `"chat"` is a
+   * Claude Code chat running the loop, and the page starts no agent of its own there. A project
+   * not named here is built headless, by the page starting the agent command. Set on the page.
+   */
+  builder?: Record<string, string>;
+}
+
+/** Who builds a project's threads: the page, starting the agent command itself, or a chat running the loop. */
+export type Builder = 'headless' | 'chat';
+
+export function builderOf(ctx: Ctx, root: string): Builder {
+  return userConfig(ctx).builder?.[root] === 'chat' ? 'chat' : 'headless';
+}
+
+export function saveBuilder(ctx: Ctx, root: string, builder: Builder): void {
+  saveUserConfig(ctx, (config) => {
+    const all = { ...(config.builder ?? {}) };
+    // Headless is what a project is with nothing said, so nothing is kept for it.
+    if (builder === 'chat') all[root] = 'chat';
+    else delete all[root];
+    config.builder = all;
+  });
 }
 
 function userConfigFile(ctx: Ctx): string {

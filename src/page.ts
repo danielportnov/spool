@@ -34,7 +34,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from './cli.ts';
 import type { Bare, Result } from './commands.ts';
-import { type Ctx, userConfig } from './context.ts';
+import { type Builder, type Ctx, builderOf, saveBuilder, userConfig } from './context.ts';
 import { DEFAULT_AGENT, PREAMBLE } from './loop.ts';
 import {
   EFFORTS,
@@ -57,6 +57,7 @@ import { age, brief, paint, sprintAbout, tableRows } from './render.ts';
 import { blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
 import { Workspace } from './store.ts';
 import { hearLine, streaming, transcriptFile } from './stream.ts';
+import { watched } from './watch.ts';
 
 type Column = 'proposed' | 'build' | 'building' | 'done';
 
@@ -214,8 +215,20 @@ interface Board {
   history: number;
   /** Everything waiting on the human that is not a thread to build. */
   needs: Needs;
-  /** The page's own runner: whether it is building, with what command, and what the agent is saying. */
-  runner: { on: boolean; agent: string; current: { id: string; seconds: number; lines: string[] } | null; recent: { id: string; title: string; outcome: string }[] };
+  /**
+   * Who builds, and how it is going. `builder` is the human's pick: `headless`, the page's own
+   * runner starting the agent command, or `chat`, a Claude Code chat running the loop, where the
+   * page starts nothing and `watching` says whether a chat is listening for work. The rest is the
+   * page's own runner: whether it is on, with what command, and what its agent is saying.
+   */
+  runner: {
+    builder: Builder;
+    watching: boolean;
+    on: boolean;
+    agent: string;
+    current: { id: string; seconds: number; lines: string[] } | null;
+    recent: { id: string; title: string; outcome: string }[];
+  };
   /** The sprints, oldest first: what is in each and how far along it is. */
   sprints: { id: string; name: string; status: string; goal: string; why: string; doneWhen: string; total: number; done: number; waiting: number }[];
   columns: Record<Column, Card[]>;
@@ -459,6 +472,9 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
     history: done.filter((t) => t.reviewed).length,
     needs: needsOf(ws, spool),
     runner: {
+      builder: runner?.builder ?? 'headless',
+      // Looked for only where it is shown: with a chat building.
+      watching: runner?.builder === 'chat' && watched(spool.root),
       on: !!runner?.on,
       agent: runner?.agent ?? '',
       current: runner?.current ? { id: runner.current.id, seconds: Math.round((Date.now() - runner.current.began) / 1000), lines: runner.current.lines } : null,
@@ -540,10 +556,16 @@ function endGroup(child: ChildProcess): void {
  * done, one it asked a question on waits for the human, and one it walked
  * away from is put back and not tried again until something about it changes.
  * The agent command comes from the user's machine, never from the project.
+ *
+ * That is building headless. The human can pick a chat to build instead, on the
+ * page: a Claude Code session running the loop. Then the runner starts nothing,
+ * whether it is on or not, and an agent it had already started is left to finish.
  */
 export class Runner {
   on: boolean;
   readonly agent: string;
+  /** The folder of the project this page shows: the human's pick of who builds is kept by it. */
+  private root = '';
   /** `undo`: the thread was moved back to the backlog, so once the agent is gone, what it changed is undone. */
   current: { id: string; title: string; child: ChildProcess; lines: string[]; began: number; stopped: boolean; undo?: boolean } | null = null;
   /** The thread dragged into Building: it is the next one taken, ahead of the rest of Build. */
@@ -567,8 +589,27 @@ export class Runner {
     this.project = project;
     this.agent = agent || ctx.env.SPOOL_AGENT || userConfig(ctx).agent || DEFAULT_AGENT;
     this.on = on;
+    try {
+      const ws = Workspace.open(ctx.cwd, ctx.now);
+      try {
+        this.root = (project ? ws.project(project) : ws.home).root;
+      } finally {
+        ws.close();
+      }
+    } catch {
+      // No spool to read: there is nothing to build either.
+    }
     this.recover();
     this.timer = setInterval(() => this.tick(), 1000);
+  }
+
+  /** Who builds what is in Build: read fresh, so a pick made on any page of this project shows at once. */
+  get builder(): Builder {
+    return this.root ? builderOf(this.ctx, this.root) : 'headless';
+  }
+
+  set builder(builder: Builder) {
+    if (this.root) saveBuilder(this.ctx, this.root, builder);
   }
 
   /**
@@ -699,6 +740,8 @@ export class Runner {
   private tick(): void {
     if (this.upkeep?.()) return;
     if (!this.on || this.current) return;
+    // A chat builds here: nothing is started from the page.
+    if (this.builder === 'chat') return;
     let task: Item | undefined;
     let prompt = '';
     let command = this.agent;
@@ -1296,7 +1339,7 @@ const text = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
  *   - Backlog: off whoever is building it, and its work undone. An agent this
  *     page runs is ended first, then the files it changed and its commits are put back.
  *   - Build: it waits there. One being built is stopped with its work kept; one done is reverted.
- *   - Building: this page builds it next, with agents switched on.
+ *   - Building: this page builds it next, with agents switched on. Where a chat builds, it waits in Build for the chat.
  *   - Done: the human marking it done; an agent of this page's on it is ended.
  */
 function moveThread(ctx: Ctx, runner: Runner, id: string, to: string): { ok: boolean; text: string; data?: unknown } {
@@ -1356,6 +1399,8 @@ function moveThread(ctx: Ctx, runner: Runner, id: string, to: string): { ok: boo
       check.close();
     }
     if (state !== 'ready') return { ok: true, text: `In build, but it cannot start yet: it is ${state}.` };
+    // With a chat building, the page starts nothing: the thread waits in Build for the chat to take.
+    if (runner.builder === 'chat') return { ok: true, text: `In build, for the chat to take: ${title}` };
     runner.next = id;
     runner.on = true;
     const busy = runner.current && runner.current.id !== id;
@@ -1594,6 +1639,16 @@ export function startPage(
             runner.on = body.on === true;
             return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: runner.on ? 'Agents are on: this page builds what is in Build.' : 'Agents are off.' }));
           }
+          // Who builds: this page, starting the agent command, or a Claude Code chat running the loop.
+          if (action === 'builder') {
+            if (body.builder !== 'headless' && body.builder !== 'chat') return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'headless, or chat?' }));
+            runner.builder = body.builder;
+            const words =
+              body.builder === 'chat'
+                ? `A Claude Code chat builds now: say /spool-loop in one. This page starts no agents.${runner.current ? ' The agent it had started finishes its thread.' : ''}`
+                : `This page builds now, headless. ${runner.on ? 'Agents are on.' : 'Switch Agents on to start.'}`;
+            return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: words }));
+          }
           if (action === 'move' || action === 'abort') {
             // A thread moved to any column, from any column. Abort is the move straight back to the backlog.
             const result = moveThread(ctx, runner, text(body.id), action === 'abort' ? 'proposed' : text(body.to));
@@ -1720,8 +1775,10 @@ export function servePage({ ctx, opts }: Bare): Result {
   const project = typeof opts.project === 'string' ? opts.project : undefined;
   // Fail now, in words, where there is no spool or no such project.
   const ws = Workspace.open(ctx.cwd, ctx.now);
+  let chatBuilds = false;
   try {
     board(ws, project);
+    chatBuilds = builderOf(ctx, (project ? ws.project(project) : ws.home).root) === 'chat';
   } finally {
     ws.close();
   }
@@ -1751,7 +1808,7 @@ export function servePage({ ctx, opts }: Bare): Result {
       return;
     }
     ctx.out(`Spool page: ${url}`);
-    if (run) ctx.out('Agents are on: this page builds what is in Build, with no chat open.');
+    if (run) ctx.out(chatBuilds ? 'A chat builds here, as picked on the page: this page starts no agents until that is set back to Headless.' : 'Agents are on: this page builds what is in Build, with no chat open.');
     ctx.out('Leave this running while you use the page. Ctrl-C stops it.');
     if (!opts['no-open']) {
       const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
@@ -1804,6 +1861,12 @@ const PAGE = String.raw`<!doctype html>
   .search { margin-left: auto; width: min(260px, 40vw); padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
   .runner { white-space: nowrap; color: var(--soft); }
   .runner.on { color: var(--go); border-color: var(--go); font-weight: 600; }
+  /* who builds: two picks side by side, the one in force filled in */
+  .builder { display: flex; white-space: nowrap; margin-right: -8px; }
+  .builder button { color: var(--soft); border-radius: 0; }
+  .builder button:first-child { border-radius: 7px 0 0 7px; }
+  .builder button:last-child { border-radius: 0 7px 7px 0; margin-left: -1px; }
+  .builder button.on { position: relative; color: var(--ink); background: var(--bg); border-color: var(--soft); font-weight: 600; }
   .live { margin-top: 6px; display: flex; align-items: center; gap: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--soft); }
   .live .now { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .live .for { color: var(--blue); white-space: nowrap; }
@@ -1981,6 +2044,7 @@ const PAGE = String.raw`<!doctype html>
     <button class="tab" data-view="needs">Needs you<span class="badge0" id="needcount" hidden></span></button>
   </div>
   <input class="search" id="search" placeholder="Search threads   /" autocomplete="off">
+  <div class="builder" id="builder" role="group" aria-label="Who builds" hidden><button data-builder="headless">Headless</button><button data-builder="chat">Chat</button></div>
   <button class="runner" id="runner" hidden></button>
 </div>
 <div class="rule" id="rule" hidden></div>
@@ -2731,14 +2795,39 @@ function draw(b) {
     only && only.kind !== 'sprint' && el('button', { class: 'pill on', onclick: () => narrow(only.kind, only.value) }, (only.kind === 'tag' ? '#' : 'v') + only.value + '  ✕'),
   ].filter(Boolean));
 
-  // The page's own runner: one switch. On, the page builds what is in Build with no chat open.
+  // Who builds what is in Build: this page, headless, or a Claude Code chat running the loop.
+  const chat = b.runner.builder === 'chat';
+  const builder = document.getElementById('builder');
+  builder.hidden = false;
+  for (const pick of builder.children) {
+    const mine = pick.dataset.builder === b.runner.builder;
+    pick.className = mine ? 'on' : '';
+    pick.setAttribute('aria-pressed', String(mine));
+    pick.title = pick.dataset.builder === 'chat'
+      ? 'A Claude Code chat builds what is in Build: one running /spool-loop in this project. This page starts no agents.'
+      : 'This page builds what is in Build itself, with no chat open. It runs: ' + b.runner.agent;
+    pick.onclick = () => { if (!mine) post('builder', { builder: pick.dataset.builder }, ''); };
+  }
+  // One button says how the agents are doing. Headless, they are the page's own, and it is their switch.
+  // With a chat building, the page cannot switch a chat on: it says whether one is building or listening.
   const runner = document.getElementById('runner');
+  const lately = b.runner.recent.length ? ' Last: ' + b.runner.recent[0].title + ' — ' + b.runner.recent[0].outcome : '';
   runner.hidden = false;
-  runner.className = 'runner' + (b.runner.on ? ' on' : '');
-  runner.textContent = b.runner.on ? (b.runner.current ? '● Agents: building' : '● Agents: on') : 'Agents: off';
-  runner.title = (b.runner.on ? 'This page is building what is in Build. Click to switch it off.' : 'Click to have this page build what is in Build, with no chat open.') + ' It runs: ' + b.runner.agent
-    + (b.runner.recent.length ? '. Last: ' + b.runner.recent[0].title + ' — ' + b.runner.recent[0].outcome : '');
-  runner.onclick = () => post('runner', { on: !b.runner.on }, '');
+  if (chat) {
+    const building = b.columns.building.length > 0;
+    const live = building || b.runner.watching;
+    runner.className = 'runner' + (live ? ' on' : '');
+    runner.textContent = building ? '● Agents: building' : b.runner.watching ? '● Agents: watching' : 'Agents: off';
+    runner.title = building ? 'A thread is being built.' + (b.runner.current ? ' The agent this page had started is finishing it.' : '')
+      : b.runner.watching ? 'A Claude Code chat is watching this spool. It builds what you move to Build.'
+      : 'No Claude Code chat is watching this spool, so nothing in Build is built. Say /spool-loop in one, in this project.';
+    runner.onclick = () => say(live ? runner.title : 'Nobody is building. Say /spool-loop in a Claude Code chat in this project.');
+  } else {
+    runner.className = 'runner' + (b.runner.on ? ' on' : '');
+    runner.textContent = b.runner.on ? (b.runner.current ? '● Agents: building' : '● Agents: on') : 'Agents: off';
+    runner.title = (b.runner.on ? 'This page is building what is in Build. Click to switch it off.' : 'Click to have this page build what is in Build, with no chat open.') + ' It runs: ' + b.runner.agent + '.' + lately;
+    runner.onclick = () => post('runner', { on: !b.runner.on }, '');
+  }
   const waiting = needCount(b);
   const badge = document.getElementById('needcount');
   badge.textContent = String(waiting);

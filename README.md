@@ -161,6 +161,11 @@ With `--run`, or the **Agents** switch at the top of the page, the page builds w
 itself: it starts your agent on each thread, shows what it prints on the card, and has a Stop. One
 thread at a time. Close every chat; press ▶; come back to Done.
 
+Next to that switch you pick who builds. **Headless** is the above: the page starts the agent
+itself. **Chat** hands building to a Claude Code chat running `/spool-loop`, where you can watch
+the work and step in; the page then starts nothing, and the switch says whether a chat is building,
+watching, or not there. The pick is kept for the project.
+
 The agent it starts is a command on your machine, `claude -p` unless you say otherwise, and it can
 only do what you allow it. To let it edit files and commit, say so once in
 `~/.config/spool/config.json`:

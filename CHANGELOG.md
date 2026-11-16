@@ -4,6 +4,10 @@ What shipped in each version of Spool, newest first.
 
 ## Unreleased
 
+- Pick who builds, on the page: **Headless | Chat**, left of the Agents switch. Headless is the
+  page starting `claude -p` itself, as before. Chat hands building to a Claude Code chat running
+  `/spool-loop`: the page starts no agent, and the Agents button says whether a chat is building,
+  watching the spool, or not there at all. The pick is kept for the project and outlives the page.
 - The page keeps itself current. When it finds new code of Spool's on disk (an upgrade, a rebuild)
   and no agent of its own is running, it restarts onto it, at the same address and with agents as
   they were, and the page you have open reloads itself. Nothing is restarted under an agent, and a

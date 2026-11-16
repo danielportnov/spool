@@ -346,3 +346,63 @@ test('the runner is off unless asked for: opening the page builds nothing', asyn
     s.cleanup();
   }
 });
+
+test('with Chat picked, the page starts no agent: a chat builds, the pick is kept, and the page says who is listening', async () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop', '--gate');
+  const jump = s.id('task', 'Tighten the jump arc');
+  const coins = s.id('task', 'Make coins readable at sunset');
+  const worker = agent(s, 'worker.sh', 'spool done "$SPOOL_TASK" -m "finished by $SPOOL_ACTOR" > /dev/null');
+  const config = (): Record<string, any> => JSON.parse(fs.readFileSync(path.join(s.root, '.home', '.config', 'spool', 'config.json'), 'utf8'));
+  const quiet = (): Promise<void> => new Promise((r) => setTimeout(r, 1300));
+
+  let page = await startPage(s, '--run', '--agent', worker, '--port', String(62500 + (process.pid % 1500)));
+  const board = async () => (await (await fetch(`${page.url}api/board`)).json()) as Record<string, any>;
+  const post = (action: string, body: unknown) =>
+    fetch(`${page.url}api/${action}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': page.token }, body: JSON.stringify(body) });
+  let watch: ChildProcess | undefined;
+  try {
+    // Headless until the human says otherwise, with the runner on as asked.
+    assert.deepEqual([(await board()).runner.builder, (await board()).runner.watching, (await board()).runner.on], ['headless', false, true]);
+    assert.equal((await post('builder', { builder: 'a robot' })).status, 400, 'only the two picks there are');
+
+    // Chat picked: kept on the user's machine, by the project's folder.
+    const picked = await post('builder', { builder: 'chat' });
+    assert.equal(picked.status, 200);
+    assert.match(((await picked.json()) as { text: string }).text, /chat builds now.*\/spool-loop.*starts no agents/i);
+    assert.equal((await board()).runner.builder, 'chat');
+    assert.deepEqual(config().builder, { [s.root]: 'chat' });
+
+    // Moved to Build, and even dragged into Building: the page starts nothing, with its runner on.
+    await post('move', { id: jump, to: 'build' });
+    const dragged = await post('move', { id: coins, to: 'building' });
+    assert.match(((await dragged.json()) as { text: string }).text, /In build, for the chat to take/);
+    await quiet();
+    assert.deepEqual([s.json('show', jump).item.state, s.json('show', coins).item.state], ['ready', 'ready']);
+    assert.ok(!fs.existsSync(path.join(s.root, 'last-prompt.txt')), 'no agent was started');
+    assert.equal((await board()).runner.watching, false, 'and nobody is listening yet');
+
+    // A chat running the loop watches the spool: the page says so, for as long as it does.
+    watch = spawn(process.execPath, [CLI, 'watch', '--interval', '40', '-C', s.root], { env: { ...process.env, HOME: `${s.root}/.home` }, stdio: 'ignore' });
+    await until('the page sees the watch', async () => (await board()).runner.watching);
+    watch.kill();
+    await until('the page sees the watch go', async () => !(await board()).runner.watching);
+    watch = undefined;
+
+    // The pick outlives the page.
+    page.child.kill();
+    page = await startPage(s, '--run', '--agent', worker, '--port', String(39000 + (process.pid % 1500)));
+    assert.equal((await board()).runner.builder, 'chat');
+    await quiet();
+    assert.equal(s.json('show', jump).item.state, 'ready', 'a page started with --run still starts nothing');
+
+    // Back to Headless: the page builds what waited, as it always did.
+    assert.equal((await post('builder', { builder: 'headless' })).status, 200);
+    await until('both threads are built', async () => s.json('show', jump).item.status === 'done' && s.json('show', coins).item.status === 'done');
+    assert.deepEqual(config().builder, {}, 'headless is what a project is with nothing kept');
+  } finally {
+    watch?.kill();
+    page.child.kill();
+    s.cleanup();
+  }
+});

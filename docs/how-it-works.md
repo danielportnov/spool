@@ -250,6 +250,16 @@ walks away from is put back and not tried again until something about it changes
 what the agent last said, which is usually why. Use the page's runner or a chat's loop, not both:
 they would be two agents in one folder.
 
+**Which of the two, picked on the page.** Left of the Agents switch are two picks. **Headless** is
+the page's own runner, as above. **Chat** is a Claude Code chat running the loop: the page then
+starts no agent, whether its runner is on or not, and a thread dragged into Building waits in Build
+for the chat. An agent the page had already started is left to finish its thread. With Chat picked
+the Agents switch is not a switch but a reading: **building** while a thread is being built,
+**watching** while a `spool watch` is up for the project (it leaves a file named with its pid in
+the temp folder for as long as it runs), and **off** when nobody is listening, so nothing in Build
+would be built. The pick is kept on your machine, by the project's folder, under `builder` in
+`~/.config/spool/config.json`, so it outlives the page.
+
 The page keeps itself current. When the code of Spool on disk is no longer the code the page
 started from, after an upgrade or a rebuild, it restarts onto it once no agent of its own is
 running, at the same address, and the page you have open reloads itself. Where the project is

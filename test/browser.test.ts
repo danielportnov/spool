@@ -98,6 +98,22 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     ]);
     await shot(page, '1-board');
 
+    // Who builds, left of the Agents switch: Headless until Chat is picked. With a chat building, the switch says who is listening.
+    const picks = page.locator('#builder button');
+    const agents = page.locator('#runner');
+    assert.deepEqual(await picks.allInnerTexts(), ['Headless', 'Chat']);
+    assert.deepEqual([await picks.nth(0).getAttribute('aria-pressed'), await agents.innerText()], ['true', 'Agents: off']);
+    const [picksBox, agentsBox] = [(await page.locator('#builder').boundingBox())!, (await agents.boundingBox())!];
+    assert.ok(picksBox.x + picksBox.width <= agentsBox.x, 'the picks sit to the left of the Agents switch');
+    await picks.nth(1).click();
+    await page.locator('#builder button.on', { hasText: 'Chat' }).waitFor();
+    assert.equal(await agents.innerText(), 'Agents: off');
+    assert.match((await agents.getAttribute('title'))!, /No Claude Code chat is watching this spool/);
+    await shot(page, '1b-chat-builds');
+    await picks.nth(0).click();
+    await page.locator('#builder button.on', { hasText: 'Headless' }).waitFor();
+    assert.match((await agents.getAttribute('title'))!, /Click to have this page build what is in Build/);
+
     // ▶ Build moves a thread to Build.
     await card('proposed', 'Tighten the jump arc').getByRole('button', { name: '▶ Build' }).click();
     await card('build', 'Tighten the jump arc').waitFor();

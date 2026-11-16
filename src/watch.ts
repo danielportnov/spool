@@ -13,6 +13,9 @@
  * no daemon behind it and nothing to keep in step.
  */
 
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import type { Bare, Result } from './commands.ts';
 import { SpoolError, oneLine, splitBody } from './model.ts';
 import { ready, tasks } from './schedule.ts';
@@ -27,7 +30,56 @@ interface Seen {
   inbox: Set<string>;
 }
 
-function look(cwd: string, now: () => Date, project?: string): { seen: Seen; text: (note: string) => string; title: (id: string) => string } {
+/**
+ * The file a watch leaves for as long as it is up, named with its pid: the folders of the projects
+ * it is watching. The page reads these to say whether a chat is listening for work.
+ */
+const beatFile = (pid: number): string => path.join(os.tmpdir(), `spool-watch-${pid}.json`);
+
+const real = (dir: string): string => {
+  try {
+    return fs.realpathSync(dir);
+  } catch {
+    return dir;
+  }
+};
+
+/** Whether a `spool watch` on this machine is up and watching the project in this folder. */
+export function watched(root: string): boolean {
+  let names: string[] = [];
+  try {
+    names = fs.readdirSync(os.tmpdir());
+  } catch {
+    return false;
+  }
+  const wanted = real(root);
+  return names.some((name) => {
+    const found = /^spool-watch-(\d+)\.json$/.exec(name);
+    if (!found) return false;
+    const file = path.join(os.tmpdir(), name);
+    try {
+      process.kill(Number(found[1]), 0);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EPERM') {
+        // Its watch was ended outright and could not tidy up.
+        fs.rmSync(file, { force: true });
+        return false;
+      }
+    }
+    try {
+      const roots: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+      return Array.isArray(roots) && roots.includes(wanted);
+    } catch {
+      return false; // Half-written, or gone this instant.
+    }
+  });
+}
+
+function look(
+  cwd: string,
+  now: () => Date,
+  project?: string,
+): { seen: Seen; roots: string[]; text: (note: string) => string; title: (id: string) => string } {
   const ws = Workspace.open(cwd, now);
   try {
     const open = tasks(ws, project).filter((t) => t.status !== 'done' && t.status !== 'dropped');
@@ -39,6 +91,7 @@ function look(cwd: string, now: () => Date, project?: string): { seen: Seen; tex
         said: new Map(open.map((t) => [t.id, new Set(t.from.filter((id) => notes.has(id)))])),
         inbox: new Set(ws.items.filter((i) => i.kind === 'note' && i.status === 'new').map((n) => n.id)),
       },
+      roots: (project ? [ws.project(project)] : ws.spools).map((s) => real(s.root)),
       text: (note) => notes.get(note) ?? '',
       title: (id) => titles.get(id) ?? '',
     };
@@ -67,7 +120,24 @@ export function watch({ ctx, opts }: Bare): Result {
   if (!Number.isInteger(every) || every < 20) throw new SpoolError('--interval is in milliseconds, 20 or more');
   const project = typeof opts.project === 'string' ? opts.project : undefined;
   // Fail now, in words, where there is no spool; after this the watch only reports.
-  let before = look(ctx.cwd, ctx.now, project).seen;
+  const first = look(ctx.cwd, ctx.now, project);
+  let before = first.seen;
+  // Say it is up, for as long as it is: the page shows whether anyone is listening.
+  const beat = beatFile(process.pid);
+  try {
+    fs.writeFileSync(beat, JSON.stringify(first.roots));
+    const leave = (): void => fs.rmSync(beat, { force: true });
+    process.once('exit', leave);
+    for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+      process.once(signal, () => {
+        leave();
+        // Then end as it would have with nobody listening for the signal.
+        process.kill(process.pid, signal);
+      });
+    }
+  } catch {
+    // Nowhere to say so. It watches all the same.
+  }
   setInterval(() => {
     try {
       const now = look(ctx.cwd, ctx.now, project);
