@@ -4,9 +4,11 @@ What shipped in each version of Spool, newest first.
 
 ## Unreleased
 
-- Each thread is built by the model its size suggests, at a matching effort: Haiku for a tiny fix,
-  up to Fable for a huge one. Pick another on the ticket's **Model** field, or with
-  `spool edit <id> --model <m> --effort <e>`. Your own table goes under `models` in your config.
+- Fable picks who builds each thread: before a `claude` agent starts one, Fable reads it and
+  chooses the model and the effort, leaning bigger and heavier, and says why on the thread. Your
+  pick on the ticket's **Model** field, or `spool edit <id> --model <m> --effort <e>`, always wins.
+  If Fable cannot answer, the size decides, from Sonnet for a tiny fix up to Fable at xhigh for a
+  huge one. `"router": false` in your config skips Fable; your own table goes under `models`.
 
 ## 0.16.0 · 2026-11-15
 

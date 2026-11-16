@@ -35,7 +35,20 @@ import { run } from './cli.ts';
 import type { Bare, Result } from './commands.ts';
 import { type Ctx, userConfig } from './context.ts';
 import { DEFAULT_AGENT, PREAMBLE } from './loop.ts';
-import { EFFORTS, MODELS, type Routing, commandFor, pickFor, suggestion } from './agent.ts';
+import {
+  EFFORTS,
+  MODELS,
+  ROUTER,
+  ROUTE_TIMEOUT_MS,
+  type Routing,
+  commandFor,
+  parseRoute,
+  pickFor,
+  routeNote,
+  routerCommand,
+  routerPrompt,
+  suggestion,
+} from './agent.ts';
 import { git, repoRoot } from './git.ts';
 import { type Item, SpoolError, addLog, oneLine, reportFile, splitBody, timestamp } from './model.ts';
 import { prime } from './prime.ts';
@@ -62,7 +75,8 @@ interface Card {
   /** The model and effort the human chose for it, if they did, and what its size suggests. */
   model: string;
   effort: string;
-  suggest: { model: string; effort: string };
+  /** `by` names the model that chooses for it when it starts, where one does. */
+  suggest: { model: string; effort: string; by: string };
   p: number;
   tags: string[];
   version: string;
@@ -320,8 +334,14 @@ export function liveNow(task: Item): Live {
   };
 }
 
-function card(ws: Workspace, task: Item, n: number | null, note: string, column: Column, routing?: Routing): Card {
-  const suggest = suggestion(task, routing);
+/** How a card learns what will pick its model: the size table, and who chooses first. */
+interface Picking {
+  models: Routing;
+  chooser: (task: Item) => string;
+}
+
+function card(ws: Workspace, task: Item, n: number | null, note: string, column: Column, routing?: Picking): Card {
+  const suggest = suggestion(task, routing?.models);
   const { main, log } = splitBody(task.body);
   const asked = blockers(ws, task).find((b) => b.kind === 'decision' && b.status === 'open');
   return {
@@ -337,7 +357,7 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     size: task.size ?? '',
     model: task.model ?? '',
     effort: task.effort ?? '',
-    suggest: { model: suggest.model ?? '', effort: suggest.effort ?? '' },
+    suggest: { model: suggest.model ?? '', effort: suggest.effort ?? '', by: routing?.chooser(task) ?? '' },
     p: task.priority ?? 2,
     tags: task.tags,
     version: task.version ?? '',
@@ -604,30 +624,101 @@ export class Runner {
     let task: Item | undefined;
     let prompt = '';
     let command = this.agent;
+    let asker: string | undefined;
+    let briefText = '';
+    const { models, router } = userConfig(this.ctx);
     try {
       const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
       try {
         task = ready(ws, this.project).find((t) => this.gaveUp.get(t.id) !== t.updated);
         if (!task) return;
-        command = commandFor(this.agent, pickFor(task, userConfig(this.ctx).models));
+        command = commandFor(this.agent, pickFor(task, models));
+        asker = routerCommand(this.agent, task, models, router);
         task.status = 'active';
         task.by = this.name();
         task.started = timestamp(ws.now());
-        addLog(task, 'page', `handed to \`${command}\``, ws.now());
+        if (!asker) addLog(task, 'page', `handed to \`${command}\``, ws.now());
         ws.save(task);
-        prompt = `${PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${brief(ws, task, paint(false))}\n`;
+        briefText = brief(ws, task, paint(false));
+        prompt = `${PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${briefText}\n`;
       } finally {
         ws.close();
       }
     } catch {
       return; // The store was busy for an instant; the next tick looks again.
     }
-    this.start(task, prompt, command);
+    if (asker) this.route(task, prompt, briefText, asker);
+    else this.start(task, prompt, command);
   }
 
-  /** The user's table of which model and effort each size gets, read fresh so a change shows at once. */
-  routing(): Routing {
-    return userConfig(this.ctx).models;
+  /**
+   * Pass the thread to Fable first, to choose which model works it and how hard
+   * it thinks; then start that. While Fable reads, the thread shows as building
+   * and Stop ends Fable. If Fable cannot answer, the size decides.
+   */
+  private route(task: Item, prompt: string, briefText: string, asker: string): void {
+    const child = spawn(asker, {
+      shell: true,
+      cwd: task.spool.root,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32',
+      env: { ...this.ctx.env, SPOOL_ROUTING: task.id },
+    });
+    const run = { id: task.id, title: task.title, child, lines: [`${ROUTER} is choosing the model…`], began: Date.now(), stopped: false };
+    this.current = run;
+    let out = '';
+    child.stdout!.on('data', (chunk: Buffer) => {
+      if (out.length < 1024 * 1024) out += chunk.toString('utf8');
+    });
+    child.stderr!.on('data', () => {});
+    child.stdin!.on('error', () => {});
+    child.stdin!.end(routerPrompt(task, briefText));
+    const timer = setTimeout(() => this.end(child), ROUTE_TIMEOUT_MS);
+    let over = false;
+    const end = (code: number | null, how: string): void => {
+      if (over) return;
+      over = true;
+      clearTimeout(timer);
+      if (run.stopped || this.current !== run) {
+        this.settle(run, how);
+        return;
+      }
+      const routed = code === 0 ? parseRoute(out) : undefined;
+      const note = routeNote(routed, routed ? undefined : code === 0 ? 'no answer it could read' : how);
+      const command = commandFor(this.agent, pickFor(task, userConfig(this.ctx).models, routed));
+      let still = true;
+      try {
+        const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
+        try {
+          const now = ws.find(task.id);
+          still = now?.status === 'active';
+          if (now && still) {
+            addLog(now, 'page', note, ws.now());
+            addLog(now, 'page', `handed to \`${command}\``, ws.now());
+            ws.save(now);
+          }
+        } finally {
+          ws.close();
+        }
+      } catch {
+        // The notes are only notes; the run goes ahead without them.
+      }
+      // Someone took the thread back while Fable read it; there is nothing to start.
+      if (still) this.start(task, prompt, command);
+      else this.settle(run, how);
+    };
+    child.on('error', (error) => end(null, `could not start (${error.message})`));
+    child.on('exit', (code, signal) => end(code, `exited ${code ?? signal}`));
+  }
+
+  /**
+   * The user's table of which model and effort each size gets, and the model that
+   * chooses first for a thread, if one does: read fresh so a change shows at once.
+   */
+  routing(): Picking {
+    const { models, router } = userConfig(this.ctx);
+    const by = (typeof router === 'string' && router) || ROUTER;
+    return { models, chooser: (task) => (routerCommand(this.agent, task, models, router) ? by : '') };
   }
 
   /** What the agent is called on the thread: the program it is, so "claude" shows as Claude. */
@@ -1911,16 +2002,19 @@ function threadNode(c, b) {
     node.value = value;
     return node;
   };
-  // Which model builds it and how hard it thinks: the size's suggestion until the human picks.
+  // Which model builds it and how hard it thinks: Fable decides when it starts (or the size suggests)
+  // until the human picks, and the human's pick always wins.
   const cap = (s) => s ? s[0].toUpperCase() + s.slice(1) : '';
   const models = [...new Set([...MODELS, c.model].filter(Boolean))];
+  const by = c.suggest.by;
+  const leave = (what, suggested) => by ? cap(by) + ' decides' : suggested ? 'Suggested: ' + suggested : what;
   const agentPick = c.done || c.column === 'building'
-    ? el('div', { class: 'val' }, [cap(c.model || c.suggest.model) || 'Your agent', c.effort || c.suggest.effort].filter(Boolean).join(' · '))
+    ? el('div', { class: 'val' }, [cap(c.model) || (by ? cap(by) + ' decides' : cap(c.suggest.model)) || 'Your agent', c.effort || (by ? '' : c.suggest.effort)].filter(Boolean).join(' · '))
     : el('div', { class: 'pick' },
-        choose([['', c.suggest.model ? 'Suggested: ' + cap(c.suggest.model) : 'As your agent runs'], ...models.map((m) => [m, cap(m)])], c.model,
-          (v) => save({ model: v }, v ? 'Model: ' + cap(v) : 'Model as its size suggests')),
-        choose([['', c.suggest.effort ? 'Suggested: ' + c.suggest.effort : 'Default effort'], ...EFFORTS.map((e) => [e, e])], c.effort,
-          (v) => save({ effort: v }, v ? 'Effort: ' + v : 'Effort as its size suggests')));
+        choose([['', leave('As your agent runs', cap(c.suggest.model))], ...models.map((m) => [m, cap(m)])], c.model,
+          (v) => save({ model: v }, v ? 'Model: ' + cap(v) : by ? cap(by) + ' decides the model' : 'Model as its size suggests')),
+        choose([['', leave('Default effort', c.suggest.effort)], ...EFFORTS.map((e) => [e, e])], c.effort,
+          (v) => save({ effort: v }, v ? 'Effort: ' + v : by ? cap(by) + ' decides the effort' : 'Effort as its size suggests')));
   const movable = c.column === 'proposed' || c.column === 'build';
   const status = movable
     ? choose([['proposed', '🟠 Proposed'], ['build', '🟢 Build']], c.column, (to) => post('move', { id: c.id, to }, to === 'build' ? 'In build' : 'Back to proposed'))

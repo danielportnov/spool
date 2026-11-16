@@ -51,6 +51,11 @@ export interface UserConfig {
    */
   models?: false | Partial<Record<'xs' | 's' | 'm' | 'l' | 'xl', { model?: string; effort?: string }>>;
   /**
+   * The model a claude agent first passes each thread to, to decide which model works it and how
+   * hard it thinks: `"fable"` unless set, or `false` to go by the `models` table alone.
+   */
+  router?: false | string;
+  /**
    * For each project, by the path of its folder: the command that must pass before a change there
    * can be finished. It is kept here, on the user's machine, and not in the project, because it is
    * run: a repository must never be able to name a program for Spool to start.

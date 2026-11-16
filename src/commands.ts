@@ -1223,11 +1223,11 @@ export const COMMANDS: Command[] = [
       if ((model !== undefined || effort !== undefined) && item.kind !== 'task') throw new SpoolError('only tasks have a model and an effort');
       if (model !== undefined) {
         item.model = model || undefined;
-        changed.push(model ? `model ${model}` : 'model back to what its size suggests');
+        changed.push(model ? `model ${model}` : 'model left to Fable, or its size');
       }
       if (effort !== undefined) {
         item.effort = effort || undefined;
-        changed.push(effort ? `effort ${effort}` : 'effort back to what its size suggests');
+        changed.push(effort ? `effort ${effort}` : 'effort left to Fable, or its size');
       }
       const tags = tagsOf(call.opts.tag);
       const version = versionOf(call.opts.version);

@@ -1,10 +1,13 @@
 /**
  * Which model works a thread, and how hard it thinks.
  *
- * The agent command is the user's, from their own machine. A thread can only
- * say which model and which effort it wants, as two plain words, and a thread
- * that says nothing gets the one its size suggests: a one-line fix does not
- * need the biggest model thinking its hardest, and a large change deserves it.
+ * The agent command is the user's, from their own machine. A thread can say
+ * which model and which effort it wants, as two plain words: the human's pick,
+ * which always wins. Where it says nothing and the agent is Claude, the thread
+ * is first passed to Fable, which reads its brief and decides which model works
+ * it and how hard it thinks, leaning bigger and heavier than it seems to need;
+ * it may take the thread itself. Where Fable cannot answer, or the user turned
+ * it off, the size suggests a pick, again on the big side.
  *
  * The words reach the command one of two ways. A command that names
  * `{model}` or `{effort}` has them put in its place. A `claude` command that
@@ -28,14 +31,22 @@ export interface Pick {
   effort?: Effort;
 }
 
-/** What each size gets when the thread does not say. Unsized work is treated as medium. */
+/**
+ * What each size gets when neither the human nor Fable says. Unsized work is
+ * treated as medium. Every row leans a step bigger than the work looks: a
+ * thread given too little does it badly, and one given too much only costs more.
+ */
 export const SUGGESTED: Record<Size, Required<Pick>> = {
-  xs: { model: 'haiku', effort: 'low' },
-  s: { model: 'sonnet', effort: 'medium' },
-  m: { model: 'opus', effort: 'high' },
-  l: { model: 'opus', effort: 'xhigh' },
-  xl: { model: 'fable', effort: 'high' },
+  xs: { model: 'sonnet', effort: 'medium' },
+  s: { model: 'opus', effort: 'high' },
+  m: { model: 'opus', effort: 'xhigh' },
+  l: { model: 'fable', effort: 'high' },
+  xl: { model: 'fable', effort: 'xhigh' },
 };
+
+/** The model that reads a thread first and decides who works it, and how hard it thinks doing so. */
+export const ROUTER = 'fable';
+const ROUTER_EFFORT: Effort = 'high';
 
 /** The user's own say, from their config: their table by size, or `false` for no suggestion at all. */
 export type Routing = false | Partial<Record<Size, { model?: string; effort?: string }>> | undefined;
@@ -74,15 +85,88 @@ export function suggestion(task: Item, routing: Routing): Pick {
   };
 }
 
-/** What will run the thread: what it says it wants, and the size's suggestion for the rest. */
-export function pickFor(task: Item, routing: Routing): Pick & { suggested: Pick } {
+/**
+ * What will run the thread: what the human picked, then what Fable decided,
+ * then the size's suggestion for whatever is still open.
+ */
+export function pickFor(task: Item, routing: Routing, routed?: Pick): Pick & { suggested: Pick } {
   const suggested = suggestion(task, routing);
   return {
-    model: safeModel(task.model) ?? suggested.model,
-    effort: safeEffort(task.effort) ?? suggested.effort,
+    model: safeModel(task.model) ?? safeModel(routed?.model) ?? suggested.model,
+    effort: safeEffort(task.effort) ?? safeEffort(routed?.effort) ?? suggested.effort,
     suggested,
   };
 }
+
+/** The user's say on routing, from their config: another model to route with, or `false` for the size table only. */
+export type RouterSetting = false | string | undefined;
+
+/**
+ * The command that asks Fable to choose, or nothing where there is nothing to
+ * ask: the agent is not Claude, the user switched routing or picking off, or
+ * the human already picked both the model and the effort.
+ */
+export function routerCommand(base: string, task: Item, routing: Routing, router: RouterSetting): string | undefined {
+  if (routing === false || router === false) return undefined;
+  if (safeModel(task.model) && safeEffort(task.effort)) return undefined;
+  if (/\{model\}|\{effort\}/.test(base)) return undefined;
+  const program = base.trim().split(/\s+/)[0] ?? '';
+  if (path.basename(program) !== 'claude') return undefined;
+  return `${program} -p --model ${safeModel(router) ?? ROUTER} --effort ${ROUTER_EFFORT}`;
+}
+
+/** What Fable is asked: the thread's brief, what the human already fixed, and how to answer. */
+export function routerPrompt(task: Item, brief: string): string {
+  const fixed = [
+    safeModel(task.model) && `The human already chose the model: ${task.model}. Keep it, and choose the effort.`,
+    safeEffort(task.effort) && `The human already chose the effort: ${task.effort}. Keep it, and choose the model.`,
+  ].filter(Boolean);
+  return `You are choosing which Claude model works one thread of a coding project, and how hard it thinks.
+Do not work the thread, and do not run anything: read the brief below and choose.
+
+Models, biggest first: ${MODELS.join(', ')} (or a full model id). Efforts, lowest first: ${EFFORTS.join(', ')}.
+You are ${ROUTER}; you may take the thread yourself.
+
+Always lean bigger and toward heavier thinking than you think the thread needs. Between two
+models, take the bigger; between two efforts, take the higher. A thread given too little is done
+badly; one given too much only costs a little more.
+${fixed.length ? `\n${fixed.join('\n')}\n` : ''}
+Answer with one line of JSON and nothing else:
+{"model": "<model>", "effort": "<effort>", "why": "<one short sentence>"}
+
+THE THREAD
+
+${brief}
+`;
+}
+
+export type Route = Pick & { why?: string };
+
+/** Fable's answer, read from what it printed: the last JSON object in it, with only plain words kept. */
+export function parseRoute(out: string): Route | undefined {
+  for (const raw of (out.match(/\{[^{}]*\}/g) ?? []).reverse()) {
+    try {
+      const v = JSON.parse(raw) as { model?: unknown; effort?: unknown; why?: unknown };
+      const model = safeModel(typeof v.model === 'string' ? v.model.trim().toLowerCase() : undefined);
+      const effort = safeEffort(typeof v.effort === 'string' ? v.effort.trim().toLowerCase() : undefined);
+      if (!model && !effort) continue;
+      const why = typeof v.why === 'string' ? v.why.replace(/\s+/g, ' ').trim().slice(0, 300) : '';
+      return { model, effort, ...(why ? { why } : {}) };
+    } catch {
+      // Not JSON after all; look at the one before.
+    }
+  }
+  return undefined;
+}
+
+/** The log line that says what Fable chose and why, or that it could not. */
+export function routeNote(routed: Route | undefined, how?: string): string {
+  if (!routed) return `${ROUTER} could not choose${how ? ` (${how})` : ''}; going by its size`;
+  return `${ROUTER} chose ${pickLabel(routed)}${routed.why ? `: ${routed.why}` : ''}`;
+}
+
+/** How long Fable gets to choose before the size decides instead. */
+export const ROUTE_TIMEOUT_MS = 5 * 60 * 1000;
 
 /** The user's command, with the pick put in it where it can be. */
 export function commandFor(base: string, pick: Pick): string {

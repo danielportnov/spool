@@ -255,15 +255,20 @@ your agent command in that project with the rules and the brief on stdin, and lo
 exits. `spool loop --watch 5` keeps looking. The agent command comes from your own machine
 (`SPOOL_AGENT`, or `agent` in `~/.config/spool/config.json`); the default is `claude -p`.
 
-**Which model, and how hard it thinks.** Each thread is run by the model its size suggests, unless
-you pick one: the **Model** field on the ticket, or `spool edit <id> --model opus --effort high`
-(`none` hands either back to the size). Out of the box a tiny thread gets Haiku at low effort, a
-small one Sonnet at medium, a medium one Opus at high, a large one Opus at xhigh, and a huge one
-Fable at high. A `claude` command gets `--model` and `--effort` added where it does not set them
-itself; any other agent command can take `{model}` and `{effort}` where it wants them, and is run as
-it is otherwise. Change the table under `models` in `~/.config/spool/config.json`, as
+**Which model, and how hard it thinks.** Where your agent is `claude`, each thread is first passed
+to Fable (`claude -p --model fable --effort high`), which reads its brief and decides which model
+works it and at what effort, told to lean bigger and heavier than the thread seems to need; it may
+take the thread itself. Its choice and its reason go on the thread's log, and the run uses it.
+Your own pick always wins: the **Model** field on the ticket, or
+`spool edit <id> --model opus --effort high` (`none` hands either back). Where Fable cannot
+answer, the size decides, on the big side: a tiny thread gets Sonnet at medium, a small one Opus at
+high, a medium one Opus at xhigh, a large one Fable at high, and a huge one Fable at xhigh. A
+`claude` command gets `--model` and `--effort` added where it does not set them itself; any other
+agent command can take `{model}` and `{effort}` where it wants them, and gets the size's pick.
+In `~/.config/spool/config.json`, `"router": false` skips Fable and goes by the table, `"router":
+"opus"` asks another model; change the table under `models`, as
 `{ "xs": { "model": "sonnet", "effort": "low" } }`, or set `"models": false` to leave the command
-alone. `spool loop --dry-run` shows the command each thread would get.
+alone altogether. `spool loop --dry-run` shows the command each thread would get.
 
 **An agent with no shell.** `spool mcp -C <project>` serves the same commands as
 [Model Context Protocol](https://modelcontextprotocol.io) tools over stdio. The set-up commands are
