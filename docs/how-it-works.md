@@ -113,7 +113,7 @@ Every time it runs, the loop does three things:
 3. **Says when it is done**, or when something needs you.
 
 **It reacts; it does not wait on a clock.** `spool watch` stays up and prints a line when a thread
-can be built, when you reply on one, or when a note arrives. In Claude Code the loop listens to that
+can be built, when you reply on one, or when a note stays unfiled for a few seconds. In Claude Code the loop listens to that
 with the Monitor tool, so pressing ▶ starts the build within seconds. Where a harness cannot listen,
 `/spool-loop <hours>` sets one recurring check instead.
 

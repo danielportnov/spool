@@ -100,7 +100,7 @@ function look(
   }
 }
 
-/** What changed between two looks, as the lines to print. Only gains are news: the loop needs no telling that work went away. */
+/** What changed between two looks, as the lines to print. Only gains are news: the loop needs no telling that work went away. Unfiled notes are not here: `watch` holds them back a moment. */
 export function changes(before: Seen, after: Seen, text: (note: string) => string, title: (id: string) => string): string[] {
   const out: string[] = [];
   for (const [id, name] of after.ready) if (!before.ready.has(id)) out.push(`build: ${id} ${name}`);
@@ -110,7 +110,6 @@ export function changes(before: Seen, after: Seen, text: (note: string) => strin
     if (!had) continue;
     for (const note of notes) if (!had.has(note)) out.push(`reply: ${id} ${title(id)} — "${text(note)}"`);
   }
-  for (const note of after.inbox) if (!before.inbox.has(note)) out.push(`unfiled: ${note} "${text(note)}"`);
   return out;
 }
 
@@ -138,10 +137,26 @@ export function watch({ ctx, opts }: Bare): Result {
   } catch {
     // Nowhere to say so. It watches all the same.
   }
+  // A note is often filed a moment after it is captured (the page's + Add does both), so one still unfiled
+  // after this long is reported, and one filed sooner never is. Three looks, which is three seconds by default.
+  const hold = every * 3;
+  const waiting = new Map<string, number>();
+  const told = new Set(before.inbox);
   setInterval(() => {
     try {
       const now = look(ctx.cwd, ctx.now, project);
       for (const line of changes(before, now.seen, now.text, now.title)) ctx.out(line);
+      for (const note of waiting.keys()) if (!now.seen.inbox.has(note)) waiting.delete(note);
+      for (const note of now.seen.inbox) {
+        if (told.has(note)) continue;
+        const since = waiting.get(note) ?? Date.now();
+        waiting.set(note, since);
+        if (Date.now() - since >= hold) {
+          told.add(note);
+          waiting.delete(note);
+          ctx.out(`unfiled: ${note} "${now.text(note)}"`);
+        }
+      }
       before = now.seen;
     } catch (error) {
       // A file half-written by another command reads as an error for an instant. Say so only if it is a real one.
