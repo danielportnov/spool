@@ -269,30 +269,37 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     assert.equal(await column('done').locator('.card.past').count(), 3, 'kept as history, a click away');
     await shot(page, '4-done');
 
-    // Needs you: the decisions that are not threads, each cleared with a click.
+    // What waits on him lives on its thread: a question on its card, a call on its card and ticket.
+    // What is about no thread, and a note nobody filed, is in a strip at the top of the backlog.
+    assert.deepEqual(await page.locator('.tab').allInnerTexts(), ['Board', 'Backlog'], 'two views, and no Needs you');
     s.sp('ask', 'Pause on the left, or the right?', '--option', 'Left', '--option', 'Right', '--recommend', '2', '--for', pause);
-    s.sp('assume', 'Which font for the score?', '--chose', 'The pixel font', '--why', 'it matches the title screen');
+    s.sp('assume', 'Which font for the score?', '--chose', 'The pixel font', '--why', 'it matches the title screen', '--for', pause);
     s.sp('assume', 'How loud is the coin sound?', '--chose', 'Half volume', '--why', 'it plays often');
     const loose = s.id('capture', 'the menu music loops too soon');
-    const badge = page.locator('#needcount');
-    await badge.filter({ hasText: '4' }).waitFor();
-    await page.getByRole('button', { name: /^Needs you/ }).click();
-    const needs = page.locator('#needs');
-    await needs.locator('.need', { hasText: 'Pause on the left, or the right?' }).getByRole('button', { name: 'Right' }).click();
+    await card('proposed', 'Pause button under the score').getByRole('button', { name: 'Right' }).click();
     await until('the question is answered', () => s.json('review').questions.length === 0);
-    await needs.locator('.need', { hasText: 'Pause on the left, or the right?' }).waitFor({ state: 'detached' });
-    await needs.locator('.need', { hasText: 'Which font for the score?' }).getByRole('button', { name: 'Fine' }).click();
-    await until('one call is accepted', () => s.json('review').assumptions.length === 1);
-    await needs.locator('.need', { hasText: 'Which font for the score?' }).waitFor({ state: 'detached' });
-    const loud = needs.locator('.need', { hasText: 'How loud is the coin sound?' });
+    const waits = card('proposed', 'Pause button under the score').locator('.chip', { hasText: '🧾 1 to look at' });
+    await waits.click();
+    const call = ticket.locator('.post', { hasText: 'Decided: The pixel font' });
+    await call.getByText('Which font for the score?').waitFor();
+    await call.getByText('Why: it matches the title screen').waitFor();
+    await shot(page, '5-call-on-its-thread');
+    await call.getByRole('button', { name: 'Fine' }).click();
+    await until('the call on the thread is accepted', () => s.json('review').assumptions.length === 1);
+    await call.getByText('✓ Fine by you').waitFor();
+    await page.keyboard.press('Escape');
+    await waits.waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: 'Backlog', exact: true }).click();
+    const strip = backlog.locator('.group.waiting');
+    const loud = strip.locator('.need', { hasText: 'How loud is the coin sound?' });
+    await loud.waitFor();
+    await shot(page, '6-waiting-strip');
     await loud.getByPlaceholder('No: say what you want instead').fill('quieter, a quarter');
     await loud.getByRole('button', { name: 'Overrule' }).click();
     await until('the other is overruled, and the rework is filed', () => s.json('review').assumptions.length === 0 && s.sp('list').includes('Rework'));
-    await needs.locator('.need', { hasText: 'the menu music loops too soon' }).getByRole('button', { name: 'Make it a thread' }).click();
+    await strip.locator('.need', { hasText: 'the menu music loops too soon' }).getByRole('button', { name: 'Make it a thread' }).click();
     await until('the note is a thread', () => s.json('show', loose).item.status === 'filed');
-    await needs.getByText('Nothing needs you. Agents have what they need.').waitFor();
-    assert.equal(await badge.isVisible(), false, 'the count goes when nothing is waiting');
-    await shot(page, '5-needs');
+    await strip.waitFor({ state: 'detached' });
 
     assert.equal(state(pause), 'proposed', 'what was never moved to build was never built');
     // One refusal is expected: the request sent with the left-over token, before the page fetched a new one.

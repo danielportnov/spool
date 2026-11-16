@@ -418,6 +418,8 @@ Check it wasn't settled already: `spool list -k decision --search "<topic>"`
 
       spool assume "<the question>" --chose "<what you did>" --why "<reason>" --for <task-id>
 
+  With `--for`, the call is a post in that thread, where they accept or overrule it.
+
 - **Hard to undo, costly, a matter of taste, or the policy says ask.**
 
       spool ask "<the question>" --option "<A>" --option "<B>" --recommend 1 --why "<reason>" --for <task-id>

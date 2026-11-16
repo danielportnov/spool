@@ -126,7 +126,8 @@ interface Thread {
   commits: string[];
   cameFrom: { id: string; title: string }[];
   parts: { id: string; title: string; state: string }[];
-  questions: { id: string; title: string; status: string; choice: string }[];
+  /** The decisions it waits on or was decided by: questions asked, and calls an agent made for it. */
+  questions: { id: string; title: string; status: string; choice: string; why: string }[];
 }
 
 /** One part of a thread's description: what changes, how it helps, when it is done, or anything else written. */
@@ -136,33 +137,41 @@ interface About {
   text: string;
 }
 
-/** What waits on the human besides threads: the decisions the page exists to put in front of them. */
+/**
+ * What waits on the human besides building: the decisions the page puts in front of them.
+ * `threads` says which threads each is about, so the page shows it there; one about no thread
+ * is shown at the top of the backlog.
+ */
 interface Needs {
-  questions: { id: string; title: string; options: string[]; recommend: number | null; why: string; holds: string[] }[];
+  questions: { id: string; title: string; options: string[]; recommend: number | null; why: string; holds: string[]; threads: string[] }[];
   plans: { id: string; title: string; summary: string; parts: string[] }[];
-  calls: { id: string; title: string; choice: string; why: string; by: string; holds: string[] }[];
-  skills: { id: string; name: string; about: string }[];
+  calls: { id: string; title: string; choice: string; why: string; by: string; holds: string[]; threads: string[] }[];
+  skills: { id: string; name: string; about: string; by: string; threads: string[] }[];
   notes: { id: string; text: string }[];
+}
+
+/** The first line of a decision is the reason given for it, unless it is only the pointer to its thread. */
+function whyOf(d: Item): string {
+  const line = splitBody(d.body).main.split('\n')[0] ?? '';
+  return line.startsWith('For [[') ? '' : oneLine(line, 240);
 }
 
 function needsOf(ws: Workspace, spool: Item['spool']): Needs {
   const queue = review(ws, spool);
-  // The first line of a decision is the reason given for it, unless it is only the pointer to its thread.
-  const why = (d: Item): string => {
-    const line = splitBody(d.body).main.split('\n')[0] ?? '';
-    return line.startsWith('For [[') ? '' : oneLine(line, 240);
-  };
+  const why = whyOf;
   const holds = (d: Item): string[] => dependents(ws, d).map((t) => oneLine(t.title, 70));
+  const threads = (d: Item): string[] => dependents(ws, d).map((t) => t.id);
   return {
-    questions: queue.questions.map((d) => ({ id: d.id, title: d.title, options: d.options, recommend: d.recommend ?? null, why: why(d), holds: holds(d) })),
+    questions: queue.questions.map((d) => ({ id: d.id, title: d.title, options: d.options, recommend: d.recommend ?? null, why: why(d), holds: holds(d), threads: threads(d) })),
     plans: queue.plans.map((t) => ({
       id: t.id,
       title: t.title,
       summary: t.summary ?? '',
       parts: children(ws, t).filter((k) => k.status !== 'dropped').map((k) => oneLine(k.title, 90)),
     })),
-    calls: queue.assumptions.map((d) => ({ id: d.id, title: d.title, choice: d.choice ?? '', why: why(d), by: d.by ?? '', holds: holds(d) })),
-    skills: queue.skills.map((k) => ({ id: k.id, name: k.title, about: oneLine(splitBody(k.body).main, 200) })),
+    calls: queue.assumptions.map((d) => ({ id: d.id, title: d.title, choice: d.choice ?? '', why: why(d), by: d.by ?? '', holds: holds(d), threads: threads(d) })),
+    // A skill knows the threads that taught it.
+    skills: queue.skills.map((k) => ({ id: k.id, name: k.title, about: oneLine(splitBody(k.body).main, 200), by: k.by ?? '', threads: k.from.filter((id) => id.startsWith('t-')) })),
     notes: queue.inbox.map((n) => ({ id: n.id, text: splitBody(n.body).main })),
   };
 }
@@ -170,9 +179,14 @@ function needsOf(ws: Workspace, spool: Item['spool']): Needs {
 interface Post {
   at: string;
   who: string;
-  /** said: the human's words · post: an agent's note · shipped: it finished · asked: it needs a call · event: bookkeeping. */
-  kind: 'said' | 'post' | 'shipped' | 'asked' | 'event';
+  /**
+   * said: the human's words · post: an agent's note · shipped: it finished · asked: it needs a call ·
+   * decided: an agent made a call itself · event: bookkeeping.
+   */
+  kind: 'said' | 'post' | 'shipped' | 'asked' | 'decided' | 'event';
   text: string;
+  /** The decision a post is about: the question asked, or the call made. */
+  ref?: string;
 }
 
 /** The queue's own log lines: what moved where. Anything else an agent logged is something it had to say. */
@@ -190,6 +204,8 @@ function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['
     if (s.what.startsWith('done: ')) return { at: s.at, who: s.who, kind: 'shipped', text: s.what.slice(6) };
     const asked = /^waiting on d-[a-z0-9]+: (.*)$/.exec(s.what);
     if (asked) return { at: s.at, who: s.who, kind: 'asked', text: asked[1]! };
+    const decided = /^assumed (d-[a-z0-9]+): (.*)$/.exec(s.what);
+    if (decided) return { at: s.at, who: s.who, kind: 'decided', text: decided[2]!, ref: decided[1]! };
     return { at: s.at, who: s.who, kind: BOOKKEEPING.test(s.what) || s.who === 'human' ? 'event' : 'post', text: s.what };
   });
   // Stable: things said in the same minute keep the order they were written in, words first.
@@ -328,7 +344,7 @@ function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Threa
     commits: task.commits.map((c) => c.slice(0, 7)),
     cameFrom: from.map((i) => ({ id: i.id, title: i.title })),
     parts: children(ws, task).map((k) => ({ id: k.id, title: k.title, state: taskState(ws, k) })),
-    questions: asked.map((d) => ({ id: d.id, title: d.title, status: d.status, choice: d.choice ?? '' })),
+    questions: asked.map((d) => ({ id: d.id, title: d.title, status: d.status, choice: d.choice ?? '', why: whyOf(d) })),
   };
 }
 
@@ -1958,17 +1974,15 @@ const PAGE = String.raw`<!doctype html>
   .aboutform { padding: 0 6px 10px; display: grid; gap: 6px; max-width: 720px; }
   .aboutform input { padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 
-  /* what needs you: the decisions that are not threads */
-  .badge0 { display: inline-block; margin-left: 6px; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--hot); color: #fff; font-size: 11px; font-weight: 700; text-align: center; }
-  #needs { padding: 12px 20px 32px; max-width: 900px; }
-  #needs h2 { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--soft); margin: 18px 4px 8px; display: flex; gap: 10px; align-items: center; }
-  #needs h2 button { font-size: 12px; padding: 2px 9px; text-transform: none; letter-spacing: 0; }
+  /* what waits on the human: on its thread, or in the strip at the top of the backlog when it has none */
   .need { background: var(--panel); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; box-shadow: var(--shadow); }
   .need .what { font-weight: 600; overflow-wrap: anywhere; }
   .need .more { color: var(--soft); font-size: 13px; margin-top: 4px; overflow-wrap: anywhere; }
   .need .chose { margin-top: 6px; }
   .need .acts { flex-wrap: wrap; align-items: center; margin-top: 10px; }
-  .need .acts input { flex: 1 1 220px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
+  .say { display: inline-flex; flex: 1 1 260px; gap: 6px; }
+  .say input { flex: 1; min-width: 0; padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
+  .acts.wrap { flex-wrap: wrap; align-items: center; margin-top: 8px; }
   .need ul { margin: 6px 0 0; padding-left: 18px; color: var(--soft); font-size: 13px; }
 
   /* the ticket */
@@ -2047,7 +2061,6 @@ const PAGE = String.raw`<!doctype html>
   <div class="tabs">
     <button class="tab" data-view="board">Board</button>
     <button class="tab" data-view="backlog">Backlog</button>
-    <button class="tab" data-view="needs">Needs you<span class="badge0" id="needcount" hidden></span></button>
   </div>
   <input class="search" id="search" placeholder="Search threads   /" autocomplete="off">
   <div class="builder" id="builder" role="group" aria-label="Who builds" hidden><button data-builder="headless">Headless</button><button data-builder="chat">Chat</button></div>
@@ -2057,7 +2070,6 @@ const PAGE = String.raw`<!doctype html>
 <div id="quick"></div>
 <main id="board"></main>
 <main id="backlog" hidden></main>
-<main id="needs" hidden></main>
 <div id="veil" hidden></div>
 <aside id="thread" hidden></aside>
 <div id="said"></div>
@@ -2084,9 +2096,10 @@ let current = null;
 let busy = false;
 // Which view is up: the board, or the backlog with its sprints.
 let view = 'board';
-try { view = ['backlog', 'needs'].includes(localStorage.getItem('spool-view')) ? localStorage.getItem('spool-view') : 'board'; } catch (e) {}
+// A view the page no longer has, remembered or linked to, is the board.
+try { view = localStorage.getItem('spool-view') === 'backlog' ? 'backlog' : 'board'; } catch (e) {}
 // A link can name the view: /?view=backlog
-const asked = /[?&]view=(board|backlog|needs)\b/.exec(location.search);
+const asked = /[?&]view=(board|backlog)\b/.exec(location.search);
 if (asked) view = asked[1];
 // The thread that is open, if one is, and notes begun but not yet added.
 let openId = null;
@@ -2177,7 +2190,8 @@ const everyCard = (b) => COLUMNS.flatMap(([key]) => b.columns[key]);
 
 function chipsOf(c, b) {
   return [
-    c.done && el('span', { class: 'chip ' + (c.complete ? 'ok' : 'check') }, c.complete ? '✓ Complete' : 'For you to check'),
+    c.done && el('span', { class: 'chip ' + (c.complete ? 'ok' : 'check') }, c.complete ? '✓ Complete' : planWaits(b, c.id) ? 'Waiting for your go-ahead' : 'For you to check'),
+    lookAt(b, c.id) > 0 && el('span', { class: 'chip tag', title: 'Calls an agent made, or a skill it wrote, for you to look at on the thread', onclick: () => openThread(c.id) }, '🧾 ' + lookAt(b, c.id) + ' to look at'),
     c.type !== 'change' && el('span', { class: 'chip' }, c.type),
     c.suggested && el('span', { class: 'chip ai', title: c.suggested }, '✨ AI suggested'),
     c.sprint && el('span', { class: 'chip tag sprint', title: 'Show only this sprint', onclick: () => narrow('sprint', c.sprint) }, sprintName(b, c.sprint)),
@@ -2185,6 +2199,9 @@ function chipsOf(c, b) {
     c.tags.map((t) => el('span', { class: 'chip tag', title: 'Show only this tag', onclick: () => narrow('tag', t) }, '#' + t)),
   ];
 }
+
+// What an agent did on the thread by itself and he has not looked at: the calls it made, the skills it wrote.
+const lookAt = (b, id) => callsFor(b, id).length + skillsFor(b, id).length;
 
 // Who built it, how urgent, how big: the small facts at the foot of a card, the way a board has always shown them.
 function facts(c) {
@@ -2480,6 +2497,7 @@ function drawBacklog(b) {
           el('button', { onclick: () => { adding = null; addDraft = ''; redraw(); } }, 'Cancel')))
     : el('button', { style: 'margin-bottom: 14px', onclick: () => { adding = 'sprint'; addDraft = 'Sprint ' + (b.sprints.length + 1); redraw(); } }, '+ Create sprint');
   document.getElementById('backlog').replaceChildren(
+    ...[waitingNode(b)].filter(Boolean),
     ...open.map((s) => sprintNode(s, b)),
     newSprint,
     dropInto(el('div', { class: 'group' },
@@ -2490,63 +2508,103 @@ function drawBacklog(b) {
     ...finished.map((s) => sprintNode(s, b)));
 }
 
-// ---- what needs you: questions, plans, the calls agents made, new skills, unfiled notes
+// ---- what waits on him: on the thread it is about, or at the top of the backlog when it is about none
 
-const needCount = (b) => b.needs.questions.length + b.needs.plans.length + b.needs.calls.length + b.needs.skills.length + b.needs.notes.length;
+// The calls agents made for a thread and the skills it taught, that he has not looked at yet.
+const callsFor = (b, id) => b.needs.calls.filter((x) => x.threads.includes(id));
+const skillsFor = (b, id) => b.needs.skills.filter((x) => x.threads.includes(id));
+const planWaits = (b, id) => b.needs.plans.some((x) => x.id === id);
+// What is about no thread on the board has nowhere else to be shown, so the backlog's strip carries it.
+function homeless(b, list) {
+  const ids = new Set(everyCard(b).map((c) => c.id));
+  return list.filter((x) => !x.threads.some((id) => ids.has(id)));
+}
 
 // A box to say something else in, and the button that sends it.
 function sayNode(placeholder, label, send) {
   const box = el('input', { placeholder, onkeydown: (e) => { if (e.key === 'Enter' && box.value.trim()) send(box.value.trim()); } });
-  return [box, el('button', { onclick: () => { if (box.value.trim()) send(box.value.trim()); } }, label)];
+  return el('span', { class: 'say' }, box, el('button', { onclick: () => { if (box.value.trim()) send(box.value.trim()); } }, label));
+}
+// A question is answered with one of its options, or in his own words.
+function answersNode(q) {
+  return el('div', { class: 'acts wrap' },
+    q.options.map((o, i) => el('button', { class: q.recommend === i + 1 ? 'rec' : '', title: q.recommend === i + 1 ? 'Recommended' : '',
+      onclick: () => post('answer', { id: q.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)),
+    sayNode('Or say what you want', 'Answer', (words) => post('answer', { id: q.id, choice: words }, 'Answered')));
+}
+// A call an agent made is fine by him, or he overrules it in his own words.
+function callActs(call) {
+  return el('div', { class: 'acts wrap' },
+    el('button', { onclick: () => post('approve', { id: call.id }, 'Accepted') }, 'Fine'),
+    sayNode('No: say what you want instead', 'Overrule', (words) => post('answer', { id: call.id, choice: words }, 'Overruled')));
+}
+function skillActs(skill) {
+  return el('div', { class: 'acts wrap' },
+    el('button', { onclick: () => post('approve', { id: skill.id }, 'Kept') }, 'Keep'),
+    el('button', { onclick: () => post('drop-skill', { id: skill.id }, 'Dropped') }, 'Drop'));
 }
 
-function drawNeeds(b) {
+// A call an agent made, as a post in its thread: what it chose, the question and the why under it.
+// Until he has looked at it, Fine and Overrule are right there.
+function decidedNode(who, at, ref, text, b, t) {
+  const call = b.needs.calls.find((x) => x.id === ref);
+  const d = t.questions.find((x) => x.id === ref);
+  // The log line is "question → choice". Accepted, the decision still says the same choice; overruled, it says his.
+  const cut = text.lastIndexOf(' → ');
+  const chose = call ? call.choice : d && text.endsWith(' → ' + d.choice) ? d.choice : cut > 0 ? text.slice(cut + 3) : '';
+  const question = call ? call.title : d ? d.title : cut > 0 ? text.slice(0, cut) : text;
+  const why = call ? call.why : d ? d.why : '';
+  return el('div', { class: 'post', 'data-call': ref }, avatar(who),
+    el('div', {}, byline(who, at),
+      el('pre', {}, 'Decided: ' + chose),
+      el('div', { class: 'note' }, question),
+      why && el('div', { class: 'note' }, 'Why: ' + why),
+      call ? callActs(call)
+        : d && d.status === 'decided' && d.choice !== chose ? el('span', { class: 'badge ask' }, 'You overruled it: ' + d.choice)
+        : d && d.status === 'decided' && el('span', { class: 'badge' }, '✓ Fine by you')));
+}
+// A skill an agent wrote while working on the thread, to keep or drop.
+function skillPost(skill) {
+  return el('div', { class: 'post' }, avatar(skill.by || 'agent'),
+    el('div', {}, byline(skill.by || 'agent', ''),
+      el('span', { class: 'badge' }, '📘 Wrote a new skill'),
+      el('pre', {}, skill.name),
+      skill.about && el('div', { class: 'note' }, skill.about),
+      skillActs(skill)));
+}
+
+// The strip at the top of the backlog: notes nobody filed, and anything waiting on him that is about
+// no thread. It is not there when there is nothing in it.
+function waitingNode(b) {
   const n = b.needs;
-  const holds = (list) => list.length > 0 && el('div', { class: 'more' }, 'Holding up: ' + list.join(' · '));
-  const section = (title, items, extra) => items.length > 0 && [el('h2', {}, title + ' · ' + items.length, extra), items];
-  document.getElementById('needs').replaceChildren(...[
-    needCount(b) === 0 && el('div', { class: 'empty' }, 'Nothing needs you. Agents have what they need.'),
-
-    section('❓ Questions', n.questions.map((q) => el('div', { class: 'need' },
-      el('div', { class: 'what' }, q.title),
+  const items = [
+    ...homeless(b, n.questions).map((q) => el('div', { class: 'need' },
+      el('div', { class: 'what' }, '❓ ' + q.title),
       q.why && el('div', { class: 'more' }, q.why),
-      holds(q.holds),
-      el('div', { class: 'acts' },
-        q.options.map((o, i) => el('button', { class: q.recommend === i + 1 ? 'rec' : '', title: q.recommend === i + 1 ? 'Recommended' : '',
-          onclick: () => post('answer', { id: q.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)),
-        sayNode('Or say what you want', 'Answer', (words) => post('answer', { id: q.id, choice: words }, 'Answered')))))),
-
-    section('🗺 Plans waiting for your go-ahead', n.plans.map((plan) => el('div', { class: 'need' },
-      el('div', { class: 'what' }, plan.title),
-      plan.summary && el('div', { class: 'more' }, plan.summary),
-      plan.parts.length > 0 && el('ul', {}, plan.parts.map((part) => el('li', {}, part))),
-      el('div', { class: 'acts' },
-        el('button', { class: 'go', onclick: () => post('approve', { id: plan.id }, 'The plan has your go-ahead') }, 'Go ahead'),
-        el('button', { onclick: () => openThread(plan.id) }, 'Read the plan'))))),
-
-    section('🧾 Calls agents made', n.calls.map((call) => el('div', { class: 'need' },
-      el('div', { class: 'what' }, call.title),
-      el('div', { class: 'chose' }, '→ ' + call.choice),
-      call.why && el('div', { class: 'more' }, call.why),
-      holds(call.holds),
-      el('div', { class: 'acts' },
-        el('button', { onclick: () => post('approve', { id: call.id }, 'Accepted') }, 'Fine'),
-        sayNode('No: say what you want instead', 'Overrule', (words) => post('answer', { id: call.id, choice: words }, 'Overruled. The rework is in the backlog.'))))),
-      n.calls.length > 1 && el('button', { onclick: () => post('approve-calls', {}, 'All accepted') }, 'All fine')),
-
-    section('📘 New skills agents wrote', n.skills.map((skill) => el('div', { class: 'need' },
-      el('div', { class: 'what' }, skill.name),
+      answersNode(q))),
+    ...homeless(b, n.calls).map((call) => el('div', { class: 'need' },
+      el('div', { class: 'what' }, 'Decided: ' + call.choice),
+      el('div', { class: 'more' }, call.title),
+      call.why && el('div', { class: 'more' }, 'Why: ' + call.why),
+      callActs(call))),
+    ...homeless(b, n.skills).map((skill) => el('div', { class: 'need' },
+      el('div', { class: 'what' }, '📘 New skill: ' + skill.name),
       skill.about && el('div', { class: 'more' }, skill.about),
-      el('div', { class: 'acts' },
-        el('button', { onclick: () => post('approve', { id: skill.id }, 'Kept') }, 'Keep'),
-        el('button', { onclick: () => post('drop-skill', { id: skill.id }, 'Dropped') }, 'Drop'))))),
-
-    section('✎ Notes nobody filed', n.notes.map((note) => el('div', { class: 'need' },
+      skillActs(skill))),
+    ...n.notes.map((note) => el('div', { class: 'need' },
       el('pre', {}, note.text),
-      el('div', { class: 'acts' },
+      el('div', { class: 'acts wrap' },
         el('button', { class: 'go', onclick: () => post('note-thread', { id: note.id, title: note.text }, 'It is a thread in the backlog') }, 'Make it a thread'),
-        el('button', { onclick: () => post('note-aside', { id: note.id }, 'Set aside') }, 'Set aside'))))),
-  ].flat(3).filter(Boolean));
+        el('button', { onclick: () => post('note-aside', { id: note.id }, 'Set aside') }, 'Set aside')))),
+  ];
+  // Many calls are accepted in one go, wherever they are.
+  const all = n.calls.length > 1 && el('button', { onclick: () => post('approve-calls', {}, 'All accepted') }, 'All ' + n.calls.length + ' calls fine');
+  if (!items.length && !all) return null;
+  return el('div', { class: 'group waiting' },
+    el('div', { class: 'ghead' }, el('span', { class: 'gname' }, 'Waiting on you'),
+      el('span', { class: 'gmeta' }, items.length ? 'Not on any thread yet' : 'Agents made ' + n.calls.length + ' calls on their threads'),
+      all && el('span', { class: 'push' }, all)),
+    items);
 }
 
 // ---- the ticket
@@ -2652,7 +2710,8 @@ function threadNode(c, b) {
   const lineage = [
     ...t.cameFrom.map((f) => 'Came out of: ' + f.title),
     ...t.parts.map((p) => 'Part: ' + p.title + ' (' + p.state + ')'),
-    ...t.questions.map((q) => 'Asked: ' + q.title + (q.choice ? ' → ' + q.choice : ' → not answered yet')),
+    // A call an agent made is already a post in the conversation.
+    ...t.questions.filter((q) => !t.feed.some((p) => p.ref === q.id)).map((q) => 'Asked: ' + q.title + (q.choice ? ' → ' + q.choice : ' → not answered yet')),
   ];
 
   const title = el('h2', { contenteditable: 'plaintext-only', spellcheck: 'false', title: 'Click to rename',
@@ -2670,6 +2729,7 @@ function threadNode(c, b) {
         if (p.kind === 'event') {
           return el('div', { class: 'event' }, el('div', { class: 'dot' }), el('div', {}, speaker(p.who).name + ' ' + p.text + ' · ' + when(p.at)));
         }
+        if (p.kind === 'decided') return decidedNode(p.who, p.at, p.ref, p.text, b, t);
         const asking = p.kind === 'asked' && c.question && c.question.title === p.text;
         return el('div', { class: 'post' }, avatar(p.who),
           el('div', {}, byline(p.who, p.at),
@@ -2678,14 +2738,15 @@ function threadNode(c, b) {
             el('pre', {}, p.text),
             p.kind === 'shipped' && t.checked && el('div', { class: 'badge', style: 'display: block' }, '✓ Check passed: ' + t.checked),
             p.kind === 'shipped' && t.commits.length > 0 && el('div', { class: 'mono', style: 'margin-top: 6px; color: var(--soft)' }, (t.commits.length === 1 ? 'commit ' : 'commits ') + t.commits.join(' · ')),
-            asking && el('div', {}, c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '', style: 'margin: 8px 6px 0 0',
-              onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)))));
+            asking && answersNode(c.question)));
       }),
       // A question with no line of its own in the log still has to be answerable here.
       c.question && !t.feed.some((p) => p.kind === 'asked' && p.text === c.question.title) && el('div', { class: 'post' }, avatar(t.by || 'agent'),
         el('div', {}, byline(t.by || 'agent', ''), el('span', { class: 'badge ask' }, '❓ Needs a call from you'), el('pre', {}, c.question.title),
-          el('div', {}, c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '', style: 'margin: 8px 6px 0 0',
-            onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)))))),
+          answersNode(c.question))),
+      // So does a call made for it with no line of its own, and a skill it taught.
+      callsFor(b, c.id).filter((x) => !t.feed.some((p) => p.ref === x.id)).map((x) => decidedNode(x.by || 'agent', '', x.id, x.title + ' → ' + x.choice, b, t)),
+      skillsFor(b, c.id).map(skillPost)),
 
     liveOf(c, b) && [el('h3', {}, 'Live · ' + liveOf(c, b).seconds + 's'), el('div', { class: 'livelog' }, liveOf(c, b).lines.join('\n') || 'starting…'),
       el('button', { style: 'margin-top: 8px', onclick: () => post('stop', {}, 'Stopped') }, '■ Stop the agent')],
@@ -2702,6 +2763,8 @@ function threadNode(c, b) {
     changesNode(c),
     c.done && el('div', { class: 'finish' }, c.complete
       ? el('div', { class: 'ok' }, '✓ Complete. You approved this change.')
+      // A plan's parts wait for his go-ahead, and this is where he gives it.
+      : planWaits(b, c.id) ? el('button', { class: 'go', onclick: () => post('approve', { id: c.id }, 'The plan has your go-ahead') }, '✓ Go ahead with the plan')
       : el('button', { class: 'go', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓ Mark as complete'),
       undoNode(c)));
 
@@ -2834,14 +2897,9 @@ function draw(b) {
     runner.title = (b.runner.on ? 'This page is building what is in Build. Click to switch it off.' : 'Click to have this page build what is in Build, with no chat open.') + ' It runs: ' + b.runner.agent + '.' + lately;
     runner.onclick = () => post('runner', { on: !b.runner.on }, '');
   }
-  const waiting = needCount(b);
-  const badge = document.getElementById('needcount');
-  badge.textContent = String(waiting);
-  badge.hidden = waiting === 0;
   document.getElementById('board').hidden = view !== 'board';
   document.getElementById('backlog').hidden = view !== 'backlog';
-  document.getElementById('needs').hidden = view !== 'needs';
-  if (view === 'board') drawBoard(b); else if (view === 'backlog') drawBacklog(b); else drawNeeds(b);
+  if (view === 'board') drawBoard(b); else drawBacklog(b);
   const box = document.querySelector('.adding textarea, .adding input');
   if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
   drawThread(b);

@@ -71,7 +71,7 @@ an agent how to work ("keep going until midnight"), or saying go or no, is acted
 
 ## The page
 
-`spool page` starts a small server on your machine and opens a board. It has three views.
+`spool page` starts a small server on your machine and opens a board. It has two views.
 
 **Board.** Four columns: Backlog, Build, Building, Done.
 
@@ -85,12 +85,15 @@ an agent how to work ("keep going until midnight"), or saying go or no, is acted
   the rest; completed threads are kept behind a **History** line.
 
 **Backlog.** For planning: sprints stacked above the backlog. Create a sprint, drag threads into it,
-press **▶ Play sprint**.
+press **▶ Play sprint**. Notes nobody filed sit in a strip at the top (**Make it a thread**, or
+**Set aside**), with anything waiting on you that is about no thread. The strip is gone when it is
+empty.
 
-**Needs you.** Every decision waiting on you that is not a thread, with a count on the tab:
-questions (answer with a button, or in your own words), plans wanting a go-ahead, the calls agents
-made by themselves (**Fine**, or overrule one in a sentence and the rework is filed), new skills, and
-notes nobody filed.
+**What waits on you is on its thread.** A question is answered on its card, or on its ticket with a
+button or in your own words. A call an agent made by itself is a post in its thread, "Decided: …"
+with the question and the why: **Fine**, or overrule it in a sentence and the rework is filed. A card
+with calls or a new skill you have not looked at says how many. A plan wanting a go-ahead says so
+on its card and gets it on its ticket; a new skill is kept or dropped on the thread that taught it.
 
 **A ticket.** Click any card. On the left, the thread as a conversation: what you said, what the
 agent answered and which agent it was, the moves in between, and a box to reply. An audit's or a

@@ -190,7 +190,7 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.match(html, /\[hidden\] \{ display: none !important; \}/, 'the view that is not up is really gone, not left above the other');
     assert.match(html, /id="search"/);
 
-    // Needs you: what waits on the human that is not a thread, with what each is holding up.
+    // What waits on the human besides building, with what each is holding up: shown on its thread, or in the backlog's strip.
     b = await board();
     assert.deepEqual(b.needs.calls.map((c: any) => [c.title, c.choice, c.why]), [['Where does mute live?', 'Settings', 'it is where sound is']]);
     assert.deepEqual([b.needs.questions.length, b.needs.plans.length, b.needs.skills.length], [0, 0, 0]);
@@ -357,5 +357,36 @@ test('a Building card says what the agent is doing now, and since when', async (
   s.sp('log', jump, 'the peak is now 20% lower');
   s.sp('edit', jump, '--size', 'm');
   assert.equal(live()?.note, 'the peak is now 20% lower', 'the line changes as the agent works; bookkeeping does not count');
+  s.cleanup();
+});
+
+test('what waits on the human says which thread it is about, and a call reads as a post there', async () => {
+  const { board } = await import('../src/page.ts');
+  const { Workspace } = await import('../src/store.ts');
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop');
+  const pause = s.id('task', 'Pause button under the score', '-s', 'xs');
+  s.sp('assume', 'Which font for the score?', '--chose', 'The pixel font', '--why', 'it matches the title screen', '--for', pause);
+  s.sp('assume', 'How loud is the coin sound?', '--chose', 'Half volume');
+  s.sp('ask', 'Pause on the left, or the right?', '--option', 'Left', '--option', 'Right', '--for', pause);
+  const taught = s.exec(['skill', 'add', 'pause-menus', '-d', 'How this game pauses: use when adding a menu.', '--from', pause, '-b', '-'], { stdin: '1. Freeze the clock.\n' });
+  assert.equal(taught.code, 0, taught.err);
+  const read = () => board(Workspace.open(s.root, () => new Date('2026-01-01T00:30:00Z')));
+
+  let b = read();
+  assert.deepEqual(b.needs.calls.map((c) => [c.title, c.threads]), [['Which font for the score?', [pause]], ['How loud is the coin sound?', []]], 'a call made for no thread is about none');
+  assert.deepEqual(b.needs.questions.map((q) => q.threads), [[pause]]);
+  assert.deepEqual(b.needs.skills.map((k) => [k.name, k.threads]), [['pause-menus', [pause]]]);
+  const ticket = () => Object.values(b.columns).flat().find((c) => c.id === pause)!;
+  const thread = ticket().thread;
+  const call = b.needs.calls[0]!;
+  assert.deepEqual(thread.feed.filter((p) => p.kind === 'decided').map((p) => [p.text, p.ref]), [['Which font for the score? → The pixel font', call.id]]);
+  assert.deepEqual(thread.questions.find((q) => q.id === call.id), { id: call.id, title: 'Which font for the score?', status: 'assumed', choice: 'The pixel font', why: 'it matches the title screen' });
+
+  // Accepted, it leaves what waits on him, and the thread still has it on record.
+  s.sp('approve', call.id);
+  b = read();
+  assert.deepEqual(b.needs.calls.map((c) => c.title), ['How loud is the coin sound?']);
+  assert.equal(ticket().thread.questions.find((q) => q.id === call.id)!.status, 'decided');
   s.cleanup();
 });
