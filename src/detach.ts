@@ -1,0 +1,194 @@
+/**
+ * A page that runs on its own: `spool page -d`, `--status` and `--stop`.
+ *
+ * Every page, detached or not, says where it is in one small file on the user's machine, kept by
+ * the project's folder: which process holds it, at what address, since when. That is how a second
+ * start finds the first instead of taking the next port, and how `--status` and `--stop` find it
+ * from any terminal or chat. It lives under `~/.config/spool/pages/`, not in the project, since it
+ * is about this machine's processes and nothing in it belongs in a commit.
+ */
+
+import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import type { Result } from './commands.ts';
+import { builderOf, type Ctx } from './context.ts';
+import { SpoolError } from './model.ts';
+
+export interface PageRecord {
+  /** The process to signal: the one a terminal or `-d` started, which a restarting page stays under. */
+  pid: number;
+  url: string;
+  /** The project's folder, as `builderOf` keys it. */
+  root: string;
+  project?: string;
+  since: string;
+  /** Agents were on when it started; the page itself says how they are now. */
+  run: boolean;
+  detached: boolean;
+}
+
+function pagesDir(ctx: Ctx): string {
+  const base = ctx.env.XDG_CONFIG_HOME || (ctx.env.HOME ? path.join(ctx.env.HOME, '.config') : '');
+  if (!base) throw new SpoolError('no home directory to keep the page’s address in');
+  return path.join(base, 'spool', 'pages');
+}
+
+function fileOf(ctx: Ctx, root: string, ext: string): string {
+  return path.join(pagesDir(ctx), `${createHash('sha256').update(root).digest('hex').slice(0, 16)}${ext}`);
+}
+
+export function logOf(ctx: Ctx, root: string): string {
+  return fileOf(ctx, root, '.log');
+}
+
+export function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // There, but someone else's to signal: it is still alive.
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/** The page up for this project, if there is one. A record left by a page that died without a word is ignored. */
+export function pageUp(ctx: Ctx, root: string): PageRecord | undefined {
+  try {
+    const found = JSON.parse(fs.readFileSync(fileOf(ctx, root, '.json'), 'utf8')) as PageRecord;
+    if (typeof found.pid === 'number' && typeof found.url === 'string' && alive(found.pid)) return found;
+  } catch {
+    // No record, or not one a page wrote: no page.
+  }
+  return undefined;
+}
+
+export function rememberPage(ctx: Ctx, record: PageRecord): void {
+  try {
+    const file = fileOf(ctx, record.root, '.json');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    // Written whole and then moved into place, so a reader never sees half of it.
+    fs.writeFileSync(`${file}.${process.pid}`, `${JSON.stringify(record, null, 2)}\n`);
+    fs.renameSync(`${file}.${process.pid}`, file);
+  } catch {
+    // A page that cannot say where it is still works: only --status and --stop will not find it.
+  }
+}
+
+/** Remove the record, if it is still the one this process wrote: a page started since keeps its own. */
+export function forgetPage(ctx: Ctx, root: string, pid: number): void {
+  try {
+    const file = fileOf(ctx, root, '.json');
+    const found = JSON.parse(fs.readFileSync(file, 'utf8')) as PageRecord;
+    if (found.pid === pid) fs.rmSync(file, { force: true });
+  } catch {
+    // Already gone.
+  }
+}
+
+/**
+ * `spool page -d`: start the page again as a process of its own, away from this terminal, and
+ * come back with its address once it is listening. The page itself is the ordinary one, so it
+ * restarts onto new code as any page does.
+ */
+export function detachPage(ctx: Ctx, root: string, cli: string, args: string[]): Result {
+  const log = logOf(ctx, root);
+  fs.mkdirSync(path.dirname(log), { recursive: true });
+  const fd = fs.openSync(log, 'w');
+  const child = spawn(process.execPath, [...process.execArgv, cli, 'page', '--no-open', ...args], {
+    cwd: ctx.cwd,
+    // Its own session: closing the terminal, or the chat ending, does not reach it.
+    detached: true,
+    stdio: ['ignore', fd, fd],
+    // Said in the environment, since a page that restarts hands that on and nothing else.
+    env: { ...ctx.env, SPOOL_PAGE_RESUME: undefined, SPOOL_PAGE_DETACHED: '1' },
+  });
+  fs.closeSync(fd);
+  const said = (): string => {
+    try {
+      return fs.readFileSync(log, 'utf8').trim();
+    } catch {
+      return '';
+    }
+  };
+  let done = false;
+  const finish = (code: number, lines: string[]): void => {
+    if (done) return;
+    done = true;
+    for (const line of lines) (code ? ctx.err : ctx.out)(line);
+    process.exitCode = code;
+    child.unref();
+    // Out with the words, and gone: the page stays up without this process.
+    process.stdout.write('', () => process.stderr.write('', () => process.exit(code)));
+  };
+  child.on('error', (error) => finish(1, [`spool: the page could not start: ${error.message}`]));
+  child.on('exit', (code) => {
+    const why = said().replace(/^spool: /, '');
+    finish(code === 0 ? 0 : 1, code === 0 ? [why] : [`spool: the page did not start${why ? `: ${why.replace(/^the page could not start: /, '')}` : ''}`]);
+  });
+  const started = Date.now();
+  const look = (): void => {
+    if (done) return;
+    const up = pageUp(ctx, root);
+    if (up && up.pid === child.pid) {
+      const lines = [`Spool page: ${up.url}`];
+      const run = said().split('\n').find((line) => line.startsWith('Agents are on') || line.startsWith('A chat builds'));
+      if (run) lines.push(run);
+      lines.push('It runs in the background, with no browser and no terminal to keep open. spool page --stop ends it.');
+      return finish(0, lines);
+    }
+    if (Date.now() - started > 15_000) {
+      child.kill('SIGTERM');
+      return finish(1, [`spool: the page did not start in time. What it said is in ${log}`]);
+    }
+    setTimeout(look, 50);
+  };
+  look();
+  return { text: '' };
+}
+
+/** `spool page --status`: whether a page is up for this project, where, since when, and who builds. */
+export function pageStatus(ctx: Ctx, root: string): Result {
+  const up = pageUp(ctx, root);
+  if (!up) return { text: 'No Spool page is up for this project. spool page -d starts one.' };
+  const since = new Date(up.since);
+  const when = `${since.toLocaleDateString('en-CA')} ${since.toTimeString().slice(0, 5)}`;
+  const builds = builderOf(ctx, root) === 'chat' ? 'A chat builds here (Chat).' : 'The page builds here itself (Headless).';
+  const head = [`Spool page: ${up.url}`, `Up since ${when}, ${up.detached ? 'in the background' : 'in a terminal'} (pid ${up.pid}).`];
+  // Agents are switched on the page, so the page is asked; the record only knows how they started.
+  fetch(new URL('api/board', up.url), { signal: AbortSignal.timeout(3000) })
+    .then((res) => res.json() as Promise<{ runner?: { on?: boolean } }>)
+    .then((board) => ctx.out([...head, `Agents are ${board.runner?.on ? 'on' : 'off'}. ${builds}`].join('\n')))
+    .catch(() => {
+      ctx.out([...head, `Agents were ${up.run ? 'on' : 'off'} when it started. ${builds}`, 'It is not answering just now.'].join('\n'));
+    });
+  return { text: '' };
+}
+
+/** `spool page --stop`: end the page as Ctrl-C would, so its agent is ended and its thread put back. */
+export function stopPage(ctx: Ctx, root: string): Result {
+  const up = pageUp(ctx, root);
+  if (!up) return { text: 'No Spool page is up for this project.' };
+  try {
+    process.kill(up.pid, 'SIGTERM');
+  } catch (error) {
+    throw new SpoolError(`could not stop the page (pid ${up.pid}): ${(error as Error).message}`);
+  }
+  const started = Date.now();
+  const look = (): void => {
+    if (!alive(up.pid)) {
+      forgetPage(ctx, root, up.pid);
+      ctx.out(`Stopped the Spool page at ${up.url}`);
+      return;
+    }
+    if (Date.now() - started > 10_000) {
+      ctx.err(`spool: the page (pid ${up.pid}) has not stopped yet`);
+      process.exitCode = 1;
+      return;
+    }
+    setTimeout(look, 50);
+  };
+  look();
+  return { text: '' };
+}

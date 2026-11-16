@@ -216,7 +216,7 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   assert.match(shipped('spool-record'), /\*\*Give each thread its spec\*\*[\s\S]*What: [^\n]*\n {7}Why: [^\n]*\n {7}Done when: /);
   assert.match(shipped('spool-record'), /A new thread is proposed, not started\./);
   const page = shipped('spool-page');
-  assert.match(page, /Run `spool page` in the background[\s\S]*Do not\n {3}describe the board in the chat/);
+  assert.match(page, /Run `spool page -d`[\s\S]*in the background[\s\S]*Do not describe the board in the chat/);
   assert.match(page, /This is the only way anything gets built\./);
   assert.match(page, /\*\*Keep the board live\.\*\* Opening the page is starting the loop/);
   assert.match(page, /\*\*▶ Play sprint\*\* \| Everything in the sprint moves to Build at once\./);

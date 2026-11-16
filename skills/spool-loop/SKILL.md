@@ -189,9 +189,10 @@ Next in build: <thread> (<why>) · <thread> (<why>)
 The board: <the page's address>
 ```
 
-- **The page is where the rest is.** If it is not open, start it
-  (`spool page`, in the background) and give its address. A thread has its own
-  place there: the address, then `#<t-id>`.
+- **The page is where the rest is.** If it is not up, start it with
+  `spool page -d`, which runs it in the background and opens no browser, and
+  give its address. One up already? The same command gives you its address.
+  A thread has its own place there: the address, then `#<t-id>`.
 - **They ask for the whole list** ("show me everything", "what's in the
   spool")? Then, and only then, `spool overview --table`, exactly as it
   comes: every open thread, numbered, so they can say "build 4" or "drop 9".

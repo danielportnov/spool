@@ -35,6 +35,7 @@ import { fileURLToPath } from 'node:url';
 import { run } from './cli.ts';
 import type { Bare, Result } from './commands.ts';
 import { type Builder, type Ctx, builderOf, saveBuilder, userConfig } from './context.ts';
+import { detachPage, forgetPage, pageStatus, pageUp, rememberPage, stopPage } from './detach.ts';
 import { DEFAULT_AGENT, PREAMBLE } from './loop.ts';
 import {
   EFFORTS,
@@ -1867,6 +1868,12 @@ function keepPage(ctx: Ctx, page: { project?: string; agent?: string }, first: R
   start(first);
 }
 
+function openUrl(url: string): void {
+  const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
+  const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
+  spawn(opener, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref();
+}
+
 /** `spool page`: start the server, say where it is, and open it. The process stays up until it is stopped. */
 export function servePage({ ctx, opts }: Bare): Result {
   // A page that restarted onto new code says where the one before it was, and whether its agents were on.
@@ -1876,17 +1883,34 @@ export function servePage({ ctx, opts }: Bare): Result {
   const project = typeof opts.project === 'string' ? opts.project : undefined;
   // Fail now, in words, where there is no spool or no such project.
   const ws = Workspace.open(ctx.cwd, ctx.now);
-  let chatBuilds = false;
+  let root: string;
   try {
     board(ws, project);
-    chatBuilds = builderOf(ctx, (project ? ws.project(project) : ws.home).root) === 'chat';
+    root = (project ? ws.project(project) : ws.home).root;
   } finally {
     ws.close();
   }
+  const chatBuilds = builderOf(ctx, root) === 'chat';
   const run = resumed ? resumed.run : !!opts.run;
   const agent = typeof opts.agent === 'string' ? opts.agent : undefined;
+  if (opts.status) return pageStatus(ctx, root);
+  if (opts.stop) return stopPage(ctx, root);
+  // One page to a project: a second start points at the first instead of taking the next port.
+  const up = resumed ? undefined : pageUp(ctx, root);
+  if (up) {
+    if (!opts['no-open'] && !opts.detach) openUrl(up.url);
+    return { text: `The Spool page is already up for this project: ${up.url}` };
+  }
+  if (opts.detach) {
+    const args = [...(port ? ['--port', String(port)] : []), ...(run ? ['--run'] : []), ...(agent ? ['--agent', agent] : []), ...(project ? ['--project', project] : [])];
+    return detachPage(ctx, root, path.join(CODE_DIR, `cli${CODE_EXT}`), args);
+  }
   // Started by a page that is staying up to restart this one: it is told how, and this one ends if it does.
   const kept = !!resumed && typeof process.send === 'function';
+  // The process a terminal or `-d` started is the one to signal: a kept page is its child.
+  const owner = kept ? process.ppid : process.pid;
+  let handing = false;
+  process.once('exit', () => handing || forgetPage(ctx, root, owner));
   // Ctrl-C, or closing the terminal, ends the page and the agent it started with it.
   const stop = (): void => {
     server.close();
@@ -1894,6 +1918,7 @@ export function servePage({ ctx, opts }: Bare): Result {
   };
   const restart = (resume: Resume): void => {
     // Started by a page that stayed up for this: ending this way is asking it to start the next.
+    handing = kept;
     if (kept) process.exit(resume.run ? RESTART.on : RESTART.off);
     // The first restart. This process stays, since it is the one the terminal holds, and the page runs in a child from here on.
     for (const signal of SIGNALS) process.off(signal, stop);
@@ -1902,8 +1927,11 @@ export function servePage({ ctx, opts }: Bare): Result {
     keepPage(ctx, { project, agent }, resume);
   };
   // What tells a page it is taking over is for that page alone, not for the agents it starts.
-  const own: Ctx = { ...ctx, env: { ...ctx.env, SPOOL_PAGE_RESUME: undefined } };
+  const own: Ctx = { ...ctx, env: { ...ctx.env, SPOOL_PAGE_RESUME: undefined, SPOOL_PAGE_DETACHED: undefined } };
   const server = startPage(own, { port, project, run, agent, resumed: !!resumed, restart }, ({ url }) => {
+    const before = resumed ? pageUp(ctx, root) : undefined;
+    const since = before?.pid === owner ? before.since : ctx.now().toISOString();
+    rememberPage(ctx, { pid: owner, url, root, project, since, run, detached: ctx.env.SPOOL_PAGE_DETACHED === '1' });
     if (resumed) {
       ctx.out(`Restarted on the new build: ${url}`);
       return;
@@ -1911,11 +1939,7 @@ export function servePage({ ctx, opts }: Bare): Result {
     ctx.out(`Spool page: ${url}`);
     if (run) ctx.out(chatBuilds ? 'A chat builds here, as picked on the page: this page starts no agents until that is set back to Headless.' : 'Agents are on: this page builds what is in Build, with no chat open.');
     ctx.out('Leave this running while you use the page. Ctrl-C stops it.');
-    if (!opts['no-open']) {
-      const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
-      const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
-      spawn(opener, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref();
-    }
+    if (!opts['no-open']) openUrl(url);
   });
   for (const signal of SIGNALS) process.once(signal, stop);
   if (kept) process.once('disconnect', stop);

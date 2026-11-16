@@ -61,6 +61,9 @@ those comments are the detail.
   is in Build when agents are on, the same way `runLoop` does. `Upkeep` restarts the page when the
   code on disk changes, and, where the page runs from a checkout of Spool that is also the project
   it shows, runs `npm run build` there once Build and Building are empty.
+- `detach.ts` is `spool page -d`, `--status` and `--stop`, and the record every page leaves under
+  `~/.config/spool/pages/` saying which process holds it and at what address (`pageUp`), which is
+  how a second start finds the first.
 - `stream.ts` reads what a `claude -p` agent prints with `--output-format stream-json`
   (`streaming` adds the flags, `hearLine` reads a line) into the short lines a card shows, and
   says where each run's stream is kept (`transcriptFile`).

@@ -8,12 +8,15 @@ description: Open the Spool page - a board in the browser with every thread of t
 The page is where the human plans and steers. Everything long lives there, so
 the chat can stay short.
 
-1. Run `spool page` in the background: it is a small server on their machine
-   and has to keep running. It prints the page's address and opens it in their
-   browser. If your harness has a browser pane, open the address there and
-   add `--no-open`. No `.spool/` here? Tell them to run `/spool-init`, and stop.
-2. Give them the address, and say in one line what the board is for. Do not
-   describe the board in the chat. They can see it.
+1. Run `spool page -d`. It starts the page, a small server on their machine,
+   in the background, and returns within a second or two with its address. It
+   opens no browser and stays up after this chat has gone. One already up for
+   this project? It says so and gives that address; use it. No `.spool/` here?
+   Tell them to run `/spool-init`, and stop.
+2. Show it to them: in your harness's browser pane if it has one, or else run
+   `spool page` once more, which with a page up only opens that one in their
+   browser and returns. Give them the address, and say in one line what the
+   board is for. Do not describe the board in the chat. They can see it.
 3. **Keep the board live.** Opening the page is starting the loop: build what
    is in Build, then watch the spool so the next thread they move there is
    built the moment they move it. The `spool-loop` skill has the rules:
@@ -72,6 +75,10 @@ The page keeps itself current. When Spool is upgraded or rebuilt, the page
 restarts onto the new code once no agent of its own is running, at the same
 address, and the page they have open reloads itself. Do not stop and start it
 to pick up new code: stopping it ends the agent it is running.
+
+`spool page --status` says whether a page is up for this project, at what
+address, and who builds. `spool page --stop` ends it, as Ctrl-C would: only when
+they ask.
 
 Agents keep working while the page is open, and it shows threads move as they do.
 `spool page -P <project>` shows one project of a folder of them.

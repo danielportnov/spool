@@ -266,6 +266,16 @@ the temp folder for as long as it runs), and **off** when nobody is listening, s
 would be built. The pick is kept on your machine, by the project's folder, under `builder` in
 `~/.config/spool/config.json`, so it outlives the page.
 
+**In the background.** `spool page -d` starts the page as a process of its own and returns once it
+is listening, with its address. It opens no browser and outlives the terminal or chat that started
+it; what it prints goes to a log beside its record. Every page, detached or not, leaves a small
+record of where it is under `~/.config/spool/pages/`, one per project folder, and removes it when it
+stops; a record whose process has died is ignored. So a second start for the same project, with
+`-d` or without, gives the address of the one that is up instead of taking the next port, and plain
+`spool page` opens that one in the browser. `spool page --status` says where it is, since when,
+whether agents are on (it asks the page) and who builds; `spool page --stop` sends it what Ctrl-C
+does, so the agent it started is ended and its thread put back, and waits for it to go.
+
 The page keeps itself current. When the code of Spool on disk is no longer the code the page
 started from, after an upgrade or a rebuild, it restarts onto it once no agent of its own is
 running, at the same address, and the page you have open reloads itself. Where the project is
@@ -369,6 +379,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool checks [command \| --none]` | Name the command that must pass before a change is done here |
 | `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it; changes nothing |
 | `spool page [--run] [--agent cmd] [--port n] [--no-open]` | The board; `--run` has it build what is in Build too |
+| `spool page -d \| --status \| --stop` | The board in the background, with no browser opened; whether it is up, and where; end it |
 | `spool watch` | Print a line when there is something for the loop to do |
 | `spool loop [--watch s] [--agent cmd]` | The runner with no chat |
 | `spool mcp [-C dir]` | The commands as MCP tools |

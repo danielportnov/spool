@@ -168,6 +168,20 @@ open, and you watch threads move.
 
 The pictures are a made-up project.
 
+### In the background
+
+```bash
+spool page -d
+```
+
+`-d` starts the page in the background and comes back at once with its address. No browser pops
+up, there is no terminal to keep open, and it stays up after the terminal or the chat that started
+it has gone: with a chat building, every change is a command, and the page is only for looking in
+when you want to. `spool page --status` says whether one is up for this project, where, since when,
+and who builds; `spool page --stop` ends it, as Ctrl-C would. One page to a project: starting
+another while one is up gives you the address of the one that is up, and plain `spool page` opens
+it in your browser.
+
 ## No chat at all
 
 ```bash
