@@ -16,11 +16,11 @@ test('init lays down the store, the policy and a pointer for agents', () => {
   assert.match(out, /The queue stays on this machine: git ignores \.spool\/\./);
 
   // The pointer sends any agent to the skills, and one with no skills to the CLI's copy of the rules.
-  assert.match(s.read('AGENTS.md'), /<!-- spool:start -->[\s\S]*`\/spool-init`, `\/spool-loop`, `\/spool-record` and `\/spool-page`[\s\S]*spool prime[\s\S]*<!-- spool:end -->/);
+  assert.match(s.read('AGENTS.md'), /<!-- spool:start -->[\s\S]*`\/spool-init`, `\/spool`, `\/spool-loop` and `\/spool-record`[\s\S]*spool prime[\s\S]*<!-- spool:end -->/);
 
   // What comes next is said to an agent, not typed here. The skills are per machine, not per project.
   assert.match(out, /skills are not installed for your agent yet[\s\S]*spool install/);
-  assert.match(out, /Next, in your agent[\s\S]*\/spool-page {7}the board[\s\S]*\/spool-loop {7}the loop: it builds what is in build[\s\S]*\/spool-record {5}put it in front of/);
+  assert.match(out, /Next, in your agent[\s\S]*\/spool {12}say what you want: "open the board"[\s\S]*\/spool-loop {7}the loop: it builds what is in build[\s\S]*\/spool-record {5}put it in front of/);
   assert.equal(s.exists('.claude'), false);
   s.cleanup();
 });
@@ -128,7 +128,7 @@ test('init can leave the agents file alone', () => {
 });
 
 test('the shipped skills are valid Agent Skills, and few', () => {
-  assert.deepEqual([...SKILL_NAMES], ['spool-init', 'spool-loop', 'spool-record', 'spool-page']);
+  assert.deepEqual([...SKILL_NAMES], ['spool-init', 'spool', 'spool-loop', 'spool-record']);
   for (const name of SKILL_NAMES) {
     const skill = parseFrontmatter(shipped(name));
     assert.equal(skill.data.get('name'), name);
@@ -137,7 +137,7 @@ test('the shipped skills are valid Agent Skills, and few', () => {
     assert.ok(description.includes(`/${name}`), `${name}: says how it is invoked`);
     assert.ok(skill.body.includes('`spool'), `${name}: tells the agent which command to run`);
   }
-  // Three, and each says what to do where there is no spool yet.
+  // Four, and each says what to do where there is no spool yet.
   for (const name of SKILL_NAMES) assert.match(shipped(name), /spool-init|spool init/);
 });
 
@@ -198,8 +198,9 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   assert.match(worker, /`spool done` runs it first and refuses if it fails[\s\S]*never switch it off or work round it\./);
   assert.match(shipped('spool-init'), /\*\*Offer a check\.\*\*[\s\S]*On their yes: `spool checks "<command>"`/);
   assert.match(shipped('spool-init'), /Offer the lock once[\s\S]*Their choice; do not pick for them\./);
-  assert.match(loop, /\| "build 3", "go on that one", "yes, do it" \| `spool build <t-id>` \|/);
-  assert.match(loop, /Never guess a go, an answer or an approval\. If their reply does not plainly\nsay it, ask in one line\./);
+  // What they say and what to run is one table, in /spool: test/spool-skill.test.ts. The loop points there.
+  assert.match(loop, /Everything\nelse they say is for the `spool` skill: it has the one table/);
+  assert.doesNotMatch(loop, /\| They say \| Run \|/);
   // A procedure that keeps recurring is one of those ideas: offered, never written unasked, and a no is kept.
   assert.match(loop, /### Add your own ideas[\s\S]*\*\*A procedure agents keep working out again is an idea too\.\*\*\n`spool skills --suggest` lists steps that recur across finished threads[\s\S]*It matches words, not meaning, so read the threads first[\s\S]*Their no is\n {2}remembered/);
   assert.match(worker, /### Skills[\s\S]*`spool done` says when the steps\nyou just took match earlier finished threads with no skill for them[\s\S]*is the human's call:\n`spool skills --suggest` prints the line that offers it/);
@@ -220,14 +221,7 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   assert.match(shipped('spool-init'), /--gate[\s\S]*`\/spool-loop` to start the loop: it builds what they have moved to build/);
   assert.match(shipped('spool-record'), /\*\*Give each thread its spec\*\*[\s\S]*What: [^\n]*\n {7}Why: [^\n]*\n {7}Done when: /);
   assert.match(shipped('spool-record'), /A new thread is proposed, not started\./);
-  const page = shipped('spool-page');
-  assert.match(page, /Run `spool page -d`[\s\S]*in the background[\s\S]*Do not describe the board in the chat/);
-  assert.match(page, /This is the only way anything gets built\./);
-  assert.match(page, /\*\*Keep the board live\.\*\* Opening the page is starting the loop/);
-  assert.match(page, /\*\*▶ Play sprint\*\* \| Everything in the sprint moves to Build at once\./);
   assert.match(loop, /\*\*Sprints\.\*\*[\s\S]*A sprint has no dates; it is over when its last thread is done[\s\S]*spool sprint "<name>" --goal "<what it is for>" --why "<why now>"[\s\S]*--add <t-id…>[\s\S]*Only they play it \(`spool play`\)\. Never play it for them\./);
-  assert.match(page, /\*\*Mark as complete\*\*, at the foot of a finished thread/);
-  assert.match(page, /Change a field on the ticket \| Its name, status, priority, difficulty, tags or version/);
   assert.match(worker, /5\. \*\*Stamp the threads\.\*\* `spool edit <t-id> --version <x\.y\.z>`/);
   assert.match(loop, /\*\*Sign your work\.\*\* Add `--as "<your model's name>"`/);
 });
@@ -249,7 +243,7 @@ test('the recorder records one message, and decides the split and the size itsel
 test('install puts the skills where the agent finds them, and keeps the ones you edited', () => {
   const s = new Sandbox();
   const out = s.sp('install');
-  assert.match(out, /Spool skills in ~\/\.claude\/skills\n {2}installed {2}spool-init\n {2}installed {2}spool-loop\n {2}installed {2}spool-record\n {2}installed {2}spool-page\n\nIn your agent: {2}\/spool-init in a project, then \/spool-loop/);
+  assert.match(out, /Spool skills in ~\/\.claude\/skills\n {2}installed {2}spool-init\n {2}installed {2}spool\n {2}installed {2}spool-loop\n {2}installed {2}spool-record\n\nIn your agent: {2}\/spool-init in a project, then \/spool$/);
   for (const name of SKILL_NAMES) {
     const text = s.read(`.home/.claude/skills/${name}/SKILL.md`);
     assert.ok(text.startsWith(shipped(name).trimEnd()), 'the shipped skill, word for word');
@@ -277,28 +271,28 @@ test('install puts the skills where the agent finds them, and keeps the ones you
   s.cleanup();
 });
 
-test('install takes away a retired skill nobody edited, and the loop does its job', () => {
+test('install takes away a retired skill nobody edited, and says where its job went', () => {
   const s = new Sandbox();
   const old = '.home/.claude/skills/spool-blockers/SKILL.md';
   const body = '---\nname: spool-blockers\n---\n\n# Spool blockers\n';
   const hash = createHash('sha256').update(body).digest('hex').slice(0, 12);
   s.write(old, `${body}\n<!-- spool 0.2.0 · ${hash} · written by \`spool install\` -->\n`);
-  assert.match(s.sp('install'), /removed {4}spool-blockers {2}· retired: the loop lists what needs you every time it runs: \/spool-loop/);
+  assert.match(s.sp('install'), /removed {4}spool-blockers {2}· retired: ask what needs you: \/spool$/m);
   assert.equal(s.exists('.home/.claude/skills/spool-blockers'), false);
   assert.doesNotMatch(s.sp('install'), /spool-blockers/, 'gone, so nothing more to say');
 
   // An edited copy is somebody's, and stays until they say otherwise.
   s.write(old, `${body}\nMy own notes.\n`);
-  assert.match(s.sp('install'), /kept {7}spool-blockers {2}· retired \(the loop lists what needs you[^\n]*\), but edited here, so left alone; --force removes it/);
+  assert.match(s.sp('install'), /kept {7}spool-blockers {2}· retired \(ask what needs you: \/spool\), but edited here, so left alone; --force removes it/);
   assert.ok(s.exists(old));
   assert.match(s.sp('install', '--force'), /removed {4}spool-blockers/);
   assert.equal(s.exists(old), false);
 
-  // What it did is in the loop's list, and no skill sends anyone to it.
-  const loop = shipped('spool-loop');
-  assert.match(loop, /❓ <a question> \*\*a\*\* <option> · \*\*b\*\* <option>\. I'd pick \*\*a\*\*\./);
-  assert.match(loop, /`spool approve --all`; it never covers plans/);
-  assert.match(loop, /Never guess a go, an answer or an approval/);
+  // What it did is one question to /spool, and no skill sends anyone to it.
+  const steer = shipped('spool');
+  assert.match(steer, /\| "what needs me", "what's blocked" \| `spool review` \|/);
+  assert.match(steer, /`spool approve --all`; it never covers plans/);
+  assert.match(steer, /Never\nguess a go, an answer or an approval/);
   for (const name of SKILL_NAMES) assert.doesNotMatch(shipped(name), /spool-blockers|spool-overview|spool-help|spool-recorder/);
 
   // The same goes for the two that were dropped and the one that was renamed.
@@ -308,7 +302,7 @@ test('install takes away a retired skill nobody edited, and the loop does its jo
     s.write(file, `${text}\n<!-- spool 0.6.0 · ${createHash('sha256').update(text).digest('hex').slice(0, 12)} · written by \`spool install\` -->\n`);
   }
   const swept = s.sp('install');
-  assert.match(swept, /removed {4}spool-overview {2}· retired: the loop shows the whole spool/);
+  assert.match(swept, /removed {4}spool-overview {2}· retired: ask where things stand: \/spool$/m);
   assert.match(swept, /removed {4}spool-help {2}· retired: the skills are few now/);
   assert.match(swept, /removed {4}spool-recorder {2}· retired: renamed: \/spool-record/);
 });

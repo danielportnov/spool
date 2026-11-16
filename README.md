@@ -24,7 +24,7 @@ Spool itself has no cloud and no account of its own: it is plain files in your r
 npm install -g github:danielportnov/spool && spool install
 ```
 
-Then, in Claude Code inside your project: `/spool-init`, and after it `/spool-page`. That's it.
+Then, in Claude Code inside your project: `/spool-init`, and after it `/spool open the board`. That's it.
 
 Want to see it first, away from your own code? `spool demo --open` makes a throwaway project with a
 few threads in it and opens its board.
@@ -108,13 +108,16 @@ choose **Yes, and don't ask again**.
 **5. Open the board, and build something**
 
 ```
-/spool-page
+/spool open the board
 ```
 
 A board opens in your browser. Press **+ Add** under Backlog and type what you want, in your own
-words. Press **▶ Build** on it. Claude starts on it, and the card moves to Building, then Done.
+words. Press **▶ Build** on it.
 
-Keep that chat open while you want things built: that is where Claude is working.
+Who builds it is your pick, at the top of the board. **Chat**: type `/spool-loop` in the chat and
+Claude builds it there, where you can watch; keep that chat open while you want things built.
+**Headless**: switch **Agents** on and the board builds it by itself, with [no chat at all](#no-chat-at-all).
+Either way the card moves to Building, then Done.
 
 **If something does not work**
 
@@ -123,7 +126,7 @@ Keep that chat open while you want things built: that is where Claude is working
 | `/spool-init` is not in the list | Run `spool install` again, then type `/reload-skills` or start a new chat. |
 | `spool: command not found` | Close the terminal and open a new one. Still missing? Node's global folder is not on your PATH: `npm prefix -g` shows where it is. |
 | The board did not open | Go to the address Claude printed, usually `http://127.0.0.1:4747`. |
-| Nothing gets built | Is the thread under **Build**? Is the chat where you typed `/spool-page` still open? |
+| Nothing gets built | Is the thread under **Build**? Then type `/spool why is nothing building`, or run `spool status`: one line says why. |
 | Claude keeps asking permission | Choose **Yes, and don't ask again** for `spool` commands. |
 | You do not know what is missing | Run `spool doctor`. It checks git, the agent, your check and the skills, and prints the line that fixes each. |
 
@@ -287,8 +290,8 @@ It reads `GEMINI.md` unless its settings name `AGENTS.md` too.
 | | |
 | --- | --- |
 | `/spool-init` | Set Spool up in a repo, or in a folder of repos. Once. |
-| `/spool-page` | The board. Where you plan and decide what gets built. Opening it starts the loop. |
-| `/spool-loop` | The loop by itself, with no board: builds what is in Build, then watches for more. |
+| `/spool` | Say what you want, in any chat: "open the board", "build that one", "catch me up", "why is nothing building". |
+| `/spool-loop` | Makes that chat the builder: it builds what is in Build, then watches for more. |
 | `/spool-record <idea>` | Files one message as threads. The chat carries on as it was. |
 
 ## Under the hood

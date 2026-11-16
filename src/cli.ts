@@ -39,7 +39,7 @@ function help(): string {
   const lines = [
     'spool — the engine under the Spool skills',
     '',
-    'People use Spool by talking to their agent: /spool-init once, /spool-loop to work, /spool-record to add.',
+    'People use Spool by talking to their agent: /spool-init once, /spool to steer, /spool-loop to build, /spool-record to add.',
     'These are the verbs those skills run. If you are a person, you rarely need them.',
     '',
   ];

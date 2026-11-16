@@ -1,6 +1,6 @@
 ---
 name: spool-loop
-description: Run the Spool loop, the main way a project gets worked - show every open thread in the spool, add your own ideas as AI suggested, build the threads the user has moved to build (on the Spool page, or by saying so) one by one and nothing else, notify the user when build is empty or something needs them, then watch the spool and start again the moment a thread is moved to build, with a timed check back (three hours unless told otherwise) only where the harness cannot watch. Use for /spool-loop [hours], or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "keep going", "what's next - do it", asks you to work unattended, or asks "where do things stand", "what's in the spool", "what needs me", "what's blocked", "catch me up" or "what did the agents do".
+description: Run the Spool loop, the main way a project gets worked - show every open thread in the spool, add your own ideas as AI suggested, build the threads the user has moved to build (on the Spool page, or by saying so) one by one and nothing else, notify the user when build is empty or something needs them, then watch the spool and start again the moment a thread is moved to build, with a timed check back (three hours unless told otherwise) only where the harness cannot watch. Use for /spool-loop [hours], or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "keep going", "what's next - do it" or asks you to work unattended. Questions about the spool, and steering it, are /spool.
 ---
 
 # Spool loop
@@ -279,42 +279,8 @@ record: the spool is.
 
 **They can steer at any time,** and a comment on the thread in hand changes
 it at once: adjust the plan, say what changed in a line, carry on. Everything
-else they say, take every part of it:
-
-| They say | Run |
-| --- | --- |
-| "build 3", "go on that one", "yes, do it" | `spool build <t-id>` |
-| "play the sprint", "start sprint 2" | `spool play <sprint>` |
-| "put that in the sprint", "take it out" | `spool sprint "<sprint>" --add <t-id>`, or `spool edit <t-id> --sprint none` |
-| what a stretch of work should achieve | a sprint: see "Sprints" above |
-| "not yet", "take that out of build" | `spool propose <t-id>` |
-| an answer: "the second one", "a", "no, do X" | `spool answer <d-id> <n or their words>` |
-| "do X first", "X before Y", about threads in build | `spool order <t-id> --first`, or `--before <t-id>` |
-| "that one can wait", "X is urgent" | `spool edit <id> -p <0-3>` |
-| "park that until the launch" | `spool hold <t-id> -m "<their words>"` |
-| "tidy the backlog", "what is duplicated" | `spool list --alike`, then propose merges, archives and drops in a few lines; act only on their yes |
-| "archive that", "get it out of the way" | `spool archive <t-id>`; it is kept, and `spool archive --undo <t-id>` brings it back |
-| "drop that", "no", about any thread | `spool drop <t-id> -m "<their words>"` |
-| "go ahead with the plan" | `spool approve <t-id>`, always by id, one plan at a time |
-| "not that plan", "that audit missed the point" | `spool revert <t-id> -m "<their words>"` |
-| "undo that", "I don't like it" | `spool revert <t-id> -m "<their words>"` |
-| "that's fine", about a call an agent made, shipped work or a new skill | `spool approve <id>` |
-| "no, do X", about a call an agent made | `spool answer <d-id> "<their words>"`; the rework is queued |
-| "all good", "the rest is fine" | `spool approve --all`; it never covers plans |
-| "drop that skill" | `spool drop <s-id>` |
-| anything new: an idea, a bug, a wish | `spool capture "<their exact words>"`, then file it |
-| how to work: "work the backlog", "stop at midnight", "use subagents" | nothing to record: do it |
-
-Not everything they say is a note. An instruction to you about the work is
-done, not recorded, and a go, a no or a choice is the verb above, which
-carries their words where they matter. A long message is taken apart: each
-idea in it is captured and filed in their words, the rest is done and left in
-the chat. Not sure whether it is an idea or an instruction? Record
-nothing and act; an idea that matters will come back.
-
-Never guess a go, an answer or an approval. If their reply does not plainly
-say it, ask in one line. Their words are the record: pass what they said
-through, don't tidy it into your own.
+else they say is for the `spool` skill: it has the one table of what they
+say and what you run, and the rules for a go, an answer and an approval.
 
 **Several at once, with subagents.** If your harness can start subagents and
 the project is a git repository, build several threads side by side, each by

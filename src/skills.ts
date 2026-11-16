@@ -20,9 +20,9 @@ import { type SkillFile, type Workspace, skillsDir } from './store.ts';
 /**
  * Spool's own skills are how it is used, not procedures for a task; they are
  * never suggested for one. Nor are the ones it has retired, where a copy is
- * still lying about. The last two are the names 0.1 installed.
+ * still lying about. The last is a name 0.1 installed.
  */
-export const BUILT_IN = new Set<string>([...SKILL_NAMES, ...Object.keys(RETIRED), 'spool', 'recorder']);
+export const BUILT_IN = new Set<string>([...SKILL_NAMES, ...Object.keys(RETIRED), 'recorder']);
 
 export function ledgerFor(ws: Workspace, skill: SkillFile): Item | undefined {
   return ws.items.find(

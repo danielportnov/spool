@@ -66,7 +66,11 @@ starts, and the agents the page starts with no chat. They all work by the same w
 one-line description from its README, turns the gate on, and tells you what agents may decide by
 themselves (the policy, below). Run where Spool is already set up, it changes nothing.
 
-**`/spool-page`** opens the board and starts the loop. This is the one you use most.
+**`/spool [what you want]`** steers the spool from a chat. This is the one you use most. It opens
+the board ("open the board"), moves threads ("build that one", "not yet", "do the jump first"),
+passes on your answers and approvals, catches you up ("what happened overnight"), says why nothing
+is building, tidies the backlog, and changes who builds ("switch to chat mode", "turn the agents
+off"). It answers in a few lines and leaves the detail on the board. It builds nothing itself.
 
 **`/spool-loop`** is the loop without the board: it shows the spool as a table in the chat, builds
 what is in Build, and watches for more.

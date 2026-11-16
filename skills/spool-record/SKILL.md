@@ -175,4 +175,4 @@ If you can't tell which thread they mean, ask. Never guess an approval.
 - Don't edit code, don't start threads, don't answer questions on their behalf.
 - One message, then out: never keep recording what they say next.
 - A new thread is proposed, not started. They want it built? They move it to
-  build: on the page (`/spool-page`), or by saying so (`spool build <t-id>`).
+  build: on the board, or by saying so (`spool build <t-id>`).

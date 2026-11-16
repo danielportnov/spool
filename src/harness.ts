@@ -62,7 +62,7 @@ export const HARNESSES: Harness[] = [
     projectDir: claudeProjectDir,
     programs: ['claude'],
     folders: (ctx) => [ctx.env.CLAUDE_CONFIG_DIR || path.join(home(ctx), '.claude')],
-    next: 'In your agent:  /spool-init in a project, then /spool-loop',
+    next: 'In your agent:  /spool-init in a project, then /spool',
   },
   {
     name: 'codex',
@@ -71,7 +71,7 @@ export const HARNESSES: Harness[] = [
     projectDir: (root) => path.join(root, '.codex', 'skills'),
     programs: ['codex'],
     folders: (ctx) => [codexHome(ctx)],
-    next: 'In Codex:  $spool-init in a project, then $spool-loop',
+    next: 'In Codex:  $spool-init in a project, then $spool',
   },
   {
     name: 'cursor',
@@ -80,7 +80,7 @@ export const HARNESSES: Harness[] = [
     projectDir: (root) => path.join(root, '.cursor', 'skills'),
     programs: ['cursor', 'cursor-agent'],
     folders: (ctx) => [path.join(home(ctx), '.cursor')],
-    next: "In Cursor's agent:  ask for spool-init in a project, then spool-loop",
+    next: "In Cursor's agent:  ask for spool-init in a project, then spool",
   },
   {
     name: 'gemini',

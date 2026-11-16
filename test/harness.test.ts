@@ -18,7 +18,7 @@ const home = (s: Sandbox, ...parts: string[]): string => path.join(s.root, '.hom
 test('install --for codex and --for cursor write the same skills, stamped, where each one looks', () => {
   const s = machine('codex', 'cursor');
   const codex = s.sp('install', '--for', 'codex');
-  assert.match(codex, /^Spool skills for Codex in ~\/\.codex\/skills\n {2}installed {2}spool-init\n[\s\S]*\n\nIn Codex: {2}\$spool-init in a project, then \$spool-loop$/);
+  assert.match(codex, /^Spool skills for Codex in ~\/\.codex\/skills\n {2}installed {2}spool-init\n[\s\S]*\n\nIn Codex: {2}\$spool-init in a project, then \$spool$/);
   const cursor = s.sp('install', '--for', 'cursor');
   assert.match(cursor, /^Spool skills for Cursor in ~\/\.cursor\/skills\n {2}installed {2}spool-init/);
   for (const dir of [home(s, '.codex', 'skills'), home(s, '.cursor', 'skills')]) {
@@ -137,8 +137,8 @@ test('doctor reports each harness found, and whether Spool is installed for it',
   assert.equal(found['harness-cursor']!.status, 'ok', 'a project install counts');
   assert.equal(found['harness-gemini']!.status, 'ok');
 
-  fs.rmSync(home(s, '.codex', 'skills', 'spool-page'), { recursive: true });
-  assert.match(checks()['harness-codex']!.label, /lack spool-page/);
+  fs.rmSync(home(s, '.codex', 'skills', 'spool-record'), { recursive: true });
+  assert.match(checks()['harness-codex']!.label, /lack spool-record/);
 
   const none = machine();
   none.sp('init', '--name', 'demo');

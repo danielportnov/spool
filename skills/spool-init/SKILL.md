@@ -86,5 +86,5 @@ End with what happens next, in one line each:
   thread after another, and tells them when it is done or needs them.
 - `/spool-record` in front of anything they type or say, in any chat, to
   have that message filed as threads
-- `/spool-page` for the board: where they see every thread and move the ones
-  they want built into build
+- `/spool` to steer it from a chat: "open the board", "build that one",
+  "catch me up", "why is nothing building"

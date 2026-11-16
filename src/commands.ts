@@ -2302,7 +2302,7 @@ export const COMMANDS: Command[] = [
           '',
           ...[markLine(ctx)].filter(Boolean),
           'Next, in your agent. You should not need this command line again.',
-          '  /spool-page       the board: every thread, and where you move the ones you want built into build',
+          '  /spool            say what you want: "open the board", "build that one", "catch me up", "why is nothing building"',
           '  /spool-loop       the loop: it builds what is in build, thread after thread, and tells you when it needs you',
           '  /spool-record     put it in front of anything you type or say, and that message is filed as threads',
           `  ${path.join(SPOOL_DIR, 'policy.md')} says what agents may decide without you — worth two minutes.`,
