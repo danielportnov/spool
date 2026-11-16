@@ -24,19 +24,22 @@
  * website open in the same browser cannot press play on your behalf.
  */
 
-import { spawn } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { run } from './cli.ts';
 import type { Bare, Result } from './commands.ts';
-import type { Ctx } from './context.ts';
+import { type Ctx, userConfig } from './context.ts';
+import { DEFAULT_AGENT, PREAMBLE } from './loop.ts';
 import { git, repoRoot } from './git.ts';
-import { type Item, SpoolError, oneLine, reportFile, splitBody } from './model.ts';
-import { age, sprintAbout, tableRows } from './render.ts';
-import { blockers, children, dependents, docket, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
+import { type Item, SpoolError, addLog, oneLine, reportFile, splitBody, timestamp } from './model.ts';
+import { prime } from './prime.ts';
+import { age, brief, paint, sprintAbout, tableRows } from './render.ts';
+import { blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
 import { Workspace } from './store.ts';
 
 type Column = 'proposed' | 'build' | 'building' | 'done';
@@ -168,6 +171,8 @@ interface Board {
   history: number;
   /** Everything waiting on the human that is not a thread to build. */
   needs: Needs;
+  /** The page's own runner: whether it is building, with what command, and what the agent is saying. */
+  runner: { on: boolean; agent: string; current: { id: string; seconds: number; lines: string[] } | null; recent: { id: string; title: string; outcome: string }[] };
   /** The sprints, oldest first: what is in each and how far along it is. */
   sprints: { id: string; name: string; status: string; goal: string; why: string; doneWhen: string; total: number; done: number; waiting: number }[];
   columns: Record<Column, Card[]>;
@@ -291,7 +296,7 @@ function cardNote(row: { item: Item; mark: string; note: string }): string {
 }
 
 /** The whole board for one project, read fresh from disk. */
-export function board(ws: Workspace, project?: string): Board {
+export function board(ws: Workspace, project?: string, runner?: Runner): Board {
   const spool = project ? ws.project(project) : ws.home;
   const d = docket(ws, spool);
   const columns: Record<Column, Card[]> = { proposed: [], build: [], building: [], done: [] };
@@ -319,6 +324,12 @@ export function board(ws: Workspace, project?: string): Board {
     versions: [...new Set(all.map((t) => t.version ?? '').filter(Boolean))].sort().reverse(),
     history: done.filter((t) => t.reviewed).length,
     needs: needsOf(ws, spool),
+    runner: {
+      on: !!runner?.on,
+      agent: runner?.agent ?? '',
+      current: runner?.current ? { id: runner.current.id, seconds: Math.round((Date.now() - runner.current.began) / 1000), lines: runner.current.lines } : null,
+      recent: runner?.recent ?? [],
+    },
     sprints: ws.items
       .filter((i) => i.kind === 'sprint' && i.spool === spool && i.status !== 'dropped')
       .sort((a, b) => a.created.localeCompare(b.created))
@@ -338,6 +349,155 @@ export function board(ws: Workspace, project?: string): Board {
     columns,
     also: { assumptions: queue.assumptions.length, skills: queue.skills.length, inbox: queue.inbox.length },
   };
+}
+
+// ------------------------------------------------------------------ the page runs the agents
+
+const LIVE_LINES = 60;
+
+/**
+ * The runner: with it on, the page builds what is in Build by itself. It takes
+ * the next thread, starts the user's agent command on it with the rules and
+ * the brief on stdin, shows what the agent prints as it works, and takes the
+ * next when it exits. One thread at a time, in the project's own folder.
+ *
+ * It is the same contract as `spool loop`: a thread the agent finished is
+ * done, one it asked a question on waits for the human, and one it walked
+ * away from is put back and not tried again until something about it changes.
+ * The agent command comes from the user's machine, never from the project.
+ */
+export class Runner {
+  on: boolean;
+  readonly agent: string;
+  current: { id: string; title: string; child: ChildProcess; lines: string[]; began: number; stopped: boolean } | null = null;
+  /** How the last few threads it ran turned out, newest first. */
+  recent: { id: string; title: string; outcome: string }[] = [];
+  private gaveUp = new Map<string, string>();
+  private timer: NodeJS.Timeout;
+  private ctx: Ctx;
+  private project: string | undefined;
+
+  constructor(ctx: Ctx, project: string | undefined, agent: string | undefined, on: boolean) {
+    this.ctx = ctx;
+    this.project = project;
+    this.agent = agent || ctx.env.SPOOL_AGENT || userConfig(ctx).agent || DEFAULT_AGENT;
+    this.on = on;
+    this.timer = setInterval(() => this.tick(), 1000);
+  }
+
+  close(): void {
+    clearInterval(this.timer);
+    this.stop();
+  }
+
+  /** Stop the agent that is working. Its thread goes back to Build, and the runner is switched off so it is not picked straight up again. */
+  stop(): void {
+    if (!this.current) return;
+    this.on = false;
+    this.current.stopped = true;
+    this.end(this.current.child);
+  }
+
+  /** End the agent and whatever it started: it runs in a group of its own, so the whole group is told. */
+  private end(child: ChildProcess): void {
+    try {
+      if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, 'SIGTERM');
+      else child.kill('SIGTERM');
+    } catch {
+      child.kill('SIGTERM');
+    }
+  }
+
+  private tick(): void {
+    if (!this.on || this.current) return;
+    let task: Item | undefined;
+    let prompt = '';
+    try {
+      const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
+      try {
+        task = ready(ws, this.project).find((t) => this.gaveUp.get(t.id) !== t.updated);
+        if (!task) return;
+        task.status = 'active';
+        task.by = this.name();
+        task.started = timestamp(ws.now());
+        addLog(task, 'page', `handed to \`${this.agent}\``, ws.now());
+        ws.save(task);
+        prompt = `${PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${brief(ws, task, paint(false))}\n`;
+      } finally {
+        ws.close();
+      }
+    } catch {
+      return; // The store was busy for an instant; the next tick looks again.
+    }
+    this.start(task, prompt);
+  }
+
+  /** What the agent is called on the thread: the program it is, so "claude" shows as Claude. */
+  private name(): string {
+    return this.ctx.env.SPOOL_ACTOR ?? path.basename(this.agent.trim().split(/\s+/)[0] ?? 'agent');
+  }
+
+  private start(task: Item, prompt: string): void {
+    const file = path.join(os.tmpdir(), `spool-${task.id}-${process.pid}.md`);
+    fs.writeFileSync(file, prompt);
+    const child = spawn(this.agent.replaceAll('{prompt_file}', file), {
+      shell: true,
+      cwd: task.spool.root,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      // Its own process group, so stopping it stops what it started too.
+      detached: process.platform !== 'win32',
+      env: { ...this.ctx.env, SPOOL_ACTOR: this.name(), SPOOL_TASK: task.id, SPOOL_PROMPT_FILE: file },
+    });
+    const run = { id: task.id, title: task.title, child, lines: [] as string[], began: Date.now(), stopped: false };
+    this.current = run;
+    const hear = (chunk: Buffer): void => {
+      // What the agent prints, without the terminal's colour codes, a line at a time.
+      for (const line of chunk.toString('utf8').replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').split('\n')) {
+        if (line.trim()) run.lines.push(line.trimEnd().slice(0, 400));
+      }
+      if (run.lines.length > LIVE_LINES) run.lines.splice(0, run.lines.length - LIVE_LINES);
+    };
+    child.stdout!.on('data', hear);
+    child.stderr!.on('data', hear);
+    child.stdin!.on('error', () => {});
+    child.stdin!.end(prompt);
+    let over = false;
+    const end = (how: string): void => {
+      if (over) return;
+      over = true;
+      fs.rmSync(file, { force: true });
+      this.settle(run, how);
+    };
+    child.on('error', (error) => end(`could not start (${error.message})`));
+    child.on('exit', (code, signal) => end(`exited ${code ?? signal}`));
+  }
+
+  private settle(run: NonNullable<Runner['current']>, how: string): void {
+    let outcome = 'gone';
+    try {
+      const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
+      try {
+        const now = ws.find(run.id);
+        if (now?.status === 'done') outcome = 'done';
+        else if (now?.status === 'active') {
+          // The agent left without finishing or asking. Put the thread back, and do not spin on it.
+          now.status = 'open';
+          now.by = undefined;
+          addLog(now, 'page', run.stopped ? 'stopped from the page; back in build' : `agent ${how} without finishing; back in build`, ws.now());
+          ws.save(now);
+          this.gaveUp.set(now.id, now.updated);
+          outcome = run.stopped ? 'stopped' : `unfinished: the agent ${how}${run.lines.length ? ` — ${run.lines.at(-1)}` : ''}`;
+        } else if (now) outcome = `waiting${now.needs.length ? ' on you' : ''}`;
+      } finally {
+        ws.close();
+      }
+    } catch {
+      outcome = 'unknown: the spool could not be read';
+    }
+    this.recent.unshift({ id: run.id, title: run.title, outcome });
+    this.recent.splice(5);
+    if (this.current === run) this.current = null;
+  }
 }
 
 // ------------------------------------------------------------------ what a thread changed
@@ -567,8 +727,13 @@ function send(res: http.ServerResponse, status: number, type: string, payload: s
 }
 
 /** Start the page's server. Returns once it is listening. */
-export function startPage(ctx: Ctx, options: { port?: number; project?: string }, ready: (started: Started) => void): http.Server {
+export function startPage(
+  ctx: Ctx,
+  options: { port?: number; project?: string; run?: boolean; agent?: string },
+  ready: (started: Started) => void,
+): http.Server {
   const token = randomBytes(18).toString('base64url');
+  const runner = new Runner(ctx, options.project, options.agent, !!options.run);
   const server = http.createServer((req, res) => {
     const { port } = server.address() as AddressInfo;
     // Only a browser pointed at this machine: a name another site resolved here is refused.
@@ -579,7 +744,7 @@ export function startPage(ctx: Ctx, options: { port?: number; project?: string }
       if (req.method === 'GET' && url.pathname === '/api/board') {
         const ws = Workspace.open(ctx.cwd, ctx.now);
         try {
-          return send(res, 200, 'application/json', JSON.stringify(board(ws, options.project)));
+          return send(res, 200, 'application/json', JSON.stringify(board(ws, options.project, runner)));
         } finally {
           ws.close();
         }
@@ -610,7 +775,17 @@ export function startPage(ctx: Ctx, options: { port?: number; project?: string }
           } catch {
             return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'not JSON' }));
           }
-          const result = change(ctx, url.pathname.slice('/api/'.length), body, options.project);
+          const action = url.pathname.slice('/api/'.length);
+          // The runner is the page's own: switching it on or off, and stopping the agent it started.
+          if (action === 'runner') {
+            runner.on = body.on === true;
+            return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: runner.on ? 'Agents are on: this page builds what is in Build.' : 'Agents are off.' }));
+          }
+          if (action === 'stop') {
+            runner.stop();
+            return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: 'Stopped. The thread is back in Build, and agents are off.' }));
+          }
+          const result = change(ctx, action, body, options.project);
           send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify(result));
         });
         return;
@@ -631,6 +806,7 @@ export function startPage(ctx: Ctx, options: { port?: number; project?: string }
     server.listen(port, '127.0.0.1', () => ready({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`, server }));
   };
   listen(options.port ?? 4747, 20);
+  server.on('close', () => runner.close());
   return server;
 }
 
@@ -646,8 +822,11 @@ export function servePage({ ctx, opts }: Bare): Result {
   } finally {
     ws.close();
   }
-  startPage(ctx, { port, project }, ({ url }) => {
+  const run = !!opts.run;
+  const agent = typeof opts.agent === 'string' ? opts.agent : undefined;
+  const server = startPage(ctx, { port, project, run, agent }, ({ url }) => {
     ctx.out(`Spool page: ${url}`);
+    if (run) ctx.out('Agents are on: this page builds what is in Build, with no chat open.');
     ctx.out('Leave this running while you use the page. Ctrl-C stops it.');
     if (!opts['no-open']) {
       const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
@@ -655,6 +834,9 @@ export function servePage({ ctx, opts }: Bare): Result {
       spawn(opener, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref();
     }
   });
+  // Ctrl-C ends the page and the agent it started with it.
+  process.once('SIGINT', () => { server.close(); process.exit(0); });
+  process.once('SIGTERM', () => { server.close(); process.exit(0); });
   return { text: '' };
 }
 
@@ -696,6 +878,10 @@ const PAGE = String.raw`<!doctype html>
   .tab { background: none; border: 0; border-bottom: 3px solid transparent; border-radius: 0; padding: 0 12px; color: var(--soft); font-weight: 600; }
   .tab.on { color: var(--ink); border-bottom-color: var(--accent); }
   .search { margin-left: auto; width: min(260px, 40vw); padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
+  .runner { white-space: nowrap; color: var(--soft); }
+  .runner.on { color: var(--go); border-color: var(--go); font-weight: 600; }
+  .live { margin-top: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .livelog { max-height: 260px; overflow: auto; background: var(--bg); border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
   .rule { padding: 8px 20px 0; color: var(--warn); font-size: 13px; }
   #quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 20px 0; font-size: 13px; min-height: 12px; }
   .pill { border-radius: 999px; padding: 2px 11px; background: var(--panel); border: 1px solid var(--line); color: var(--soft); }
@@ -856,6 +1042,7 @@ const PAGE = String.raw`<!doctype html>
     <button class="tab" data-view="needs">Needs you<span class="badge0" id="needcount" hidden></span></button>
   </div>
   <input class="search" id="search" placeholder="Search threads   /" autocomplete="off">
+  <button class="runner" id="runner" hidden></button>
 </div>
 <div class="rule" id="rule" hidden></div>
 <div id="quick"></div>
@@ -994,8 +1181,11 @@ function smallAvatar(who) {
   node.classList.add('who22');
   return node;
 }
-function moves(c) {
+// The thread the page's own runner is building right now, if it is this one.
+const liveOf = (c, b) => (b.runner.current && b.runner.current.id === c.id ? b.runner.current : null);
+function moves(c, b) {
   return [
+    b && liveOf(c, b) && el('button', { class: 'act', title: 'Stop the agent. The thread goes back to Build.', onclick: () => post('stop', {}, 'Stopped') }, '■ Stop'),
     c.column === 'proposed' && el('button', { class: 'act go', title: 'Move to Build', onclick: () => post('move', { id: c.id, to: 'build' }, 'In build: ' + c.title) }, '▶ Build'),
     c.column === 'build' && el('button', { class: 'act', title: 'Back to the backlog', onclick: () => post('move', { id: c.id, to: 'proposed' }, 'Back in the backlog') }, 'Not yet'),
     c.done && !c.complete && el('button', { class: 'tick', title: 'Mark as complete', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓'),
@@ -1012,12 +1202,13 @@ function cardNode(c, b) {
     el('div', { class: 'title', onclick: () => openThread(c.id) }, c.title),
     el('div', { class: 'chips' }, chipsOf(c, b)),
     c.note && !c.done && el('div', { class: 'note' }, c.note),
+    liveOf(c, b) && el('div', { class: 'live', title: 'What the agent is doing now' }, '▸ ' + (liveOf(c, b).lines.at(-1) || 'starting…')),
     c.question && el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title),
       c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '',
         onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o))),
     el('div', { class: 'meta' },
       el('span', { class: 'key', title: 'Open the thread', onclick: () => openThread(c.id) }, c.id),
-      el('span', { class: 'push' }), facts(c), moves(c)));
+      el('span', { class: 'push' }), facts(c), moves(c, b)));
   if (movable) dragOf(node, c, c.column);
   return node;
 }
@@ -1432,6 +1623,8 @@ function threadNode(c, b) {
           el('div', {}, c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '', style: 'margin: 8px 6px 0 0',
             onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)))))),
 
+    liveOf(c, b) && [el('h3', {}, 'Live · ' + liveOf(c, b).seconds + 's'), el('div', { class: 'livelog' }, liveOf(c, b).lines.join('\n') || 'starting…'),
+      el('button', { style: 'margin-top: 8px', onclick: () => post('stop', {}, 'Stopped') }, '■ Stop the agent')],
     t.report && el('details', { class: 'desc', open: true }, el('summary', {}, c.type === 'plan' ? 'The plan' : 'The report'), el('pre', {}, t.report)),
 
     lineage.length > 0 && [el('h3', {}, 'Linked'), lineage.map((l) => el('div', { class: 'note' }, l))],
@@ -1526,6 +1719,14 @@ function draw(b) {
     only && only.kind !== 'sprint' && el('button', { class: 'pill on', onclick: () => narrow(only.kind, only.value) }, (only.kind === 'tag' ? '#' : 'v') + only.value + '  ✕'),
   ].filter(Boolean));
 
+  // The page's own runner: one switch. On, the page builds what is in Build with no chat open.
+  const runner = document.getElementById('runner');
+  runner.hidden = false;
+  runner.className = 'runner' + (b.runner.on ? ' on' : '');
+  runner.textContent = b.runner.on ? (b.runner.current ? '● Agents: building' : '● Agents: on') : 'Agents: off';
+  runner.title = (b.runner.on ? 'This page is building what is in Build. Click to switch it off.' : 'Click to have this page build what is in Build, with no chat open.') + ' It runs: ' + b.runner.agent
+    + (b.runner.recent.length ? '. Last: ' + b.runner.recent[0].title + ' — ' + b.runner.recent[0].outcome : '');
+  runner.onclick = () => post('runner', { on: !b.runner.on }, '');
   const waiting = needCount(b);
   const badge = document.getElementById('needcount');
   badge.textContent = String(waiting);

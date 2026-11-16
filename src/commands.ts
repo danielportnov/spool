@@ -1793,9 +1793,9 @@ export const COMMANDS: Command[] = [
   {
     name: 'page',
     group: 'setup',
-    usage: 'page [--port <n>] [--no-open] [-P <project>]',
-    summary: 'Open the Spool page: the board where the human moves work to build, adds notes and answers',
-    options: { port: { type: 'string' }, 'no-open': { type: 'boolean' }, ...PROJECT },
+    usage: 'page [--run] [--agent <command>] [--port <n>] [--no-open] [-P <project>]',
+    summary: 'Open the Spool page: the board where the human moves work to build; --run has the page build it too, with no chat',
+    options: { port: { type: 'string' }, 'no-open': { type: 'boolean' }, run: { type: 'boolean' }, agent: { type: 'string' }, ...PROJECT },
     bare: (call) => servePage(call),
   },
   {

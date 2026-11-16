@@ -49,5 +49,11 @@ made by themselves, new skills, notes nobody filed. Each is cleared there.
 The page says so if the build gate is off in this project, which means new
 threads go straight to build. Offer to turn it on: `spool init --gate`.
 
+**Agents: on / off**, at the top right, is the page's own runner. On, the page
+builds what is in Build by itself, with no chat: it starts the agent command
+set on their machine for each thread and shows what it prints. Leave it off
+when you are the one building from this chat, or two agents will work in one
+folder. `spool page --run` starts with it on.
+
 Agents keep working while the page is open, and it shows threads move as they do.
 `spool page -P <project>` shows one project of a folder of them.

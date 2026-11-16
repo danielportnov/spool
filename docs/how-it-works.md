@@ -242,7 +242,15 @@ one.
 
 ## Other ways to run it
 
-**No chat at all.** `spool loop` is a runner of its own: it claims the next thread in Build, starts
+**No chat at all, from the page.** `spool page --run`, or the **Agents** switch on the page, has the
+page build what is in Build: it starts your agent command on each thread, one at a time, shows what
+the agent prints on the card and in the ticket, and has a Stop that ends the agent and puts the
+thread back. A thread the agent finishes is done; one it asks a question on waits for you; one it
+walks away from is put back and not tried again until something about it changes. The page says
+what the agent last said, which is usually why. Use the page's runner or a chat's loop, not both:
+they would be two agents in one folder.
+
+**No chat at all, from a terminal.** `spool loop` is a runner of its own: it claims the next thread in Build, starts
 your agent command in that project with the rules and the brief on stdin, and looks again when it
 exits. `spool loop --watch 5` keeps looking. The agent command comes from your own machine
 (`SPOOL_AGENT`, or `agent` in `~/.config/spool/config.json`); the default is `claude -p`.
@@ -315,7 +323,7 @@ ones marked 🔒:
 | `spool init [folder] [--gate \| --lock] [--share]` | Start a spool; does nothing where one exists |
 | `spool install [--here \| --dir path]` | Put the skills where your agent finds them |
 | `spool checks [command \| --none]` | Name the command that must pass before a change is done here |
-| `spool page [--port n] [--no-open]` | The board |
+| `spool page [--run] [--agent cmd] [--port n] [--no-open]` | The board; `--run` has it build what is in Build too |
 | `spool watch` | Print a line when there is something for the loop to do |
 | `spool loop [--watch s] [--agent cmd]` | The runner with no chat |
 | `spool mcp [-C dir]` | The commands as MCP tools |

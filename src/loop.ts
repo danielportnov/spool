@@ -22,9 +22,9 @@ import { brief, itemLine, paint } from './render.ts';
 import { ready, review } from './schedule.ts';
 import { Workspace } from './store.ts';
 
-const DEFAULT_AGENT = 'claude -p';
+export const DEFAULT_AGENT = 'claude -p';
 
-const PREAMBLE = `You are working one task from a Spool queue, unattended. Nobody is reading your
+export const PREAMBLE = `You are working one task from a Spool queue, unattended. Nobody is reading your
 replies, so nothing you say in chat reaches the human: a question goes through
 \`spool ask\`, a call you make yourself goes through \`spool assume\`. The task
 below is already claimed for you. Finish it with \`spool done\`, or leave it

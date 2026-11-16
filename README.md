@@ -151,6 +151,24 @@ open, and you watch threads move.
 
 The pictures are a made-up project.
 
+## No chat at all
+
+```bash
+spool page --run
+```
+
+With `--run`, or the **Agents** switch at the top of the page, the page builds what is in Build by
+itself: it starts your agent on each thread, shows what it prints on the card, and has a Stop. One
+thread at a time. Close every chat; press ▶; come back to Done.
+
+The agent it starts is a command on your machine, `claude -p` unless you say otherwise, and it can
+only do what you allow it. To let it edit files and commit, say so once in
+`~/.config/spool/config.json`:
+
+```json
+{ "agent": "claude -p --permission-mode acceptEdits --allowedTools 'Bash(spool *)' 'Bash(git *)' Edit Write Read" }
+```
+
 ## While you're away
 
 - ⚡ The loop watches the spool. Press ▶ on the page and it starts within seconds; no timer, nobody typing.
