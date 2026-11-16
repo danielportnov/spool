@@ -14,7 +14,7 @@
  * Agents read the same spool and keep working while the page is open.
  *
  * Everything the page does is an ordinary command run in-process, as the
- * human: `build`, `propose`, `capture`, `task`, `file`, `edit`, `answer`, `approve`,
+ * human: `build`, `propose`, `order`, `capture`, `task`, `file`, `edit`, `answer`, `approve`,
  * `sprint`, `play`, `drop`, `revert`. So the page can do
  * nothing the command line cannot, and every rule the commands enforce holds
  * here too.
@@ -1669,6 +1669,19 @@ export function startPage(
             // A thread moved to any column, from any column. Abort is the move straight back to the backlog.
             const result = moveThread(ctx, runner, text(body.id), action === 'abort' ? 'proposed' : text(body.to));
             return send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify(result));
+          }
+          if (action === 'order') {
+            // A place in Build's line: `spool order`, after the same move to Build a drop on the column makes.
+            const id = text(body.id);
+            const before = text(body.before);
+            const after = text(body.after);
+            const spot = before ? `--before=${before}` : after ? `--after=${after}` : body.first === true ? '--first' : body.last === true ? '--last' : '';
+            const ok = /^t-[a-z0-9]+$/.test(id) && spot && [before, after].every((t) => !t || /^t-[a-z0-9]+$/.test(t));
+            if (!ok) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which thread, and where?' }));
+            const moved = moveThread(ctx, runner, id, 'build');
+            const result = moved.ok ? act(ctx, ['order', id, spot]) : moved;
+            const words = result.ok ? (moved.text ? `${moved.text}. ` : '') + 'Build is in your order now.' : result.text;
+            return send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify({ ...result, text: words }));
           }
           if (action === 'stop') {
             runner.stop();

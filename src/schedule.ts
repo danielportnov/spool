@@ -103,6 +103,8 @@ export function isLarge(ws: Workspace, task: Item): boolean {
 /**
  * Tasks a worker could pick up now, in the order they will be picked.
  *
+ * A place in line the human gave comes before everything: they dragged it
+ * there, so it is what they want next. The rest follow by the usual rule.
  * Priority comes first: it is the human's urgency. Within a priority the
  * smallest goes first, because quick wins are the cheapest progress there is —
  * except that one pick in `largeEvery` goes to large work, so a flood of small
@@ -121,6 +123,12 @@ export function ready(ws: Workspace, project?: Scope): Item[] {
   const pool = scope.filter((t) => ['ready', 'stale'].includes(taskState(ws, t)));
   const large = new Map(pool.map((t) => [t.id, isLarge(ws, t)]));
   const order: Item[] = [];
+  const placed = pool.filter((t) => t.place !== undefined).sort((a, b) => a.place! - b.place! || a.id.localeCompare(b.id));
+  for (const t of placed) {
+    pool.splice(pool.indexOf(t), 1);
+    order.push(t);
+    quickRun = large.get(t.id) ? 0 : quickRun + 1;
+  }
   while (pool.length) {
     const largeTurn = quickRun >= every - 1;
     const lane = (t: Item) => (large.get(t.id) === largeTurn ? 0 : 1);
@@ -137,6 +145,21 @@ export function ready(ws: Workspace, project?: Scope): Item[] {
     quickRun = large.get(next.id) ? 0 : quickRun + 1;
   }
   return order;
+}
+
+/** States of the work in the Build column: in build, and not taken yet. */
+export const IN_BUILD = ['ready', 'stale', 'blocked'];
+
+/**
+ * The line Build is in: the placed work by its place, then the rest by the
+ * usual rule, with what is waiting on something after what is ready. Work
+ * that is waiting keeps its place, and takes it when it is free.
+ */
+export function buildLine(ws: Workspace, spool: Spool): Item[] {
+  const mine = tasks(ws, spool).filter((t) => IN_BUILD.includes(taskState(ws, t)));
+  const usual = [...ready(ws, spool), ...mine.filter((t) => taskState(ws, t) === 'blocked')];
+  const placed = mine.filter((t) => t.place !== undefined).sort((a, b) => a.place! - b.place! || a.id.localeCompare(b.id));
+  return [...placed, ...usual.filter((t) => t.place === undefined)];
 }
 
 export interface Review {

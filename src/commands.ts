@@ -60,7 +60,21 @@ import {
   statusText,
   suggestText,
 } from './render.ts';
-import { blockers, children, dependents, docket, findCycle, ready, review, sprintOf, sprintTasks, stateOf, taskState } from './schedule.ts';
+import {
+  IN_BUILD,
+  blockers,
+  buildLine,
+  children,
+  dependents,
+  docket,
+  findCycle,
+  ready,
+  review,
+  sprintOf,
+  sprintTasks,
+  stateOf,
+  taskState,
+} from './schedule.ts';
 import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, writeSkill } from './skills.ts';
 import { SPOOL_DIR, Workspace, findFolder, findHome, readConfig, skillsDir } from './store.ts';
 import { similarLines, similarTo } from './similar.ts';
@@ -465,6 +479,8 @@ function claim(call: Call, task: Item, force: boolean): void {
   task.status = 'active';
   task.by = actor;
   task.started = timestamp(ws.now());
+  // Taken, it has left Build, and its place in line with it.
+  task.place = undefined;
   addLog(task, actor, state === 'stale' ? 'picked up after the last claim went quiet' : 'started', ws.now());
   ws.save(task);
 }
@@ -901,6 +917,7 @@ export const COMMANDS: Command[] = [
         const by = was === 'active' ? (t.by ?? 'someone') : undefined;
         t.status = 'proposed';
         t.by = undefined;
+        t.place = undefined;
         if (was === 'done') {
           t.summary = undefined;
           t.reviewed = undefined;
@@ -916,6 +933,58 @@ export const COMMANDS: Command[] = [
         text: [`Proposed:`, ...tasks.map((t) => `  ${itemLine(ws, t, p)}`), ...notes].join('\n'),
         data: { proposed: tasks.map((t) => itemJson(ws, t)), reverted: undone },
       };
+    },
+  },
+  {
+    name: 'order',
+    group: 'you',
+    usage: 'order <t-id> --first | --last | --before <t-id> | --after <t-id>',
+    summary: 'Say where work in build is in line: the top of Build is built next',
+    human: true,
+    write: true,
+    options: { first: { type: 'boolean' }, last: { type: 'boolean' }, before: { type: 'string' }, after: { type: 'string' } },
+    run(call) {
+      const { ws, p, actor, opts } = call;
+      const usage = 'spool order <t-id> --first | --last | --before <t-id> | --after <t-id>';
+      const t = first(call, 'which thread', 'task');
+      const before = str(opts.before);
+      const after = str(opts.after);
+      if ([opts.first, opts.last, before, after].filter(Boolean).length !== 1) throw new SpoolError('say where it goes, once', usage);
+      const state = taskState(ws, t);
+      if (!IN_BUILD.includes(state)) {
+        if (state === 'proposed' || state === 'held') throw new SpoolError(`${t.id} is not in build`, `Move it there first: spool build ${t.id}`);
+        if (state === 'active') throw new SpoolError(`${t.id} is being built already`);
+        throw new SpoolError(`${t.id} is already ${state}`);
+      }
+      const line = buildLine(ws, t.spool);
+      const rest = line.filter((x) => x !== t);
+      const placed = rest.filter((x) => x.place !== undefined).length;
+      let at = opts.first ? 0 : rest.length;
+      let where = opts.first ? 'first' : 'last';
+      const ref = before ?? after;
+      if (ref) {
+        const other = ws.get(ref, 'task');
+        if (other === t) throw new SpoolError('a thread cannot go next to itself', usage);
+        const i = rest.indexOf(other);
+        if (i < 0) throw new SpoolError(`${other.id} is not in build${other.spool === t.spool ? '' : ` in ${t.spool.name}`}`, 'Place it next to work in the same Build column');
+        at = before ? i : i + 1;
+        where = `${before ? 'before' : 'after'} ${other.id}`;
+      }
+      rest.splice(at, 0, t);
+      // Everything above it keeps the order it had, now as places of its own; what was placed below it stays placed.
+      const upto = Math.max(placed, at) + 1;
+      for (const [i, x] of rest.entries()) {
+        const want = i < upto ? i + 1 : undefined;
+        if (x !== t && x.place === want) continue;
+        x.place = want;
+        if (x === t) addLog(t, actor, `placed ${where} in build`, ws.now());
+        ws.save(x);
+      }
+      const out = [`${p.bold(t.id)} is ${at + 1} of ${rest.length} in build.`];
+      const waits = blockers(ws, t);
+      if (waits.length) out.push(p.dim(`  It waits on ${waits.map((b) => b.id).join(', ')}, and takes its place once that is settled.`));
+      out.push('In the order it will be built:', ...rest.map((x, i) => `  ${i + 1}. ${itemLine(ws, x, p)}`));
+      return { text: out.join('\n'), data: { task: itemJson(ws, t), order: rest.map((x) => x.id) } };
     },
   },
 
@@ -1145,6 +1214,7 @@ export const COMMANDS: Command[] = [
         fs.writeFileSync(reportPath, `${report.trim()}\n`);
       }
       t.status = 'done';
+      t.place = undefined;
       t.checked = checked?.command;
       if (checked) addLog(t, actor, `check passed: ${checked.command} (${checked.seconds}s)`, ws.now());
       t.summary = summary;
@@ -1373,7 +1443,10 @@ export const COMMANDS: Command[] = [
         if (item.status === 'dropped') continue;
         const skill = item.kind === 'skill' ? fileFor(ws, item) : undefined;
         item.status = 'dropped';
-        if (item.kind === 'task') item.by = undefined;
+        if (item.kind === 'task') {
+          item.by = undefined;
+          item.place = undefined;
+        }
         addLog(item, actor, `dropped${why ? `: ${why}` : ''}`, ws.now());
         ws.save(item);
         if (skill && skill.dir.startsWith(skill.spool.root + path.sep) && path.basename(skill.dir) === item.title) {
@@ -1403,6 +1476,8 @@ export const COMMANDS: Command[] = [
       for (const t of tasks) if (isClosed(t)) throw new SpoolError(`${t.id} is already ${t.status}`);
       for (const t of tasks) {
         t.hold = why;
+        // On hold sits with the backlog, out of Build's line.
+        t.place = undefined;
         if (t.status === 'active') {
           t.status = 'open';
           t.by = undefined;

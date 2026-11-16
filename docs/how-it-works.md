@@ -177,8 +177,10 @@ Tiny, Small, Medium, Large, Huge.
 
 Anything sized `xl` is a plan: nothing that big is built in one go.
 
-**Order.** Within Build: the most urgent first (Urgent, High, Normal, Someday), then the smallest,
-with one pick in four kept for large work so quick wins never starve it.
+**Order.** Within Build: first what you put in its place, by dragging a card up or down on the page
+or with `spool order`, top first. Then the rest: the most urgent first (Urgent, High, Normal,
+Someday), then the smallest, with one pick in four kept for large work so quick wins never starve
+it. A thread that leaves Build, taken by an agent or sent back to the backlog, loses its place.
 
 ## Sprints
 
@@ -321,6 +323,7 @@ ones marked 🔒:
 | `spool play <sprint>` 🔒 | Start a sprint: everything in it moves to Build |
 | `spool release <t-id…>` 🔒 | Take work off hold |
 | `spool propose <t-id…>` | Take work out of Build, back to the backlog |
+| `spool order <t-id> --first \| --last \| --before <t-id> \| --after <t-id>` | Say where work in Build is in line: the top is built next |
 | `spool capture <words>` | Drop feedback in, exactly as said |
 | `spool answer <d-id> <choice>` | Answer a question, or overrule a call an agent made |
 | `spool approve <id…>` | Accept a call, finished work or a new skill; give a plan its go-ahead |

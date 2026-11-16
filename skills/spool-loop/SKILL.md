@@ -125,6 +125,8 @@ on the human. Before showing anything:
   Where their words, or something you can see (a bug that bites now, a thread
   others wait on), put a thread in the wrong place, move it:
   `spool edit <id> -p <0-3>`. Never move something against what they said.
+  A place they gave a thread in Build (dragged on the page, or `spool order`)
+  comes before any priority; it is theirs, so leave it.
 
 `spool loop --dry-run` then lists every thread that can be worked, in the
 exact order `spool next --claim` will hand them out. That is your ranking.
@@ -264,7 +266,8 @@ else they say, take every part of it:
 | "put that in the sprint", "take it out" | `spool edit <t-id> --sprint <sprint or none>` |
 | "not yet", "take that out of build" | `spool propose <t-id>` |
 | an answer: "the second one", "a", "no, do X" | `spool answer <d-id> <n or their words>` |
-| "do X first", "that one can wait" | `spool edit <id> -p <0-3>` |
+| "do X first", "X before Y", about threads in build | `spool order <t-id> --first`, or `--before <t-id>` |
+| "that one can wait", "X is urgent" | `spool edit <id> -p <0-3>` |
 | "park that until the launch" | `spool hold <t-id> -m "<their words>"` |
 | "drop that", "no", about any thread | `spool drop <t-id> -m "<their words>"` |
 | "go ahead with the plan" | `spool approve <t-id>`, always by id, one plan at a time |

@@ -102,6 +102,11 @@ export interface Item {
   status: string;
   /** Tasks: 0 (drop everything) to 3 (someday). */
   priority?: number;
+  /**
+   * Tasks in build: the place in line the human gave it, 1 first. Placed work is built before
+   * anything the usual rule orders. Leaving build clears it.
+   */
+  place?: number;
   /** Tasks: how much would have to change. Unsized work is treated as medium. */
   size?: Size;
   /** Tasks: what finishing produces. Absent means a change. */
@@ -170,6 +175,7 @@ const FIELDS: readonly (readonly [string, FieldType])[] = [
   ['title', 'string'],
   ['status', 'string'],
   ['priority', 'int'],
+  ['place', 'int'],
   ['size', 'string'],
   ['type', 'string'],
   ['model', 'string'],
