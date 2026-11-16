@@ -543,12 +543,35 @@ export class Runner {
   }
 
   private start(task: Item, handed: Handed, prompt: string, command: string): void {
-    const session = startSession(task, prompt, command, { folder: handed.folder, env: this.ctx.env, actor: this.name() }, {
-      note: (notes) => this.note(task.id, notes),
-      end: (how) => this.settle(run, how),
-    });
+    let session: ReturnType<typeof startSession>;
+    try {
+      session = startSession(task, prompt, command, { folder: handed.folder, env: this.ctx.env, actor: this.name() }, {
+        note: (notes) => this.note(task.id, notes),
+        end: (how) => this.settle(run, how),
+      });
+    } catch (error) {
+      this.couldNotStart(task.id, (error as Error).message);
+      return;
+    }
     const run: Run = { ...handed, ...session, stopped: false };
     this.keep(run);
+  }
+
+  /** A thread the page handed out but could not start (its prompt could not be written, say): back in Build, and not tried every second. */
+  private couldNotStart(id: string, why: string): void {
+    this.runs.delete(id);
+    this.putBack(id, `could not be started (${why}); back in build`);
+    try {
+      const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
+      try {
+        const task = ws.find(id);
+        if (task) this.gaveUp.set(id, task.updated);
+      } finally {
+        ws.close();
+      }
+    } catch {
+      // Busy for an instant; it is tried again, and fails again into the same line.
+    }
   }
 
   /** Write a run's notes on its thread and empty the list; if the store is busy they wait for the next try. */

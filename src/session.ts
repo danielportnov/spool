@@ -27,6 +27,15 @@ const LIVE_LINES = 60;
 /** The file a page writes its agent's prompt to. It lives exactly as long as the agent. */
 export const promptFile = (id: string, pid: number): string => path.join(os.tmpdir(), `spool-${id}-${pid}.md`);
 
+/** A file's size, or nothing if it is gone: a run's ending must not depend on it. */
+const sizeOf = (file: string): number => {
+  try {
+    return fs.statSync(file).size;
+  } catch {
+    return 0;
+  }
+};
+
 /** Whether a page on this machine, other than this one, has an agent on the thread right now. */
 export function pageRunning(id: string): boolean {
   let names: string[] = [];
@@ -209,7 +218,7 @@ export function startSession(
     if (keep !== undefined) fs.closeSync(keep);
     fs.rmSync(file, { force: true });
     // A run with no session still says where its transcript is; notes the store was too busy for go now.
-    if (!session && transcript && fs.statSync(transcript).size > 0) notes.push(`transcript ${shown}`);
+    if (!session && transcript && sizeOf(transcript) > 0) notes.push(`transcript ${shown}`);
     on.note(notes);
     on.end(how);
   };
