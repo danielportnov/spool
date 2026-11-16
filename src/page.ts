@@ -765,6 +765,8 @@ export class Runner {
    */
   close(): void {
     clearInterval(this.timer);
+    // Nothing more is started from here, whatever is moved to Build on the way out.
+    this.held = true;
     const runs = [...this.runs.values()];
     this.runs.clear();
     for (const run of runs) {
