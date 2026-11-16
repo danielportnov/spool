@@ -95,6 +95,8 @@ interface Card {
   column: Column;
   created: string;
   updated: string;
+  /** When it was put out of sight, if it was. */
+  archived: string;
   /** Shipped, and whether the human has marked it complete. */
   done: boolean;
   complete: boolean;
@@ -472,6 +474,7 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     column,
     created: task.created,
     updated: task.updated,
+    archived: task.archived ?? '',
     done: task.status === 'done',
     complete: task.status === 'done' && !!task.reviewed,
     steps: task.status === 'done' ? task.steps : [],
@@ -3291,7 +3294,7 @@ function archivedNode(b) {
   const rows = b.archived.filter(shows);
   const row = (c) => el('div', { class: 'row', 'data-id': c.id },
     el('div', {}, el('span', { title: c.title }, c.title), c.why && el('div', { class: 'why', title: c.why }, c.why)),
-    el('div', { class: 'right' }, el('span', {}, c.note), el('span', { class: 'key', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id),
+    el('div', { class: 'right' }, el('span', {}, 'Archived ', stamp(c.archived, true)), el('span', { class: 'key', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id),
       el('button', { class: 'act', title: 'Back to the backlog, just as it was', onclick: () => post('unarchive', { id: c.id }, 'Back in the backlog: ' + c.title) }, '↩ Bring back')));
   return el('div', { class: 'group', id: 'archived' },
     el('button', { class: 'history', 'aria-expanded': String(showArchived), onclick: () => { showArchived = !showArchived; redraw(); } },
@@ -3427,22 +3430,23 @@ function byline(who, at) {
   const s = speaker(who);
   return el('div', { class: 'byline' }, el('b', {}, s.name), s.model && el('span', { class: 'model' }, s.model), at && [el('span', { class: 'sep' }, '·'), stamp(at)]);
 }
-const when = (at) => (at ? at.slice(5, 10).replace('-', '/') + ' ' + at.slice(11, 16) : '');
-// When something was said, the way a thread reads it: "now", "4m", "3h", then the day. The exact time is on hover,
-// and the clock on the page keeps it current.
+// When something happened, the way a person says it: "now", "4m", "3h", then the day. The exact time is on hover,
+// and the clock on the page keeps it current. Everywhere a time is shown, it is shown this way. Standing on its
+// own, outside the thread, it reads "just now", "4m ago", "3h ago".
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const timeOf = (at) => Date.parse(String(at).replace(' ', 'T'));
-function ago(at) {
+function ago(at, alone) {
   const then = timeOf(at);
   if (isNaN(then)) return '';
   const s = (Date.now() - then) / 1000;
-  if (s < 60) return 'now';
-  if (s < 3600) return Math.floor(s / 60) + 'm';
-  if (s < 86400) return Math.floor(s / 3600) + 'h';
+  if (s < 60) return alone ? 'just now' : 'now';
+  if (s < 3600) return Math.floor(s / 60) + (alone ? 'm ago' : 'm');
+  if (s < 86400) return Math.floor(s / 3600) + (alone ? 'h ago' : 'h');
   const d = new Date(then);
   return MONTHS[d.getMonth()] + ' ' + d.getDate() + (d.getFullYear() === new Date().getFullYear() ? '' : ', ' + d.getFullYear());
 }
-const stamp = (at) => (isNaN(timeOf(at)) ? null : el('time', { class: 'at', 'data-at': at, title: new Date(timeOf(at)).toLocaleString() }, ago(at)));
+const stamp = (at, alone) => (isNaN(timeOf(at)) ? null
+  : el('time', { class: 'at', 'data-at': at, 'data-alone': alone ? 'true' : null, datetime: new Date(timeOf(at)).toISOString(), title: new Date(timeOf(at)).toLocaleString() }, ago(at, alone)));
 // Words in backticks are code: shown as code, and a long path by its last part, whole on hover.
 function rich(text) {
   return String(text).split(/\x60([^\x60\n]+)\x60/).map((part, i) => (i % 2
@@ -3820,8 +3824,8 @@ function threadNode(c, b) {
     (c.column === 'building' || c.done) && field('Built by', el('div', { class: 'val' }, whoIs(t.by))),
     c.done && field('Check', el('div', { class: 'val' }, t.checked ? '✓ Passed: ' + t.checked : 'None was run')),
     c.suggested && field('Came from', el('div', { class: 'val' }, '✨ AI suggested')),
-    field('Created', el('div', { class: 'val' }, c.created.slice(0, 10))),
-    field('Updated', el('div', { class: 'val' }, c.updated.slice(0, 16).replace('T', ' '))));
+    field('Created', el('div', { class: 'val' }, stamp(c.created, true))),
+    field('Updated', el('div', { class: 'val' }, stamp(c.updated, true))));
 
   return [el('button', { class: 'x', onclick: closeThread, title: 'Close' }, '✕'), el('div', { class: 'ticket' }, story, side)];
 }
@@ -4376,7 +4380,7 @@ setInterval(load, 1500);
 // The clock: how long an agent has been at it, and how long ago things were said, kept current in place.
 setInterval(() => {
   for (const node of document.querySelectorAll('[data-since]')) node.textContent = took(node.dataset.since);
-  for (const node of document.querySelectorAll('[data-at]')) node.textContent = ago(node.dataset.at);
+  for (const node of document.querySelectorAll('[data-at]')) node.textContent = ago(node.dataset.at, !!node.dataset.alone);
 }, 1000);
 </script>
 </body>

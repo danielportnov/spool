@@ -1,6 +1,6 @@
 /**
  * The small details of a ticket and a card, in a real browser: what the model boxes say, and who
- * is building a thread, with what.
+ * is building a thread, with what; and times that read the way people say them.
  *
  * It uses the Chrome already on the machine, like test/browser.test.ts, and is skipped where
  * there is none. Set SPOOL_SHOTS to a folder for pictures, light and dark.
@@ -83,9 +83,11 @@ test('the details of a ticket and a card', async (t) => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop', '--gate');
   const jump = s.id('task', 'Tighten the jump arc', '-s', 's');
+  const grand = s.id('task', 'A Grand Prix mode', '-s', 'l');
+  s.sp('archive', grand);
 
   const { child, url } = await startPage(s, 19500 + (process.pid % 1500), '--run', '--agent', `${claude(s)} -p`);
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'] });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'], timezoneId: 'UTC' });
   const page = await context.newPage();
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(String(error)));
@@ -124,6 +126,14 @@ test('the details of a ticket and a card', async (t) => {
     await model.locator('select').selectOption('');
     await until('the model is handed back', () => !/^model: /m.test(s.item(jump)));
 
+    // Times read the way people say them, the exact time on hover: the sandbox made the thread on
+    // its own day, and the page changed it a moment ago.
+    const created = field('Created').locator('time');
+    // The day alone in the year it is now; the year too once it is another.
+    assert.match(await created.innerText(), /^Jan 1(, 2026)?$/);
+    assert.equal(await created.getAttribute('title'), await page.evaluate(`new Date(${JSON.stringify(s.json('show', jump).item.created)}).toLocaleString()`));
+    await until('the edit just now shows', async () => (await field('Updated').innerText()).endsWith('just now'));
+
     // Who is building it: the model and effort beside the agent's mark on its card, and on its
     // ticket the session, with the command that opens it a click from the clipboard.
     s.sp('build', jump);
@@ -142,6 +152,11 @@ test('the details of a ticket and a card', async (t) => {
     await shot(page, 'details-building');
     await page.keyboard.press('Escape');
     await shot(page, 'details-building-card');
+
+    // An archived thread says when, the same way.
+    await page.getByRole('button', { name: 'Backlog', exact: true }).click();
+    await page.getByRole('button', { name: '▸ Archived · 1' }).click();
+    assert.match(await page.locator(`#archived .row[data-id="${grand}"] .right`).innerText(), /^Archived Jan 1(, 2026)?\s/);
 
     assert.deepEqual(problems, [], 'the page logged no errors');
   } finally {
