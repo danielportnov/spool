@@ -254,6 +254,9 @@ A sprint is a named set of threads with **no dates**: agents work in hours, so a
 when its threads are done, not when a fortnight is. It says what it is for: a goal, the reason, and
 when it is done, written by you on the page or drafted by an agent. Being in a sprint starts
 nothing. Playing it moves everything in it to Build at once. `spool done` says when a sprint's last thread has shipped.
+A sprint reached is a version: the agent cuts it then, the changelog entry led by the sprint's name
+and goal and listing its threads, and the sprint keeps the version it became, on its line. Work
+that ships in no sprint is versioned at the end of a run, as before.
 
 Say what you want a stretch of work to achieve, in your own words, and the agent makes it a
 sprint: your words kept on it as its vision, a goal, a reason and a done-when written from them,
@@ -466,7 +469,7 @@ ones marked 🔒:
 | `spool log <id> <fact>` | Leave a note for whoever comes next |
 | `spool ask` · `assume` | Put a call to the human; or make it and leave a receipt |
 | `spool done <t-id> -m <summary> [--steps <step>…]` | Finish: record the commits, or hand in a report. Work in a worktree of its own is landed first. `--steps` (once a step, or `-` for one a line from stdin) says how to see a change working; a change finished without them says so |
-| `spool edit <id>` | Change a title, priority, size, kind, model, effort, tags, version, sprint, or the steps to check it by (`--steps`, `none` clears them) |
+| `spool edit <id>` | Change a title, priority, size, kind, model, effort, tags, version, sprint, or the steps to check it by (`--steps`, `none` clears them); a sprint's version stamps its finished threads too |
 | `spool hold <t-id> -m why` · `drop <id>` | Park work; abandon it |
 | `spool sprint <name> [--goal …] [--why …] [--done-when …] [--serves <goal>] [--vision - \| --from <n-id>] [--add <t-id…>]` | Make a sprint and fill it in one go, keeping the vision in your words and the goal it serves; on a sprint that exists, add to it |
 | `spool skill add` | Write a procedure down as a skill |

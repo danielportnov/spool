@@ -239,7 +239,8 @@ Repeat until `spool next --claim` says nothing is ready:
 **Sprints.** They may group threads into a sprint on the page and press play
 on it: every thread in it lands in build at once, and you build them like any
 others. `spool next` hands them out ahead of other work of the same urgency. A sprint has no dates; it is over when its last thread is done, and
-`spool done` says so. Say it too, in a line, and give it its version then.
+`spool done` says so. Say it too, in a line, and cut its version then: see
+"A version for what shipped".
 
 When they describe what a stretch of work should achieve, rather than one
 change, make it a sprint: capture their words; write its goal, why and
@@ -338,7 +339,7 @@ subagent where you can: two agents in one folder edit each other's files.
 
 ## When nothing is left that can move
 
-1. Give what shipped a version: see "A version for what shipped".
+1. Give what shipped in no sprint a version: see "A version for what shipped".
 2. Notify them, by "Reaching them".
 3. `spool brief` prints the morning brief: a headline, what needs them, the
    few finished threads worth a look and why, the rest a line each, and the
@@ -354,10 +355,11 @@ between, and the next check back in picks them up.
 
 ### A version for what shipped
 
-A run that shipped a change ends by giving the project a new version, so
-"it broke in 0.4" means something to everyone. Once per run, after the last
-thread, for each project that shipped a change. A run of only audits and
-plans changes no version.
+Shipped work gets a version, so "it broke in 0.4" means something to
+everyone. **A sprint reached is a version:** when `spool done` says a sprint
+is finished, cut its version then, before the next thread. Work that shipped
+in no sprint is versioned as before. Once per run, after the last thread, for
+each project that shipped a change. Audits and plans alone change no version.
 
 1. **Find the version** where the project already keeps it: `package.json`,
    `Cargo.toml`, `pyproject.toml`, `pubspec.yaml`, `app.json`, an Xcode
@@ -369,14 +371,16 @@ plans changes no version.
    one (`npm version minor --no-git-tag-version`), so lockfiles follow.
 3. **Write the changelog.** `CHANGELOG.md`, newest first: the version, the
    date, and one line for each thread shipped since the last version, in the
-   human's terms. `git log <last tag>..HEAD` shows what shipped, yours and
+   human's terms. For a sprint, lead with its name and goal, then its threads. `git log <last tag>..HEAD` shows what shipped, yours and
    anyone else's.
 4. **Commit and tag.** One commit, `Version <x.y.z>`, holding only the version
    and the changelog; then `git tag -a v<x.y.z> -m "<x.y.z>"`, in the style of
    the tags already there. No `Spool:` trailer: a version is not a thread, and
    undoing a thread never takes a version back.
 5. **Stamp the threads.** `spool edit <t-id> --version <x.y.z>` on each thread
-   that shipped in it, so the page shows what went into which version.
+   that shipped in it, so the page shows what went into which version. For a
+   sprint, `spool edit <r-id> --version <x.y.z>` does it in one: the sprint
+   records the version it became, and its threads take it too.
 
 The tag stays on this machine. Pushing it, publishing a package and making a
 release are the human's calls, in their words. If the policy says this project

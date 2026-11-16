@@ -1544,7 +1544,12 @@ export const COMMANDS: Command[] = [
       else if (root && type === 'change') {
         out.push(p.yellow(`  No commits found for it. Without the "Spool: ${t.id}" trailer or --commit, it cannot be reverted.`));
       }
-      if (finished) out.push(p.green(`  Sprint finished: ${finished.title}. Everything in it is done.`));
+      if (finished) {
+        out.push(
+          p.green(`  Sprint finished: ${finished.title}. Everything in it is done.`),
+          `  A sprint reached is a version: cut it now, the changelog led by its name and goal, then spool edit ${finished.id} --version <x.y.z>`,
+        );
+      }
       if (ready.length) out.push('Now ready:', ...ready.map((r) => `  ${itemLine(ws, r, p)}`));
       // The third time the same steps are finished with no skill is the moment to say so: this agent still knows them.
       const again = suggestSkills(ws, ws.home).find((c) => c.tasks.includes(t));
@@ -1686,7 +1691,9 @@ export const COMMANDS: Command[] = [
       }
       const tags = tagsOf(call.opts.tag);
       const version = versionOf(call.opts.version);
-      if ((tags || version !== undefined) && item.kind !== 'task') throw new SpoolError('only tasks have tags and a version');
+      if (tags && item.kind !== 'task') throw new SpoolError('only tasks have tags');
+      // A sprint reached is a version: it records the one it became.
+      if (version !== undefined && item.kind !== 'task' && item.kind !== 'sprint') throw new SpoolError('only tasks and sprints have a version');
       if (tags) {
         item.tags = tags;
         changed.push(tags.length ? `tags ${tags.join(', ')}` : 'tags cleared');
@@ -1694,6 +1701,14 @@ export const COMMANDS: Command[] = [
       if (version !== undefined) {
         item.version = version || undefined;
         changed.push(version ? `version ${version}` : 'version cleared');
+        // Its finished threads shipped in that version too, unless one already says otherwise.
+        const stamped = item.kind === 'sprint' && version ? sprintTasks(ws, item).filter((t) => t.status === 'done' && !t.version) : [];
+        for (const t of stamped) {
+          t.version = version;
+          addLog(t, actor, `version ${version}, with the sprint ${item.title}`, ws.now());
+          ws.save(t);
+        }
+        if (stamped.length) changed.push(`${stamped.length} of its threads stamped`);
       }
       if (str(call.opts.sprint)) {
         if (item.kind !== 'task') throw new SpoolError('only tasks go in a sprint');

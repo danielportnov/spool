@@ -124,6 +124,7 @@ export function itemLine(ws: Workspace, item: Item, p: Paint, showProject = true
     notes.push(item.status, `${inIt.filter((t) => t.status === 'done').length} of ${inIt.length} done`);
     const serves = sprintAbout(item).serves;
     if (serves) notes.push(`serves ${oneLine(serves, 60)}`);
+    if (item.version) notes.push(`v${item.version}`);
   } else if (item.kind === 'decision') {
     notes.push(item.choice ? `${item.status}: ${oneLine(item.choice, 48)}` : item.status);
   } else if (item.status !== 'new' && item.status !== 'active') {
@@ -468,7 +469,12 @@ function sprintLine(ws: Workspace, s: Item): string {
   const { goal, vision, serves } = sprintAbout(s);
   // With no goal written yet, the human's own words say what it is for.
   const what = goal ? oneLine(goal, 140) : vision ? `“${oneLine(vision, 140)}”` : '';
-  const facts = [s.status, `${inIt.filter((t) => t.status === 'done').length} of ${inIt.length} done`, ...(serves ? [`serves ${oneLine(serves, 60)}`] : [])];
+  const facts = [
+    s.status,
+    `${inIt.filter((t) => t.status === 'done').length} of ${inIt.length} done`,
+    ...(serves ? [`serves ${oneLine(serves, 60)}`] : []),
+    ...(s.version ? [`v${s.version}`] : []),
+  ];
   return `🏁 **${s.title}** · ${facts.join(' · ')}${what ? ` — ${what}` : ''}`;
 }
 
