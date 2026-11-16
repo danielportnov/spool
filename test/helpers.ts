@@ -142,3 +142,14 @@ export function spool(): Sandbox {
   s.sp('init', '--name', 'demo');
   return s;
 }
+
+/**
+ * Wait until a `spool watch` started as a child has taken its first look: it leaves a file named
+ * with its pid from then on. On a busy machine that can take seconds, and a change made before
+ * it is not news to the watcher.
+ */
+export async function watchUp(pid: number | undefined): Promise<void> {
+  const beat = path.join(os.tmpdir(), `spool-watch-${pid}.json`);
+  for (let i = 0; i < 600 && !fs.existsSync(beat); i++) await new Promise((r) => setTimeout(r, 25));
+  if (!fs.existsSync(beat)) throw new Error('the watcher did not start');
+}

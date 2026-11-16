@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { test } from 'node:test';
-import { CLI, Sandbox } from './helpers.ts';
+import { CLI, Sandbox, watchUp } from './helpers.ts';
 
 function startWatch(s: Sandbox): { child: ChildProcess; lines: string[] } {
   const child = spawn(process.execPath, [CLI, 'watch', '--interval', '40', '-C', s.root], {
@@ -20,6 +20,7 @@ test('a note filed straight after it is captured is never reported, one left unf
   s.sp('init', '--name', 'skyhop', '--gate');
   const { child, lines } = startWatch(s);
   try {
+    await watchUp(child.pid);
     await wait(250);
     // Captured and filed in the same breath, as the page's + Add does.
     const quick = s.id('capture', 'a Grand Prix mode');

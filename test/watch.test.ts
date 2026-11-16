@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { test } from 'node:test';
-import { CLI, Sandbox } from './helpers.ts';
+import { CLI, Sandbox, watchUp } from './helpers.ts';
 
 /** Start the real watcher and collect what it prints. */
 function startWatch(s: Sandbox): { child: ChildProcess; lines: string[]; until: (n: number) => Promise<void> } {
@@ -27,6 +27,7 @@ test('the watcher prints a line the moment the human gives the loop something to
   const coins = s.id('task', 'Make coins readable at sunset', '-s', 'xs');
   const { child, lines, until } = startWatch(s);
   try {
+    await watchUp(child.pid);
     await settle();
     assert.deepEqual(lines, [], 'what was already there is not news');
 
