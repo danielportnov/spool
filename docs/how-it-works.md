@@ -117,7 +117,8 @@ on its card and gets it on its ticket; a new skill is kept or dropped on the thr
 
 **A ticket.** Click any card. On the left, the thread as a conversation: what you said, what the
 agent answered and which agent it was, the moves in between, and a box to reply. An audit's or a
-plan's report is there in full. On the right, its fields: status, priority, difficulty, tags,
+plan's report is there in full. What agents write shows as it was meant: code, lists, bold, and links to
+the web, which open in a new tab. On the right, its fields: status, priority, difficulty, tags,
 version, sprint. Everything is editable. A finished ticket shows **what changed** (the files, the lines, the patch)
 and ends with **Mark as complete** and **Undo this thread**, which takes back exactly that thread's
 commits with your reason. While the page's own agent builds a thread, its card says the model and

@@ -2497,6 +2497,11 @@ SYSTEM_DARK.addEventListener('change', paintTheme);
   .note .ran { white-space: nowrap; }
   .post pre { margin: 2px 0 0; line-height: 1.5; }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; background: var(--chip); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
+  /* What an agent wrote in Markdown: a block of code, a list, a link out. */
+  pre pre.code { margin: 6px 0; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; white-space: pre; overflow-x: auto; }
+  pre ul, pre ol { margin: 4px 0; padding-left: 22px; }
+  pre li + li { margin-top: 2px; }
+  a.out { color: var(--blue); }
   /* The agent at work: a calm pulse on its avatar, and a caret after what it is doing now. */
   .avatar { position: relative; }
   .avatar .pulse { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 50%; background: var(--blue); border: 2px solid var(--panel); animation: pulse 1.6s ease-in-out infinite; }
@@ -2946,7 +2951,7 @@ function cardNode(c, b) {
     waitMark(c, b),
     el('div', { class: 'title', onclick: () => openThread(c.id) }, c.title),
     el('div', { class: 'chips' }, chipsOf(c, b)),
-    c.why && !c.done && el('div', { class: 'why', title: c.why }, c.why),
+    c.why && !c.done && el('div', { class: 'why', title: c.why }, inline(c.why)),
     noteNode(c),
     liveLine(c, b),
     c.question && el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title),
@@ -2963,7 +2968,7 @@ function rowNode(c, b) {
   const node = el('div', { class: 'row', draggable: !c.done && c.column !== 'building' && 'true', 'data-id': c.id },
     el('div', {}, el('span', { class: 'title', onclick: () => openThread(c.id) }, c.title),
       el('span', { class: 'chips', style: 'display: inline-flex; margin: 0 0 0 8px; vertical-align: middle' }, chipsOf({ ...c, sprint: '', done: false }, b)),
-      c.why && !c.done && el('div', { class: 'why', title: c.why }, c.why)),
+      c.why && !c.done && el('div', { class: 'why', title: c.why }, inline(c.why))),
     el('div', { class: 'right' },
       el('span', { class: 'state ' + c.column }, STATE[c.column]),
       facts(c), el('span', { class: 'key', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id), archiveNode(c), moves(c)));
@@ -3293,7 +3298,7 @@ function archivedNode(b) {
   if (!b.archived.length) return '';
   const rows = b.archived.filter(shows);
   const row = (c) => el('div', { class: 'row', 'data-id': c.id },
-    el('div', {}, el('span', { title: c.title }, c.title), c.why && el('div', { class: 'why', title: c.why }, c.why)),
+    el('div', {}, el('span', { title: c.title }, c.title), c.why && el('div', { class: 'why', title: c.why }, inline(c.why))),
     el('div', { class: 'right' }, el('span', {}, 'Archived ', stamp(c.archived, true)), el('span', { class: 'key', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id),
       el('button', { class: 'act', title: 'Back to the backlog, just as it was', onclick: () => post('unarchive', { id: c.id }, 'Back in the backlog: ' + c.title) }, '↩ Bring back')));
   return el('div', { class: 'group', id: 'archived' },
@@ -3447,11 +3452,58 @@ function ago(at, alone) {
 }
 const stamp = (at, alone) => (isNaN(timeOf(at)) ? null
   : el('time', { class: 'at', 'data-at': at, 'data-alone': alone ? 'true' : null, datetime: new Date(timeOf(at)).toISOString(), title: new Date(timeOf(at)).toLocaleString() }, ago(at, alone)));
+// What agents write, shown as what it is: a small, safe part of Markdown. Code in backticks, fenced
+// blocks of code, bold, lists, and links to the web. Everything is built as nodes from the text;
+// nothing an agent wrote is ever read as HTML, and whatever is not recognised stays as it was written.
 // Words in backticks are code: shown as code, and a long path by its last part, whole on hover.
+const codeNode = (part) => el('code', { title: part }, part.length > 40 ? part.replace(/\S*\/(\S+)/g, '$1') : part);
+// A link goes only to the web, in a tab of its own; any other kind stays the words it was.
+const webLink = (href, words) => (/^https?:\/\/\S+$/i.test(href) ? el('a', { class: 'out', href, target: '_blank', rel: 'noopener noreferrer' }, words) : null);
+const INLINE = /\x60([^\x60\n]+)\x60|\*\*([^*\n]+?)\*\*|\[([^\]\n]+)\]\(([^()\s]+)\)|(https?:\/\/[^\s<>()\[\]\x60]*[^\s<>()\[\]\x60.,;:!?'"])/g;
+function inline(text) {
+  const out = [];
+  let at = 0;
+  for (const m of text.matchAll(INLINE)) {
+    out.push(text.slice(at, m.index));
+    at = m.index + m[0].length;
+    if (m[1] != null) out.push(codeNode(m[1]));
+    else if (m[2] != null) out.push(el('strong', {}, inline(m[2])));
+    else if (m[3] != null) out.push(webLink(m[4], inline(m[3])) || m[0]);
+    else out.push(webLink(m[5], m[5]) || m[0]);
+  }
+  out.push(text.slice(at));
+  return out.filter((x) => x !== '');
+}
+const ITEM = /^\s*(?:([-*+])|(\d{1,3})[.)])\s+(.*)$/;
+const FENCE = /^\s*\x60\x60\x60/;
 function rich(text) {
-  return String(text).split(/\x60([^\x60\n]+)\x60/).map((part, i) => (i % 2
-    ? el('code', { title: part }, part.length > 40 ? part.replace(/\S*\/(\S+)/g, '$1') : part)
-    : part));
+  const lines = String(text).split('\n');
+  const out = [];
+  let words = [];
+  const flush = () => { if (words.length) out.push(...inline(words.join('\n'))); words = []; };
+  let i = 0;
+  while (i < lines.length) {
+    // A fence opened and never closed is not code: it is left as written.
+    const close = FENCE.test(lines[i]) ? lines.slice(i + 1).findIndex((l) => /^\s*\x60\x60\x60\s*$/.test(l)) : -1;
+    const first = ITEM.exec(lines[i]);
+    if (close >= 0) {
+      flush();
+      out.push(el('pre', { class: 'code' }, lines.slice(i + 1, i + 1 + close).join('\n')));
+      i += close + 2;
+    } else if (first) {
+      flush();
+      // One list runs while its lines are items of the same kind: bullets, or numbers.
+      const ordered = !first[1];
+      const items = [];
+      for (let m = first; m && !m[1] === ordered; m = ITEM.exec(lines[++i] || '')) items.push(el('li', {}, inline(m[3])));
+      out.push(el(ordered ? 'ol' : 'ul', { start: ordered && first[2] !== '1' ? first[2] : null }, items));
+    } else {
+      words.push(lines[i]);
+      i++;
+    }
+  }
+  flush();
+  return out;
 }
 // A long run of bookkeeping between two posts is folded to its first and last line, a click from the rest.
 const unfolded = new Set();
@@ -3646,7 +3698,7 @@ function describeNode(c) {
   const sized = c.difficulty ? ' · ' + c.difficulty.toLowerCase() + ' job' : '';
   const part = (icon, label, text, key) => el('div', { class: 'part ' + key },
     el('div', { class: 'icon' }, icon),
-    el('div', {}, el('div', { class: 'label' }, label), el('pre', {}, text)));
+    el('div', {}, el('div', { class: 'label' }, label), el('pre', {}, rich(text))));
   return el('details', { class: 'desc', open: true, 'data-keep': 'about' },
     el('summary', {}, '🧶 About this thread'),
     el('div', { class: 'kind' }, kind[0] + ' ' + kind[1] + sized, el('span', {}, ' — ' + kind[2])),
@@ -3750,7 +3802,7 @@ function threadNode(c, b) {
       livePost(c, b),
       !t.feed.length && !c.question && !c.live && el('div', { class: 'empty' }, 'Nothing has been said here yet.')),
 
-    t.report && el('details', { class: 'desc', open: true, 'data-keep': 'report' }, el('summary', {}, c.type === 'plan' ? 'The plan' : 'The report'), el('pre', {}, t.report)),
+    t.report && el('details', { class: 'desc', open: true, 'data-keep': 'report' }, el('summary', {}, c.type === 'plan' ? 'The plan' : 'The report'), el('pre', {}, rich(t.report))),
 
     lineage.length > 0 && [el('h3', {}, 'Linked'), lineage.map((l) => el('div', { class: 'note' }, l))],
 
