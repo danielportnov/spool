@@ -218,10 +218,14 @@ function took(since) {
   return Math.floor(s / 86400) + 'd';
 }
 // A tool call the agent needs a yes for, and waits on: what it is, and the three answers. The answer goes back to the
-// agent, which carries on or is told no. On the ticket a no can say why, and the agent is told that too.
-function permitNode(c, a, sayWhy) {
+// agent, which carries on or is told no. The card says it in short; the ticket shows the call whole, as it was written,
+// and there a no can say why, which the agent is told too.
+function permitNode(c, a, onTicket) {
+  const sayWhy = onTicket;
   const answer = (how, done, why) => post('permit', { id: c.id, ask: a.ask, answer: how, why: why || '' }, done);
-  return el('div', { class: 'q' }, el('div', {}, '🔐 May it run ', el('span', { class: 'mono' }, a.what), '?', a.why ? ' ' + a.why + '.' : ''),
+  return el('div', { class: 'q' },
+    onTicket ? [el('div', {}, '🔐 May it run this?' + (a.why ? ' ' + a.why + '.' : '')), el('pre', { class: 'mono' }, a.full)]
+      : el('div', { title: a.full }, '🔐 May it run ', el('span', { class: 'mono' }, a.what), '?', a.why ? ' ' + a.why + '.' : ''),
     el('button', { onclick: () => answer('once', 'Allowed once') }, 'Allow once'),
     a.rest && el('button', { title: 'It is not asked again in this run: ' + a.rest, onclick: () => answer('run', 'Allowed for this run') }, 'Allow for this run'),
     el('button', { onclick: () => answer('no', 'Refused') }, 'No'),

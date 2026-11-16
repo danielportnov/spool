@@ -220,6 +220,8 @@ export interface Asking {
   tool: string;
   /** The call in short, as the agent's own lines show it: "Bash: npm publish --dry-run". */
   what: string;
+  /** The call with nothing cut out of it, as it was written: what to read before saying yes. */
+  full: string;
   /** What the agent said the call is for, where it said. */
   why: string;
   /** What a yes for the rest of this run would allow without asking again. Empty where a yes can only be for the once. */
@@ -500,7 +502,16 @@ export class Runner {
         lines: run.lines,
         listens: !!run.session?.listens,
         asking: ask
-          ? { ask: ask.id, tool: ask.tool, what: ask.call, why: ask.why, rest: keeps(ask), since: new Date(ask.since).toISOString(), until: new Date(ask.since + this.askWait).toISOString() }
+          ? {
+              ask: ask.id,
+              tool: ask.tool,
+              what: ask.call,
+              full: ask.whole,
+              why: ask.why,
+              rest: keeps(ask),
+              since: new Date(ask.since).toISOString(),
+              until: new Date(ask.since + this.askWait).toISOString(),
+            }
           : null,
       };
     });

@@ -67,6 +67,7 @@ test('an agent’s question is answered from its card, and from its ticket with 
     // The card of the thread being built carries the question, and the three answers.
     await card.locator('.q').waitFor();
     assert.equal(await card.locator('.q > div').innerText(), '🔐 May it run Bash: touch k1.txt? Create file k1.txt.');
+    assert.equal(await card.locator('.q > div').getAttribute('title'), 'Bash: touch k1.txt', 'the whole call, where the card cuts a long one short');
     assert.deepEqual(await card.locator('.q button').allInnerTexts(), ['Allow once', 'Allow for this run', 'No']);
     assert.equal(await card.locator('.q button', { hasText: 'Allow for this run' }).getAttribute('title'), 'It is not asked again in this run: Bash: touch k1.txt, files in /work/skyhop, every file edit');
     await shot(page, 'permit-card');
@@ -75,6 +76,7 @@ test('an agent’s question is answered from its card, and from its ticket with 
     await card.locator('.title').click();
     const question = ticket.locator('.livepost .q');
     await question.waitFor();
+    assert.deepEqual([await question.locator('div').first().innerText(), await question.locator('pre').innerText()], ['🔐 May it run this? Create file k1.txt.', 'Bash: touch k1.txt']);
     await shot(page, 'permit-ticket');
     await question.locator('.say input').fill('not in this folder');
     await question.getByRole('button', { name: 'No, because' }).click();

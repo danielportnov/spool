@@ -588,7 +588,8 @@ command is watched only: your reply waits on the thread for its next run.
 **It asks you before a tool it may not use.** A `claude -p` agent can only do what your agent
 command allows it. Until now a tool call outside that was refused in silence, and you found out
 after the run. Now the call waits, and the question is on the thread's card in Building and on its
-ticket: what it wants to run, what the agent said it is for, and three answers. **Allow once**
+ticket: what it wants to run, what the agent said it is for, and three answers. The card says a
+long command in short; the ticket shows it whole, as it was written, so read it there. **Allow once**
 lets that call through. **Allow for this run** also stops it asking again for the like until this
 run ends, by what Claude Code itself suggests for the call (hover the button to read it: a rule
 for the command, a folder, or file edits accepted); nothing is written to your settings. **No**

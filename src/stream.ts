@@ -86,6 +86,8 @@ export interface Ask {
   tool: string;
   /** The call as a person would say it: "Bash: npm publish". */
   call: string;
+  /** The call with nothing cut out of it: a long command whole, as it was written. */
+  whole: string;
   /** What the agent said the call is for, where it said. */
   why: string;
   /** The tool's input, which a yes hands back as it came. */
@@ -179,11 +181,29 @@ const short = (s: string, n = 200): string => {
   return one.length > n ? `${one.slice(0, n - 1)}…` : one;
 };
 
-/** A tool call, as a person would say it: the tool, and the one thing it was given that says the most. */
-export function toolCall(name: string, input: unknown): string {
+/** Of what a tool was given, the one thing that says the most, where it was given one of these. */
+function telling(input: unknown): string | undefined {
   const i = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
   const key = ['command', 'file_path', 'path', 'pattern', 'url', 'query', 'description', 'prompt'].find((k) => typeof i[k] === 'string');
-  return key ? `${name}: ${short(String(i[key]), 160)}` : name;
+  return key ? String(i[key]) : undefined;
+}
+
+/** A tool call, as a person would say it: the tool, and the one thing it was given that says the most. */
+export function toolCall(name: string, input: unknown): string {
+  const said = telling(input);
+  return said === undefined ? name : `${name}: ${short(said, 160)}`;
+}
+
+/** How much of a call is kept to show in full: enough for any command a person would read through. */
+const WHOLE = 4000;
+
+/**
+ * The same call with nothing cut out of it, as it was written: what a person reads before saying
+ * yes to it. A tool given none of the usual things is shown with everything it was given.
+ */
+function wholeCall(name: string, input: unknown): string {
+  const said = telling(input) ?? (input && typeof input === 'object' && Object.keys(input).length ? JSON.stringify(input) : undefined);
+  return said === undefined ? name : `${name}: ${said.trim().slice(0, WHOLE)}`;
 }
 
 function textOf(content: unknown): string {
@@ -227,6 +247,7 @@ export function hearLine(line: string): Heard {
       id: e.request_id,
       tool: r.tool_name,
       call,
+      whole: wholeCall(r.tool_name, r.input),
       // What it is for, unless that is only the file's name over again.
       why: told && !call.includes(told) ? short(told) : '',
       input: r.input ?? {},
