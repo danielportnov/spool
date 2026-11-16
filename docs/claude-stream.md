@@ -67,6 +67,22 @@ Also printed, and of no use to Spool yet: `system` events with the subtypes `pos
 | `--session-id` with an id already used? | `Error: Session ID <id> is already in use.`, exit 1, before anything is read. | `session-id-in-use` |
 | What if stdin closes in the middle of a turn? | The turn is finished first, then exit 0. So an agent whose Spool died works on to the end of its turn. | `input-closed-mid-turn` |
 
+What did not go as expected:
+
+- Not every call is asked about. A command that only reads (`date`) ran with no question, though
+  only `Read` was allowed. The first try at "for the rest of the run" asked nothing for that reason.
+- A command made of several joined with `&&` came with no `permission_suggestions` at all, so a
+  yes to it can only be for the once. A plain one (`spool done …`) came with a rule for the like
+  (`spool done *`).
+- `sleep 30` was refused by Claude's own Bash tool before any question was asked. `sleep 8` ran.
+- A session is not tied to its folder, as the table says.
+
+Spool's own engine was then run against the real thing, twice, each a one-line thread on `haiku`
+in a scratch repository. In one, a note written on the thread mid-run was acted on in the agent's
+next step, three permission questions were answered from the engine (once, and for the rest of the
+run), and the thread landed. In the other the agent was stopped, which took under a second, and
+carried on in the same session with a note written in between. Both finished in under 20 seconds.
+
 ## What was not tried
 
 - Two programs on one session at the same time.
