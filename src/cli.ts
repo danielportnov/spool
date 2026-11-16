@@ -17,6 +17,7 @@ import type { Ctx } from './context.ts';
 import { canUnwind, inColor, mark, unwind } from './mark.ts';
 import { SpoolError } from './model.ts';
 import { paint } from './render.ts';
+import { record } from './journal.ts';
 import { Workspace, findHome } from './store.ts';
 
 const GLOBAL: Options = {
@@ -136,6 +137,8 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
   try {
     const ws = Workspace.open(scoped.cwd, scoped.now, !!command.write);
     try {
+      // Under a run (SPOOL_RUN), what the command writes is kept, so the whole run can be undone as one.
+      if (command.write) record(ws, scoped.env, command.name);
       const result = command.run!({ ...base, ws, before });
       if (!bare || !art) return { result, json };
       // Typed with nothing after it, the status opens under the mark, with the version and the project beside it.

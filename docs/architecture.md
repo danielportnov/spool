@@ -41,6 +41,10 @@ those comments are the detail.
   `~/.config/spool/config.json`. It also runs the notifier.
 - `git.ts` is the undo. It finds a thread's commits by their `Spool:` trailer, and
   `revertCommits` takes them back in one new commit, never touching `.spool/`, all or nothing.
+- `journal.ts` is the undo for the queue itself, which git does not hold. With `SPOOL_RUN` set,
+  `record` gives the workspace a recorder: `save` tells it of every item written, and it keeps
+  the item's file as it was and a line in the run's journal under `.spool/runs/<id>/`. `undoRun`
+  puts each item back, and leaves alone any that changed since.
 - `worktree.ts` gives a thread a git worktree of its own, so several can be built at once.
   `openWorktree` makes it inside `.spool/worktrees/`, on the branch `spool/<id>`, and `workDir`
   says where a thread is worked. `land` rebases the branch onto the checkout, runs the check in

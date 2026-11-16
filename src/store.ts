@@ -74,6 +74,14 @@ export interface Problem {
   message: string;
 }
 
+/** Told of every item written while a run is on, so the run can be undone as one. See journal.ts. */
+export interface Recorder {
+  /** Before an item's file is written, while what was there is still there to keep. */
+  keep(item: Item, file: string): void;
+  /** After it is written, with the text that was. */
+  wrote(item: Item, file: string, text: string): void;
+}
+
 /**
  * The project a folder inside a thread's worktree belongs to, or null anywhere else.
  *
@@ -177,6 +185,8 @@ export class Workspace {
   readonly problems: Problem[] = [];
   readonly home: Spool;
   readonly now: () => Date;
+  /** Set for a command run under a run (`SPOOL_RUN`). */
+  recorder?: Recorder;
   private readonly byId = new Map<string, Item>();
   private held: string[] = [];
 
@@ -436,8 +446,11 @@ export class Workspace {
     item.updated = timestamp(this.now());
     const file = this.file(item);
     fs.mkdirSync(path.dirname(file), { recursive: true });
+    const text = serialize(item);
+    this.recorder?.keep(item, file);
     const temp = `${file}.${process.pid}.tmp`;
-    fs.writeFileSync(temp, serialize(item));
+    fs.writeFileSync(temp, text);
     fs.renameSync(temp, file);
+    this.recorder?.wrote(item, file, text);
   }
 }

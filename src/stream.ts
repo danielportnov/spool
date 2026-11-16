@@ -97,14 +97,19 @@ export function hearLine(line: string): Heard {
 }
 
 /**
- * The file the agent's stream is kept in, one per run of a thread: under the
- * spool's `runs/`, which keeps itself out of git, since a transcript holds
- * whatever the agent read.
+ * A thread's folder under the spool's `runs/`, made if it is not there. `runs/` keeps itself out
+ * of git: a transcript holds whatever the agent read, and the journal of a run (journal.ts) is this
+ * machine's own record.
  */
-export function transcriptFile(spoolDir: string, id: string, began: Date): string {
+export function runDir(spoolDir: string, id: string): string {
   const dir = path.join(spoolDir, 'runs', id);
   fs.mkdirSync(dir, { recursive: true });
   const ignore = path.join(spoolDir, 'runs', '.gitignore');
   if (!fs.existsSync(ignore)) fs.writeFileSync(ignore, '# What agents printed while they worked threads. Kept on this machine only.\n*\n');
-  return path.join(dir, `${began.toISOString().replace(/[:.]/g, '-')}.jsonl`);
+  return dir;
+}
+
+/** The file the agent's stream is kept in, one per run of a thread. */
+export function transcriptFile(spoolDir: string, id: string, began: Date): string {
+  return path.join(runDir(spoolDir, id), `${began.toISOString().replace(/[:.]/g, '-')}.jsonl`);
 }

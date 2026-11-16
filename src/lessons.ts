@@ -126,6 +126,17 @@ export function keepLesson(task: Item, words: string, now: Date): Lesson {
   return lessonsIn(task.spool).find((l) => l.thread === task.id)!;
 }
 
+/**
+ * What an undo does with its reason: kept as a lesson where it is the human's own, with the line
+ * that tells them so. An undo with no reason keeps none, and nor does one an agent runs as itself.
+ */
+export function learn(ws: Workspace, task: Item, actor: string, why: string): { lesson?: Lesson; line?: string } {
+  if (!why || actor !== 'human') return {};
+  const lesson = keepLesson(task, why, ws.now());
+  const n = lessons(ws).findIndex((l) => l.spool === lesson.spool && l.line === lesson.line) + 1;
+  return { lesson, line: `Your reason is kept as a lesson every agent here reads first. To forget it: spool lessons --drop ${n}` };
+}
+
 /** Forget lesson n, as `spool lessons` numbers them. */
 export function dropLesson(ws: Workspace, n: number): Lesson {
   const all = lessons(ws);

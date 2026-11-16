@@ -14,6 +14,7 @@ import * as path from 'node:path';
 import { git, repoRoot } from './git.ts';
 import { type Item, SpoolError, oneLine, splitBody } from './model.ts';
 import { type Paint, age } from './render.ts';
+import { JOURNAL } from './journal.ts';
 import { type Scope, children, dependents, review, sprintOf, taskState, tasks } from './schedule.ts';
 import { hearLine } from './stream.ts';
 import type { Workspace } from './store.ts';
@@ -93,7 +94,8 @@ function transcripts(t: Item): string[] {
   try {
     return fs
       .readdirSync(dir)
-      .filter((f) => f.endsWith('.jsonl'))
+      // The journal of a run is kept beside the transcripts, and is nothing an agent said.
+      .filter((f) => f.endsWith('.jsonl') && f !== JOURNAL)
       .sort()
       .map((f) => fs.readFileSync(path.join(dir, f), 'utf8'));
   } catch {

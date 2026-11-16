@@ -318,6 +318,30 @@ and the two or three things it is heading towards. The agent asks you for it at 
 it true with you (`spool goals`). Every agent reads it before it works, the loop's list leads with
 it, and each sprint says which goal it serves, on its line; `spool check` names one that does not.
 
+## A run, undone in one step
+
+Some work is many small changes to the queue and none to the code: sizing a backlog, dropping what
+has shipped, filing a few ideas. Each is easy to take back, and sixty are not. So an agent makes
+them under a **run**: it sets `SPOOL_RUN` to the id of the thread the run belongs to, on every
+command.
+
+    SPOOL_RUN=t-7k2m spool edit t-4kq7 --size s
+
+Under a run, the first time a command writes an item, its file as it was is copied to
+`.spool/runs/t-7k2m/before/` (or a marker is left that the run made it), and every write adds a
+line to `.spool/runs/t-7k2m/journal.jsonl`: when, which item, what changed, by which command. The
+run's own thread is not recorded.
+
+`spool revert t-7k2m -m "why"` then puts every item back as it was, byte for byte, and removes the
+ones the run made. An item changed since the run last wrote it, by you or by anyone, is named and
+left as it is. No code is touched: a thread built since the run moved it to Build keeps its
+commits, and is listed with its own undo. Your reason is kept as a lesson, as with any undo, and
+the run's thread is dropped. None of this leans on git, since in most projects `.spool/` is not in
+git.
+
+A run is undone once. After that, or once its thread is done, a command that still carries its
+`SPOOL_RUN` is refused, so nothing is changed in the belief that it is on record.
+
 ## Skills that compound
 
 When an agent works out a multi-step procedure it will need again — shipping a beta, regenerating
@@ -337,6 +361,7 @@ AI-suggested thread. It matches words, not meaning.
   goals.md       where the project is going, in a few lines; agents read it first
   items/         one markdown file per thread, question, note, sprint and skill record
   reports/       what audits and plans handed in
+  runs/          per thread: what its agent printed, and for a run, its journal and the copies an undo puts back; never in git
   worktrees/     a git worktree for each thread being built in one of its own; never in git
 ```
 
@@ -505,7 +530,7 @@ ones marked 🔒:
 | `spool capture <words>` | Drop feedback in, exactly as said |
 | `spool answer <d-id> <choice>` | Answer a question, or overrule a call an agent made |
 | `spool approve <id…>` | Accept a call, finished work or a new skill; give a plan its go-ahead |
-| `spool revert <t-id> [-m why]` | Undo a thread's commits and reopen it with your reason. The reason is kept as a lesson every agent reads first |
+| `spool revert <t-id> [-m why]` | Undo a thread's commits and reopen it with your reason. The reason is kept as a lesson every agent reads first. Given a run's thread, it puts back every item the run changed and touches no code |
 | `spool goals [--edit -]` | Where the project is going: what it is for and the two or three things it is heading towards, as every agent reads it first (kept in `.spool/goals.md`); `--edit` replaces it |
 | `spool lessons [--drop <n>]` | What you undid and why, newest first, as agents read it (kept in `.spool/policy.md`, yours to edit); `--drop` forgets one |
 | `spool review` | Everything waiting on you, most blocking first |

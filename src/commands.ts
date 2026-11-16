@@ -19,7 +19,7 @@ import { doctor } from './doctor.ts';
 import { GOALS_STARTER, goalsFile, goalsOf, goalsText } from './goals.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
 import { demo } from './demo.ts';
-import { dropLesson, keepLesson, lessonLine, lessons } from './lessons.ts';
+import { dropLesson, learn, lessonLine, lessons } from './lessons.ts';
 import { runLoop } from './loop.ts';
 import { markLine } from './mark.ts';
 import { servePage } from './page.ts';
@@ -50,6 +50,7 @@ import {
   tokens,
 } from './model.ts';
 import { DEFAULT_POLICY, type Role, about, prime, upsertBlock } from './prime.ts';
+import { journaled, undoRun } from './journal.ts';
 import {
   type Paint,
   brief,
@@ -755,17 +756,23 @@ export const COMMANDS: Command[] = [
     name: 'revert',
     group: 'you',
     usage: 'revert <t-id> [-m <why>] [--drop]',
-    summary: "Undo a task's commits (or send back a plan or audit) and reopen it with your reason",
+    summary: "Undo a task's commits (or send back a plan or audit) and reopen it with your reason; given a run's thread, put back every item the run changed",
     human: true,
     write: true,
     options: { ...MESSAGE, drop: { type: 'boolean' } },
     run(call) {
       const { ws, p, actor } = call;
       const t = first(call, 'which task', 'task');
+      const why = str(call.opts.message) ?? call.args.slice(1).join(' ').trim();
+      // A run is undone as one: every item it wrote is put back as it was, and no code is touched. See journal.ts.
+      if (journaled(t)) {
+        const undone = undoRun(ws, t, actor, why, p);
+        const kept = learn(ws, t, actor, why);
+        return { text: [...undone.lines, ...(kept.line ? [kept.line] : [])].join('\n'), data: { ...undone.data, lesson: kept.lesson?.words } };
+      }
       if (t.status !== 'done') {
         throw new SpoolError(`${t.id} isn't finished, so there is nothing to revert`, `To abandon it: spool drop ${t.id}`);
       }
-      const why = str(call.opts.message) ?? call.args.slice(1).join(' ').trim();
       const root = repoRoot(t.spool.root);
       const { reverted, skipped, voided } = undoWork(ws, t, actor, why);
       // A worktree it still has holds nothing that landed, so it goes too.
@@ -801,11 +808,8 @@ export const COMMANDS: Command[] = [
       if (orphans.length) out.push(p.dim(`  dropped ${orphans.length} unstarted ${t.type === 'plan' ? 'part(s)' : 'finding(s)'} that came from it`));
       if (!call.opts.drop) out.push(`It is back in the queue at p${t.priority}${why ? ' with your reason attached' : ''}.`);
       // The human's reason outlives the thread: every agent here reads it from now on. An agent's own revert keeps none.
-      const lesson = why && actor === 'human' ? keepLesson(t, why, ws.now()) : undefined;
-      if (lesson) {
-        const n = lessons(ws).findIndex((l) => l.spool === lesson.spool && l.line === lesson.line) + 1;
-        out.push(`Your reason is kept as a lesson every agent here reads first. To forget it: spool lessons --drop ${n}`);
-      }
+      const { lesson, line } = learn(ws, t, actor, why);
+      if (line) out.push(line);
       return {
         text: out.join('\n'),
         data: { task: itemJson(ws, t), reverted, skipped, voided: voided.map((d) => d.id), orphans: orphans.map((k) => k.id), lesson: lesson?.words },
