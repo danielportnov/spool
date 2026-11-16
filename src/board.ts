@@ -15,7 +15,7 @@ import * as path from 'node:path';
 import { suggestion } from './agent.ts';
 import { type Brief, morning } from './brief.ts';
 import type { Builder } from './context.ts';
-import { type Picking, type Runner, stoppedInBuild } from './engine.ts';
+import { type Live as Running, type Picking, type Runner, stoppedInBuild } from './engine.ts';
 import { git, repoRoot } from './git.ts';
 import { type Goals, goalsOf } from './goals.ts';
 import { type Item, isPlan, oneLine, reportFile, splitBody, whyOf } from './model.ts';
@@ -271,7 +271,7 @@ export interface Board {
     on: boolean;
     agent: string;
     parallel: number;
-    running: { id: string; seconds: number; lines: string[] }[];
+    running: Running[];
     /** Threads the human stopped while they were being built: the runner leaves them in Build until they carry on. */
     stopped: string[];
     recent: { id: string; title: string; outcome: string }[];
@@ -592,7 +592,7 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
       agent: runner?.agent ?? '',
       parallel: runner?.parallel ?? 1,
       // Only this project's: a page started over several projects builds all of them.
-      running: [...(runner?.runs.values() ?? [])].filter((run) => ours.has(run.id)).map((run) => ({ id: run.id, seconds: Math.round((Date.now() - run.began) / 1000), lines: run.lines })),
+      running: (runner?.live() ?? []).filter((run) => ours.has(run.id)),
       // One carried on with that waits for room is no longer stopped. With a chat building, nothing holds a
       // stopped thread back: the chat takes whatever is in Build.
       stopped: builds === 'chat' ? [] : all.filter((t) => stoppedInBuild(t) && !runner?.isNext(t.id)).map((t) => t.id),

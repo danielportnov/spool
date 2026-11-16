@@ -575,8 +575,20 @@ one it asks a question on waits for you; one it walks away from is put back and 
 until something about it changes. The page says what the agent last said, which is usually why. Use
 the page's runner or a chat's loop, not both: they would race each other for the same threads.
 
+**Say something to it while it works.** A `claude -p` agent is started with its input left open,
+so it can be spoken to. Reply on the ticket of a thread that is being built and your words reach
+its agent within a second, as a message from you; it reads them at its next step and adjusts. They
+are kept on the thread first, as any reply is, and the thread's log says they were passed on. The
+ticket says **hears your replies** beside the agent where this works. The agent is told as much when it starts: that you
+may write to it, and that a question still goes through `spool ask`, since you may not be reading
+what it says. When its turn ends it goes, as an agent always did; one that stops with the thread
+unfinished just after you wrote to it is kept five minutes for what you say next. Any other agent
+command is watched only: your reply waits on the thread for its next run.
+
 **Stop.** A card being built has a **■ Stop**. It ends that thread's agent at once, with anything
-the agent started, and one that does not listen is killed two seconds later; agents on other
+the agent started, and one that does not listen is killed two seconds later; a `claude -p` agent
+is asked to stop first, so that its session knows it was stopped, and ended three seconds later if
+it is still there. Agents on other
 threads work on, and the Agents switch stays on. The thread goes back to Build with its work kept,
 and its card says **Stopped**. Nothing builds a stopped thread: not a note on it, not a change to
 it, not the page restarting. **▶ Carry on**, on the card, builds it next, as dragging it into

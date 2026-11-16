@@ -32,8 +32,9 @@ function claude(s: Sandbox): string {
   const file = path.join(dir, 'claude');
   fs.writeFileSync(file, [
     '#!/bin/sh',
-    'cat > /dev/null',
-    'if [ -n "$SPOOL_ROUTING" ]; then echo \'{"model": "opus", "effort": "xhigh", "why": "a small change, worth care"}\'; exit 0; fi',
+    'if [ -n "$SPOOL_ROUTING" ]; then cat > /dev/null; echo \'{"model": "opus", "effort": "xhigh", "why": "a small change, worth care"}\'; exit 0; fi',
+    // Asked to work, its prompt is one message, and its input stays open behind it.
+    'read -r prompt',
     'echo \'{"type":"system","subtype":"init","session_id":"5f2c9e1a-77b0-4c1e-9a3d-0e6b2f4c8d11","model":"opus"}\'',
     'i=1; while [ $i -le 400 ]; do sleep 0.25; echo "step $i: measuring the arc"; i=$((i+1)); done',
   ].join('\n') + '\n');

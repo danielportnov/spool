@@ -84,4 +84,18 @@ Also printed, and of no use to Spool yet: `system` events with the subtypes `pos
   what changed since. If Claude has no such session, the thread is started afresh at once, in a new
   one, and its log says so.
 
+- **Its input left open.** The same command is started with `--input-format stream-json`, unless it
+  chooses an input or an output of its own, and is given its prompt as the first message.
+- **Your reply reaches it.** A note you write on a thread being built is written to the session as a
+  `user` message within a second, once, and the thread's log says so.
+- **Stop asks first.** Stop sends the interrupt and closes the input; a session still there three
+  seconds later is ended as any agent is. The page's server also takes the interrupt alone
+  (`POST /api/interrupt`), which leaves the session waiting for your next word.
+- **Nothing is held open for nothing.** When a turn ends, the input is closed and the session goes,
+  as an agent always did. The exception is a thread still unfinished whose agent you wrote to in
+  the last five minutes: it is kept for your next word until those minutes are up.
+
+What Spool writes to a session is in the thread's transcript too, as lines of its own
+(`{"type":"spool","event":"said","text":"…"}`), between the lines the agent printed.
+
 Any other agent command is run exactly as before: Spool does not know its flags.

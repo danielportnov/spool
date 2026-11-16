@@ -64,8 +64,8 @@ test('a stopped thread is carried on in the session it was in, told only what is
   s.sp('init', '--name', 'skyhop');
   const floaty = s.id('capture', 'the jump feels floaty');
   const jump = s.id('task', 'Tighten the jump arc', '--from', floaty);
-  // The first run says a line and hangs; one that picks the session up says the next and finishes.
-  const fake = claude(s, ['cat > "$here/prompt-$n.txt"', 'if [ -z "$resumed" ]; then say first; sleep 30; fi', 'say second', 'spool done "$SPOOL_TASK" -m "finished" > /dev/null'].join('\n'), turns);
+  // The first run says a line and works on until it is told to stop; one that picks the session up says the next and finishes.
+  const fake = claude(s, ['hear', 'if [ -z "$resumed" ]; then say first; hear; exit 1; fi', 'say second', 'spool done "$SPOOL_TASK" -m "finished" > /dev/null'].join('\n'), turns);
   const runner = new Runner(engineCtx(s), undefined, fake.agent, true);
   try {
     runner.wake();
@@ -73,7 +73,7 @@ test('a stopped thread is carried on in the session it was in, told only what is
     const [first] = fake.args();
     const session = new RegExp(`--session-id (${UUID})$`).exec(first!)?.[1];
     assert.ok(session, `the session is Spool's choice: ${first}`);
-    assert.match(s.item(jump), new RegExp(`page: handed to \`[^\`]*claude -p --model haiku --effort low --output-format stream-json --verbose --session-id ${session}\``));
+    assert.match(s.item(jump), new RegExp(`page: handed to \`[^\`]*claude -p --model haiku --effort low --output-format stream-json --verbose --input-format stream-json --session-id ${session}\``));
     assert.equal(leftOff(s.json('show', jump).item), undefined, 'nothing to carry on while it is being built');
 
     // Stopped, it waits. The human writes on it, and carries on.
@@ -87,14 +87,15 @@ test('a stopped thread is carried on in the session it was in, told only what is
     // The same session, picked up: the same model, nobody asked to choose it again, and one line for what happened.
     assert.deepEqual(fake.args(), [first, first!.replace('--session-id', '--resume')]);
     assert.equal(fake.read('routed.txt'), 'asked\n');
-    assert.match(s.item(jump), new RegExp(`page: handed to \`[^\`]*claude -p --model haiku --effort low --output-format stream-json --verbose --resume ${session}\``));
-    assert.match(fake.read('prompt-1.txt'), /unattended[\s\S]*## Working a thread[\s\S]*YOUR TASK[\s\S]*the jump feels floaty/);
-    const again = fake.read('prompt-2.txt');
-    assert.match(again, new RegExp(`earlier in this session, and it is yours again: ${jump} Tighten the jump arc\n\nThe human stopped you, and has now set you going again\\.\n\nSince you were last given the thread, the human has written on it:\n\n> keep gravity at 34\n\nCarry on from where you were\\.[^\n]*spool done`));
+    assert.match(s.item(jump), new RegExp(`page: handed to \`[^\`]*claude -p --model haiku --effort low --output-format stream-json --verbose --input-format stream-json --resume ${session}\``));
+    assert.match(fake.prompt(1), /## Working a thread[\s\S]*YOUR TASK[\s\S]*the jump feels floaty/);
+    const again = fake.prompt(2);
+    assert.match(again, new RegExp(`earlier in this session, and it is yours again: ${jump} Tighten the jump arc\n\nThe human stopped you, and has now set you going again\\.\n\nSince you were last given the thread, the human has written on it:\n\n> keep gravity at 34\n\nThe human may write to you while you work[^\n]*\n\nCarry on from where you were\\.[^\n]*spool done`));
     assert.doesNotMatch(again, /Working a thread|the jump feels floaty/, 'not the rules and the brief a second time');
     const kept = transcripts(s, jump);
-    assert.deepEqual(kept.map((events) => [...new Set(events.map((e) => e.session_id))]), [[session], [session]], 'two runs, one session');
+    assert.deepEqual(kept.map((events) => [...new Set(events.filter((e) => e.type !== 'spool').map((e) => e.session_id))]), [[session], [session]], 'two runs, one session');
     assert.equal(JSON.parse(s.read(`.spool/runs/${jump}/session.json`)).session, session);
+    await until('the agent has gone', () => !runner.runs.size);
   } finally {
     runner.close();
     s.cleanup();
@@ -109,7 +110,7 @@ test('a session Claude no longer has is not waited on: the thread starts afresh,
   const fake = claude(
     s,
     [
-      'cat > "$here/prompt-$n.txt"',
+      'hear',
       'if [ "$n" = 1 ]; then say first; exit 1; fi',
       'if [ -n "$resumed" ]; then say gone-err >&2; say gone; exit 1; fi',
       'say second',
@@ -133,9 +134,10 @@ test('a session Claude no longer has is not waited on: the thread starts afresh,
     const fresh = sessionOf(`claude -p ${third}`)!;
     assert.deepEqual([fresh.resumed, fresh.id === lost], [false, false], 'a new session, not the lost one again');
     assert.match(s.item(jump), new RegExp(`page: session ${lost} could not be picked up again; starting afresh\n.*page: handed to \`[^\`]*--session-id ${fresh.id}\``));
-    assert.match(fake.read('prompt-2.txt'), /Your last run ended with the thread neither finished nor waiting on a question\.[\s\S]*> try the other way/);
-    assert.match(fake.read('prompt-3.txt'), /## Working a thread[\s\S]*YOUR TASK[\s\S]*try the other way/, 'afresh is the rules and the whole brief');
+    assert.match(fake.prompt(2), /Your last run ended with the thread neither finished nor waiting on a question\.[\s\S]*> try the other way/);
+    assert.match(fake.prompt(3), /## Working a thread[\s\S]*YOUR TASK[\s\S]*try the other way/, 'afresh is the rules and the whole brief');
     assert.match(s.item(jump), new RegExp(`page: session ${fresh.id} · transcript`), 'and the session the thread now has is the new one');
+    await until('the agent has gone', () => !runner.runs.size);
   } finally {
     runner.close();
     s.cleanup();
@@ -146,7 +148,7 @@ test('another agent command cannot pick a Claude session up: it starts afresh, a
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop');
   const jump = s.id('task', 'Tighten the jump arc');
-  const fake = claude(s, ['cat > /dev/null', 'say first', 'exit 1'].join('\n'), turns);
+  const fake = claude(s, ['hear', 'say first', 'exit 1'].join('\n'), turns);
   const first = new Runner(engineCtx(s), undefined, fake.agent, true);
   try {
     first.wake();
@@ -166,6 +168,7 @@ test('another agent command cannot pick a Claude session up: it starts afresh, a
     await until('the thread is finished', () => s.json('show', jump).item.status === 'done');
     assert.match(s.item(jump), new RegExp(`page: session ${session} cannot be picked up by \`[^\`]*worker\\.sh\`; starting afresh\n.*page: handed to \`[^\`]*worker\\.sh\``));
     assert.match(s.read('worker-prompt.txt'), /## Working a thread[\s\S]*YOUR TASK/);
+    await until('the agent has gone', () => !second.runs.size);
   } finally {
     second.close();
     s.cleanup();

@@ -12,6 +12,11 @@
  * thread left unfinished is picked up again where it was. What Spool remembers of that session
  * from one run to the next (`recall`, `remember`) is kept beside the thread's transcripts.
  *
+ * Such a session is started with its input left open (`listening`), and then it can be spoken to
+ * while it works: `say` writes it a message from the human, `interrupt` tells it to stop what it
+ * is doing, and `leave` closes its input, on which it finishes its turn and goes. Any other agent
+ * is given its prompt and watched, as it always was.
+ *
  * It knows nothing of the queue: which thread is next, what a run's ending means for its thread,
  * and what is written on it are the engine's (`engine.ts`).
  */
@@ -23,7 +28,8 @@ import * as path from 'node:path';
 import { ROUTE_TIMEOUT_MS, routerPrompt } from './agent.ts';
 import type { Ctx } from './context.ts';
 import type { Item } from './model.ts';
-import { hearLine, runDir, sessionOf, transcriptFile } from './stream.ts';
+import { oneLine } from './model.ts';
+import { hearLine, interruptLine, listens, runDir, sessionOf, transcriptFile, userLine } from './stream.ts';
 
 /** How many of the lines an agent has printed are kept to show: the newest. */
 const LIVE_LINES = 60;
@@ -74,6 +80,9 @@ export function endGroup(child: ChildProcess, signal: NodeJS.Signals = 'SIGTERM'
 
 /** How long an agent told to end has to do so, before what is left of it is killed. */
 const END_GRACE_MS = 2000;
+
+/** How long a session asked to stop has to end its turn and go by itself, before it is ended. */
+const STOP_GRACE_MS = 3000;
 
 /**
  * End the agent and whatever it started: it runs in a group of its own, so the whole group is
@@ -164,6 +173,18 @@ export interface Session {
   id?: string;
   /** It was to pick that session up again, and Claude has no such session: nothing was carried on. */
   lost: boolean;
+  /** It can be spoken to: a Claude session whose input is open. False for any other agent, and once its input is closed. */
+  listens: boolean;
+  /** When its last turn ended, if nothing has been said to it since: it is waiting for a word. */
+  waiting?: number;
+  /** Say the human's words to it. They are read at its next step. False where it cannot be spoken to. */
+  say(text: string): boolean;
+  /** Tell it to stop what it is doing. Its turn ends, and it waits for what is said next. */
+  interrupt(): boolean;
+  /** Close its input: it finishes the turn it is in, and goes. */
+  leave(): void;
+  /** Stop it now. One that can be spoken to is asked first, so its session knows it was stopped; then it is ended like any other. */
+  stop(): void;
 }
 
 /**
@@ -172,13 +193,17 @@ export interface Session {
  * newest of them, and kept whole in the thread's transcript. `on.note` is given what belongs on
  * the thread's log (its session, each tool call it was refused, where the transcript is): the
  * same list every time, for whoever writes them down to empty. `on.end` hears how it ended.
+ *
+ * A `claude -p` command with its input open is given the prompt as its first message, and its
+ * input stays open. `on.turn` hears each time it ends a turn and waits: it goes on waiting until
+ * it is spoken to or its input is closed, so whoever holds it must do one or the other.
  */
 export function startSession(
   task: Item,
   prompt: string,
   command: string,
   at: { folder: string; env: Ctx['env']; actor: string },
-  on: { note: (notes: string[]) => void; end: (how: string) => void },
+  on: { note: (notes: string[]) => void; end: (how: string) => void; turn?: () => void },
 ): Session {
   const file = promptFile(task.id, process.pid);
   fs.writeFileSync(file, prompt);
@@ -191,8 +216,47 @@ export function startSession(
     env: { ...at.env, SPOOL_ACTOR: at.actor, SPOOL_TASK: task.id, SPOOL_PROMPT_FILE: file },
   });
   const began = Date.now();
-  const live: Session = { child, lines: [], began, id: sessionOf(command)?.id, lost: false };
-  const { lines } = live;
+  const lines: string[] = [];
+  const show = (line: string): void => {
+    lines.push(line.slice(0, 400));
+    if (lines.length > LIVE_LINES) lines.splice(0, lines.length - LIVE_LINES);
+  };
+  let sent = 0;
+  // What Spool says to a session: written to it, kept in the transcript as an event of Spool's own, and shown.
+  const tell = (line: string, event: Record<string, unknown>, shown: string): boolean => {
+    if (!live.listens) return false;
+    child.stdin!.write(`${line}\n`);
+    keepRaw(`${JSON.stringify({ type: 'spool', ...event })}\n`);
+    show(shown);
+    return true;
+  };
+  const live: Session = {
+    child,
+    lines,
+    began,
+    id: sessionOf(command)?.id,
+    lost: false,
+    listens: listens(command),
+    say: (text) => {
+      if (!tell(userLine(text), { event: 'said', text }, `you: ${oneLine(text, 300)}`)) return false;
+      live.waiting = undefined;
+      return true;
+    },
+    interrupt: () => tell(interruptLine(`spool-${++sent}`), { event: 'interrupt' }, 'told to stop what it is doing'),
+    leave: () => {
+      if (!live.listens) return;
+      live.listens = false;
+      child.stdin!.end();
+    },
+    stop: () => {
+      if (!live.listens) return endAgent(child);
+      live.interrupt();
+      live.leave();
+      setTimeout(() => {
+        if (child.exitCode === null && child.signalCode === null) endAgent(child);
+      }, STOP_GRACE_MS).unref();
+    },
+  };
   // Everything the agent prints is kept with the thread as it came, stderr as events of its own.
   let transcript: string | undefined;
   let keep: number | undefined;
@@ -214,41 +278,50 @@ export function startSession(
   // What goes on the thread's log: its session, and each tool call it was refused.
   const notes: string[] = [];
   let session: string | undefined;
+  // A session says which it is at the start of every turn: once is enough to show.
+  let opened = '';
   const hear = (line: string): void => {
     // A line at a time, without the terminal's colour codes.
     const heard = hearLine(line.replace(/\x1b\[[0-9;]*[A-Za-z]/g, ''));
-    for (const l of heard.lines) lines.push(l.slice(0, 400));
-    if (lines.length > LIVE_LINES) lines.splice(0, lines.length - LIVE_LINES);
+    for (const l of heard.lines) {
+      if (l === opened) continue;
+      if (heard.session && l.startsWith(`session ${heard.session}`)) opened = l;
+      show(l);
+    }
     if (heard.lost) live.lost = true;
-    let tell = false;
+    let log = false;
     // The id on the line that says there is no such session is not a session.
     if (heard.session && !session && !heard.lost) {
       session = heard.session;
       notes.push(`session ${session}${shown ? ` · transcript ${shown}` : ''} · open it with \`claude --resume ${session}\``);
-      tell = true;
+      log = true;
     }
     for (const d of heard.denials ?? []) {
       notes.push(`permission denied: ${d}`);
-      tell = true;
+      log = true;
     }
-    if (tell) on.note(notes);
+    if (log) on.note(notes);
+    if (heard.over && live.listens) {
+      live.waiting = Date.now();
+      on.turn?.();
+    }
   };
+  // The transcript is written a whole line at a time, so that an event of Spool's own never lands inside one of the agent's.
   const reader = (stderr: boolean) => {
     let rest = '';
-    const take = (part: string): void => {
+    const take = (part: string, whole = true): void => {
       if (stderr && part.trim()) keepRaw(`${JSON.stringify({ type: 'stderr', text: part })}\n`);
+      if (!stderr) keepRaw(whole ? `${part}\n` : part);
       hear(part);
     };
     return {
       data: (chunk: Buffer): void => {
-        const text = chunk.toString('utf8');
-        if (!stderr) keepRaw(text);
-        const parts = (rest + text).split('\n');
+        const parts = (rest + chunk.toString('utf8')).split('\n');
         rest = parts.pop() ?? '';
-        parts.forEach(take);
+        parts.forEach((part) => take(part));
       },
       flush: (): void => {
-        if (rest) take(rest);
+        if (rest) take(rest, false);
         rest = '';
       },
     };
@@ -258,14 +331,19 @@ export function startSession(
   child.stdout!.on('data', out.data);
   child.stderr!.on('data', err.data);
   child.stdin!.on('error', () => {});
-  child.stdin!.end(prompt);
+  // A session that can be spoken to takes the prompt as its first message, and its input stays open for the next.
+  if (live.listens) child.stdin!.write(`${userLine(prompt)}\n`);
+  else child.stdin!.end(prompt);
   let over = false;
   const end = (how: string): void => {
     if (over) return;
     over = true;
+    live.listens = false;
+    live.waiting = undefined;
     out.flush();
     err.flush();
     if (keep !== undefined) fs.closeSync(keep);
+    keep = undefined;
     fs.rmSync(file, { force: true });
     // A run with no session still says where its transcript is; notes the store was too busy for go now.
     if (!session && transcript && sizeOf(transcript) > 0) notes.push(`transcript ${shown}`);

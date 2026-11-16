@@ -55,6 +55,10 @@ export interface StandIn {
   agent: string;
   /** The flags each run of it was started with, oldest first. */
   args: () => string[];
+  /** The lines run `n` of it read from its input with `hear`, each as the JSON it is. */
+  heard: (n: number) => Record<string, any>[];
+  /** The words run `n` of it was started with: its first message. */
+  prompt: (n: number) => string;
   /** A file the stand-in wrote beside itself, or nothing if it has not. */
   read: (name: string) => string;
 }
@@ -64,6 +68,8 @@ export interface StandIn {
  *
  *   - `$n`, which run of it this is, from 1; `$sid`, the session it was put in; `$resumed`, set where it was told to pick one up;
  *   - `say <part>`, which prints the lines of one of `parts`, in that session;
+ *   - `hear`, which waits for the next line written to it and leaves it in `$heard`, or fails once its input is closed.
+ *     The first is its prompt: Spool gives a `claude -p` the prompt as a message, and keeps its input open;
  *   - `spool`, the real CLI; and `$here`, a folder of its own to leave files in.
  *
  * Asked to choose a model for a thread, it answers haiku and low, and leaves a line in `routed.txt`.
@@ -88,6 +94,7 @@ export function claude(s: Sandbox, script: string, parts: Record<string, string[
       '  last="$arg"',
       'done',
       'say() { sed "s/SESSION/$sid/g" "$here/$1.jsonl"; }',
+      'hear() { IFS= read -r heard || return 1; printf "%s\\n" "$heard" >> "$here/heard-$n.jsonl"; }',
       script,
       '',
     ].join('\n'),
@@ -100,7 +107,18 @@ export function claude(s: Sandbox, script: string, parts: Record<string, string[
       return '';
     }
   };
-  return { agent: `${file} -p`, args: () => read('args.txt').trim().split('\n').filter(Boolean), read };
+  const heard = (n: number): Record<string, any>[] =>
+    read(`heard-${n}.jsonl`)
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as Record<string, any>);
+  return {
+    agent: `${file} -p`,
+    args: () => read('args.txt').trim().split('\n').filter(Boolean),
+    heard,
+    prompt: (n) => String(heard(n)[0]?.message?.content ?? ''),
+    read,
+  };
 }
 
 /** The world a Runner held by a test is given: the sandbox's folder and home, and the real clock. */

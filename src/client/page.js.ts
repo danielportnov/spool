@@ -957,6 +957,7 @@ function livePost(c, b) {
       el('div', { class: 'byline' }, el('b', {}, s.name), ranNode(c, 'model') || (s.model && el('span', { class: 'model' }, s.model)), el('span', { class: 'sep' }, '·'),
         el('span', { class: 'at' }, 'working for ', el('span', { 'data-since': c.live.since }, took(c.live.since))),
         c.worktree && el('span', { class: 'at', title: 'Its own git worktree: a checkout apart from yours, that lands on yours when it is done' }, ' · in ' + c.worktree),
+        run && run.listens && el('span', { class: 'at', title: 'What you reply on this thread reaches the agent while it works: it reads it at its next step.' }, ' · hears your replies'),
         run && stopNode(c, 'act stop', '■ Stop the agent')),
       el('div', { class: 'livenow' }, el('span', { class: 'nowtext' }, (run && run.lines.at(-1)) || c.live.note || 'starting…'), el('span', { class: 'caret' })),
       session && el('div', { class: 'session' }, 'Session ', el('code', { title: session }, session.slice(0, 8)), copyNode('claude --resume ' + session, 'Copy the command that opens it')),

@@ -5,7 +5,7 @@
  * (`board.ts`) and what an agent said on a run (`heard.ts`), and takes what the human does on
  * the page as POSTs. Each of those is an ordinary
  * command run as the human (`act.ts`), or a word to the runner it holds (`engine.ts`): on, off,
- * stop. A thread moved between columns is both, so `moveThread` is here, beside the runner it
+ * stop, interrupt. A thread moved between columns is both, so `moveThread` is here, beside the runner it
  * tells. `servePage` is the command: it points at the page already up for a project, or starts
  * one, in the background if asked, and stays up to start it again when the page restarts onto
  * new code (`upkeep.ts`, `detach.ts`).
@@ -370,6 +370,12 @@ export function startPage(
             const stopped = runner.stop(id);
             const words = stopped ? 'Stopped. It waits in Build until you carry on.' : 'No agent of this page is building that thread.';
             return send(res, stopped ? 200 : 400, 'application/json', JSON.stringify({ ok: stopped, text: words }));
+          }
+          if (action === 'interrupt') {
+            // Not a stop: the agent ends what it is doing and waits for what the human says next.
+            const told = runner.interrupt(text(body.id));
+            const words = told ? 'Told to stop what it is doing. It waits for your reply.' : 'No agent of this page that can be spoken to is building that thread.';
+            return send(res, told ? 200 : 400, 'application/json', JSON.stringify({ ok: told, text: words }));
           }
           const result = change(here, action, body);
           send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify(result));

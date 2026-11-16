@@ -10,6 +10,12 @@
  *
  * Any other agent prints what it prints; a line that is not one of these
  * events is shown as it is.
+ *
+ * The stream goes both ways. With `--input-format stream-json` a session reads
+ * a message a line from its input for as long as that is open, so what the
+ * human writes on a thread can be said to the agent building it, and it can be
+ * told to stop what it is doing. The lines Spool writes are made here too.
+ * `docs/claude-stream.md` has what was tried against Claude Code.
  */
 
 import * as fs from 'node:fs';
@@ -31,6 +37,34 @@ export function streaming(command: string): string {
   let out = `${command.trim()} --output-format stream-json`;
   if (!/(^|\s)--verbose(\s|$)/.test(command)) out += ' --verbose';
   return out;
+}
+
+const STREAM_OUT = /(^|\s)--output-format[ =]stream-json(\s|$)/;
+const STREAM_IN = /(^|\s)--input-format[ =]stream-json(\s|$)/;
+
+/**
+ * Open the input of a `claude -p` command whose stream Spool reads, so that its session can be
+ * spoken to while it works. Left as it is where the command chooses its own input, or takes its
+ * prompt from the file: given the prompt as a message too, it would be told everything twice.
+ */
+export function listening(command: string): string {
+  if (!claudePrint(command) || !STREAM_OUT.test(command) || names(command, '--input-format') || command.includes('{prompt_file}')) return command;
+  return `${command.trim()} --input-format stream-json`;
+}
+
+/** Whether a command's session can be spoken to: it is `claude -p`, with the stream on both ways. */
+export function listens(command: string): boolean {
+  return claudePrint(command) && STREAM_OUT.test(command) && STREAM_IN.test(command);
+}
+
+/** What the human says to a session, as the line written to its input. */
+export function userLine(text: string): string {
+  return JSON.stringify({ type: 'user', message: { role: 'user', content: text } });
+}
+
+/** Telling a session to stop what it is doing: its turn ends, and it waits for the next message. */
+export function interruptLine(id: string): string {
+  return JSON.stringify({ type: 'control_request', request_id: id, request: { subtype: 'interrupt' } });
 }
 
 /**
@@ -69,6 +103,8 @@ export interface Heard {
   denials?: string[];
   /** The session it was told to pick up is not there: nothing was carried on. */
   lost?: true;
+  /** Its turn has ended: a session whose input is open now waits for the next message. */
+  over?: true;
 }
 
 const short = (s: string, n = 200): string => {
@@ -127,7 +163,7 @@ export function hearLine(line: string): Heard {
     const turns = typeof e.num_turns === 'number' ? ` · ${e.num_turns} turns` : '';
     lines.push(`${how}${turns}${typeof e.result === 'string' && e.result.trim() ? ` — ${short(e.result)}` : ''}`);
     const lost = Array.isArray(e.errors) && e.errors.some((x: unknown) => NO_SESSION.test(String(x)));
-    return { lines, session, denials, ...(lost ? { lost: true as const } : {}) };
+    return { lines, session, denials, over: true, ...(lost ? { lost: true as const } : {}) };
   }
   return { lines, session };
 }
