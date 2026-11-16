@@ -401,7 +401,10 @@ then restarts onto it, at the same address, and the page you have open reloads i
 worktrees are never part of a rebuild: the build reads `src/` alone. Where the project is
 Spool's own checkout, the page also runs `npm run build` there each time Build and Building have
 both emptied, and never while a thread is being built, so finished work on Spool shows on the page
-with no step of yours. A rebuild that fails changes nothing, and the page says why.
+with no step of yours. A rebuild that fails changes nothing, and the page says why. A page whose
+server has gone says so in a line under the bar, with how long ago it last heard from it, and dims
+the board; it keeps trying, and the moment `spool page` answers at that address again the line goes,
+with nothing reloaded.
 
 **No chat at all, from a terminal.** `spool loop` is a runner of its own: it claims the next thread in Build, starts
 your agent command in that project with the rules and the brief on stdin, and looks again when it

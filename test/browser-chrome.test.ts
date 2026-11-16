@@ -107,3 +107,46 @@ test('the tab says what is happening: a dot while agents build, a count when som
     s.cleanup();
   }
 });
+
+test('a page that loses its server says so, and is back by itself when the server is', async (t) => {
+  const browser = await chrome(t);
+  if (!browser) return;
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop');
+  s.id('task', 'Tighten the jump arc', '-s', 's');
+
+  let { child, url } = await startPage(s, PORT + 1);
+  const page = await browser.newPage();
+  const problems: string[] = [];
+  page.on('pageerror', (error) => problems.push(String(error)));
+  const banner = page.locator('#away');
+  try {
+    await page.goto(url);
+    await page.locator('#board .card').first().waitFor();
+    assert.equal(await banner.isVisible(), false);
+    // Anything the page itself keeps would be gone if it reloaded.
+    await page.evaluate('window.stayed = true');
+    const before = await page.evaluate('token');
+
+    // The server goes: after a few missed looks, a line under the bar says so, and the board dims.
+    child.kill();
+    await banner.waitFor({ timeout: 15_000 });
+    assert.match(await banner.innerText(), /^Not connected to the Spool server\. Last heard from it \d+s ago\. Trying again…$/);
+    assert.equal(await page.evaluate('document.body.classList.contains("away")'), true);
+    await shot(page, 'chrome-away');
+
+    // The same address answers again, a new server with a new token: the line goes, with no reload.
+    ({ child } = await startPage(s, PORT + 1));
+    await banner.waitFor({ state: 'hidden', timeout: 15_000 });
+    assert.equal(await page.evaluate('document.body.classList.contains("away")'), false);
+    assert.equal(await page.evaluate('window.stayed'), true);
+    const fresh = /const TOKEN = '([^']+)';/.exec(await (await fetch(url)).text())![1];
+    assert.notEqual(fresh, before);
+    await until('the page has the new token', async () => (await page.evaluate('token')) === fresh);
+    assert.deepEqual(problems, []);
+  } finally {
+    await browser.close();
+    child.kill();
+    s.cleanup();
+  }
+});

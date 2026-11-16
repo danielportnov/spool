@@ -2312,6 +2312,9 @@ const PAGE = String.raw`<!doctype html>
   .card:has(> .flag.stuck) { box-shadow: inset 3px 0 0 var(--hot), var(--shadow); }
   .livelog { max-height: 220px; overflow: auto; margin-top: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; color: var(--soft); white-space: pre-wrap; overflow-wrap: anywhere; }
   .rule { padding: 8px 20px 0; color: var(--warn); font-size: 13px; }
+  /* A page that lost its server says so under the bar, and what it shows is dimmed: it may be old. */
+  #away { padding: 7px 20px; font-size: 13px; color: var(--soft); background: var(--chip); border-bottom: 1px solid var(--line); }
+  body.away #quick, body.away main { opacity: .6; }
   #quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 20px 0; font-size: 13px; min-height: 12px; }
   .pill { border-radius: 999px; padding: 2px 11px; background: var(--panel); border: 1px solid var(--line); color: var(--soft); }
   .pill.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
@@ -2555,6 +2558,7 @@ const PAGE = String.raw`<!doctype html>
   <div class="builder" id="builder" role="group" aria-label="Who builds" hidden><button data-builder="headless">Headless</button><button data-builder="chat">Chat</button></div>
   <button class="runner" id="runner" hidden></button>
 </div>
+<div id="away" role="status" hidden></div>
 <div class="rule" id="rule" hidden></div>
 <div id="quick"></div>
 <section id="brief" aria-label="While you were away" hidden></section>
@@ -3856,15 +3860,37 @@ function renew(build) {
   return true;
 }
 
-// How many looks in a row found no server. A page restarting onto a new build is away for a moment.
+// How many looks in a row found no server, and when one last did. A page restarting onto a new
+// build is away for a moment, so it takes a few missed looks before the page says it is not connected.
 let misses = 0;
+let heard = Date.now();
+function connected(yes) {
+  const banner = document.getElementById('away');
+  if (yes) {
+    heard = Date.now();
+    misses = 0;
+    if (banner.hidden) return;
+    banner.hidden = true;
+    document.body.classList.remove('away');
+    // A server that came back may be a new one, with a new token: get it before the next click needs it.
+    freshToken().catch(() => {});
+    return;
+  }
+  if (++misses < 3 || !banner.hidden) return;
+  banner.replaceChildren('Not connected to the Spool server. Last heard from it ',
+    el('span', { 'data-since': new Date(heard).toISOString() }, took(new Date(heard).toISOString())), ' ago. Trying again…');
+  banner.hidden = false;
+  document.body.classList.add('away');
+}
 async function load(now) {
   // Never redraw under someone's typing or choosing; a redraw that was asked for goes ahead.
   const at = document.activeElement;
   if (!now && (busy || (at && at.id !== 'search' && (['TEXTAREA', 'INPUT', 'SELECT'].includes(at.tagName) || at.isContentEditable)))) return;
   try {
-    const text = await (await fetch('/api/board')).text();
-    misses = 0;
+    const res = await fetch('/api/board');
+    if (!res.ok) throw new Error('no board');
+    const text = await res.text();
+    connected(true);
     if (text === last) return;
     const b = JSON.parse(text);
     if (b.build && b.build !== BUILD && renew(b.build)) return;
@@ -3872,7 +3898,7 @@ async function load(now) {
     current = b;
     draw(current);
   } catch (e) {
-    if (++misses >= 3) say('The page lost its server. Run spool page again.');
+    connected(false);
   }
 }
 
