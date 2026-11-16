@@ -51,7 +51,7 @@ import {
   suggestion,
 } from './agent.ts';
 import { dirtyPaths, discardPaths, git, repoRoot } from './git.ts';
-import { type Item, SpoolError, addLog, oneLine, reportFile, splitBody, timestamp, whyOf } from './model.ts';
+import { type Item, SpoolError, addLog, isPlan, oneLine, reportFile, splitBody, timestamp, whyOf } from './model.ts';
 import { prime } from './prime.ts';
 import { age, brief, paint, sprintAbout, tableRows } from './render.ts';
 import { blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
@@ -97,6 +97,23 @@ interface Card {
   question: { id: string; title: string; options: string[]; recommend: number | null } | null;
   /** While it is being built: when the agent took it, and the latest thing it said it was doing. */
   live: Live | null;
+  /** Why it cannot move on by itself, where it cannot. */
+  waiting: Waiting | null;
+}
+
+/**
+ * What a thread is waiting on: an answer from the human (`you`), another thread (`thread`), the
+ * human's hold (`hold`), or nothing but a word from them after its agent gave up (`stuck`).
+ */
+interface Waiting {
+  kind: 'you' | 'thread' | 'hold' | 'stuck';
+  /** What it waits on, in a line: the question, the hold's reason, how the agent ended. */
+  text: string;
+  /** The threads it waits on, to link to. */
+  on: { id: string; title: string }[];
+  /** An agent that gave up: the last thing it said, and what it was refused. */
+  said: string;
+  refused: string[];
 }
 
 interface Live {
@@ -380,10 +397,42 @@ interface Picking {
   chooser: (task: Item) => string;
 }
 
+// How a run that gave up is written on its thread, by the page's runner or the loop.
+const GAVE_UP = /^agent (.+?) without finishing/;
+
+/** Why a thread cannot move on by itself, read from what the board already knows of it. */
+function waitingOf(ws: Workspace, task: Item, steps: Thread['steps'], asked: Item | undefined): Waiting | null {
+  const none = { on: [], said: '', refused: [] };
+  if (asked) return { kind: 'you', text: asked.title, ...none };
+  const state = taskState(ws, task);
+  if (state === 'held') return { kind: 'hold', text: task.hold ?? '', ...none };
+  if (state === 'blocked') {
+    const tasksOn = blockers(ws, task).filter((b) => b.kind === 'task');
+    const plan = tasksOn.find((b) => isPlan(b) && b.status === 'done');
+    if (plan) return { kind: 'you', text: `Your go-ahead for the plan “${plan.title}”`, ...none, on: [{ id: plan.id, title: plan.title }] };
+    return { kind: 'thread', text: '', ...none, on: tasksOn.map((b) => ({ id: b.id, title: b.title })) };
+  }
+  // Back in Build after an agent left it unfinished, and not taken again since.
+  if (state !== 'ready' && state !== 'stale') return null;
+  const gave = steps.findLastIndex((st) => GAVE_UP.test(st.what));
+  const took = steps.findLastIndex((st) => CLAIM.test(st.what));
+  if (gave < 0 || took > gave) return null;
+  const run = steps.slice(took + 1, gave);
+  const said = run.filter((st) => !['page', 'loop', 'human'].includes(st.who) && !BOOKKEEPING.test(st.what)).at(-1);
+  return {
+    kind: 'stuck',
+    text: GAVE_UP.exec(steps[gave]!.what)![1]!,
+    on: [],
+    said: said ? oneLine(said.what, 300) : '',
+    refused: run.filter((st) => st.what.startsWith('permission denied: ')).map((st) => oneLine(st.what.slice(19), 160)),
+  };
+}
+
 function card(ws: Workspace, task: Item, n: number | null, note: string, column: Column, routing?: Picking): Card {
   const suggest = suggestion(task, routing?.models);
   const { main, log } = splitBody(task.body);
   const asked = blockers(ws, task).find((b) => b.kind === 'decision' && b.status === 'open');
+  const thread = threadOf(ws, task, main, log);
   return {
     id: task.id,
     n,
@@ -408,9 +457,10 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     updated: task.updated,
     done: task.status === 'done',
     complete: task.status === 'done' && !!task.reviewed,
-    thread: threadOf(ws, task, main, log),
+    thread,
     question: asked ? { id: asked.id, title: asked.title, options: asked.options, recommend: asked.recommend ?? null } : null,
     live: column === 'building' ? liveNow(task) : null,
+    waiting: task.status === 'done' || task.status === 'dropped' ? null : waitingOf(ws, task, thread.steps, asked),
   };
 }
 
@@ -1923,6 +1973,12 @@ const PAGE = String.raw`<!doctype html>
   .live .for { color: var(--blue); white-space: nowrap; }
   .live .pulse { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--blue); animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .25; } }
+  .flag { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; font-size: 12px; font-weight: 650; color: var(--soft); }
+  .flag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .flag.you { color: var(--warn); } .flag.thread { color: var(--blue); } .flag.stuck { color: var(--hot); }
+  /* Only what waits on the human gets an edge: an answer, or a word after an agent gave up. */
+  .card:has(> .flag.you) { box-shadow: inset 3px 0 0 var(--warn), var(--shadow); }
+  .card:has(> .flag.stuck) { box-shadow: inset 3px 0 0 var(--hot), var(--shadow); }
   .livelog { max-height: 260px; overflow: auto; background: var(--bg); border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
   .rule { padding: 8px 20px 0; color: var(--warn); font-size: 13px; }
   #quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 20px 0; font-size: 13px; min-height: 12px; }
@@ -2067,6 +2123,17 @@ const PAGE = String.raw`<!doctype html>
   .event .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); margin: 4px auto 0; position: relative; }
   .compose { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; margin-top: 6px; }
   .compose .acts { margin-top: 8px; justify-content: flex-end; }
+  .notice { margin: 12px 0 0; padding: 10px 14px 12px; border-radius: 10px; background: var(--chip); border-left: 3px solid var(--soft); overflow-wrap: anywhere; }
+  .notice .head { font-weight: 650; }
+  .notice.you { border-left-color: var(--warn); } .notice.you .head { color: var(--warn); }
+  .notice.thread { border-left-color: var(--blue); }
+  .notice.stuck { border-left-color: var(--hot); } .notice.stuck .head { color: var(--hot); }
+  .notice .what { margin-top: 2px; }
+  .notice .soft { margin-top: 6px; font-size: 13px; color: var(--soft); }
+  .notice button { margin: 8px 6px 0 0; }
+  .notice a { display: block; margin-top: 4px; color: var(--ink); text-decoration: none; }
+  .notice a:hover { text-decoration: underline; }
+  #thread .notice a .key { margin: 0; font-size: 12px; color: var(--soft); cursor: pointer; }
   details.desc { margin: 12px 0 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
   details.desc summary { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); cursor: pointer; }
   details.desc .kind { margin: 10px 0 4px; font-weight: 600; }
@@ -2273,6 +2340,23 @@ function liveLine(c, b) {
   return el('div', { class: 'live', title: 'What the agent is doing now, and how long it has been at it' },
     el('span', { class: 'pulse' }), el('span', { class: 'now' }, now), el('span', { class: 'for' }, took(c.live.since)));
 }
+// What a thread waits on, as its card shows it: a small mark at the top, in the colour of who has to act.
+// The note under the title says the rest; a ticket says all of it.
+function waitMark(c, b) {
+  const w = c.waiting;
+  if (!w) return null;
+  const label = w.kind === 'you' ? 'Needs you' : w.kind === 'hold' ? 'On hold'
+    : w.kind === 'thread' ? 'Waiting on ' + (w.on.length === 1 ? w.on[0].id : w.on.length + ' threads') : 'Agent stopped unfinished';
+  const said = w.kind === 'stuck' && lastWords(c, b);
+  return el('div', { class: 'flag ' + w.kind, title: w.kind === 'stuck' ? 'It ' + w.text + (said ? '. It last said: ' + said : '') : '' }, label);
+}
+// The last thing an agent that gave up said: on the thread if it wrote it there, or as this page heard it.
+function lastWords(c, b) {
+  if (c.waiting.said) return c.waiting.said;
+  const run = ((b && b.runner && b.runner.recent) || []).find((r) => r.id === c.id && /^unfinished/.test(r.outcome));
+  const cut = run ? run.outcome.indexOf(' — ') : -1;
+  return cut >= 0 ? run.outcome.slice(cut + 3) : '';
+}
 // Abort a thread being built: the agent on it stops, and the thread goes straight back to the backlog.
 const abortNode = (c, cls) => el('button', { class: cls, title: 'Stop building this, undo what it changed, and move it back to the backlog. Nothing builds it until you move it to Build again.',
   onclick: () => post('abort', { id: c.id }, 'Aborted. Back in the backlog: ' + c.title) }, '↩ Abort');
@@ -2330,6 +2414,7 @@ function spotOf(col, id) {
 function cardNode(c, b) {
   // Any card can be dragged to any column, at any time.
   const node = el('div', { class: 'card' + (c.complete ? ' past' : ''), draggable: 'true', 'data-id': c.id },
+    waitMark(c, b),
     el('div', { class: 'title', onclick: () => openThread(c.id) }, c.title),
     el('div', { class: 'chips' }, chipsOf(c, b)),
     c.why && !c.done && el('div', { class: 'why', title: c.why }, c.why),
@@ -2809,6 +2894,32 @@ function describeNode(c) {
     c.suggested && part('✨', 'Why an agent suggested it', c.suggested, 'idea'));
 }
 
+// At the top of a ticket, when the thread cannot move on by itself: what it waits on, and what would move it.
+function waitNode(c, b) {
+  const w = c.waiting;
+  if (!w) return null;
+  const link = (t) => el('a', { href: '#' + t.id, onclick: (e) => { e.preventDefault(); openThread(t.id); } }, el('span', { class: 'key' }, t.id), ' ' + t.title);
+  const said = w.kind === 'stuck' && lastWords(c, b);
+  const parts = {
+    you: ['Needs you', [
+      el('div', { class: 'what' }, w.text),
+      c.question && el('div', {}, c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '',
+        onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o))),
+      w.on.map(link)]],
+    thread: ['Waiting on ' + (w.on.length === 1 ? 'another thread' : w.on.length + ' other threads'), [
+      w.on.map(link),
+      el('div', { class: 'soft' }, 'It starts by itself once ' + (w.on.length === 1 ? 'that one is' : 'those are') + ' done.')]],
+    hold: ['On hold', [
+      el('div', { class: 'what' }, w.text),
+      el('button', { onclick: () => post('move', { id: c.id, to: 'build' }, 'In build: ' + c.title) }, '▶ Build it now')]],
+    stuck: ['The agent stopped without finishing', [
+      el('div', { class: 'what' }, 'It ' + w.text + '.' + (said ? ' It last said: “' + said + '”' : '')),
+      w.refused.length > 0 && el('div', { class: 'soft' }, 'It was refused: ', w.refused.map((r, i) => [i ? ', ' : '', el('span', { class: 'mono' }, r)])),
+      el('div', { class: 'soft' }, 'It waits in Build. Reply below to tell the next agent what to do differently.')]],
+  }[w.kind];
+  return el('div', { class: 'notice ' + w.kind, role: 'status' }, el('div', { class: 'head' }, parts[0]), parts[1]);
+}
+
 // A ticket, the way a board has always shown one: the story on the left, its fields on the right.
 function threadNode(c, b) {
   const t = c.thread;
@@ -2835,6 +2946,7 @@ function threadNode(c, b) {
   const story = el('div', {},
     el('div', { class: 'key' }, (c.n != null ? '#' + c.n + ' · ' : '') + c.id),
     title,
+    waitNode(c, b),
     describeNode(c),
 
     // The thread itself: a conversation, oldest first. You said, Claude answered, and the moves in between.

@@ -127,6 +127,33 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
     await until('the jump is being built', () => s.json('show', jump).item.state === 'active', 300);
 
     await page.goto(url);
+
+    // What a thread waits on is marked on its card, and said at the top of its ticket.
+    const flag = (id: string): Promise<string> => page.locator(`#board .card[data-id="${id}"] .flag`).innerText();
+    await until('the board knows the agent gave up', async () => (await page.locator('#board .card .flag.stuck').count()) === 1);
+    assert.deepEqual(
+      [await flag(coins), await flag(leaderboard), await flag(music), await flag(publish)].map((f) => f.toLowerCase()),
+      ['needs you', `waiting on ${level}`, 'on hold', 'agent stopped unfinished'],
+    );
+    assert.equal(await page.locator(`#board .card[data-id="${jump}"] .flag`).count(), 0, 'a thread being built waits on nothing');
+    await shot(page, 'board-waiting');
+    const notice = ticket.locator('.notice');
+    await open(coins);
+    assert.match(await notice.innerText(), /^Needs you\nOutline the coins, or turn them teal\?/);
+    await shot(page, 'ticket-needs-you');
+    await open(music);
+    assert.match(await notice.innerText(), /^On hold\nwait until the composer sends the stems/);
+    await open(publish);
+    const stuck = await notice.innerText();
+    assert.match(stuck, /^The agent stopped without finishing\nIt exited 3\. It last said: “I could not publish: the command was refused”/);
+    assert.match(stuck, /It was refused: Bash: npm publish --tag beta/);
+    await shot(page, 'ticket-stuck');
+    await open(leaderboard);
+    assert.match(await notice.innerText(), /^Waiting on another thread\n/);
+    await notice.getByRole('link', { name: /A daily challenge level/ }).click();
+    await ticket.locator('.key', { hasText: level }).waitFor();
+    assert.equal(await notice.count(), 0, 'the thread it waits on waits on nothing');
+
     // Enter posts a reply; Shift+Enter is a new line in it.
     await open(leaderboard);
     await ticket.getByPlaceholder('Post your reply').click();
