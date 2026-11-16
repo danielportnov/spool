@@ -1,8 +1,9 @@
 /**
  * The page's server, and the `spool page` command that starts it.
  *
- * `startPage` is a small HTTP server: it sends the page (`client/`) and the board as JSON
- * (`board.ts`), and takes what the human does on the page as POSTs. Each of those is an ordinary
+ * `startPage` is a small HTTP server: it sends the page (`client/`), the board as JSON
+ * (`board.ts`) and what an agent said on a run (`heard.ts`), and takes what the human does on
+ * the page as POSTs. Each of those is an ordinary
  * command run as the human (`act.ts`), or a word to the runner it holds (`engine.ts`): on, off,
  * stop. A thread moved between columns is both, so `moveThread` is here, beside the runner it
  * tells. `servePage` is the command: it points at the page already up for a project, or starts
@@ -28,6 +29,7 @@ import type { Bare, Result } from './commands.ts';
 import { type Ctx, builderOf, saveBuilder } from './context.ts';
 import { detachPage, forgetPage, pageStatus, pageUp, rememberPage, stopPage } from './detach.ts';
 import { Runner } from './engine.ts';
+import { heardRun } from './heard.ts';
 import { type Spool, SpoolError } from './model.ts';
 import { MAX_BYTES, pictureFile } from './pictures.ts';
 import { sprintReview } from './review.ts';
@@ -235,6 +237,18 @@ export function startPage(
         const ws = Workspace.open(ctx.cwd, ctx.now);
         try {
           return send(res, 200, 'application/json', JSON.stringify(sprintReview(ws, id)));
+        } finally {
+          ws.close();
+        }
+      }
+      if (req.method === 'GET' && url.pathname === '/api/run') {
+        // What the agent said on a thread's current run, or its last: `from` a line number on, so a face asks only for what is new.
+        const id = url.searchParams.get('id') ?? '';
+        const from = Number(url.searchParams.get('from') ?? 0);
+        if (!/^t-[a-z0-9]+$/.test(id) || !Number.isInteger(from)) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which thread, and from which line?' }));
+        const ws = Workspace.open(ctx.cwd, ctx.now);
+        try {
+          return send(res, 200, 'application/json', JSON.stringify({ id, ...heardRun(ws.get(id, 'task').spool.dir, id, from, url.searchParams.get('run') ?? '') }));
         } finally {
           ws.close();
         }
