@@ -49,7 +49,9 @@ says, three unless they set it.
   with `spool done`, which lands it, or `spool ask` if it needs a decision.
   A question about how something looks gives each option in its report as
   a small mockup or its code. A landing that is refused is fixed there and
-  tried again, never forced.
+  tried again, never forced. Start it on the model and effort the brief's
+  `MODEL` line names (`model` and `effort` on Claude Code's Agent tool):
+  the smallest that can build it.
 - Meanwhile you build nothing yourself. Say one line as each thread starts
   ("🧵 Starting the jump: more gravity, less hang time") and one as each
   lands ("✅ The jump: it lands in half the time"), take the next from build
