@@ -217,6 +217,8 @@ npm run check   # tsc
 
 No runtime dependencies. PRs and issues welcome.
 
+Want to fix something? Start with [CONTRIBUTING](CONTRIBUTING.md) and [a tour of the code](docs/architecture.md).
+
 ## License
 
 MIT

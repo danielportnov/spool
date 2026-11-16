@@ -380,6 +380,9 @@ and stand-in agents. One drives the page in the Chrome on your machine, with a r
 skipped where there is no Chrome, and `SPOOL_SHOTS=<folder> npm test` keeps a picture of each view.
 There are no runtime dependencies.
 
+How to make a change and send it is in [CONTRIBUTING](../CONTRIBUTING.md); where each piece of the
+code lives, and how one thread moves through it, is in [a tour of the code](architecture.md).
+
 ## Prior art
 
 [OpenSpec](https://github.com/Fission-AI/OpenSpec) showed how well a few agent skills over a small CLI
