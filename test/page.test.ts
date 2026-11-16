@@ -324,3 +324,14 @@ test('a spec reads as plain parts: what changes, how it helps, when it is done',
   assert.deepEqual(aboutOf('Just a sentence: nothing labelled.').map((p) => p.key), ['other']);
   assert.deepEqual(aboutOf(''), []);
 });
+
+test('You get a mark of your own in each spool, the way GitHub draws one', async () => {
+  const { identicon } = await import('../src/page.ts');
+  const a = identicon('skyhop');
+  assert.equal(identicon('skyhop'), a, 'the same spool always draws the same mark');
+  assert.notEqual(identicon('spool'), a, 'another spool draws another');
+  assert.match(a, /^<svg [^>]*aria-label="You"/);
+  // Mirrored left to right: every filled cell has its twin across the middle column.
+  const cells = [...a.matchAll(/<rect x="(\d)" y="(\d)" width="1"/g)].map((m) => [Number(m[1]), Number(m[2])]);
+  for (const [x, y] of cells) assert.ok(cells.some(([u, v]) => u === 6 - x! && v === y), `${x},${y} has its twin`);
+});
