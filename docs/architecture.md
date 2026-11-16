@@ -61,12 +61,26 @@ those comments are the detail.
 - `watch.ts` is `spool watch`. Once a second it reads the spool and prints a line for each change
   the loop should wake for (`changes`): work that can be built, a reply, an unfiled note. While it
   runs it leaves a file in the temp folder, which the page reads to say a chat is watching.
-- `page.ts` is `spool page`: a server on `127.0.0.1` (`startPage`) and the page it serves, the
-  `PAGE` string. `board` reads the spool for the page. `change` turns each click into a command,
-  run in-process as the human by `act`; `moveThread` does the same for a drag. `Runner` builds what
-  is in Build when agents are on, the same way `runLoop` does. `Upkeep` restarts the page when the
-  code on disk changes, and, where the page runs from a checkout of Spool that is also the project
-  it shows, runs `npm run build` there once Build and Building are empty.
+- `server.ts` is `spool page`: the command (`servePage`) and a server on `127.0.0.1`
+  (`startPage`) that sends the page and the board, and takes each click as a POST. `moveThread`
+  is a drag: a command, and a word to the runner the server holds.
+- `board.ts` reads the spool for the page. `board` is every card in its column, each thread as a
+  conversation, and what waits on the human; `diffOf` is what a finished thread changed.
+- `act.ts` runs one command in-process as the human (`act`). `change` turns each click into one.
+- `engine.ts` is the `Runner`: it builds what is in Build when agents are on, the same way
+  `runLoop` does. It picks the next thread, gives it a worktree, and settles the thread when its
+  agent has gone. There is no HTTP in it.
+- `session.ts` is one agent on one thread, and the only file that knows how one is started and
+  heard: `startSession` runs the command and reads what it prints, `askRouter` asks Fable first
+  where it chooses the model, and `endAgent` ends an agent and everything it started.
+- `upkeep.ts` is `Upkeep`: it restarts the page when the code on disk changes, and, where the
+  page runs from a checkout of Spool that is also the project it shows, runs `npm run build` there
+  once Build and Building are empty.
+- `client/` is the page the browser gets, as three strings: `page.html.ts` (the markup, and the
+  `PAGE` the three are joined into), `page.css.ts` and `page.js.ts`. One self-contained page,
+  with no build step.
+- `page.ts` is what is left of the one file these seven were: it passes their names on, for
+  whatever still imports them from it.
 - `detach.ts` is `spool page -d`, `--status` and `--stop`, and the record every page leaves under
   `~/.config/spool/pages/` saying which process holds it and at what address (`pageUp`), which is
   how a second start finds the first.

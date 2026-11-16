@@ -71,10 +71,12 @@ or `~/.config/spool/config.json`. Cloning someone's repo and running `spool` in 
 their code. Words that come from a project's files and go near a shell are checked first, as
 `src/agent.ts` does with model names.
 
-**The page is one string, and does only what a command can.** The whole client, its HTML, CSS and
-script, is the `PAGE` string at the end of `src/page.ts`, with no other files. Every change the
-page makes is an ordinary command run as the human (`change` and `act` in `src/page.ts`), so the
-page can do nothing the command line cannot. A new button starts as a command.
+**The page is one page, and does only what a command can.** The whole client is three strings in
+`src/client/`: its HTML (`page.html.ts`), its CSS (`page.css.ts`) and its script (`page.js.ts`),
+joined into the one `PAGE` the server sends, with nothing else to load and no build step. Every
+change the page makes is an ordinary command run as the human (`change` and `act` in
+`src/act.ts`), so the page can do nothing the command line cannot. A new button starts as a
+command.
 
 **A command lives in one table.** `COMMANDS` in `src/commands.ts`. `spool help`, `--json` and the
 MCP tools are all made from it, so a new entry shows up in all three. An error is a `SpoolError`

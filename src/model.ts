@@ -370,7 +370,7 @@ export function oneLine(text: string, max = 72): string {
 
 /**
  * The `Why:` line of a thread's spec: the reason it exists, so the human can agree to it without
- * opening it. It reads the same labels the page's description does (`aboutOf` in page.ts). The
+ * opening it. It reads the same labels the page's description does (`aboutOf` in board.ts). The
  * human's own words are quoted (`>`) and never read as the spec, and a reason that runs on over
  * a few lines is taken whole, up to the next blank line or the next label.
  */
