@@ -6,9 +6,14 @@
 export const ROADMAP_CSS = String.raw`
   /* the roadmap: the goals, then the sprints in a row, reached, playing and to come */
   #roadmap { padding: 12px 20px 32px; }
-  .rgoals { max-width: 760px; margin: 0 0 14px; padding: 0 6px; }
-  .rgoals .rfor { font-weight: 600; }
-  .rgoals .rtowards { color: var(--soft); font-size: 13px; margin-top: 2px; }
+  .rgoals { max-width: 760px; margin: 0 0 16px; padding: 0 6px; }
+  .rgoals h3 { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); font-weight: 600; margin: 0 0 6px; }
+  .rgoals .rfor { font-weight: 600; overflow-wrap: anywhere; }
+  .rgoals .rlabel { color: var(--soft); font-weight: 400; }
+  .rgoals .rtowards { margin: 4px 0 0; padding-left: 18px; font-size: 13px; overflow-wrap: anywhere; }
+  .rgoals .rtowards li + li { margin-top: 2px; }
+  .rgoals .rtowards li::marker { color: var(--soft); }
+  .lane .serves { font-size: 12px; color: var(--soft); overflow-wrap: anywhere; }
   .rgoals.none { color: var(--soft); font-size: 13px; }
   .lanes { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; padding-bottom: 4px; }
   .lane { flex: 1 1 240px; min-width: 220px; background: var(--col); border-radius: 10px; padding: 10px 10px 12px; border: 2px solid transparent; }

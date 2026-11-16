@@ -128,10 +128,12 @@ press **▶ Play sprint**. Notes nobody filed sit in a strip at the top (**Make 
 **Set aside**), with anything waiting on you that is about no thread. The strip is gone when it is
 empty.
 
-**Roadmap.** Where the work is going, in one row. At the top, the project's goals in a line or
-two (where none are set, how to set them). Then the sprints in order: the ones reached, quiet, with
+**Roadmap.** Where the work is going, in one row. At the top, the project's goals under a quiet
+**Goals** heading: what it is for, then one line for each thing it is heading towards (where none
+are set, how to set them). Then the sprints in order, each saying which goal it serves where it
+says so: the ones reached, quiet, with
 the version each became, the day and how many threads; the one being played, open, with your words
-for it, its goal, why, done-when and the goal it serves, how far along it is, and each of its
+for it, its goal, why and done-when, how far along it is, and each of its
 threads in a line with its state (done, building, in build, in the backlog, or needing you); then
 the ones planned, with their goal, how many threads and of what sizes, and **▶ Play sprint**; and
 last, how many threads are in no sprint, which opens the Backlog view. A thread's line opens its

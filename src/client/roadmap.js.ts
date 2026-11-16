@@ -11,14 +11,19 @@
 export const ROADMAP_JS = String.raw`
 // ---- the roadmap: the goals, and the sprints in order, reached, playing and to come
 
-// Where the project is going, in two or three lines; where nothing is set, how to set it.
+// Where the project is going, as a small block of its own: a quiet heading, what it is for, then
+// one line for each thing it is heading towards. Where nothing is set, how to set it.
 function goalsNode(b) {
   const g = b.goals;
   if (!g) return el('div', { class: 'rgoals none' }, 'No goals set for this project. Say where it is heading to an agent, or: ', el('code', {}, 'spool goals --edit -'));
-  return el('div', { class: 'rgoals' },
-    g.for && el('div', { class: 'rfor' }, g.for),
-    g.towards.length > 0 && el('div', { class: 'rtowards' }, g.towards.map((t, i) => [i > 0 && el('span', { class: 'sep' }, ' · '), inline(t)])));
+  return el('section', { class: 'rgoals', 'aria-label': 'Goals' },
+    el('h3', {}, 'Goals'),
+    g.for && el('div', { class: 'rfor' }, el('span', { class: 'rlabel' }, 'For: '), inline(g.for)),
+    g.towards.length > 0 && el('ul', { class: 'rtowards' }, g.towards.map((t) => el('li', {}, inline(t)))));
 }
+
+// Which of the goals a sprint is for, where it says so: one quiet line on its card.
+const servesNode = (s) => s.serves && el('div', { class: 'serves', title: 'The goal this sprint serves' }, 'serves ', inline(s.serves));
 
 // What a thread is doing, said the way the board says it, for a row on the roadmap.
 function rowState(c) {
@@ -45,17 +50,17 @@ const threadCount = (n) => n + (n === 1 ? ' thread' : ' threads');
 function reachedLane(s) {
   return el('section', { class: 'lane past', 'data-sprint': s.id, 'aria-label': s.name },
     el('div', { class: 'lhead' }, el('span', { class: 'gname' }, s.name), s.version && el('span', { class: 'chip' }, 'v' + s.version)),
+    servesNode(s),
     el('div', { class: 'gmeta' }, [s.reached && 'Reached ' + MONTH_DAY(s.reached), threadCount(s.total)].filter(Boolean).join(' · ')),
     el('button', { class: 'act', onclick: () => openReview(s.id) }, 'Review'));
 }
 
-// What a sprint is for, as the Backlog view words it: its goal, the reason, when it is done, and which goal it serves.
+// What a sprint is for, as the Backlog view words it: its goal, the reason, and when it is done.
 function forNode(s, all) {
   return el('div', { class: 'about' },
     s.goal && el('div', {}, el('b', {}, 'Goal '), s.goal),
     all && s.why && el('div', {}, el('b', {}, 'Why '), s.why),
-    all && s.doneWhen && el('div', {}, el('b', {}, 'Done when '), s.doneWhen),
-    all && s.serves && el('div', {}, el('b', {}, 'Serves '), s.serves));
+    all && s.doneWhen && el('div', {}, el('b', {}, 'Done when '), s.doneWhen));
 }
 
 function progressNode(s) {
@@ -72,6 +77,7 @@ function playingLane(s, rows) {
   return dropInto(el('section', { class: 'lane now', 'data-sprint': s.id, 'aria-label': s.name },
     el('div', { class: 'lhead' }, el('span', { class: 'gname' }, s.name), el('span', { class: 'state running' }, 'Playing'),
       el('span', { class: 'push' }, s.waiting > 0 && playNode(s, '▶ Play ' + s.waiting + ' more'))),
+    servesNode(s),
     s.vision && el('blockquote', { class: 'vision' }, s.vision),
     forNode(s, true),
     progressNode(s),
@@ -84,6 +90,7 @@ function plannedLane(s, rows) {
   const sizes = SIZES.map(([key]) => [key, rows.filter((c) => c.size === key).length]).filter(([, n]) => n);
   return dropInto(el('section', { class: 'lane', 'data-sprint': s.id, 'aria-label': s.name },
     el('div', { class: 'lhead' }, el('span', { class: 'gname' }, s.name), el('span', { class: 'state' }, 'Planned')),
+    servesNode(s),
     forNode(s, false),
     el('div', { class: 'gmeta' }, s.total ? threadCount(s.total) : 'Empty: drag threads here',
       sizes.length > 0 && [' · ', sizes.map(([key, n], i) => [i > 0 && ' ', el('span', { class: 'size', title: n + ' ' + SIZES.find((x) => x[0] === key)[1].toLowerCase() }, (n > 1 ? n + '×' : '') + key.toUpperCase())])]),

@@ -57,7 +57,11 @@ test('the roadmap shows the goals and the sprints in order, plays one, opens a t
     await tab.keyboard.press('Escape');
 
     // The goals first, then the sprints: reached, playing, planned, and the threads in no sprint last.
-    assert.match(await roadmap.locator('.rgoals').innerText(), /a platformer that feels good on a phone\nControls that feel tight · A world worth exploring/);
+    assert.match(await roadmap.locator('.rgoals').innerText(), /^GOALS\nFor: a platformer that feels good on a phone\nControls that feel tight\nA world worth exploring$/);
+    assert.deepEqual(await roadmap.locator('.rgoals li').allInnerTexts(), ['Controls that feel tight', 'A world worth exploring']);
+    // Each sprint that says which goal it serves says so on its card.
+    assert.match(await lane(r.polish).innerText(), /serves Controls that feel tight/);
+    assert.equal(await roadmap.locator('.lane .serves').count(), 1);
     assert.deepEqual(await roadmap.locator('.lane').evaluateAll((nodes) => nodes.map((n) => n.getAttribute('data-sprint') ?? 'loose')), [r.polish, r.worlds, r.later, 'loose']);
     assert.match(await lane(r.polish).innerText(), /Polish\n[\s\S]*Reached (Dec 31|Jan 1) · 2 threads/, 'when it was reached, in his own time');
     const playing = await lane(r.worlds).innerText();
