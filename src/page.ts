@@ -56,7 +56,7 @@ import { dirtyPaths, discardPaths, git, repoRoot } from './git.ts';
 import { type Item, SpoolError, addLog, isPlan, oneLine, reportFile, splitBody, timestamp, whyOf } from './model.ts';
 import { prime } from './prime.ts';
 import { age, brief, paint, sprintAbout, tableRows } from './render.ts';
-import { type Run, runOf } from './run.ts';
+import { type Run as StartedWith, runOf } from './run.ts';
 import { blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
 import { atOnceIn, sharedFolderWhy } from './slots.ts';
 import { Workspace } from './store.ts';
@@ -109,7 +109,7 @@ interface Card {
   /** The folder it is built in, from the project's, where it has a git worktree of its own; empty where it is the project's own folder. */
   worktree: string;
   /** What its agent was started with, where the page started one: the model, the effort, and its session. */
-  run: Run | null;
+  run: StartedWith | null;
   /** Why it cannot move on by itself, where it cannot. */
   waiting: Waiting | null;
 }
