@@ -6,7 +6,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { type Item, type Spool, isPlan, isSettled, oneLine, reportFile, splitBody } from './model.ts';
+import { type Item, type Spool, isPlan, isSettled, oneLine, reportFile, splitBody, whyOf } from './model.ts';
 import { type Docket, type Review, blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, stateOf, taskState, tasks } from './schedule.ts';
 import { BUILT_IN, fileFor, ledgerFor, matchSkills } from './skills.ts';
 import { type Candidate, SUGGEST, addLine, offerLine } from './suggest.ts';
@@ -423,8 +423,10 @@ function standing(d: Docket, rows: TableRow[]): string {
  */
 function briefText(ws: Workspace, d: Docket): string {
   const rows = tableRows(ws, d);
+  // Each name carries why the thread exists, so the human can agree to it without opening it.
+  const named = (t: Item) => `${oneLine(t.title, 60)}${whyOf(t) ? ` (${oneLine(whyOf(t), 60)})` : ''}`;
   const names = (list: TableRow[], most: number): string =>
-    list.slice(0, most).map((r) => oneLine(r.item.title, 60)).join(' · ') + (list.length > most ? ` · +${list.length - most} more` : '');
+    list.slice(0, most).map((r) => named(r.item)).join(' · ') + (list.length > most ? ` · +${list.length - most} more` : '');
   const building = rows.filter((r) => r.mark === '🔵');
   const next = rows.filter((r) => r.mark === '');
   const asking = rows.filter((r) => r.mark === '🔴');
@@ -456,8 +458,10 @@ function tableText(ws: Workspace, d: Docket): string {
   for (const r of rows) {
     const t = r.item;
     const name = `${t.type === 'plan' ? 'Plan: ' : t.type === 'audit' ? 'Audit: ' : ''}${oneLine(t.title, 70)}`;
+    // Why it exists rides with its name, in one line, so the human can agree to it without opening it.
+    const why = whyOf(t) ? ` — ${cell(oneLine(whyOf(t), 90))}` : '';
     const difficulty = t.size ? DIFFICULTY[t.size] : '—';
-    out.push(`| ${r.n} | **${cell(name)}** | ${difficulty} | ${URGENCY[t.priority ?? 2] ?? 'Normal'} | ${cell(`${r.mark} ${r.note}`.trim())} |`);
+    out.push(`| ${r.n} | **${cell(name)}**${why} | ${difficulty} | ${URGENCY[t.priority ?? 2] ?? 'Normal'} | ${cell(`${r.mark} ${r.note}`.trim())} |`);
   }
   const also = [
     ...(d.also.assumptions ? [plural(d.also.assumptions, 'call') + ' agents made on their own'] : []),

@@ -51,7 +51,7 @@ import {
   suggestion,
 } from './agent.ts';
 import { dirtyPaths, discardPaths, git, repoRoot } from './git.ts';
-import { type Item, SpoolError, addLog, oneLine, reportFile, splitBody, timestamp } from './model.ts';
+import { type Item, SpoolError, addLog, oneLine, reportFile, splitBody, timestamp, whyOf } from './model.ts';
 import { prime } from './prime.ts';
 import { age, brief, paint, sprintAbout, tableRows } from './render.ts';
 import { blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
@@ -72,6 +72,8 @@ interface Card {
   type: string;
   /** What the human needs to know about it right now, if anything. */
   note: string;
+  /** Why it exists: the Why line of its spec, shown on the card so the human can agree to it unopened. */
+  why: string;
   suggested: string;
   /** The fields a ticket shows and the human can change. */
   size: string;
@@ -388,6 +390,7 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     urgent: (task.priority ?? 2) <= 1,
     type: task.type ?? 'change',
     note,
+    why: whyOf(task),
     suggested: task.suggested ?? '',
     size: task.size ?? '',
     model: task.model ?? '',
@@ -429,7 +432,8 @@ function projectVersion(root: string): string {
  * the reason an agent suggested it, or what it is waiting on.
  */
 function cardNote(row: { item: Item; mark: string; note: string }): string {
-  if (row.item.suggested) return `Why: ${row.item.suggested}`;
+  // A thread whose spec says why already shows it on its own line; the agent's reason stays on its chip.
+  if (row.item.suggested) return whyOf(row.item) ? '' : `Why: ${row.item.suggested}`;
   if (row.mark === '🟠' || (row.mark === '🔴' && row.note.startsWith('Needs you: ') && !row.note.includes('go-ahead'))) return '';
   return `${row.mark} ${row.note}`.replace(/\*\*/g, '').trim();
 }
@@ -1944,6 +1948,8 @@ const PAGE = String.raw`<!doctype html>
   .tag b { font-weight: 400; margin-left: 5px; opacity: .6; }
   .tag b:hover { opacity: 1; }
   .note { margin-top: 6px; font-size: 13px; color: var(--soft); overflow-wrap: anywhere; }
+  /* Why a thread exists: one quiet line, cut short, the whole of it on hover. */
+  .why { margin-top: 5px; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .q { margin-top: 8px; padding: 8px; border-radius: 8px; background: var(--chip); font-size: 13px; }
   .q button { margin: 6px 6px 0 0; }
   button.rec { border-color: var(--go); }
@@ -2300,6 +2306,7 @@ function cardNode(c, b) {
   const node = el('div', { class: 'card' + (c.complete ? ' past' : ''), draggable: 'true', 'data-id': c.id },
     el('div', { class: 'title', onclick: () => openThread(c.id) }, c.title),
     el('div', { class: 'chips' }, chipsOf(c, b)),
+    c.why && !c.done && el('div', { class: 'why', title: c.why }, c.why),
     c.note && !c.done && el('div', { class: 'note' }, c.note),
     liveLine(c, b),
     c.question && el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title),
@@ -2315,7 +2322,8 @@ function cardNode(c, b) {
 function rowNode(c, b) {
   const node = el('div', { class: 'row', draggable: !c.done && c.column !== 'building' && 'true', 'data-id': c.id },
     el('div', {}, el('span', { class: 'title', onclick: () => openThread(c.id) }, c.title),
-      el('span', { class: 'chips', style: 'display: inline-flex; margin: 0 0 0 8px; vertical-align: middle' }, chipsOf({ ...c, sprint: '', done: false }, b))),
+      el('span', { class: 'chips', style: 'display: inline-flex; margin: 0 0 0 8px; vertical-align: middle' }, chipsOf({ ...c, sprint: '', done: false }, b)),
+      c.why && !c.done && el('div', { class: 'why', title: c.why }, c.why)),
     el('div', { class: 'right' },
       el('span', { class: 'state ' + c.column }, STATE[c.column]),
       facts(c), el('span', { class: 'key', onclick: () => openThread(c.id) }, c.id), moves(c)));

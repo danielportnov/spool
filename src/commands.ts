@@ -41,6 +41,7 @@ import {
   setMain,
   splitBody,
   timestamp,
+  whyOf,
   tokens,
 } from './model.ts';
 import { DEFAULT_POLICY, type Role, about, prime, upsertBlock } from './prime.ts';
@@ -1796,6 +1797,11 @@ export const COMMANDS: Command[] = [
         }
         if (item.kind === 'task') {
           if (item.status === 'done' && !item.summary) warnings.push(`${item.id} is done with no summary`);
+          // The human agrees to work by its reason, so an open thread with none is worth a word. An idea an agent
+          // suggested carries its reason with it.
+          if (!isClosed(item) && !whyOf(item) && !item.suggested) {
+            warnings.push(`${item.id} has no Why: line in its spec, so nobody can see why it exists`);
+          }
           if (taskState(ws, item) === 'stale') warnings.push(`${item.id} was claimed by ${item.by ?? 'someone'} and has gone quiet`);
           if (item.priority !== undefined && (item.priority < 0 || item.priority > 3)) errors.push(`${item.id} has priority ${item.priority}`);
         }

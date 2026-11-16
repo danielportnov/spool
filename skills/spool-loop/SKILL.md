@@ -182,8 +182,8 @@ shape, leaving out a line that is empty:
 <what you need from them, or what just happened: one line>
 
 **🧶 <project>** · <N> in build · <N> proposed · <N> need you
-Building: <thread>
-Next in build: <thread> · <thread>
+Building: <thread> (<why it exists>)
+Next in build: <thread> (<why>) · <thread> (<why>)
 ❓ <a question> **a** <option> · **b** <option>. I'd pick **a**.
 
 The board: <the page's address>
@@ -195,6 +195,9 @@ The board: <the page's address>
 - **They ask for the whole list** ("show me everything", "what's in the
   spool")? Then, and only then, `spool overview --table`, exactly as it
   comes: every open thread, numbered, so they can say "build 4" or "drop 9".
+- **Every thread says why it exists**, beside its name: the `Why:` line of its
+  spec. That is what they agree to, so a thread with none is worth fixing:
+  `spool check` names them.
 - **A plan, an audit, a long answer?** It is the thread's report, read on its
   ticket. In the chat: its headline in a line, and the link.
 

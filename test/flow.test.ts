@@ -266,8 +266,8 @@ test('errors are instructive, and structured under --json', () => {
 
 test('check reports a broken file without taking the queue down', () => {
   const s = spool();
-  const a = s.id('task', 'A');
-  const b = s.id('task', 'B', '--needs', a);
+  const a = s.id('task', 'A', '-b', 'Why: it is the first');
+  const b = s.id('task', 'B', '--needs', a, '-b', 'Why: it comes after A');
   assert.match(s.sp('check'), /0 error\(s\), 0 warning\(s\)/);
 
   // A hand-made loop, a dangling link and a file that isn't an item at all.

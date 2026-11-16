@@ -353,10 +353,10 @@ When a new thread's words are close to an open thread, one finished in the last 
 
 | Command | What it does |
 | --- | --- |
-| `spool overview [--table]` | The whole spool under its colours; `--table` is the loop's numbered list |
+| `spool overview [--brief \| --table]` | The whole spool under its colours; `--brief` is a few lines for a chat, `--table` the loop's numbered list. Each thread says why it exists, from the `Why:` line of its spec |
 | `spool status` · `list` · `show <id> [--report]` · `inbox` | One screen · find items · one item, or the text of its report (over MCP too, for an agent with no shell) · unfiled notes |
 | `spool skills [--suggest]` | Every skill; or procedures that keep recurring with no skill |
-| `spool graph` · `check` | The items and their links as a diagram; validate the store |
+| `spool graph` · `check` | The items and their links as a diagram; validate the store, and name every open thread with no `Why:` line |
 
 **Set up, and staying up**:
 

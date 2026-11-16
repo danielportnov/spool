@@ -345,6 +345,25 @@ export function oneLine(text: string, max = 72): string {
   return flat.length <= max ? flat : `${flat.slice(0, max - 1).trimEnd()}…`;
 }
 
+/**
+ * The `Why:` line of a thread's spec: the reason it exists, so the human can agree to it without
+ * opening it. It reads the same labels the page's description does (`aboutOf` in page.ts). The
+ * human's own words are quoted (`>`) and never read as the spec, and a reason that runs on over
+ * a few lines is taken whole, up to the next blank line or the next label.
+ */
+export function whyOf(item: Item): string {
+  const lines = splitBody(item.body).main.split('\n');
+  const label = /^\s*(?:[-*]\s+)?\**([A-Za-z][A-Za-z ]{0,18}?)\**:\s*(.*)$/;
+  const at = lines.findIndex((l) => /^(why|benefits?|so that)$/i.test(label.exec(l)?.[1]?.trim() ?? ''));
+  if (at < 0) return '';
+  const out = [label.exec(lines[at]!)![2]!.replace(/^\*+\s*/, '')];
+  for (const line of lines.slice(at + 1)) {
+    if (!line.trim() || line.startsWith('>') || label.test(line)) break;
+    out.push(line);
+  }
+  return out.join(' ').replace(/\s+/g, ' ').trim();
+}
+
 const STOP = new Set(
   (
     'the and for with that this from when use used using into your you are was were but not has have had its ' +

@@ -39,6 +39,7 @@ and anything about no thread, sit in a strip at the top of the Backlog view.
 | The search, or a sprint's pill | Narrows the board to what matches. |
 | **Add to Build**, at the foot of the backlog | Moves every thread the backlog is showing right now to Build, and none that a filter or the search has hidden. It asks once. |
 | **Sort** and **Show** at the top of a column | Sorts or filters that column alone. The order agents build in does not change. Build sorted another way takes a drop as a move, not a place. |
+| The quiet line under a card's name | Why the thread exists, from the `Why:` line of its spec. Cut short; the whole of it on hover. |
 | Open a card | The ticket: what they said, what was done and by which agent, and everything that happened, with its fields at the side. |
 | Change a field on the ticket | Its name, status, priority, difficulty, tags or version. Tags and versions are theirs to invent. |
 | Click a tag or a version on a card | The board shows only those threads; click again to clear. |
