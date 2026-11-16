@@ -110,11 +110,13 @@ those comments are the detail.
 
 **Skills, and the rules agents are primed with**
 
-- `skills/` (beside `src/`) holds the four skills. They are the only place the rules for working
-  and recording are written.
-- `builtin.ts` reads those files: `rules` and `section` pull the rules out of them, and
-  `installSkills` copies them to where an agent finds them, keeping a copy someone edited.
-- `prime.ts` is `spool prime`: `prime` puts together a role's rules, read from the skills, with
+- `skills/` (beside `src/`) holds the four skills, and `rules/worker.md` the rules for building a
+  thread. Each rule is written in one of those files and nowhere else. The worker's rules are in
+  no skill: everyone who builds reads them, and a chat that only steers never does.
+- `builtin.ts` reads those files: `rules` pulls the recorder's rules out of its skill,
+  `workerRules` and `section` read the worker's, and `installSkills` copies the skills to where
+  an agent finds them, keeping a copy someone edited.
+- `prime.ts` is `spool prime`: `prime` puts together a role's rules, read from those files, with
   the project's policy and what is waiting now. `DEFAULT_POLICY` is the `policy.md` that `init`
   writes.
 - `skills.ts` keeps the ledger of skills agents write for a project, and `matchSkills` finds the

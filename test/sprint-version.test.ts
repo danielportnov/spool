@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { shipped } from '../src/builtin.ts';
+import { section } from '../src/builtin.ts';
 import { Sandbox } from './helpers.ts';
 
 test('a sprint reached says to cut its version, and keeps the version it became', () => {
@@ -44,8 +44,9 @@ test('a sprint reached says to cut its version, and keeps the version it became'
 });
 
 test('a version is cut when a sprint is reached, and work in no sprint at the end of a run', () => {
-  const loop = shipped('spool-loop').replace(/\s+/g, ' ');
-  assert.match(loop, /\*\*A sprint reached is a version:\*\* when `spool done` says a sprint is finished, cut its version then, before the next thread\. Work that shipped in no sprint is versioned as before\. Once per run/);
-  assert.match(loop, /For a sprint, lead with its name and goal, then its threads\./);
-  assert.match(loop, /For a sprint, `spool edit <r-id> --version <x\.y\.z>` does it in one: the sprint records the version it became/);
+  // The rule is the worker's, so it is in the worker's rules: whoever builds reads it there.
+  const rule = section('A version for what shipped').replace(/\s+/g, ' ');
+  assert.match(rule, /\*\*A sprint reached is a version:\*\* when `spool done` says a sprint is finished, cut its version then, before the next thread\. Work that shipped in no sprint is versioned as before\. Once per run/);
+  assert.match(rule, /For a sprint, lead with its name and goal, then its threads\./);
+  assert.match(rule, /For a sprint, `spool edit <r-id> --version <x\.y\.z>` does it in one: the sprint records the version it became/);
 });

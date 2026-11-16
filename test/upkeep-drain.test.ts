@@ -19,6 +19,7 @@ function copyOfSpool(): { root: string; cli: string } {
   const repo = path.dirname(path.dirname(CLI));
   fs.cpSync(path.join(repo, 'src'), path.join(root, 'dist'), { recursive: true });
   fs.cpSync(path.join(repo, 'skills'), path.join(root, 'skills'), { recursive: true });
+  fs.cpSync(path.join(repo, 'rules'), path.join(root, 'rules'), { recursive: true });
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'spool-copy', version: '9.9.9', type: 'module' }));
   return { root, cli: path.join(root, 'dist', 'cli.ts') };
 }

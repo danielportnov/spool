@@ -12,9 +12,11 @@
  * later install can tell a copy nobody touched, which it refreshes, from one
  * somebody edited, which it leaves alone.
  *
- * The rules for working a task and for recording live in those files and
- * nowhere else. `spool prime` and the unattended loop read them from here, so
- * an agent with no skill support is taught exactly what the skills teach.
+ * The rules for recording live in the record skill and nowhere else. The
+ * rules for working a thread are in no skill: they are one file beside them,
+ * `rules/worker.md`, because everyone who builds reads them and a chat that
+ * only steers never does. `spool prime` prints both from here, so an agent
+ * with no skill support, and one the page starts, is taught the same words.
  */
 
 import { createHash } from 'node:crypto';
@@ -58,20 +60,29 @@ function body(name: SkillName): string {
   return parseFrontmatter(shipped(name)).body.trim();
 }
 
-/** Everything under one `## heading` of a shipped skill, heading included, up to the next `## `. */
-export function section(name: SkillName, heading: string): string {
-  const lines = body(name).split('\n');
-  const start = lines.indexOf(`## ${heading}`);
-  if (start < 0) throw new SpoolError(`the ${name} skill has no "${heading}" section`);
-  const length = lines.slice(start + 1).findIndex((l) => l.startsWith('## '));
-  return lines.slice(start, length < 0 ? undefined : start + 1 + length).join('\n').trim();
-}
-
-/** A shipped skill from its first `## heading` on: the rules, without the preamble that sets the scene. */
-export function rules(name: SkillName): string {
-  const text = body(name);
+/** A text from its first `## heading` on: the rules, without the preamble that sets the scene. */
+function fromFirstHeading(text: string): string {
   const at = text.indexOf('\n## ');
   return (at < 0 ? text : text.slice(at + 1)).trim();
+}
+
+/** A shipped skill's rules: everything from its first `## heading` on. */
+export function rules(name: SkillName): string {
+  return fromFirstHeading(body(name));
+}
+
+/** The worker's rules, as they are in the package: what whoever builds a thread follows, and `spool prime worker` prints. */
+export function workerRules(): string {
+  return fromFirstHeading(fs.readFileSync(path.join(PACKAGE, 'rules', 'worker.md'), 'utf8').replace(/\r\n?/g, '\n'));
+}
+
+/** Everything under one `## heading` of the worker's rules, heading included, up to the next `## `. */
+export function section(heading: string): string {
+  const lines = workerRules().split('\n');
+  const start = lines.indexOf(`## ${heading}`);
+  if (start < 0) throw new SpoolError(`the worker's rules have no "${heading}" section`);
+  const length = lines.slice(start + 1).findIndex((l) => l.startsWith('## '));
+  return lines.slice(start, length < 0 ? undefined : start + 1 + length).join('\n').trim();
 }
 
 // ---------------------------------------------------------------- installing

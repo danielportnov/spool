@@ -221,6 +221,7 @@ test('the page does not restart onto new code until every one of its agents has 
   const repo = path.dirname(path.dirname(CLI));
   fs.cpSync(path.join(repo, 'src'), path.join(copy, 'dist'), { recursive: true });
   fs.cpSync(path.join(repo, 'skills'), path.join(copy, 'skills'), { recursive: true });
+  fs.cpSync(path.join(repo, 'rules'), path.join(copy, 'rules'), { recursive: true });
   fs.writeFileSync(path.join(copy, 'package.json'), JSON.stringify({ name: 'spool-copy', version: '9.9.9', type: 'module' }));
 
   const s = new Sandbox();

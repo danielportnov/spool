@@ -15,12 +15,13 @@ import { test } from 'node:test';
 import { type Browser } from 'playwright-core';
 import { CLI, Sandbox, gone, openChrome, pause, startPage, until } from './helpers.ts';
 
-/** A copy of Spool as a package of its own: its code in dist/, its skills, and a package.json beside them. */
+/** A copy of Spool as a package of its own: its code in dist/, its skills and the worker's rules, and a package.json beside them. */
 function copyOfSpool(pkg: Record<string, unknown> = {}): { root: string; cli: string } {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'spool-copy-')));
   const repo = path.dirname(path.dirname(CLI));
   fs.cpSync(path.join(repo, 'src'), path.join(root, 'dist'), { recursive: true });
   fs.cpSync(path.join(repo, 'skills'), path.join(root, 'skills'), { recursive: true });
+  fs.cpSync(path.join(repo, 'rules'), path.join(root, 'rules'), { recursive: true });
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'spool-copy', version: '9.9.9', type: 'module', ...pkg }));
   return { root, cli: path.join(root, 'dist', 'cli.ts') };
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { SKILL_NAMES, shipped } from '../src/builtin.ts';
+import { SKILL_NAMES, shipped, workerRules } from '../src/builtin.ts';
 import { COMMANDS } from '../src/commands.ts';
 import { parseFrontmatter } from '../src/frontmatter.ts';
 import { Sandbox } from './helpers.ts';
@@ -143,9 +143,11 @@ test('the shipped skills are valid Agent Skills, and few', () => {
 
 test('every command a skill tells an agent to run exists', () => {
   const known = new Set(['help', ...COMMANDS.flatMap((c) => [c.name, ...(c.aliases ?? [])])]);
-  for (const name of SKILL_NAMES) {
+  // The worker's rules are read by every agent that builds, so they are held to the same.
+  const texts: [string, string][] = [...SKILL_NAMES.map((name): [string, string] => [name, shipped(name)]), ["the worker's rules", workerRules()]];
+  for (const [name, text] of texts) {
     // In backticks or in an indented example: `spool done <id>`, never the word in a sentence.
-    for (const [, verb] of shipped(name).matchAll(/(?:`|^ {4,})spool ([a-z][a-z-]*)/gm)) {
+    for (const [, verb] of text.matchAll(/(?:`|^ {4,})spool ([a-z][a-z-]*)/gm)) {
       assert.ok(known.has(verb!), `${name} names \`spool ${verb}\`, which is not a command`);
     }
   }
@@ -156,8 +158,11 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   const headings = [...loop.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
   assert.deepEqual(headings, [
     'How it was called', 'Start', 'Watch the spool', 'The schedule', 'Put the spool in order', 'Show the spool', 'Build what is in build',
-    'When nothing is left that can move', 'Reaching them', 'Working a thread',
+    'When nothing is left that can move', 'Reaching them',
   ]);
+  // How a thread is built is not in it: that is written once, in the worker's rules.
+  const worker = workerRules();
+  assert.match(loop, /\*\*The worker's rules are not in this skill\.\*\*[\s\S]*`spool prime worker` prints it/);
   assert.match(loop, /\*\*you hold the context, you propose, they\ndecide what is built, you build it\.\*\*/);
   assert.match(loop, /1\. \*\*Show the spool:\*\*[\s\S]*2\. \*\*Build what is in build:\*\*[\s\S]*3\. \*\*Say when it is done:\*\*/);
   assert.match(loop, /Be brief in the chat\. The page holds the detail\./);
@@ -190,14 +195,14 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   assert.match(loop, /You never move a thread to build yourself, whatever\nit is and whoever thought of it\./);
   assert.match(loop, /\*\*Nothing in build\?\*\* Do not build\./);
   assert.match(loop, /\*\*Where the gate is locked,\*\* `spool build`, `spool play` and `spool release`\nrefuse you outright[\s\S]*Do not look for a way round it: that refusal is the point\./);
-  assert.match(loop, /`spool done` runs it first and refuses if it fails[\s\S]*never switch it off or work round it\./);
+  assert.match(worker, /`spool done` runs it first and refuses if it fails[\s\S]*never switch it off or work round it\./);
   assert.match(shipped('spool-init'), /\*\*Offer a check\.\*\*[\s\S]*On their yes: `spool checks "<command>"`/);
   assert.match(shipped('spool-init'), /Offer the lock once[\s\S]*Their choice; do not pick for them\./);
   assert.match(loop, /\| "build 3", "go on that one", "yes, do it" \| `spool build <t-id>` \|/);
   assert.match(loop, /Never guess a go, an answer or an approval\. If their reply does not plainly\nsay it, ask in one line\./);
   // A procedure that keeps recurring is one of those ideas: offered, never written unasked, and a no is kept.
   assert.match(loop, /### Add your own ideas[\s\S]*\*\*A procedure agents keep working out again is an idea too\.\*\*\n`spool skills --suggest` lists steps that recur across finished threads[\s\S]*It matches words, not meaning, so read the threads first[\s\S]*Their no is\n {2}remembered/);
-  assert.match(loop, /### Skills[\s\S]*`spool done` says when the steps\nyou just took match earlier finished threads with no skill for them[\s\S]*is the human's call:\n`spool skills --suggest` prints the line that offers it/);
+  assert.match(worker, /### Skills[\s\S]*`spool done` says when the steps\nyou just took match earlier finished threads with no skill for them[\s\S]*is the human's call:\n`spool skills --suggest` prints the line that offers it/);
   assert.match(loop, /\*\*They can steer at any time,\*\*/);
   assert.match(loop, /The chat is not the\nrecord: the spool is\./);
 
@@ -205,7 +210,7 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   assert.match(loop, /### Add your own ideas[\s\S]*spool task "<the idea>" --suggested "<why[^"]*>" --size <size>[\s\S]*nobody starts it, you\n {2}included, until the human moves it to build/);
 
   // What shipped gets a version: bumped, written up and tagged, and never pushed.
-  assert.match(loop, /### A version for what shipped[\s\S]*Once per run[\s\S]*minor, 0\.3\.2 → 0\.4\.0[\s\S]*A major, or the first 1\.0,\n {3}is the human's call[\s\S]*`CHANGELOG\.md`[\s\S]*`git tag -a v<x\.y\.z>[\s\S]*The tag stays on this machine/);
+  assert.match(worker, /## A version for what shipped[\s\S]*Once per run[\s\S]*minor, 0\.3\.2 → 0\.4\.0[\s\S]*A major, or the first 1\.0,\n {3}is the human's call[\s\S]*`CHANGELOG\.md`[\s\S]*`git tag -a v<x\.y\.z>[\s\S]*The tag stays on this machine/);
 
   // It reaches the human through the harness's own notifications, and only when they would act.
   assert.match(loop, /## Reaching them[\s\S]*\*\*Build is empty\*\*[\s\S]*\*\*It is done:\*\*[\s\S]*\*\*Nothing can move without them:\*\*[\s\S]*\*\*A question stops a thread\*\*[\s\S]*`PushNotification`/);
@@ -223,7 +228,7 @@ test('the loop skill is simple: show the spool, build what is in build, say when
   assert.match(loop, /\*\*Sprints\.\*\*[\s\S]*A sprint has no dates; it is over when its last thread is done[\s\S]*spool sprint "<name>" --goal "<what it is for>" --why "<why now>"[\s\S]*--add <t-id…>[\s\S]*Only they play it \(`spool play`\)\. Never play it for them\./);
   assert.match(page, /\*\*Mark as complete\*\*, at the foot of a finished thread/);
   assert.match(page, /Change a field on the ticket \| Its name, status, priority, difficulty, tags or version/);
-  assert.match(loop, /5\. \*\*Stamp the threads\.\*\* `spool edit <t-id> --version <x\.y\.z>`/);
+  assert.match(worker, /5\. \*\*Stamp the threads\.\*\* `spool edit <t-id> --version <x\.y\.z>`/);
   assert.match(loop, /\*\*Sign your work\.\*\* Add `--as "<your model's name>"`/);
 });
 

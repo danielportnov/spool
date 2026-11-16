@@ -2,21 +2,22 @@
  * Priming: what an agent is told before it works.
  *
  * Spool has two roles. A recorder files one thing the human said, when they
- * ask for it to be recorded. A worker takes tasks off the queue and does them. The rules for both
- * are written once, in the skills Spool ships (`skills/spool-record` and
- * `skills/spool-loop`), and an agent whose harness loads skills has them
- * already. What a skill cannot hold is what is true of this project right
+ * ask for it to be recorded. A worker takes tasks off the queue and does them. Each role's rules
+ * are written once, in a file Spool ships: the recorder's are the record
+ * skill (`skills/spool-record`), the worker's are `rules/worker.md`, which no
+ * skill repeats. What neither can hold is what is true of this project right
  * now: its autonomy policy, its projects, what is waiting. `spool prime
  * <role> --context` prints that, and the skills run it first.
  *
- * Without `--context` the rules are printed too, read from those same skill
- * files. That is for agents with no skills: any harness that can run a
- * command, and the ones `spool loop` starts unattended.
+ * Without `--context` the rules are printed too, read from those same files.
+ * That is how everyone who builds gets the worker's rules: a chat running the
+ * loop, the subagents it starts, any harness that can run a command, and the
+ * agents the page and `spool loop` start unattended.
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { rules, section } from './builtin.ts';
+import { rules, workerRules } from './builtin.ts';
 import { goalsFile, goalsOf, goalsText } from './goals.ts';
 import { lessonsSection, withoutLessons } from './lessons.ts';
 import { sprintAbout } from './sprints.ts';
@@ -93,7 +94,7 @@ files by hand, and never ask the human to run a command you can run.
   \`spool build\`, \`spool propose\`, \`spool answer\`. In a long message, capture each idea on its own
   and act on the rest. Not sure whether it is an idea or an instruction? Record nothing and act.
 - Asked to do some work: \`spool status\` first. If it is already a task, \`spool start <id>\`, and
-  work it by the rules in the \`spool-loop\` skill, so the work is on record and can be undone.
+  work it by the worker's rules (\`spool prime worker\`), so the work is on record and can be undone.
 - No skills in your harness? \`spool prime\` prints the worker's rules, \`spool prime recorder\` the recorder's.
 ${BLOCK_END}`;
 
@@ -165,7 +166,7 @@ export function prime(ws: Workspace, role: Role, contextOnly = false): string {
     parts.push(`${map(ws)}\n`);
     return parts.join('\n');
   }
-  if (!contextOnly) parts.push(WORKER, `${section('spool-loop', 'Working a thread')}\n`);
+  if (!contextOnly) parts.push(WORKER, `${workerRules()}\n`);
   // Where the project is going comes first: the policy says how to work, the goals say what for.
   if (goalsOf(ws.home)) parts.push(`GOALS (${path.relative(ws.home.root, goalsFile(ws.home))})\n\n${goalsText(ws.home)}\n`);
   const policy = path.join(ws.home.dir, 'policy.md');

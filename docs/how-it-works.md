@@ -58,6 +58,10 @@ a copy you have edited is kept when you upgrade. `spool install --for codex` put
 `~/.codex/skills`, and `--for cursor` in `~/.cursor/skills`, on the same terms. Gemini CLI, and any
 other agent, gets the rules from the Spool block in `AGENTS.md` and from `spool prime`.
 
+How a thread is built is in no skill. It is one file, [`rules/worker.md`](../rules/worker.md), and
+`spool prime worker` prints it for whoever builds: a chat running the loop, each subagent it
+starts, and the agents the page starts with no chat. They all work by the same words.
+
 **`/spool-init [folder]`** sets a project up: creates `.spool/`, works out the project's name and
 one-line description from its README, turns the gate on, and tells you what agents may decide by
 themselves (the policy, below). Run where Spool is already set up, it changes nothing.
@@ -635,7 +639,7 @@ ones marked 🔒:
 | `spool sprint <name> [--goal …] [--why …] [--done-when …] [--serves <goal>] [--vision - \| --from <n-id>] [--add <t-id…>]` | Make a sprint and fill it in one go, keeping the vision in your words and the goal it serves; on a sprint that exists, add to it |
 | `spool manage [--start \| --end -m headline [--report -]]` | Put the backlog in order as one run that can be undone: `--start` opens the run and prints the worksheet of facts to work from, `--end` writes the report of what it changed; with neither, says whether a run is open |
 | `spool skill add` | Write a procedure down as a skill |
-| `spool prime [worker\|recorder]` | A role's rules and this project now, for an agent with no skills |
+| `spool prime [worker\|recorder] [--context]` | A role's rules and this project now. `worker` prints `rules/worker.md`, which everyone who builds follows; `--context` leaves the rules out |
 
 When a new thread's words are close to an open thread, one finished in the last four weeks, or one dropped in the last three months, `spool task` says so after its usual lines and in `--json` as `similar`. It is a nudge: nothing is blocked or merged. Matching is by shared words, so it stays quiet unless most of the words agree.
 
