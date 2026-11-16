@@ -369,6 +369,13 @@ You use Spool by talking to Claude. There are five skills, short enough to read:
 Upgrading? `spool install` brings your copies up to date and takes away a skill that has been
 retired, and `spool doctor` says if an old one, or an old Spool block in `AGENTS.md`, is still there.
 
+## Not every project
+
+Spool is one tool, not the only way to work. In a project where you don't want it, `spool disable`
+switches it off: the Spool block comes out of `AGENTS.md` and `CLAUDE.md`, so no agent is sent to
+the queue, and its commands refuse. The queue is kept as it was, and `spool enable` turns it back
+on. In a folder of projects, `--all` does every one of them at once.
+
 ## Under the hood
 
 - **Plain files.** One markdown file per thread in `.spool/`, ignored by git unless you choose to share it.

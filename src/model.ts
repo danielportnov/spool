@@ -93,6 +93,13 @@ export interface Config {
    * it itself; it hands the human the page.
    */
   gate?: boolean | 'locked';
+  /**
+   * Switched off (`spool disable`): nothing sends an agent to this spool, and its commands refuse,
+   * until `spool enable`. The queue itself is kept as it was. `since` is when it was switched off;
+   * `block` names the files the Spool block was taken out of, so `spool enable` puts it back in
+   * those and no others.
+   */
+  disabled?: { since: string; block: string[] };
 }
 
 export interface Item {

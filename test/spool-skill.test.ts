@@ -55,6 +55,7 @@ test('/spool is the one skill for the chat: status first, a short reply, and one
   assert.match(run('"switch to chat mode"'), /^`spool builder chat`, then build here by the `spool-loop` skill/);
   assert.match(run('"let the page build"'), /^`spool builder headless`, then `spool agents on`\. No board up\? `spool page -d --run`/);
   assert.equal(run('"turn the agents off"'), '`spool agents off`, `spool agents on`');
+  assert.match(run('"I don\'t need Spool here"'), /^`spool disable`, `spool enable`; `--all` for every project in this folder/);
   assert.equal(run('"build three at once"'), '`spool builder --at-once <n>`');
   assert.match(run('"what happened overnight"'), /^`spool brief`, as it comes; `--since 8h` or `--since yesterday`/);
   assert.equal(run('"what needs me"'), '`spool review`');
@@ -87,7 +88,7 @@ test('/spool is the one skill for the chat: status first, a short reply, and one
   assert.doesNotMatch(skill, /On the page \| What it does|Keep the board live/);
 
   // Short enough to be read on every project: about seventy lines, the table most of it.
-  assert.ok(skill.trimEnd().split('\n').length <= 85, `${skill.trimEnd().split('\n').length} lines`);
+  assert.ok(skill.trimEnd().split('\n').length <= 86, `${skill.trimEnd().split('\n').length} lines`);
 });
 
 test("/spool's description says when to load it, and when not to", () => {

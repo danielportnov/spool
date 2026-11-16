@@ -110,6 +110,20 @@ export function upsertBlock(existing: string): string {
   return `${existing.trimEnd()}${existing.trim() ? '\n\n' : ''}${BLOCK}\n`;
 }
 
+/** The files Spool's block goes in: the ones an agent reads first. */
+export const AGENT_FILES = ['CLAUDE.md', 'AGENTS.md'];
+
+/** An agent instructions file with Spool's block taken out, and the rest as it was. Nothing left means the file held only the block. */
+export function withoutBlock(existing: string): string {
+  const start = existing.indexOf(BLOCK_START);
+  const end = existing.indexOf(BLOCK_END);
+  if (start < 0 || end <= start) return existing;
+  const before = existing.slice(0, start).trimEnd();
+  const after = existing.slice(end + BLOCK_END.length).replace(/^\s+/, '');
+  if (!before) return after;
+  return after ? `${before}\n\n${after}` : `${before}\n`;
+}
+
 /**
  * Whether an agent instructions file has Spool's block, and whether it is the one this version
  * writes. One that differs is from an older Spool, or was edited: either way it may send an agent

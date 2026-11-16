@@ -96,6 +96,13 @@ A skill Spool no longer ships is taken away by the next `spool install`, unless 
 copy. `spool doctor` names one that is still there, and a project whose Spool block in `AGENTS.md`
 is not the one this version writes: `spool init --refresh` writes it again.
 
+Spool need not be on everywhere. `spool disable` switches it off in a project: the Spool block
+comes out of `AGENTS.md` and `CLAUDE.md` (a file that held nothing else goes with it), so no agent
+is sent to the queue, and every command there refuses, saying so and how to turn it back on. The
+queue is kept as it was, a page already up starts no new work, and the folder above leaves the
+project out. `spool enable` puts the block back in the files it came out of. In a folder of
+projects, `--all` switches every one of them.
+
 ## The page
 
 `spool page` starts a small server on your machine and opens a board. It has three views.
@@ -803,6 +810,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | Command | What it does |
 | --- | --- |
 | `spool init [folder] [--gate \| --lock] [--share]` | Start a spool; does nothing where one exists |
+| `spool disable [--all]` · `enable [--all]` | Switch Spool off in a project: its block comes out of `AGENTS.md` and `CLAUDE.md`, so no agent is sent to it, and its commands refuse; the queue is kept. On again puts the block back where it was. `--all` does every spool in this folder and below |
 | `spool demo [folder] [--open]` | A throwaway sample project with threads in its spool, to try the page and the loop on |
 | `spool install [--for claude\|codex\|cursor\|gemini\|all] [--here \| --dir path]` | Put the skills where your agent finds them: Claude Code unless `--for` names another; it also names the other agents it finds here |
 | `spool checks [command \| --none]` | Name the command that must pass before a change is done here |

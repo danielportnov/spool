@@ -2,6 +2,15 @@
 
 What shipped in each version of Spool, newest first.
 
+## Unreleased
+
+- Spool can be off: `spool disable` switches it off in a project, so it is one tool you reach for
+  and not the way every chat has to work. The Spool block comes out of `AGENTS.md` and
+  `CLAUDE.md`, so no agent is sent to the queue, and every command there refuses, saying so. The
+  queue is kept as it was, a page already up starts no new work, and the folder above leaves the
+  project out. `spool enable` puts the block back where it was. `--all` does every spool in a
+  folder and below it.
+
 ## 0.18.0 · 2026-11-16
 
 - `/spool-lazy`, lazy dev mode for a chat: it builds what is in Build and decides how without asking

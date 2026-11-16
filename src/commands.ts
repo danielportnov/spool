@@ -13,6 +13,7 @@ import { ATTACH } from './attach.ts';
 import { builderCommand } from './builder.ts';
 import { effortOf, modelOf } from './agent.ts';
 import { morning, morningText } from './brief.ts';
+import { DISABLE, ENABLE } from './off.ts';
 import { HARNESSES, describe, harness, installFor, installedAnywhere, others } from './harness.ts';
 import { spawnSync } from 'node:child_process';
 import { type Ctx, notify, saveUserConfig, userConfig } from './context.ts';
@@ -146,6 +147,11 @@ export interface Command {
   before?: (call: Bare) => unknown;
   /** Runs last, whatever happened, with what `before` gave back: to let go of anything it took. */
   after?: (before: unknown) => void;
+  /**
+   * A bare command that works the queue, refused where Spool is switched off (`spool disable`), as
+   * every command that opens the store is. A function says, from the call, whether this run is.
+   */
+  refusedWhenOff?: boolean | ((call: Bare) => boolean);
 }
 
 // ------------------------------------------------------------------ helpers
@@ -2266,6 +2272,17 @@ export const COMMANDS: Command[] = [
       };
 
       const fresh = !fs.existsSync(path.join(dir, 'config.json'));
+      // Switched off, it stays off: nothing here puts the agents' pointer back but spool enable.
+      if (!fresh && readConfig(root).disabled) {
+        const name = readConfig(root).name ?? path.basename(root);
+        return {
+          text: [
+            `Spool is set up in ${p.bold(name)}${where ? p.dim(`  · ${where}`) : ''}, but switched off. Nothing was changed.`,
+            p.dim(`  spool enable${where ? ` -C ${where}` : ''} turns it back on`),
+          ].join('\n'),
+          data: { root, created: false, wrote, off: true },
+        };
+      }
       // Run by accident where a spool exists, this changes nothing. --refresh is the deliberate version:
       // after an upgrade, it brings the agents' pointer up to date and puts back anything missing.
       if (!fresh && !opts.refresh && !opts.share && !opts.gate && !opts.lock) {
@@ -2347,6 +2364,8 @@ export const COMMANDS: Command[] = [
       return { text: out.join('\n'), data: { root, created: fresh, wrote, skills, shared: !local } };
     },
   },
+  DISABLE,
+  ENABLE,
   {
     name: 'demo',
     group: 'setup',
@@ -2398,6 +2417,7 @@ export const COMMANDS: Command[] = [
       'dry-run': { type: 'boolean' },
       ...PROJECT,
     },
+    refusedWhenOff: true,
     bare: (call) => runLoop(call),
   },
   {
@@ -2415,6 +2435,8 @@ export const COMMANDS: Command[] = [
       stop: { type: 'boolean' },
       ...PROJECT,
     },
+    // Where it is off, a page already up can still be found and stopped, and one restarting onto new code stays up.
+    refusedWhenOff: ({ opts, ctx }) => !opts.status && !opts.stop && !ctx.env.SPOOL_PAGE_RESUME,
     bare: (call) => servePage(call),
   },
   {
@@ -2423,6 +2445,7 @@ export const COMMANDS: Command[] = [
     usage: 'watch [--interval <ms>] [-P <project>]',
     summary: 'Stay up and print a line when work lands in build, the human replies on a thread, or a note arrives',
     options: { interval: { type: 'string' }, ...PROJECT },
+    refusedWhenOff: true,
     bare: (call) => watch(call),
   },
   {

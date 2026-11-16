@@ -160,6 +160,53 @@ export function readConfig(root: string): Config {
   throw new SpoolError(`${file} must hold a JSON object`);
 }
 
+// ------------------------------------------------------------ switched off
+
+/** What is said where a spool is switched off (`spool disable`), to a person or an agent. */
+export function offError(name: string): SpoolError {
+  return new SpoolError(
+    `Spool is off in ${name}`,
+    "Nothing here goes through it: work as you would without Spool. spool enable turns it back on, on the human's word.",
+  );
+}
+
+/** Whether the spool at `root` is switched off. One whose config cannot be read is not: opening it says what is wrong. */
+export function isOff(root: string): boolean {
+  try {
+    return !!readConfig(root).disabled;
+  } catch {
+    return false;
+  }
+}
+
+/** Refuse to work the spool this folder is in, if it is switched off. */
+export function refuseIfOff(cwd: string): void {
+  const root = findHome(cwd);
+  if (root && isOff(root)) throw offError(readConfig(root).name || path.basename(root));
+}
+
+/** Every spool in a folder and below it, the folder's own first and the rest by path: what `--all` switches. */
+export function spoolsUnder(from: string, maxDepth = 6): string[] {
+  const found: string[] = [];
+  const walk = (dir: string, depth: number): void => {
+    if (fs.existsSync(path.join(dir, SPOOL_DIR, 'config.json'))) found.push(dir);
+    if (depth >= maxDepth) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    // Hidden folders are never walked, so a thread's worktree (inside .spool/) is not taken for a project.
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      if (!entry.isDirectory() || entry.name.startsWith('.') || SKIP.has(entry.name)) continue;
+      walk(path.join(dir, entry.name), depth + 1);
+    }
+  };
+  walk(path.resolve(from), 0);
+  return found;
+}
+
 /** The configured skills directory, refused if it would escape the project. */
 export function skillsDir(spool: Spool): string {
   const rel = spool.config.skillsDir ?? DEFAULT_SKILLS_DIR;
@@ -249,12 +296,15 @@ export class Workspace {
       let childOwner = owner;
       if (fs.existsSync(path.join(child, SPOOL_DIR, 'config.json'))) {
         try {
+          const config = readConfig(child);
+          // A project switched off is left out of the folder above it, with everything under it.
+          if (config.disabled) continue;
           childOwner = {
             root: child,
             dir: path.join(child, SPOOL_DIR),
             name: toPosix(path.relative(this.home.root, child)),
             home: false,
-            config: readConfig(child),
+            config,
           };
           this.spools.push(childOwner);
         } catch (error) {

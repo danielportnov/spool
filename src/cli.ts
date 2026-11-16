@@ -18,7 +18,7 @@ import { canUnwind, inColor, mark, unwind } from './mark.ts';
 import { SpoolError } from './model.ts';
 import { paint } from './render.ts';
 import { record } from './journal.ts';
-import { Workspace, findHome } from './store.ts';
+import { Workspace, findHome, isOff, refuseIfOff } from './store.ts';
 import { openQueue } from './tui.ts';
 
 const GLOBAL: Options = {
@@ -185,7 +185,8 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
     const here = path.resolve(ctx.cwd, cwd ?? '.');
     if (wantHelp || !findHome(here)) return { result: { text: greeted() }, json };
     // A person at their own terminal gets the queue, full-screen. A pipe, an agent, --json and --plain get the status, as always.
-    const opened = ctx.tty && !json && !plain ? openQueue({ ...ctx, cwd: here }, { run: agentsOn }) : undefined;
+    // Switched off, it opens nothing: the status below says so, and how to turn it back on.
+    const opened = ctx.tty && !json && !plain && !isOff(findHome(here)!) ? openQueue({ ...ctx, cwd: here }, { run: agentsOn }) : undefined;
     if (opened) return { result: opened, json };
     name = 'status';
     rest = [];
@@ -215,6 +216,9 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
 
   const scoped: Ctx = { ...ctx, cwd: path.resolve(ctx.cwd, cwd ?? '.'), color: ctx.color && !json };
   const base = { ctx: scoped, args: positionals, opts: values, follows, actor, p: paint(scoped.color) };
+  // Where Spool is switched off (spool disable), nothing works its queue until spool enable.
+  const off = command.bare ? command.refusedWhenOff : true;
+  if (off === true || (typeof off === 'function' && off(base))) refuseIfOff(scoped.cwd);
   if (command.bare) return { result: command.bare(base), json };
 
   // Anything slow a command has to do first is done here, before the store is locked for it.

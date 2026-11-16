@@ -36,7 +36,7 @@ import { runOf } from './run.ts';
 import { ready, tasks } from './schedule.ts';
 import { type Session, askRouter, endAgent, endLeftover, pageRunning, promptFile, recall, remember, startSession } from './session.ts';
 import { atOnceIn, sharedFolderWhy } from './slots.ts';
-import { Workspace } from './store.ts';
+import { Workspace, isOff } from './store.ts';
 import { type Ask, SESSION_ID, asking, inSession, keeps, listening, listens, sessionOf, streaming } from './stream.ts';
 import { closeWorktree, openWorktree, workDir } from './worktree.ts';
 
@@ -744,6 +744,8 @@ export class Runner {
   /** Start an agent on each waiting thread there is room for. */
   private fill(): void {
     if (this.held || !this.on) return;
+    // Switched off (spool disable): the agents at work finish, and nothing new is started.
+    if (this.root && isOff(this.root)) return;
     // The user's number is for the whole page, across every project it builds; handOut keeps each project to its own share.
     // A thread that could not be started is not tried again until it changes, so each try here either starts one or moves on.
     let room = parallelOf(this.ctx) - this.runs.size;

@@ -20,7 +20,7 @@ import { DEFAULT_AGENT } from './loop.ts';
 import { builderOf, userConfig } from './context.ts';
 import { git, repoRoot } from './git.ts';
 import { blockIn } from './prime.ts';
-import { SPOOL_DIR, findHome, readConfig, skillsDir } from './store.ts';
+import { SPOOL_DIR, findHome, isOff, readConfig, skillsDir } from './store.ts';
 import { watched } from './watch.ts';
 
 export interface Finding {
@@ -97,7 +97,9 @@ export function diagnose({ ctx }: Bare): Finding[] {
 
   // The project: where its files are, and whether git can undo and show what changed.
   const root = findHome(ctx.cwd);
-  if (root) add('spool', 'ok', `a spool in ${root}`);
+  const off = root ? isOff(root) : false;
+  if (root && off) add('spool', 'advice', `a spool in ${root}, switched off: agents are not sent to it and its commands refuse`, ['spool enable']);
+  else if (root) add('spool', 'ok', `a spool in ${root}`);
   else add('spool', 'wrong', 'no spool here', ['spool init']);
   const base = root ?? ctx.cwd;
   if (!repoRoot(base)) {
@@ -211,8 +213,8 @@ export function diagnose({ ctx }: Bare): Finding[] {
     }
   }
 
-  // The pointer every agent reads first. One an older Spool wrote may name a skill that is gone.
-  if (root) {
+  // The pointer every agent reads first. One an older Spool wrote may name a skill that is gone. Switched off, there is none.
+  if (root && !off) {
     const blocks = ['CLAUDE.md', 'AGENTS.md']
       .filter((name) => fs.existsSync(path.join(root, name)))
       .map((name) => ({ name, block: blockIn(fs.readFileSync(path.join(root, name), 'utf8')) }));
