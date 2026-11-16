@@ -4,6 +4,11 @@ What shipped in each version of Spool, newest first.
 
 ## Unreleased
 
+- `/spool-lazy`, lazy dev mode for a chat: it builds what is in Build and decides how without asking
+  (it takes the recommended option and leaves a receipt), comes to you with a screenshot and a line
+  or two when there is something to see, then waits. Your reaction is filed as threads, in your
+  words. `/spool-lazy off` ends it.
+
 ## 0.17.0 · 2026-11-16
 
 - Several threads at once, each in a git worktree of its own: `spool start <id> --worktree` (or

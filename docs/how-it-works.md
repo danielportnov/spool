@@ -50,7 +50,7 @@ counted few threads to Build for one night (see "The manager"), is locked the sa
 Be clear about what the lock is. It stops an agent starting work by mistake, or on its own reading
 of what you meant. It is not a security boundary: a program running as you can do what you can.
 
-## The four skills
+## The five skills
 
 You use Spool by talking to your agent. The skills are plain [Agent Skills](https://agentskills.io)
 in [`skills/`](../skills): read them, edit them. `spool install` copies them to `~/.claude/skills`;
@@ -77,6 +77,14 @@ off"). It answers in a few lines and leaves the detail on the board. It builds n
 **`/spool-loop [hours]`** makes that chat the builder. It tells the board that a chat builds here
 (`spool builder chat`), builds what is in Build, and then watches for more. `/spool-loop stop` ends
 it. See "The loop", below.
+
+**`/spool-lazy`** is lazy dev mode: you look and react, the chat is the 10x dev. It does what the
+loop does, but where a worker would ask, it takes the recommended option and leaves a receipt
+(`spool assume`); only what the policy says never, or cannot be undone, stops that one thread. It
+speaks rarely: a screenshot and a line or two when there is something to see, then it waits. Your
+reaction is captured in your words and filed as threads, and the chat keeps what it showed and what
+you said. It still builds only what you moved to Build: "do it" about something it showed is a go,
+anything else waits proposed. `/spool-lazy off` ends it.
 
 **`/spool-record <what you want, and where>`** files one message. Your words are captured exactly,
 split into threads, each given a size and a short spec (what, why, done when), and put in the

@@ -128,7 +128,7 @@ test('init can leave the agents file alone', () => {
 });
 
 test('the shipped skills are valid Agent Skills, and few', () => {
-  assert.deepEqual([...SKILL_NAMES], ['spool-init', 'spool', 'spool-loop', 'spool-record']);
+  assert.deepEqual([...SKILL_NAMES], ['spool-init', 'spool', 'spool-loop', 'spool-lazy', 'spool-record']);
   for (const name of SKILL_NAMES) {
     const skill = parseFrontmatter(shipped(name));
     assert.equal(skill.data.get('name'), name);
@@ -190,7 +190,7 @@ test('the recorder records one message, and decides the split and the size itsel
 test('install puts the skills where the agent finds them, and keeps the ones you edited', () => {
   const s = new Sandbox();
   const out = s.sp('install');
-  assert.match(out, /Spool skills in ~\/\.claude\/skills\n {2}installed {2}spool-init\n {2}installed {2}spool\n {2}installed {2}spool-loop\n {2}installed {2}spool-record\n\nIn your agent: {2}\/spool-init in a project, then \/spool$/);
+  assert.match(out, /Spool skills in ~\/\.claude\/skills\n {2}installed {2}spool-init\n {2}installed {2}spool\n {2}installed {2}spool-loop\n {2}installed {2}spool-lazy\n {2}installed {2}spool-record\n\nIn your agent: {2}\/spool-init in a project, then \/spool$/);
   for (const name of SKILL_NAMES) {
     const text = s.read(`.home/.claude/skills/${name}/SKILL.md`);
     assert.ok(text.startsWith(shipped(name).trimEnd()), 'the shipped skill, word for word');
