@@ -253,6 +253,31 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     assert.equal(await column('done').locator('.card.past').count(), 3, 'kept as history, a click away');
     await shot(page, '4-done');
 
+    // Needs you: the decisions that are not threads, each cleared with a click.
+    s.sp('ask', 'Pause on the left, or the right?', '--option', 'Left', '--option', 'Right', '--recommend', '2', '--for', pause);
+    s.sp('assume', 'Which font for the score?', '--chose', 'The pixel font', '--why', 'it matches the title screen');
+    s.sp('assume', 'How loud is the coin sound?', '--chose', 'Half volume', '--why', 'it plays often');
+    const loose = s.id('capture', 'the menu music loops too soon');
+    const badge = page.locator('#needcount');
+    await badge.filter({ hasText: '4' }).waitFor();
+    await page.getByRole('button', { name: /^Needs you/ }).click();
+    const needs = page.locator('#needs');
+    await needs.locator('.need', { hasText: 'Pause on the left, or the right?' }).getByRole('button', { name: 'Right' }).click();
+    await until('the question is answered', () => s.json('review').questions.length === 0);
+    await needs.locator('.need', { hasText: 'Pause on the left, or the right?' }).waitFor({ state: 'detached' });
+    await needs.locator('.need', { hasText: 'Which font for the score?' }).getByRole('button', { name: 'Fine' }).click();
+    await until('one call is accepted', () => s.json('review').assumptions.length === 1);
+    await needs.locator('.need', { hasText: 'Which font for the score?' }).waitFor({ state: 'detached' });
+    const loud = needs.locator('.need', { hasText: 'How loud is the coin sound?' });
+    await loud.getByPlaceholder('No: say what you want instead').fill('quieter, a quarter');
+    await loud.getByRole('button', { name: 'Overrule' }).click();
+    await until('the other is overruled, and the rework is filed', () => s.json('review').assumptions.length === 0 && s.sp('list').includes('Rework'));
+    await needs.locator('.need', { hasText: 'the menu music loops too soon' }).getByRole('button', { name: 'Make it a thread' }).click();
+    await until('the note is a thread', () => s.json('show', loose).item.status === 'filed');
+    await needs.getByText('Nothing needs you. Agents have what they need.').waitFor();
+    assert.equal(await badge.isVisible(), false, 'the count goes when nothing is waiting');
+    await shot(page, '5-needs');
+
     assert.equal(state(pause), 'proposed', 'what was never moved to build was never built');
     // One refusal is expected: the request sent with the left-over token, before the page fetched a new one.
     assert.deepEqual(problems, ['Failed to load resource: the server responded with a status of 403 (Forbidden)'], 'the page logged no other errors');

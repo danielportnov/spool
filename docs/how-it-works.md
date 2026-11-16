@@ -70,7 +70,7 @@ backlog. The chat carries on as it was.
 
 ## The page
 
-`spool page` starts a small server on your machine and opens a board. It has two views.
+`spool page` starts a small server on your machine and opens a board. It has three views.
 
 **Board.** Four columns: Backlog, Build, Building, Done.
 
@@ -85,6 +85,11 @@ backlog. The chat carries on as it was.
 
 **Backlog.** For planning: sprints stacked above the backlog. Create a sprint, drag threads into it,
 press **▶ Play sprint**.
+
+**Needs you.** Every decision waiting on you that is not a thread, with a count on the tab:
+questions (answer with a button, or in your own words), plans wanting a go-ahead, the calls agents
+made by themselves (**Fine**, or overrule one in a sentence and the rework is filed), new skills, and
+notes nobody filed.
 
 **A ticket.** Click any card. On the left, the thread as a conversation: what you said, what the
 agent answered and which agent it was, the moves in between, and a box to reply. An audit's or a

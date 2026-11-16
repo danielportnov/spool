@@ -21,9 +21,11 @@ the chat can stay short.
 
 What they can do on it:
 
-The page has two views. **Board** is four columns: Backlog, Build, Building,
+The page has three views. **Board** is four columns: Backlog, Build, Building,
 Done. **Backlog** is for planning: sprints to fill and play, and under them
-everything that is in no sprint.
+everything that is in no sprint. **Needs you** is every decision waiting on
+them that is not a thread: questions, plans wanting a go-ahead, calls agents
+made by themselves, new skills, notes nobody filed. Each is cleared there.
 
 | On the page | What it does |
 | --- | --- |

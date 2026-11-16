@@ -190,6 +190,17 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.match(html, /\[hidden\] \{ display: none !important; \}/, 'the view that is not up is really gone, not left above the other');
     assert.match(html, /id="search"/);
 
+    // Needs you: what waits on the human that is not a thread, with what each is holding up.
+    b = await board();
+    assert.deepEqual(b.needs.calls.map((c: any) => [c.title, c.choice, c.why]), [['Where does mute live?', 'Settings', 'it is where sound is']]);
+    assert.deepEqual([b.needs.questions.length, b.needs.plans.length, b.needs.skills.length], [0, 0, 0]);
+    assert.deepEqual(b.needs.notes.map((n: any) => n.text), ['add a mute button to settings']);
+    assert.equal((await post('approve', { id: b.needs.calls[0].id })).status, 200);
+    assert.equal((await post('note-aside', { id: b.needs.notes[0].id })).status, 200);
+    b = await board();
+    assert.deepEqual([b.needs.calls.length, b.needs.notes.length], [0, 0]);
+    assert.equal((await post('approve', { id: 'x-nope' })).status, 400);
+
     // An audit's report is read on its ticket, in full.
     const audit = s.id('audit', 'How does it feel to a new player?');
     s.sp('build', audit);

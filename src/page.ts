@@ -15,7 +15,7 @@
  *
  * Everything the page does is an ordinary command run in-process, as the
  * human: `build`, `propose`, `capture`, `task`, `file`, `edit`, `answer`, `approve`,
- * `sprint`, `play`. So the page can do
+ * `sprint`, `play`, `drop`. So the page can do
  * nothing the command line cannot, and every rule the commands enforce holds
  * here too.
  *
@@ -35,7 +35,7 @@ import type { Bare, Result } from './commands.ts';
 import type { Ctx } from './context.ts';
 import { type Item, SpoolError, oneLine, reportFile, splitBody } from './model.ts';
 import { age, sprintAbout, tableRows } from './render.ts';
-import { blockers, children, docket, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
+import { blockers, children, dependents, docket, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
 import { Workspace } from './store.ts';
 
 type Column = 'proposed' | 'build' | 'building' | 'done';
@@ -94,6 +94,37 @@ interface Thread {
   questions: { id: string; title: string; status: string; choice: string }[];
 }
 
+/** What waits on the human besides threads: the decisions the page exists to put in front of them. */
+interface Needs {
+  questions: { id: string; title: string; options: string[]; recommend: number | null; why: string; holds: string[] }[];
+  plans: { id: string; title: string; summary: string; parts: string[] }[];
+  calls: { id: string; title: string; choice: string; why: string; by: string; holds: string[] }[];
+  skills: { id: string; name: string; about: string }[];
+  notes: { id: string; text: string }[];
+}
+
+function needsOf(ws: Workspace, spool: Item['spool']): Needs {
+  const queue = review(ws, spool);
+  // The first line of a decision is the reason given for it, unless it is only the pointer to its thread.
+  const why = (d: Item): string => {
+    const line = splitBody(d.body).main.split('\n')[0] ?? '';
+    return line.startsWith('For [[') ? '' : oneLine(line, 240);
+  };
+  const holds = (d: Item): string[] => dependents(ws, d).map((t) => oneLine(t.title, 70));
+  return {
+    questions: queue.questions.map((d) => ({ id: d.id, title: d.title, options: d.options, recommend: d.recommend ?? null, why: why(d), holds: holds(d) })),
+    plans: queue.plans.map((t) => ({
+      id: t.id,
+      title: t.title,
+      summary: t.summary ?? '',
+      parts: children(ws, t).filter((k) => k.status !== 'dropped').map((k) => oneLine(k.title, 90)),
+    })),
+    calls: queue.assumptions.map((d) => ({ id: d.id, title: d.title, choice: d.choice ?? '', why: why(d), by: d.by ?? '', holds: holds(d) })),
+    skills: queue.skills.map((k) => ({ id: k.id, name: k.title, about: oneLine(splitBody(k.body).main, 200) })),
+    notes: queue.inbox.map((n) => ({ id: n.id, text: splitBody(n.body).main })),
+  };
+}
+
 interface Post {
   at: string;
   who: string;
@@ -134,6 +165,8 @@ interface Board {
   versions: string[];
   /** How many finished threads the human has marked complete, shown or not. */
   history: number;
+  /** Everything waiting on the human that is not a thread to build. */
+  needs: Needs;
   /** The sprints, oldest first: what is in each and how far along it is. */
   sprints: { id: string; name: string; status: string; goal: string; why: string; doneWhen: string; total: number; done: number; waiting: number }[];
   columns: Record<Column, Card[]>;
@@ -284,6 +317,7 @@ export function board(ws: Workspace, project?: string): Board {
     tags: [...new Set(all.flatMap((t) => t.tags))].sort(),
     versions: [...new Set(all.map((t) => t.version ?? '').filter(Boolean))].sort().reverse(),
     history: done.filter((t) => t.reviewed).length,
+    needs: needsOf(ws, spool),
     sprints: ws.items
       .filter((i) => i.kind === 'sprint' && i.spool === spool && i.status !== 'dropped')
       .sort((a, b) => a.created.localeCompare(b.created))
@@ -439,6 +473,31 @@ function change(ctx: Ctx, action: string, body: Body, project?: string): { ok: b
     if (typeof body.version === 'string') argv.push(`--version=${body.version.trim() || 'none'}`);
     if (argv.length === 2) return { ok: false, text: 'nothing to change' };
     return act(ctx, argv);
+  }
+  if (action === 'approve') {
+    // "Fine", on a call an agent made, a plan, or a new skill: the human accepting it.
+    return /^[dts]-[a-z0-9]+$/.test(id) ? act(ctx, ['approve', id]) : { ok: false, text: 'which one?' };
+  }
+  if (action === 'approve-calls') {
+    // Every call agents made by themselves, accepted in one go. Plans and threads are not swept in.
+    const ws = Workspace.open(ctx.cwd, ctx.now);
+    let ids: string[];
+    try {
+      ids = review(ws, project ? ws.project(project) : ws.home).assumptions.map((d) => d.id);
+    } finally {
+      ws.close();
+    }
+    return ids.length ? act(ctx, ['approve', ...ids]) : { ok: true, text: 'Nothing left to look at.' };
+  }
+  if (action === 'drop-skill') {
+    return /^s-[a-z0-9]+$/.test(id) ? act(ctx, ['drop', id, '--message=dropped on the page']) : { ok: false, text: 'which skill?' };
+  }
+  if (action === 'note-thread' || action === 'note-aside') {
+    // A note nobody filed: make it a thread in the backlog, or set it aside.
+    if (!/^n-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which note?' };
+    if (action === 'note-aside') return act(ctx, ['file', id, '--drop', '--message=set aside on the page']);
+    const title = text(body.title);
+    return title ? act(ctx, ['task', '--from', id, '--', oneLine(title.split('\n')[0]!, 110)]) : { ok: false, text: 'it needs a name' };
   }
   if (action === 'complete') {
     // "Mark as complete" is the human saying the change is good: the same as approving it.
@@ -657,6 +716,19 @@ const PAGE = String.raw`<!doctype html>
   .aboutform { padding: 0 6px 10px; display: grid; gap: 6px; max-width: 720px; }
   .aboutform input { padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 
+  /* what needs you: the decisions that are not threads */
+  .badge0 { display: inline-block; margin-left: 6px; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--hot); color: #fff; font-size: 11px; font-weight: 700; text-align: center; }
+  #needs { padding: 12px 20px 32px; max-width: 900px; }
+  #needs h2 { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--soft); margin: 18px 4px 8px; display: flex; gap: 10px; align-items: center; }
+  #needs h2 button { font-size: 12px; padding: 2px 9px; text-transform: none; letter-spacing: 0; }
+  .need { background: var(--panel); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; box-shadow: var(--shadow); }
+  .need .what { font-weight: 600; overflow-wrap: anywhere; }
+  .need .more { color: var(--soft); font-size: 13px; margin-top: 4px; overflow-wrap: anywhere; }
+  .need .chose { margin-top: 6px; }
+  .need .acts { flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .need .acts input { flex: 1 1 220px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
+  .need ul { margin: 6px 0 0; padding-left: 18px; color: var(--soft); font-size: 13px; }
+
   /* the ticket */
   #veil { position: fixed; inset: 0; background: rgba(0, 0, 0, .35); z-index: 3; }
   #thread { position: fixed; z-index: 4; top: 5vh; left: 50%; transform: translateX(-50%); width: min(1000px, 96vw); max-height: 90vh; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow-y: auto; padding: 22px 24px 26px; box-shadow: 0 24px 64px rgba(0, 0, 0, .3); }
@@ -714,6 +786,7 @@ const PAGE = String.raw`<!doctype html>
   <div class="tabs">
     <button class="tab" data-view="board">Board</button>
     <button class="tab" data-view="backlog">Backlog</button>
+    <button class="tab" data-view="needs">Needs you<span class="badge0" id="needcount" hidden></span></button>
   </div>
   <input class="search" id="search" placeholder="Search threads   /" autocomplete="off">
 </div>
@@ -721,6 +794,7 @@ const PAGE = String.raw`<!doctype html>
 <div id="quick"></div>
 <main id="board"></main>
 <main id="backlog" hidden></main>
+<main id="needs" hidden></main>
 <div id="veil" hidden></div>
 <aside id="thread" hidden></aside>
 <div id="said"></div>
@@ -743,10 +817,10 @@ let current = null;
 let busy = false;
 // Which view is up: the board, or the backlog with its sprints.
 let view = 'board';
-try { view = localStorage.getItem('spool-view') === 'backlog' ? 'backlog' : 'board'; } catch (e) {}
+try { view = ['backlog', 'needs'].includes(localStorage.getItem('spool-view')) ? localStorage.getItem('spool-view') : 'board'; } catch (e) {}
 // A link can name the view: /?view=backlog
-if (/[?&]view=backlog\b/.test(location.search)) view = 'backlog';
-if (/[?&]view=board\b/.test(location.search)) view = 'board';
+const asked = /[?&]view=(board|backlog|needs)\b/.exec(location.search);
+if (asked) view = asked[1];
 // The thread that is open, if one is, and notes begun but not yet added.
 let openId = null;
 const drafts = new Map();
@@ -1118,6 +1192,65 @@ function drawBacklog(b) {
     ...finished.map((s) => sprintNode(s, b)));
 }
 
+// ---- what needs you: questions, plans, the calls agents made, new skills, unfiled notes
+
+const needCount = (b) => b.needs.questions.length + b.needs.plans.length + b.needs.calls.length + b.needs.skills.length + b.needs.notes.length;
+
+// A box to say something else in, and the button that sends it.
+function sayNode(placeholder, label, send) {
+  const box = el('input', { placeholder, onkeydown: (e) => { if (e.key === 'Enter' && box.value.trim()) send(box.value.trim()); } });
+  return [box, el('button', { onclick: () => { if (box.value.trim()) send(box.value.trim()); } }, label)];
+}
+
+function drawNeeds(b) {
+  const n = b.needs;
+  const holds = (list) => list.length > 0 && el('div', { class: 'more' }, 'Holding up: ' + list.join(' · '));
+  const section = (title, items, extra) => items.length > 0 && [el('h2', {}, title + ' · ' + items.length, extra), items];
+  document.getElementById('needs').replaceChildren(...[
+    needCount(b) === 0 && el('div', { class: 'empty' }, 'Nothing needs you. Agents have what they need.'),
+
+    section('❓ Questions', n.questions.map((q) => el('div', { class: 'need' },
+      el('div', { class: 'what' }, q.title),
+      q.why && el('div', { class: 'more' }, q.why),
+      holds(q.holds),
+      el('div', { class: 'acts' },
+        q.options.map((o, i) => el('button', { class: q.recommend === i + 1 ? 'rec' : '', title: q.recommend === i + 1 ? 'Recommended' : '',
+          onclick: () => post('answer', { id: q.id, choice: String(i + 1) }, 'Answered: ' + o) }, o)),
+        sayNode('Or say what you want', 'Answer', (words) => post('answer', { id: q.id, choice: words }, 'Answered')))))),
+
+    section('🗺 Plans waiting for your go-ahead', n.plans.map((plan) => el('div', { class: 'need' },
+      el('div', { class: 'what' }, plan.title),
+      plan.summary && el('div', { class: 'more' }, plan.summary),
+      plan.parts.length > 0 && el('ul', {}, plan.parts.map((part) => el('li', {}, part))),
+      el('div', { class: 'acts' },
+        el('button', { class: 'go', onclick: () => post('approve', { id: plan.id }, 'The plan has your go-ahead') }, 'Go ahead'),
+        el('button', { onclick: () => openThread(plan.id) }, 'Read the plan'))))),
+
+    section('🧾 Calls agents made', n.calls.map((call) => el('div', { class: 'need' },
+      el('div', { class: 'what' }, call.title),
+      el('div', { class: 'chose' }, '→ ' + call.choice),
+      call.why && el('div', { class: 'more' }, call.why),
+      holds(call.holds),
+      el('div', { class: 'acts' },
+        el('button', { onclick: () => post('approve', { id: call.id }, 'Accepted') }, 'Fine'),
+        sayNode('No: say what you want instead', 'Overrule', (words) => post('answer', { id: call.id, choice: words }, 'Overruled. The rework is in the backlog.'))))),
+      n.calls.length > 1 && el('button', { onclick: () => post('approve-calls', {}, 'All accepted') }, 'All fine')),
+
+    section('📘 New skills agents wrote', n.skills.map((skill) => el('div', { class: 'need' },
+      el('div', { class: 'what' }, skill.name),
+      skill.about && el('div', { class: 'more' }, skill.about),
+      el('div', { class: 'acts' },
+        el('button', { onclick: () => post('approve', { id: skill.id }, 'Kept') }, 'Keep'),
+        el('button', { onclick: () => post('drop-skill', { id: skill.id }, 'Dropped') }, 'Drop'))))),
+
+    section('✎ Notes nobody filed', n.notes.map((note) => el('div', { class: 'need' },
+      el('pre', {}, note.text),
+      el('div', { class: 'acts' },
+        el('button', { class: 'go', onclick: () => post('note-thread', { id: note.id, title: note.text }, 'It is a thread in the backlog') }, 'Make it a thread'),
+        el('button', { onclick: () => post('note-aside', { id: note.id }, 'Set aside') }, 'Set aside'))))),
+  ].flat(3).filter(Boolean));
+}
+
 // ---- the ticket
 
 const whoIs = (who) => (who === 'human' ? 'You' : who === 'agent' ? 'An agent' : who === 'loop' ? 'The loop' : who || 'Someone');
@@ -1288,9 +1421,14 @@ function draw(b) {
     only && only.kind !== 'sprint' && el('button', { class: 'pill on', onclick: () => narrow(only.kind, only.value) }, (only.kind === 'tag' ? '#' : 'v') + only.value + '  ✕'),
   ].filter(Boolean));
 
+  const waiting = needCount(b);
+  const badge = document.getElementById('needcount');
+  badge.textContent = String(waiting);
+  badge.hidden = waiting === 0;
   document.getElementById('board').hidden = view !== 'board';
   document.getElementById('backlog').hidden = view !== 'backlog';
-  if (view === 'board') drawBoard(b); else drawBacklog(b);
+  document.getElementById('needs').hidden = view !== 'needs';
+  if (view === 'board') drawBoard(b); else if (view === 'backlog') drawBacklog(b); else drawNeeds(b);
   const box = document.querySelector('.adding textarea, .adding input');
   if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
   drawThread(b);
