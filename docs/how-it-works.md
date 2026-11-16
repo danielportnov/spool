@@ -120,7 +120,9 @@ agent answered and which agent it was, the moves in between, and a box to reply.
 plan's report is there in full. On the right, its fields: status, priority, difficulty, tags,
 version, sprint. Everything is editable. A finished ticket shows **what changed** (the files, the lines, the patch)
 and ends with **Mark as complete** and **Undo this thread**, which takes back exactly that thread's
-commits with your reason. A ticket has its own address (`#t-4kq7`): the link icon beside its id
+commits with your reason. While the page's own agent builds a thread, its card says the model and
+effort it was started with, and its ticket names the agent's session with a button that copies
+`claude --resume <session>`, to open it in a terminal. A ticket has its own address (`#t-4kq7`): the link icon beside its id
 copies it, and a click on a thread's id, on a card, a row or a ticket, copies the id. And
 `?view=backlog` opens the Backlog view.
 

@@ -56,6 +56,7 @@ import { dirtyPaths, discardPaths, git, repoRoot } from './git.ts';
 import { type Item, SpoolError, addLog, isPlan, oneLine, reportFile, splitBody, timestamp, whyOf } from './model.ts';
 import { prime } from './prime.ts';
 import { age, brief, paint, sprintAbout, tableRows } from './render.ts';
+import { type Run, runOf } from './run.ts';
 import { blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
 import { atOnceIn, sharedFolderWhy } from './slots.ts';
 import { Workspace } from './store.ts';
@@ -105,6 +106,8 @@ interface Card {
   live: Live | null;
   /** The folder it is built in, from the project's, where it has a git worktree of its own; empty where it is the project's own folder. */
   worktree: string;
+  /** What its agent was started with, where the page started one: the model, the effort, and its session. */
+  run: Run | null;
   /** Why it cannot move on by itself, where it cannot. */
   waiting: Waiting | null;
 }
@@ -476,6 +479,7 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     question: asked ? { id: asked.id, title: asked.title, options: asked.options, recommend: asked.recommend ?? null } : null,
     live: column === 'building' ? liveNow(task) : null,
     worktree: task.worktree ?? '',
+    run: column === 'building' || column === 'done' ? runOf(log) : null,
     waiting: task.status === 'done' || task.status === 'dropped' ? null : waitingOf(ws, task, thread.steps, asked),
   };
 }
@@ -2486,6 +2490,8 @@ SYSTEM_DARK.addEventListener('change', paintTheme);
   .byline .model { background: var(--chip); border-radius: 999px; padding: 0 8px; font-size: 12px; color: var(--soft); }
   .byline .at, .sep { color: var(--soft); font-size: 13px; }
   .byline .stop { margin-left: auto; align-self: center; }
+  .livepost .session { margin-top: 6px; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--soft); }
+  .note .ran { white-space: nowrap; }
   .post pre { margin: 2px 0 0; line-height: 1.5; }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; background: var(--chip); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
   /* The agent at work: a calm pulse on its avatar, and a caret after what it is doing now. */
@@ -2807,6 +2813,19 @@ function facts(c) {
     (c.column === 'building' || c.done) && c.thread.by && smallAvatar(c.thread.by),
   ];
 }
+// The model and effort its agent was started with, where the page started it, and why they were chosen on hover.
+function ranNode(c, cls) {
+  const said = c.run && [c.run.model, c.run.effort].filter(Boolean).join(' · ');
+  if (!said) return null;
+  return el('span', { class: cls, title: 'Started with ' + said + (c.run.why ? '. Why: ' + c.run.why : '') }, said);
+}
+// A button that puts a command on the clipboard, for him to paste into a terminal.
+function copyNode(command, label) {
+  return el('button', { class: 'act', title: 'Copies: ' + command, onclick: () => {
+    const done = () => say('Copied: ' + command);
+    try { navigator.clipboard.writeText(command).then(done, () => say(command)); } catch (e) { say(command); }
+  } }, label);
+}
 function smallAvatar(who) {
   const node = avatar(who);
   node.classList.add('who22');
@@ -2911,6 +2930,13 @@ function spotOf(col, id) {
   return below ? { before: below.dataset.id } : { after: others[others.length - 1].dataset.id };
 }
 
+// The line under a card's title, and on a Building card what its agent was started with, quietly after it.
+function noteNode(c) {
+  const ran = c.column === 'building' && ranNode(c, 'ran');
+  if (c.done || (!c.note && !ran)) return null;
+  return el('div', { class: 'note' }, c.note, c.note && ran ? ' · ' : '', ran);
+}
+
 function cardNode(c, b) {
   // Any card can be dragged to any column, at any time.
   const node = el('div', { class: 'card' + (c.complete ? ' past' : ''), draggable: 'true', 'data-id': c.id },
@@ -2918,7 +2944,7 @@ function cardNode(c, b) {
     el('div', { class: 'title', onclick: () => openThread(c.id) }, c.title),
     el('div', { class: 'chips' }, chipsOf(c, b)),
     c.why && !c.done && el('div', { class: 'why', title: c.why }, c.why),
-    c.note && !c.done && el('div', { class: 'note' }, c.note),
+    noteNode(c),
     liveLine(c, b),
     c.question && el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title),
       c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '',
@@ -3447,13 +3473,15 @@ function livePost(c, b) {
   const s = speaker(who);
   const face = avatar(who);
   face.append(el('span', { class: 'pulse' }));
+  const session = c.run && c.run.session;
   return el('div', { class: 'post livepost' }, face,
     el('div', {},
-      el('div', { class: 'byline' }, el('b', {}, s.name), s.model && el('span', { class: 'model' }, s.model), el('span', { class: 'sep' }, '·'),
+      el('div', { class: 'byline' }, el('b', {}, s.name), ranNode(c, 'model') || (s.model && el('span', { class: 'model' }, s.model)), el('span', { class: 'sep' }, '·'),
         el('span', { class: 'at' }, 'working for ', el('span', { 'data-since': c.live.since }, took(c.live.since))),
         c.worktree && el('span', { class: 'at', title: 'Its own git worktree: a checkout apart from yours, that lands on yours when it is done' }, ' · in ' + c.worktree),
         run && stopNode(c, 'act stop', '■ Stop the agent')),
       el('div', { class: 'livenow' }, el('span', { class: 'nowtext' }, (run && run.lines.at(-1)) || c.live.note || 'starting…'), el('span', { class: 'caret' })),
+      session && el('div', { class: 'session' }, 'Session ', el('code', { title: session }, session.slice(0, 8)), copyNode('claude --resume ' + session, 'Copy the command that opens it')),
       run && el('div', { class: 'livelog', 'data-keep': 'livelog', 'data-follow': 'true' }, run.lines.join('\n') || 'starting…')));
 }
 
@@ -3750,12 +3778,12 @@ function threadNode(c, b) {
   const sizeSays = (mine, suggested) => !mine && by && suggested && el('div', { class: 'hint' }, 'Its size suggests ' + suggested);
   const fixed = c.done || c.column === 'building';
   const modelPick = fixed
-    ? el('div', { class: 'val' }, cap(c.model) || (by ? cap(by) + ' decides' : cap(c.suggest.model)) || 'As your agent runs')
+    ? el('div', { class: 'val' }, cap(c.run && c.run.model) || cap(c.model) || (by ? cap(by) + ' decides' : cap(c.suggest.model)) || 'As your agent runs')
     : [choose([['', leave('As your agent runs', cap(c.suggest.model))], ...models.map((m) => [m, cap(m)])], c.model,
         (v) => save({ model: v }, v ? 'Model: ' + cap(v) : by ? cap(by) + ' decides the model' : 'Model as its size suggests')),
       sizeSays(c.model, cap(c.suggest.model))];
   const effortPick = fixed
-    ? el('div', { class: 'val' }, c.effort || (by ? cap(by) + ' decides' : c.suggest.effort) || 'Default effort')
+    ? el('div', { class: 'val' }, (c.run && c.run.effort) || c.effort || (by ? cap(by) + ' decides' : c.suggest.effort) || 'Default effort')
     : [choose([['', leave('Default effort', c.suggest.effort)], ...EFFORTS.map((e) => [e, e])], c.effort,
         (v) => save({ effort: v }, v ? 'Effort: ' + v : by ? cap(by) + ' decides the effort' : 'Effort as its size suggests')),
       sizeSays(c.effort, c.suggest.effort)];

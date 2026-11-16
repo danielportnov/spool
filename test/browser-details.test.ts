@@ -1,5 +1,6 @@
 /**
- * The small details of a ticket and a card, in a real browser: what the model boxes say.
+ * The small details of a ticket and a card, in a real browser: what the model boxes say, and who
+ * is building a thread, with what.
  *
  * It uses the Chrome already on the machine, like test/browser.test.ts, and is skipped where
  * there is none. Set SPOOL_SHOTS to a folder for pictures, light and dark.
@@ -83,8 +84,9 @@ test('the details of a ticket and a card', async (t) => {
   s.sp('init', '--name', 'skyhop', '--gate');
   const jump = s.id('task', 'Tighten the jump arc', '-s', 's');
 
-  const { child, url } = await startPage(s, 19500 + (process.pid % 1500), '--agent', `${claude(s)} -p`);
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const { child, url } = await startPage(s, 19500 + (process.pid % 1500), '--run', '--agent', `${claude(s)} -p`);
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'] });
+  const page = await context.newPage();
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(String(error)));
   page.on('console', (message) => {
@@ -121,6 +123,25 @@ test('the details of a ticket and a card', async (t) => {
     assert.equal(await effort.locator('.hint').count(), 1, 'the effort is still left to Fable');
     await model.locator('select').selectOption('');
     await until('the model is handed back', () => !/^model: /m.test(s.item(jump)));
+
+    // Who is building it: the model and effort beside the agent's mark on its card, and on its
+    // ticket the session, with the command that opens it a click from the clipboard.
+    s.sp('build', jump);
+    const card = page.locator(`#board [data-column="building"] .card[data-id="${jump}"]`);
+    await until('Fable has chosen and the agent has its session', () => /session 5f2c9e1a/.test(s.item(jump)), 300);
+    await until('the card says what it runs with', async () => (await card.locator('.ran').count()) === 1 && (await card.locator('.ran').innerText()) === 'opus · xhigh');
+    assert.match((await card.locator('.ran').getAttribute('title'))!, /^Started with opus · xhigh\. Why: a small change, worth care$/);
+    await open(jump);
+    const working = ticket.locator('.livepost');
+    await until('the ticket names the session', async () => (await working.locator('.session').count()) === 1);
+    assert.equal(await working.locator('.byline .model').innerText(), 'opus · xhigh');
+    assert.equal(await working.locator('.session code').innerText(), '5f2c9e1a');
+    await working.locator('.session button').click();
+    assert.equal(await page.evaluate('navigator.clipboard.readText()'), 'claude --resume 5f2c9e1a-77b0-4c1e-9a3d-0e6b2f4c8d11');
+    assert.deepEqual([await field('Model').locator('.val').innerText(), await field('Effort').locator('.val').innerText()], ['Opus', 'xhigh']);
+    await shot(page, 'details-building');
+    await page.keyboard.press('Escape');
+    await shot(page, 'details-building-card');
 
     assert.deepEqual(problems, [], 'the page logged no errors');
   } finally {
