@@ -64,7 +64,9 @@ starts, and the agents the page starts with no chat. They all work by the same w
 
 **`/spool-init [folder]`** sets a project up: creates `.spool/`, works out the project's name and
 one-line description from its README, turns the gate on, and tells you what agents may decide by
-themselves (the policy, below). Run where Spool is already set up, it changes nothing.
+themselves (the policy, below). It asks who builds, the board by itself or a chat, and ends with
+`spool doctor`. Someone only trying Spool is offered `spool demo` instead. Run where Spool is
+already set up, it changes nothing.
 
 **`/spool [what you want]`** steers the spool from a chat. This is the one you use most. It opens
 the board ("open the board"), moves threads ("build that one", "not yet", "do the jump first"),

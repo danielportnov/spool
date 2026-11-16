@@ -102,8 +102,10 @@ In Claude Code, with your project open, type:
 ```
 
 Claude reads your project, creates a `.spool/` folder in it for the threads, and tells you what
-agents may decide for themselves. Claude asks before it runs a command: when it asks about `spool`,
-choose **Yes, and don't ask again**.
+agents may decide for themselves. It asks who builds: the board by itself (**Headless**), or a
+chat where you can watch (**Chat**). It ends by checking that everything a run needs is there.
+Claude asks before it runs a command: when it asks about `spool`, choose **Yes, and don't ask
+again**.
 
 **5. Open the board, and build something**
 
@@ -114,10 +116,11 @@ choose **Yes, and don't ask again**.
 A board opens in your browser. Press **+ Add** under Backlog and type what you want, in your own
 words. Press **▶ Build** on it.
 
-Who builds it is your pick, at the top of the board. **Chat**: type `/spool-loop` in the chat and
-Claude builds it there, where you can watch; keep that chat open while you want things built.
-**Headless**: switch **Agents** on and the board builds it by itself, with [no chat at all](#no-chat-at-all).
-Either way the card moves to Building, then Done.
+Who builds it is what you picked at set-up, and you can change it at the top of the board.
+**Chat**: type `/spool-loop` in the chat and Claude builds it there, where you can watch; keep that
+chat open while you want things built. **Headless**: switch **Agents** on and the board builds it
+by itself, with [no chat at all](#no-chat-at-all). Either way the card moves to Building, then
+Done.
 
 **If something does not work**
 

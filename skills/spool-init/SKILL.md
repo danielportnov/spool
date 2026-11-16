@@ -1,12 +1,16 @@
 ---
 name: spool-init
-description: Set Spool up in this folder or repository so agents can work it on their own - create the work queue, describe the project, agree what agents may decide without asking, and take the first piece of work. Use for /spool-init [folder], or when the user says "set up spool here", "start a spool", "add this project to spool", "set up spool for <a folder>", or runs another Spool skill where no .spool/ exists.
+description: Set Spool up in this folder or repository so agents can work it on their own - create the work queue, describe the project, agree what agents may decide without asking, pick who builds, and take the first piece of work. Use for /spool-init [folder], or when the user says "set up spool here", "start a spool", "add this project to spool", "set up spool for <a folder>", or runs another Spool skill where no .spool/ exists.
 ---
 
 # Spool init
 
 Get this project from nothing to agents working it, in one short conversation.
 `spool` is your tool; the human should not have to type anything but answers.
+
+Only trying Spool, not setting this project up? Offer `spool demo --open`: a
+throwaway project with threads in its spool, and its board in their browser.
+None of their own code is touched.
 
 1. **Check the engine.** `spool --version`. Not found? It is a one-time install
    on this machine. Ask before running it, since it installs a global package:
@@ -61,30 +65,36 @@ Get this project from nothing to agents working it, in one short conversation.
 6. **Agree the goals.** Ask in one question what this project is for and the
    two or three things it is heading towards. Write their answer in plain
    words, a `For:` line and a line for each, with `spool goals --edit -`.
-   Every agent reads it first, and the loop keeps it true with them. No
-   answer yet? Leave the starter `.spool/goals.md` for another day.
+   Every agent reads it first. No answer yet? Leave the starter
+   `.spool/goals.md` for another day.
 
-7. **Offer a check.** Find the command that proves a change is sound here:
+7. **Ask who builds,** in one line. **Headless**: the board builds what is in
+   Build by itself, with no chat open. **Chat**: a chat builds it, where they
+   can watch and step in. Run `spool builder headless` or `spool builder chat`
+   for their pick. Their choice; it stays Headless until they make one.
+   Refused, because they chose the lock? They pick it on the board.
+
+8. **Offer a check.** Find the command that proves a change is sound here:
    the project's tests, a build, a lint (`npm test`, `cargo test`, `pytest`).
    Tell them which you found and offer it in a line: with it set, no thread can
    be marked done unless it passes. On their yes: `spool checks "<command>"`.
    It is kept on their machine, not in the project. None to be found? Skip this.
-
-8. **Offer a ping.** Agents stop for the human's calls, so it helps if the
-   human hears about them. Offer once to set a notifier: a shell command under
-   `notify` in `~/.config/spool/config.json`, run whenever an agent asks them
-   something. Skip it if they are not interested.
 
 9. **Take the first work.** If they have already given an idea, a wish or a
    bug for this project in this chat, capture and file it now by the
    `spool-record` rules; what they asked of you about the setup is not one.
    Otherwise ask what is on their mind for this project.
 
+10. **Check it.** `spool doctor` says what a run still needs, with the line
+    that fixes each: a git repository with a commit, an agent command that
+    may edit files (Headless builds with it), a notifier, the skills. Fix
+    what is yours to fix, and tell them the rest, a line each.
+
 End with what happens next, in one line each:
 
-- `/spool-loop` to start the loop: it builds what they have moved to build, one
-  thread after another, and tells them when it is done or needs them.
+- `/spool` to steer it from any chat: "open the board", "build that one",
+  "catch me up", "why is nothing building"
+- `/spool-loop` to make a chat the builder, if they picked Chat. With
+  Headless, they switch **Agents** on at the top of the board instead
 - `/spool-record` in front of anything they type or say, in any chat, to
   have that message filed as threads
-- `/spool` to steer it from a chat: "open the board", "build that one",
-  "catch me up", "why is nothing building"

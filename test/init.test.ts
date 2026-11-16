@@ -162,7 +162,7 @@ test('the skills agree on the gate, the check and the spec', () => {
   assert.match(worker, /`spool done` runs it first and refuses if it fails[\s\S]*never switch it off or work round it\./);
   // The gate is turned on at set-up, and the lock is theirs to choose.
   assert.match(shipped('spool-init'), /Offer the lock once[\s\S]*Their choice; do not pick for them\./);
-  assert.match(shipped('spool-init'), /--gate[\s\S]*`\/spool-loop` to start the loop: it builds what they have moved to build/);
+  assert.match(shipped('spool-init'), /--gate[\s\S]*nothing is built until they move it to build\. Tell them so in a line\./);
   // Every thread is filed with its spec, and as proposed.
   assert.match(shipped('spool-record'), /\*\*Give each thread its spec\*\*[\s\S]*What: [^\n]*\n {7}Why: [^\n]*\n {7}Done when: /);
   assert.match(shipped('spool-record'), /A new thread is proposed, not started\./);
