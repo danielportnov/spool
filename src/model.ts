@@ -375,6 +375,11 @@ export function isClosed(item: Item): boolean {
   return ['done', 'decided', 'dropped', 'filed'].includes(item.status);
 }
 
+/** The first line of something written over several, such as a summary with a list in it: for the places that show one line. */
+export function firstLine(text: string): string {
+  return text.trim().split('\n')[0]!.trim();
+}
+
 export function oneLine(text: string, max = 72): string {
   const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length <= max ? flat : `${flat.slice(0, max - 1).trimEnd()}…`;

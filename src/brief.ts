@@ -12,7 +12,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { git, repoRoot } from './git.ts';
-import { type Item, SpoolError, oneLine, splitBody } from './model.ts';
+import { type Item, SpoolError, firstLine, oneLine, splitBody } from './model.ts';
 import { type Paint, age } from './render.ts';
 import { JOURNAL } from './journal.ts';
 import { picturesOf } from './pictures.ts';
@@ -326,7 +326,7 @@ export function morningText(ws: Workspace, b: Brief, p: Paint): string {
     }
     for (const t of needs.plans) {
       out.push(line('  📋 ', `plan: ${t.title}`, `${plural(t.parts, 'part')} ${t.parts === 1 ? 'waits' : 'wait'} for your go-ahead · ${t.id}${where(t.project)}`));
-      if (t.summary) out.push(line('     ', t.summary));
+      if (t.summary) out.push(line('     ', firstLine(t.summary)));
       out.push(p.dim(`     spool approve ${t.id}`));
     }
     for (const s of needs.stopped) {
@@ -340,7 +340,8 @@ export function morningText(ws: Workspace, b: Brief, p: Paint): string {
     out.push('', `🟡 ${p.bold('WORTH A LOOK')}  ${p.dim(String(b.worthALook.length))}`);
     b.worthALook.forEach((t, i) => {
       out.push(line(`  ${i + 1}. `, t.title, `${t.id}${where(t.project)}`));
-      if (t.summary) out.push(line('     ', t.summary));
+      // Worth a look shows what changed whole, a list in it line by line.
+      if (t.summary) out.push(...t.summary.split('\n').map((l) => (l.trim() ? line('     ', l) : '')));
       out.push(line('     why: ', t.reasons.join(' · ')));
       if (t.steps.length) out.push('     to check:', ...t.steps.map((s, n) => line(`       ${n + 1}) `, s)));
     });
@@ -352,7 +353,7 @@ export function morningText(ws: Workspace, b: Brief, p: Paint): string {
     for (const g of b.alsoShipped) {
       if (g.sprint) out.push(`  🏁 ${g.sprint.title}`);
       const lead = g.sprint ? '    ✓ ' : '  ✓ ';
-      for (const t of g.threads) out.push(line(lead, `${oneLine(t.title, 48)}${t.summary ? ` — ${t.summary}` : ''}`, `${t.id}${where(t.project)}`));
+      for (const t of g.threads) out.push(line(lead, `${oneLine(t.title, 48)}${t.summary ? ` — ${firstLine(t.summary)}` : ''}`, `${t.id}${where(t.project)}`));
     }
   }
 

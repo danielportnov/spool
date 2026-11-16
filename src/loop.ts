@@ -27,7 +27,7 @@ import {
 } from './agent.ts';
 import type { Bare, Result } from './commands.ts';
 import { notify, userConfig } from './context.ts';
-import { type Item, SpoolError, addLog, timestamp } from './model.ts';
+import { type Item, SpoolError, addLog, firstLine, timestamp } from './model.ts';
 import { prime } from './prime.ts';
 import { brief, itemLine, paint } from './render.ts';
 import { ready, review } from './schedule.ts';
@@ -179,7 +179,7 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
       const now = after.find(task.id);
       if (now?.status === 'done') {
         tally.done++;
-        ctx.out(`  ${p.green('✓')} done${now.summary ? ` — ${now.summary}` : ''}`);
+        ctx.out(`  ${p.green('✓')} done${now.summary ? ` — ${firstLine(now.summary)}` : ''}`);
       } else if (now?.status === 'active') {
         // The agent left without finishing or asking. Put the task back; don't spin on it.
         now.status = 'open';

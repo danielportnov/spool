@@ -24,6 +24,7 @@ import type { Brief } from './brief.ts';
 import type { Result } from './commands.ts';
 import type { Ctx } from './context.ts';
 import { type PageRecord, pageUp, startDetached } from './detach.ts';
+import { firstLine } from './model.ts';
 import { MARK_LINE, inColor, markLine } from './mark.ts';
 import { type Paint, age, paint } from './render.ts';
 import { Workspace } from './store.ts';
@@ -439,7 +440,7 @@ function briefBody(b: Brief, inner: number, now: number): Bit[] {
     }
     for (const t of needs.plans) {
       put(`! plan: ${t.title}  (${t.id}, ${plural(t.parts, 'part')} ${t.parts === 1 ? 'waits' : 'wait'} for your go-ahead)`, undefined, 2, 4);
-      if (t.summary) put(t.summary, 'dim', 4);
+      if (t.summary) put(firstLine(t.summary), 'dim', 4);
     }
     for (const s of needs.stopped) {
       put(`! ${s.title}  (${s.id})`, undefined, 2, 4);
@@ -452,7 +453,7 @@ function briefBody(b: Brief, inner: number, now: number): Bit[] {
     title(`WORTH A LOOK  ${b.worthALook.length}`);
     b.worthALook.forEach((t, i) => {
       put(`${i + 1}. ${t.title}  (${t.id})`, undefined, 2, 5);
-      if (t.summary) put(t.summary, undefined, 5);
+      if (t.summary) for (const l of t.summary.split('\n')) if (l.trim()) put(l, undefined, 5);
       put(`why: ${t.reasons.join(' · ')}`, 'dim', 5);
       if (t.steps.length) put('to check:', 'dim', 5);
       t.steps.forEach((step, n) => put(`${n + 1}) ${step}`, undefined, 7, 10));
@@ -465,7 +466,7 @@ function briefBody(b: Brief, inner: number, now: number): Bit[] {
     for (const g of b.alsoShipped) {
       if (g.sprint) put(g.sprint.title, 'dim', 2);
       const indent = g.sprint ? 4 : 2;
-      for (const t of g.threads) put(`+ ${t.title}${t.summary ? `: ${t.summary}` : ''}  (${t.id})`, undefined, indent, indent + 2);
+      for (const t of g.threads) put(`+ ${t.title}${t.summary ? `: ${firstLine(t.summary)}` : ''}  (${t.id})`, undefined, indent, indent + 2);
     }
   }
 

@@ -6,7 +6,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { type Item, type Spool, isPlan, isSettled, oneLine, reportFile, splitBody, whyOf } from './model.ts';
+import { type Item, type Spool, firstLine, isPlan, isSettled, oneLine, reportFile, splitBody, whyOf } from './model.ts';
 import { type Docket, type Review, blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, stateOf, taskState, tasks } from './schedule.ts';
 import { lessonLine, lessonsFor } from './lessons.ts';
 import { BUILT_IN, fileFor, ledgerFor, matchSkills } from './skills.ts';
@@ -175,7 +175,7 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
   for (const source of task.from.map((id) => ws.find(id))) {
     if (!source || source.kind !== 'task') continue;
     out.push('', isPlan(source) ? 'PART OF' : 'CAME FROM');
-    out.push(`  ${source.id}  ${source.title}${source.summary ? ` — ${source.summary}` : ''}`);
+    out.push(`  ${source.id}  ${source.title}${source.summary ? ` — ${firstLine(source.summary)}` : ''}`);
     const made = progress(ws, source);
     const report = reportOf(source);
     if (made) out.push(p.dim(`      ${made.text}`));
@@ -203,7 +203,7 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
   const after = needs.filter((i) => i.kind === 'task');
   if (after.length) {
     out.push('', 'COMES AFTER');
-    for (const t of after) out.push(`  ${t.id}  ${t.title}  (${stateOf(ws, t)})${t.summary ? ` — ${t.summary}` : ''}`);
+    for (const t of after) out.push(`  ${t.id}  ${t.title}  (${stateOf(ws, t)})${t.summary ? ` — ${firstLine(t.summary)}` : ''}`);
   }
 
   const skills = matchSkills(ws, task);
@@ -600,7 +600,7 @@ export function reviewText(ws: Workspace, queue: Review, p: Paint): string {
     for (const t of queue.plans) {
       const parts = children(ws, t).filter((k) => k.status !== 'dropped');
       out.push(`  ${p.bold(t.id)}  ${t.title}${p.dim(`  · ${plural(parts.length, 'part')}`)}${where(t)}`);
-      if (t.summary) out.push(`      ${oneLine(t.summary, 110)}`);
+      if (t.summary) out.push(`      ${oneLine(firstLine(t.summary), 110)}`);
       for (const k of parts.slice(0, 6)) out.push(p.dim(`        ${(k.size ?? '·').toUpperCase().padEnd(2)}  ${oneLine(k.title, 90)}`));
       if (parts.length > 6) out.push(p.dim(`        … ${parts.length - 6} more`));
       if (reportOf(t)) out.push(p.dim(`      read ${reportOf(t)}`));
@@ -622,7 +622,7 @@ export function reviewText(ws: Workspace, queue: Review, p: Paint): string {
     for (const t of queue.shipped.slice(0, 10)) {
       const commits = t.commits.length ? p.dim(`  · ${plural(t.commits.length, 'commit')}`) : '';
       out.push(`  ${p.bold(t.id)}  ${t.type ? `${t.type}: ` : ''}${t.title}${commits}${where(t)}`);
-      if (t.summary) out.push(`      ${oneLine(t.summary, 110)}`);
+      if (t.summary) out.push(`      ${oneLine(firstLine(t.summary), 110)}`);
       t.steps.forEach((s, i) => out.push(p.dim(`        ${i + 1}. ${oneLine(s, 104)}`)));
       const made = progress(ws, t);
       const report = reportOf(t);
@@ -668,7 +668,7 @@ export function showText(ws: Workspace, item: Item, p: Paint): string {
     item.options.forEach((o, i) => out.push(`  ${i + 1}) ${o}${item.recommend === i + 1 ? p.dim('  ← recommended') : ''}`));
     if (item.choice) out.push(`  → ${item.choice}`);
   }
-  if (item.summary) out.push(`  ${item.summary}`);
+  if (item.summary) out.push(...item.summary.split('\n').map((line) => (line ? `  ${line}` : '')));
   if (item.steps.length) out.push('', 'TO CHECK', ...item.steps.map((s, i) => `  ${i + 1}. ${s}`));
   if (item.body) out.push('', item.body);
   const pictures = item.kind === 'task' ? picturesOf(item) : [];
@@ -725,7 +725,7 @@ export function suggestText(ws: Workspace, found: Candidate[], p: Paint): string
   found.slice(0, SUGGEST_MAX).forEach((c, i) => {
     const where = ws.spools.length > 1 ? ` · ${c.spool.name}` : '';
     out.push('', `${i + 1}. ${p.bold(c.terms.join(' · '))}${p.dim(`  · in ${plural(c.tasks.length, 'finished thread')}${where}`)}`);
-    for (const t of c.tasks) out.push(`     ${p.bold(t.id)}  ${oneLine(t.title, 60)}${t.summary ? p.dim(`  · ${oneLine(t.summary, 80)}`) : ''}`);
+    for (const t of c.tasks) out.push(`     ${p.bold(t.id)}  ${oneLine(t.title, 60)}${t.summary ? p.dim(`  · ${oneLine(firstLine(t.summary), 80)}`) : ''}`);
     out.push(p.dim(`   offer it       ${offerLine(c)}`), p.dim(`   on their yes   ${addLine(c)}`));
   });
   if (found.length > SUGGEST_MAX) out.push('', p.dim(`… ${found.length - SUGGEST_MAX} more, once these are settled`));

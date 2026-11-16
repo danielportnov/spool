@@ -258,9 +258,15 @@ interface Finishing {
   landing?: Landing<Checked | undefined>;
 }
 
-/** The summary `spool done` was given, as it is kept. */
+/** The summary `spool done` was given, as it is kept: with its line breaks, so a list in it stays a list. */
 function summaryOf({ args, opts }: Bare): string {
-  return (str(opts.message) ?? args.slice(1).join(' ')).replace(/\s+/g, ' ').trim();
+  const text = (str(opts.message) ?? args.slice(1).join(' ')).replace(/\r\n?/g, '\n');
+  return text
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 /** Where in `args` the words after the id that followed a `--steps` are: `--steps "a" "b"` has "b" as a step too. The id is never one. */
