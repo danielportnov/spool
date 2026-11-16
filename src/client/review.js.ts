@@ -102,7 +102,8 @@ function reviewThread(t, b) {
     el('div', { class: 'rtop' }, el('span', { class: 'title', onclick: open }, t.title),
       el('span', { class: 'push' }),
       t.complete ? el('span', { class: 'chip ok' }, '✓ Complete') : el('span', { class: 'state ' + (t.state === 'done' ? 'done' : t.state === 'active' ? 'building' : '') }, STATE_WORDS[t.state] || t.state)),
-    t.summary && el('div', { class: 'note' }, inline(t.summary)),
+    // What it did, whole, with its lists and code shown as what they are.
+    t.summary && richNote(t.summary),
     t.steps.length > 0 && el('div', { class: 'rpart' }, el('div', { class: 'label' }, 'To check'), tickList(t)),
     t.calls.length > 0 && el('div', { class: 'rpart' }, el('div', { class: 'label' }, t.calls.length === 1 ? 'A call its agent made' : 'Calls its agent made'), t.calls.map(reviewCall)),
     el('div', { class: 'meta' },
