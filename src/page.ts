@@ -2769,7 +2769,7 @@ function changesNode(c) {
     el('button', { onclick: () => showChanges(c.id) }, d ? 'Hide the changes' : 'Show what changed'),
     d && d.files.map((f) => el('div', { class: 'file' }, el('span', { class: 'mono' }, f.path), el('span', { class: 'plus' }, '+' + f.added), el('span', { class: 'minus' }, '−' + f.removed))),
     d && !d.files.length && el('div', { class: 'note' }, 'No changes on record for it in this repository.'),
-    d && d.patch && el('div', { class: 'diff' }, d.patch.split('\n').map(line)),
+    d && d.patch && el('div', { class: 'diff', 'data-keep': 'diff' }, d.patch.split('\n').map(line)),
     d && d.cut && el('div', { class: 'note' }, 'The rest is too long to show here.'));
 }
 // Undo is the other answer to finished work: take back exactly what this thread changed, and say why.
@@ -2802,7 +2802,7 @@ function describeNode(c) {
   const part = (icon, label, text, key) => el('div', { class: 'part ' + key },
     el('div', { class: 'icon' }, icon),
     el('div', {}, el('div', { class: 'label' }, label), el('pre', {}, text)));
-  return el('details', { class: 'desc', open: true },
+  return el('details', { class: 'desc', open: true, 'data-keep': 'about' },
     el('summary', {}, '🧶 About this thread'),
     el('div', { class: 'kind' }, kind[0] + ' ' + kind[1] + sized, el('span', {}, ' — ' + kind[2])),
     parts.map((p) => part(ABOUT_ICON[p.key], p.label, p.text, p.key)),
@@ -2862,9 +2862,9 @@ function threadNode(c, b) {
       callsFor(b, c.id).filter((x) => !t.feed.some((p) => p.ref === x.id)).map((x) => decidedNode(x.by || 'agent', '', x.id, x.title + ' → ' + x.choice, b, t)),
       skillsFor(b, c.id).map(skillPost)),
 
-    liveOf(c, b) && [el('h3', {}, 'Live · ' + liveOf(c, b).seconds + 's'), el('div', { class: 'livelog' }, liveOf(c, b).lines.join('\n') || 'starting…'),
+    liveOf(c, b) && [el('h3', { class: 'livehead' }, 'Live · ' + liveOf(c, b).seconds + 's'), el('div', { class: 'livelog', 'data-keep': 'livelog', 'data-follow': 'true' }, liveOf(c, b).lines.join('\n') || 'starting…'),
       el('button', { style: 'margin-top: 8px', onclick: () => post('stop', {}, 'Stopped') }, '■ Stop the agent')],
-    t.report && el('details', { class: 'desc', open: true }, el('summary', {}, c.type === 'plan' ? 'The plan' : 'The report'), el('pre', {}, t.report)),
+    t.report && el('details', { class: 'desc', open: true, 'data-keep': 'report' }, el('summary', {}, c.type === 'plan' ? 'The plan' : 'The report'), el('pre', {}, t.report)),
 
     lineage.length > 0 && [el('h3', {}, 'Linked'), lineage.map((l) => el('div', { class: 'note' }, l))],
 
@@ -2937,15 +2937,57 @@ function threadNode(c, b) {
   return [el('button', { class: 'x', onclick: closeThread, title: 'Close' }, '✕'), el('div', { class: 'ticket' }, story, side)];
 }
 
+// The open ticket is drawn again only when something in it changed. While an agent works, the
+// board changes every second (its log, its seconds), and rebuilding the ticket for that threw the
+// reader's place away: the live log jumped to its top under them. Now those parts are updated
+// where they stand, and a full redraw puts every box that scrolls (or folds) back as it was.
+// Which ticket is on screen, and the board it was drawn from (redraw() clears that, to draw it again).
+let drawnId = null;
+let drawnFrom = '';
+const steady = (b) => JSON.stringify(b, (k, v) => (k === 'seconds' || k === 'lines' ? undefined : v));
+function atFoot(node) { return node.scrollHeight - node.scrollTop - node.clientHeight < 8; }
+
 function drawThread(b) {
   const pane = document.getElementById('thread');
   const veil = document.getElementById('veil');
   const c = openId && everyCard(b).find((x) => x.id === openId);
   pane.hidden = veil.hidden = !c;
-  if (!c) { openId = null; return; }
+  if (!c) { openId = drawnId = null; return; }
+  const from = steady(b);
+  const same = drawnId === openId;
+  if (same && from === drawnFrom && pane.firstChild) { liveInPlace(pane, c, b); return; }
+  drawnId = openId;
+  drawnFrom = from;
   const at = pane.scrollTop;
+  // Where each kept box was: how far down, whether at its foot, whether open.
+  const kept = new Map();
+  if (same) for (const node of pane.querySelectorAll('[data-keep]')) kept.set(node.dataset.keep, { top: node.scrollTop, foot: atFoot(node), open: node.open });
   pane.replaceChildren(...threadNode(c, b));
-  pane.scrollTop = at;
+  for (const node of pane.querySelectorAll('[data-keep]')) {
+    const was = kept.get(node.dataset.keep);
+    if (was && node.tagName === 'DETAILS') node.open = was.open;
+    // A box that follows (the live log) starts at its foot, and stays there while the human leaves it there.
+    if (node.dataset.follow && (!was || was.foot)) node.scrollTop = node.scrollHeight;
+    else if (was) node.scrollTop = was.top;
+  }
+  pane.scrollTop = same ? at : 0;
+}
+
+// What changes from second to second while an agent works, changed in place: the nodes stay, and so does the reader.
+function liveInPlace(pane, c, b) {
+  const run = liveOf(c, b);
+  const head = pane.querySelector('.livehead');
+  if (head && run) head.textContent = 'Live · ' + run.seconds + 's';
+  const log = pane.querySelector('.livelog');
+  if (log && run) {
+    const text = run.lines.join('\n') || 'starting…';
+    if (log.textContent !== text) {
+      const foot = atFoot(log);
+      const top = log.scrollTop;
+      log.textContent = text;
+      log.scrollTop = foot ? log.scrollHeight : top;
+    }
+  }
 }
 
 // ---- the page
@@ -3017,7 +3059,7 @@ function draw(b) {
 }
 
 // Draw again from what is already here: a view, a filter or a box changed, and nothing on disk did.
-function redraw() { if (current) draw(current); }
+function redraw() { drawnFrom = ''; if (current) draw(current); }
 
 // The server is now another build of Spool than the one this page came from: load the page again,
 // so what is on screen is what was built. Once for each build, so a page that cannot get onto it

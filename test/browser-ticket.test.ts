@@ -111,9 +111,14 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
     if (message.type() === 'error') problems.push(message.text());
   });
   const ticket = page.locator('#thread');
+  // A ticket is opened the way a person opens one: from its card.
   const open = async (id: string): Promise<void> => {
-    await page.goto(`${url}#${id}`);
-    await ticket.locator('h2').waitFor();
+    if (await ticket.isVisible()) {
+      await page.keyboard.press('Escape');
+      await ticket.waitFor({ state: 'hidden' });
+    }
+    await page.locator(`#board .card[data-id="${id}"] .title`).click();
+    await ticket.locator('.key', { hasText: id }).waitFor();
   };
 
   try {
@@ -121,6 +126,7 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
     s.sp('build', jump);
     await until('the jump is being built', () => s.json('show', jump).item.state === 'active', 300);
 
+    await page.goto(url);
     // Enter posts a reply; Shift+Enter is a new line in it.
     await open(leaderboard);
     await ticket.getByPlaceholder('Post your reply').click();
@@ -131,6 +137,29 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
     await until('the reply is on record', () => /> Top ten only\.\n> Friends first\.\n> — \[\[n-/.test(s.item(leaderboard)));
     await ticket.locator('.post', { hasText: 'Friends first.' }).waitFor();
     assert.equal(await ticket.getByPlaceholder('Post your reply').inputValue(), '', 'the box is empty again');
+
+    // The live log holds still while it is read, and follows new lines only while it is at its foot.
+    await open(jump);
+    const log = ticket.locator('.livelog');
+    await until('the log runs past its box', async () => (await log.evaluate((n) => n.scrollHeight > n.clientHeight + 100)), 300);
+    const lines = (): Promise<string> => log.evaluate((n) => n.textContent ?? '');
+    const atFoot = (): Promise<boolean> => log.evaluate((n) => n.scrollHeight - n.scrollTop - n.clientHeight < 8);
+    const newLine = async (): Promise<void> => {
+      const before = await lines();
+      await until('a new line arrives', async () => (await lines()) !== before);
+    };
+    assert.ok(await atFoot(), 'it opens at its foot, on the latest line');
+    await newLine();
+    assert.ok(await atFoot(), 'and follows what is added');
+    await log.evaluate((n) => { n.scrollTop = 40; (n as unknown as { mark: boolean }).mark = true; });
+    await newLine();
+    await newLine();
+    assert.equal(await log.evaluate((n) => n.scrollTop), 40, 'scrolled up to read, it stays where it was put');
+    assert.ok(await log.evaluate((n) => (n as unknown as { mark?: boolean }).mark), 'the same box, updated in place');
+    await log.evaluate((n) => { n.scrollTop = n.scrollHeight; });
+    await newLine();
+    assert.ok(await atFoot(), 'back at its foot, it follows again');
+    await shot(page, 'ticket-live');
 
     assert.deepEqual(problems, [], 'the page logged no errors');
   } finally {
