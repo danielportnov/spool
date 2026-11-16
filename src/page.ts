@@ -2447,7 +2447,7 @@ SYSTEM_DARK.addEventListener('change', paintTheme);
   #veil { position: fixed; inset: 0; background: rgba(0, 0, 0, .35); z-index: 3; }
   #thread { position: fixed; z-index: 4; top: 5vh; left: 50%; transform: translateX(-50%); width: min(1000px, 96vw); max-height: 90vh; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow-y: auto; padding: 22px 24px 26px; box-shadow: 0 24px 64px rgba(0, 0, 0, .3); }
   .ticket { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 28px; }
-  @media (max-width: 760px) { .ticket { grid-template-columns: 1fr; } #thread { top: 0; max-height: 100vh; border-radius: 0; width: 100vw; } }
+  @media (max-width: 760px) { .ticket { grid-template-columns: 1fr; } #thread { top: 0; bottom: 0; max-height: none; border: 0; border-radius: 0; width: 100vw; padding: 18px 16px 24px; } }
   #thread .key { font-size: 12px; color: var(--soft); margin: 0 40px 6px 0; cursor: default; }
   #thread h2 { font-size: 21px; margin: 0 0 6px -4px; overflow-wrap: anywhere; border-radius: 6px; padding: 2px 4px; outline: none; cursor: text; }
   #thread h2:hover, #thread h2:focus { background: var(--chip); }
@@ -2564,6 +2564,31 @@ SYSTEM_DARK.addEventListener('change', paintTheme);
   .finish .ok { color: var(--go); font-weight: 600; }
   #said { position: fixed; z-index: 5; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   #said.on { opacity: 1; }
+
+  /* On a phone: the bar in two rows, one column of the board at a time, and nothing to tap under 36px. */
+  .jump { display: none; }
+  @media (max-width: 700px) {
+    .bar { flex-wrap: wrap; height: auto; gap: 0 8px; padding: 0 16px; }
+    .bar::after { content: ''; order: 4; flex-basis: 100%; }
+    .brand { order: 1; flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .tabs { order: 2; height: 44px; }
+    .themer { order: 3; }
+    .search { order: 5; flex: 1 1 80px; min-width: 0; width: auto; margin: 0 0 8px; }
+    .builder { order: 6; margin: 0 0 8px; }
+    .runner { order: 7; margin-bottom: 8px; }
+    .rule, #away { padding-left: 16px; padding-right: 16px; }
+    #quick { padding: 8px 16px 0; }
+    .jump { display: flex; gap: 6px; padding: 8px 16px 0; }
+    .jump button { flex: 1 1 0; min-width: 0; padding: 0 6px; font-size: 13px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .jump button.on { color: var(--ink); border-color: var(--soft); font-weight: 600; }
+    #board { grid-template-columns: repeat(4, 100%); padding: 8px 16px 32px; scroll-snap-type: x mandatory; scroll-padding: 0 16px; overscroll-behavior-x: contain; }
+    #board .col { scroll-snap-align: start; }
+    #backlog { padding: 12px 16px 32px; }
+    .row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    .row .right { flex-wrap: wrap; white-space: normal; }
+    button, .search { min-height: 36px; }
+    .tick, .arch { width: 36px; height: 36px; }
+  }
 </style>
 </head>
 <body>
@@ -2582,6 +2607,7 @@ SYSTEM_DARK.addEventListener('change', paintTheme);
 <div class="rule" id="rule" hidden></div>
 <div id="quick"></div>
 <section id="brief" aria-label="While you were away" hidden></section>
+<nav class="jump" id="jump" aria-label="Columns"></nav>
 <main id="board"></main>
 <main id="backlog" hidden></main>
 <div id="veil" hidden></div>
@@ -3830,6 +3856,7 @@ function draw(b) {
   document.getElementById('backlog').hidden = view !== 'backlog';
   drawBrief(b);
   if (view === 'board') drawBoard(b); else drawBacklog(b);
+  drawJump();
   const box = document.querySelector('.adding textarea, .adding input');
   if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
   drawThread(b);
@@ -3863,6 +3890,31 @@ function drawTab(b) {
   const svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>" + yarn + badge + '</svg>';
   document.getElementById('icon').href = 'data:image/svg+xml,' + encodeURIComponent(svg);
 }
+
+// On a phone the board is one column at a time, swiped sideways. A row of the columns' names, with
+// what each holds, says which is in view and goes to another. It is hidden wider than that.
+function drawJump() {
+  const nav = document.getElementById('jump');
+  nav.hidden = view !== 'board';
+  if (nav.hidden) return;
+  const cols = [...document.querySelectorAll('#board .col')];
+  nav.replaceChildren(...cols.map((col, i) => {
+    const count = col.querySelector('h2 .count');
+    return el('button', { 'data-column': col.dataset.column, onclick: () => document.getElementById('board').scrollTo({ left: col.offsetLeft - cols[0].offsetLeft }) },
+      COLUMNS[i][1] + (count ? ' ' + count.textContent : ''));
+  }));
+  inView();
+}
+// Which column is in view, marked in the row of names.
+function inView() {
+  const board = document.getElementById('board');
+  const cols = [...board.querySelectorAll('.col')];
+  if (!cols.length) return;
+  const step = cols.length > 1 ? cols[1].offsetLeft - cols[0].offsetLeft : 1;
+  const at = Math.min(cols.length - 1, Math.max(0, Math.round(board.scrollLeft / step)));
+  for (const button of document.getElementById('jump').children) button.classList.toggle('on', button.dataset.column === cols[at].dataset.column);
+}
+document.getElementById('board').addEventListener('scroll', inView);
 
 // Draw again from what is already here: a view, a filter or a box changed, and nothing on disk did.
 function redraw() { drawnFrom = ''; if (current) draw(current); }

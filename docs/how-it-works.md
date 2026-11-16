@@ -122,6 +122,10 @@ nothing going on, the title is the project's name.
 **Light or dark.** The page follows your system's setting. The round button at the right of the
 bar goes from System to Light to Dark and back; your pick is kept in that browser.
 
+**On a phone.** The bar is two rows, the board is one column at a time (swipe sideways, or tap a
+column's name in the row above it), and a ticket fills the screen with its fields under the
+conversation.
+
 Everything the page does is an ordinary command run as you: `build`, `propose`, `play`, `capture`,
 `task`, `edit`, `answer`, `approve`. It can do nothing the command line cannot.
 
