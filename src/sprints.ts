@@ -6,6 +6,21 @@
 
 import { type Item, setMain, splitBody } from './model.ts';
 
+/**
+ * A sprint's goal, reason and done-when, read from the three lines of its body, the project goal
+ * it serves, and the vision it was made from, in the human's words. Whatever else is there, and
+ * not quoted, is the goal.
+ */
+export function sprintAbout(sprint: Item): { goal: string; why: string; doneWhen: string; serves: string; vision: string } {
+  const lines = splitBody(sprint.body).main.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('>'));
+  const take = (label: string) => {
+    const at = lines.findIndex((l) => l.toLowerCase().startsWith(`${label}:`));
+    return at < 0 ? '' : lines.splice(at, 1)[0]!.slice(label.length + 1).trim();
+  };
+  const [why, doneWhen, serves, goal] = [take('why'), take('done when'), take('serves'), take('goal')];
+  return { goal: goal || lines.join(' '), why, doneWhen, serves, vision: visionOf(sprint) };
+}
+
 /** Set one labelled line of a sprint's body: in place where it has one, else after the rest. */
 export function setLine(sprint: Item, label: string, value: string): void {
   const lines = splitBody(sprint.body).main.split('\n');

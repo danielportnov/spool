@@ -10,11 +10,14 @@ import { type Item, type Spool, isPlan, isSettled, oneLine, reportFile, splitBod
 import { type Docket, type Review, blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, stateOf, taskState, tasks } from './schedule.ts';
 import { lessonLine, lessonsFor } from './lessons.ts';
 import { BUILT_IN, fileFor, ledgerFor, matchSkills } from './skills.ts';
-import { visionOf } from './sprints.ts';
+import { sprintAbout } from './sprints.ts';
 import { goalsOf } from './goals.ts';
 import { type Candidate, SUGGEST, addLine, offerLine } from './suggest.ts';
 import type { Workspace } from './store.ts';
 import { workDir } from './worktree.ts';
+
+// Where the page and the commands have always found it.
+export { sprintAbout };
 
 export interface Paint {
   bold: (s: string) => string;
@@ -406,21 +409,6 @@ export function tableRows(ws: Workspace, d: Docket): TableRow[] {
   for (const t of d.suggested) rows.push({ item: t, mark: '✨', note: `AI suggested: ${oneLine(t.suggested ?? '', 110)}. Say yes and it joins the order.` });
   for (const t of d.held) rows.push({ item: t, mark: '⚪', note: `On hold: “${oneLine(t.hold ?? '', 80)}”` });
   return rows.map((r, i) => ({ n: i + 1, ...r }));
-}
-
-/**
- * A sprint's goal, reason and done-when, read from the three lines of its body, the project goal
- * it serves, and the vision
- * it was made from, in the human's words. Whatever else is there, and not quoted, is the goal.
- */
-export function sprintAbout(sprint: Item): { goal: string; why: string; doneWhen: string; serves: string; vision: string } {
-  const lines = splitBody(sprint.body).main.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('>'));
-  const take = (label: string) => {
-    const at = lines.findIndex((l) => l.toLowerCase().startsWith(`${label}:`));
-    return at < 0 ? '' : lines.splice(at, 1)[0]!.slice(label.length + 1).trim();
-  };
-  const [why, doneWhen, serves, goal] = [take('why'), take('done when'), take('serves'), take('goal')];
-  return { goal: goal || lines.join(' '), why, doneWhen, serves, vision: visionOf(sprint) };
 }
 
 /**

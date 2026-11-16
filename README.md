@@ -126,7 +126,7 @@ Got an idea? Put this in front of it, typed or dictated, in any Claude Code chat
 /spool-record the jump feels floaty, and I can't see the coins at sunset
 ```
 
-Two threads land in the backlog, in your words. Nothing is built until you move them to Build.
+Two threads land in the backlog, in your words, each in the sprint it serves if there is one. Nothing is built until you move them to Build.
 
 ## How it works
 

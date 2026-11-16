@@ -1569,7 +1569,7 @@ export const COMMANDS: Command[] = [
     name: 'task',
     aliases: ['add'],
     group: 'agents',
-    usage: 'task <title…> [-s xs|s|m|l|xl] [-p 0-3] [-t change|audit|plan] [--hold <why>] [--suggested <why>] [--from <id>…] [--needs <id>…] [-b <body>] [-P <project>]',
+    usage: 'task <title…> [-s xs|s|m|l|xl] [-p 0-3] [-t change|audit|plan] [--hold <why>] [--suggested <why>] [--sprint <sprint>] [--from <id>…] [--needs <id>…] [-b <body>] [-P <project>]',
     summary: 'Queue a change',
     write: true,
     options: { ...WORK, type: { type: 'string', short: 't' } },

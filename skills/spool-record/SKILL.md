@@ -57,6 +57,12 @@ says there is no `.spool/` here, tell them to run `/spool-init`, and stop.
    "Not yet", "just an idea", "don't build this", "after the launch": file it
    as above and add `--hold "<their words>"`, so no worker starts it until they say.
 
+   **Put each in the plan.** `spool prime recorder --context` lists the open
+   sprints with their goals. A thread that serves the goal of the sprint being
+   played goes in it; failing that, a planned sprint whose goal it serves;
+   failing both, it stays loose. Add `--sprint <name>` as you file it, or
+   later `spool edit <t-id> --sprint <name>`.
+
 3. **Give each thread its spec**, in its body (`-b`), so whoever works it
    needs nothing but the thread, and the human never has to explain it twice:
 
@@ -69,7 +75,8 @@ says there is no `.spool/` here, tell them to run `/spool-init`, and stop.
    `spool ask "<the question>" --option "<A>" --option "<B>" --recommend <n> --for <t-id>`.
 
 4. Say what you made of it in a sentence or two: how many threads 🧵, what
-   each is, and which project's spool 🧶 they went into. Lead with a question
+   each is, which project's spool 🧶 they went into, and which sprint each
+   went into or that it is loose. Lead with a question
    if you have one. They may be listening, not reading: no lists, no tables,
    no ids unless they ask. The specs are on the page, not in the chat. Then
    stop recording.

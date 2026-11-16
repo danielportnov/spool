@@ -258,7 +258,9 @@ nothing. Playing it moves everything in it to Build at once. `spool done` says w
 Say what you want a stretch of work to achieve, in your own words, and the agent makes it a
 sprint: your words kept on it as its vision, a goal, a reason and a done-when written from them,
 and the threads that get there put in it in the order they should be built. It shows you the
-sprint in a few lines. You press play, or say "play it"; it never plays one for you.
+sprint in a few lines. You press play, or say "play it"; it never plays one for you. What you
+record later goes into the sprint it serves: the one being played, else a planned one, else it
+stays loose, and the recorder says where each thread went.
 
 Above the sprints are the **goals**: one short page, `.spool/goals.md`, on what the project is for
 and the two or three things it is heading towards. The agent asks you for it at set-up and keeps
@@ -458,7 +460,7 @@ ones marked 🔒:
 
 | Command | What it does |
 | --- | --- |
-| `spool task` · `audit` · `plan` | File a change, a look-and-report, or something big; `--suggested why` marks an agent's own idea |
+| `spool task` · `audit` · `plan` | File a change, a look-and-report, or something big; `--suggested why` marks an agent's own idea, `--sprint <name>` puts it in a sprint |
 | `spool file <n-id> --into <id>` | Attach a note to a thread, or set it aside |
 | `spool next [--claim]` · `start <t-id>` | The next thread in Build with its brief; claim it. `--worktree` gives it a git worktree of its own |
 | `spool log <id> <fact>` | Leave a note for whoever comes next |

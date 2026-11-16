@@ -19,6 +19,7 @@ import * as path from 'node:path';
 import { rules, section } from './builtin.ts';
 import { goalsFile, goalsOf, goalsText } from './goals.ts';
 import { lessonsSection, withoutLessons } from './lessons.ts';
+import { sprintAbout } from './sprints.ts';
 import { type Spool, oneLine } from './model.ts';
 import { ready, review, tasks, taskState } from './schedule.ts';
 import type { Workspace } from './store.ts';
@@ -127,6 +128,19 @@ function map(ws: Workspace): string {
     const open = tasks(ws).filter((t) => t.spool === spool && !['done', 'dropped', 'archived'].includes(taskState(ws, t)));
     const what = about(spool);
     lines.push(`  ${spool.name.padEnd(width)}  ${open.length} open${what ? `  · ${what}` : ''}`);
+  }
+  // The plan a new thread may belong to: each sprint not yet reached, the one being played first, with what it is for.
+  const rank = (s: { status: string }) => (s.status === 'running' ? 0 : 1);
+  const sprints = ws.items
+    .filter((i) => i.kind === 'sprint' && (i.status === 'planned' || i.status === 'running'))
+    .sort((a, b) => rank(a) - rank(b) || a.created.localeCompare(b.created));
+  if (sprints.length) {
+    lines.push('', 'SPRINTS  a thread that serves one goes in it: --sprint <name>');
+    for (const s of sprints) {
+      const { goal, serves } = sprintAbout(s);
+      const facts = [s.status === 'running' ? 'being played' : 'planned', ...(serves ? [`serves ${oneLine(serves, 50)}`] : []), ...(ws.spools.length > 1 ? [s.spool.name] : [])];
+      lines.push(`  ${s.id}  ${oneLine(s.title, 40)} · ${facts.join(' · ')}${goal ? ` — ${oneLine(goal, 90)}` : ''}`);
+    }
   }
   const queue = review(ws);
   if (queue.questions.length) {
