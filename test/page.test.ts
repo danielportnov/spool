@@ -227,6 +227,56 @@ test('the page shows the spool as a board, and what is done on it is saved to th
   }
 });
 
+test('a finished ticket shows what its commits changed, and Undo takes exactly that back', async () => {
+  const s = new Sandbox();
+  s.gitInit();
+  s.write('physics.txt', 'gravity = 9.8\njump = 5\n');
+  s.commitAll('init');
+  s.sp('init', '--name', 'skyhop', '--gate');
+  s.commitAll('set up spool');
+  const jump = s.id('task', 'Tighten the jump arc');
+  const sound = s.id('task', 'Add a landing sound');
+  s.sp('build', jump, sound);
+  s.sp('start', jump);
+  s.write('physics.txt', 'gravity = 12\njump = 5\n');
+  s.commitAll(`Raise gravity\n\nSpool: ${jump}`);
+  s.sp('done', jump, '-m', 'Snappier');
+  s.sp('start', sound);
+  s.write('sound.txt', 'boing\n');
+  s.commitAll(`Add a sound\n\nSpool: ${sound}`);
+  s.sp('done', sound, '-m', 'It goes boing');
+
+  const { child, url } = await startPage(s, '--port', String(47000 + (process.pid % 2000)));
+  try {
+    const token = /const TOKEN = '([\w-]{20,})';/.exec(await (await fetch(url)).text())![1]!;
+    const post = (action: string, body: unknown) =>
+      fetch(`${url}api/${action}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': token }, body: JSON.stringify(body) });
+
+    // The diff of one thread: its files, its lines, its patch, and nothing of the other thread's.
+    const diff = (await (await fetch(`${url}api/diff?id=${jump}`)).json()) as Record<string, any>;
+    assert.deepEqual(diff.files, [{ path: 'physics.txt', added: 1, removed: 1 }]);
+    assert.deepEqual(diff.commits.map((c: any) => c.subject), ['Raise gravity']);
+    assert.match(diff.patch, /-gravity = 9\.8\n\+gravity = 12/);
+    assert.doesNotMatch(diff.patch, /boing/);
+    assert.equal((await fetch(`${url}api/diff?id=nope`)).status, 400);
+
+    // Undo, with the reason: that thread's change is taken back, the other's is untouched, and it is to be done again.
+    assert.equal((await post('undo', { id: jump, why: 'too heavy now, I wanted snappy' })).status, 200);
+    assert.equal(s.read('physics.txt'), 'gravity = 9.8\njump = 5\n');
+    assert.equal(s.read('sound.txt'), 'boing\n');
+    assert.match(s.item(jump), /too heavy now, I wanted snappy/);
+    assert.notEqual(s.json('show', jump).item.status, 'done');
+
+    // Undo and drop: taken back, and not to be done again.
+    assert.equal((await post('undo', { id: sound, drop: true })).status, 200);
+    assert.equal(s.exists('sound.txt'), false);
+    assert.equal(s.json('show', sound).item.status, 'dropped');
+  } finally {
+    child.kill();
+    s.cleanup();
+  }
+});
+
 test('where the gate is locked, the page is where work is moved to build', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop', '--lock');

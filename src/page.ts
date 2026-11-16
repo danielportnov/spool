@@ -15,7 +15,7 @@
  *
  * Everything the page does is an ordinary command run in-process, as the
  * human: `build`, `propose`, `capture`, `task`, `file`, `edit`, `answer`, `approve`,
- * `sprint`, `play`, `drop`. So the page can do
+ * `sprint`, `play`, `drop`, `revert`. So the page can do
  * nothing the command line cannot, and every rule the commands enforce holds
  * here too.
  *
@@ -33,6 +33,7 @@ import * as path from 'node:path';
 import { run } from './cli.ts';
 import type { Bare, Result } from './commands.ts';
 import type { Ctx } from './context.ts';
+import { git, repoRoot } from './git.ts';
 import { type Item, SpoolError, oneLine, reportFile, splitBody } from './model.ts';
 import { age, sprintAbout, tableRows } from './render.ts';
 import { blockers, children, dependents, docket, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
@@ -339,6 +340,48 @@ export function board(ws: Workspace, project?: string): Board {
   };
 }
 
+// ------------------------------------------------------------------ what a thread changed
+
+const PATCH_LIMIT = 200_000;
+
+interface Diff {
+  commits: { sha: string; subject: string }[];
+  files: { path: string; added: number; removed: number }[];
+  patch: string;
+  /** The patch was too long to send whole. */
+  cut: boolean;
+}
+
+/** The files and lines a thread's commits changed: what "Mark as complete" is a judgement of. */
+export function diffOf(ws: Workspace, id: string): Diff {
+  const task = ws.get(id, 'task');
+  const root = repoRoot(task.spool.root);
+  const diff: Diff = { commits: [], files: [], patch: '', cut: false };
+  if (!root) return diff;
+  const files = new Map<string, { added: number; removed: number }>();
+  for (const sha of task.commits) {
+    const stat = git(root, ['show', '--no-color', '--format=%h%x09%s', '--numstat', sha]);
+    if (!stat.ok) continue;
+    const [head, ...lines] = stat.out.split('\n');
+    const [short, subject] = (head ?? '').split('\t');
+    diff.commits.push({ sha: short ?? sha.slice(0, 7), subject: subject ?? '' });
+    for (const line of lines) {
+      const [added, removed, file] = line.split('\t');
+      if (!file) continue;
+      const sum = files.get(file) ?? { added: 0, removed: 0 };
+      // A binary file reports "-" for both; it changed, and that is all there is to say.
+      sum.added += Number(added) || 0;
+      sum.removed += Number(removed) || 0;
+      files.set(file, sum);
+    }
+    if (diff.patch.length < PATCH_LIMIT) diff.patch += `${git(root, ['show', '--no-color', '--format=', '--patch', sha]).out}\n`;
+  }
+  diff.files = [...files].map(([file, sum]) => ({ path: file, ...sum }));
+  diff.cut = diff.patch.length > PATCH_LIMIT;
+  diff.patch = diff.patch.slice(0, PATCH_LIMIT).trimEnd();
+  return diff;
+}
+
 // ------------------------------------------------------------------ the server
 
 interface Started {
@@ -499,6 +542,12 @@ function change(ctx: Ctx, action: string, body: Body, project?: string): { ok: b
     const title = text(body.title);
     return title ? act(ctx, ['task', '--from', id, '--', oneLine(title.split('\n')[0]!, 110)]) : { ok: false, text: 'it needs a name' };
   }
+  if (action === 'undo') {
+    // Undo exactly what this thread changed. With their reason it is done again; dropped, it is not.
+    if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
+    const why = text(body.why);
+    return act(ctx, ['revert', id, ...(why ? [`--message=${why}`] : []), ...(body.drop === true ? ['--drop'] : [])]);
+  }
   if (action === 'complete') {
     // "Mark as complete" is the human saying the change is good: the same as approving it.
     if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
@@ -531,6 +580,16 @@ export function startPage(ctx: Ctx, options: { port?: number; project?: string }
         const ws = Workspace.open(ctx.cwd, ctx.now);
         try {
           return send(res, 200, 'application/json', JSON.stringify(board(ws, options.project)));
+        } finally {
+          ws.close();
+        }
+      }
+      if (req.method === 'GET' && url.pathname === '/api/diff') {
+        const id = url.searchParams.get('id') ?? '';
+        if (!/^t-[a-z0-9]+$/.test(id)) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which thread?' }));
+        const ws = Workspace.open(ctx.cwd, ctx.now);
+        try {
+          return send(res, 200, 'application/json', JSON.stringify(diffOf(ws, id)));
         } finally {
           ws.close();
         }
@@ -773,6 +832,14 @@ const PAGE = String.raw`<!doctype html>
   .compose .acts { margin-top: 8px; justify-content: flex-end; }
   details.desc { margin: 12px 0 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
   details.desc summary { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); cursor: pointer; }
+  .changes { margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .changes .file { display: flex; gap: 10px; font-size: 13px; padding: 2px 0; }
+  .changes .file span:first-child { flex: 1; overflow-wrap: anywhere; }
+  .plus { color: var(--go); } .minus { color: var(--hot); }
+  .diff { margin-top: 10px; max-height: 420px; overflow: auto; background: var(--bg); border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; white-space: pre; }
+  .diff .at { color: var(--blue); } .diff .head { color: var(--soft); font-weight: 600; }
+  .undo { margin-top: 12px; display: grid; gap: 8px; }
+  .undo input { padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
   .finish { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
   .finish button { width: 100%; padding: 10px; font-size: 15px; }
   .finish .ok { color: var(--go); font-weight: 600; }
@@ -1282,6 +1349,42 @@ const when = (at) => (at ? at.slice(5, 10).replace('-', '/') + ' ' + at.slice(11
 function openThread(id) { openId = id; history.replaceState(null, '', '#' + id); redraw(); }
 function closeThread() { openId = null; history.replaceState(null, '', location.pathname); redraw(); }
 
+// What a thread changed, fetched when asked for and kept: the files, the lines, and the patch itself.
+const diffs = new Map();
+const showing = new Set();
+let undoing = '';
+async function showChanges(id) {
+  if (showing.has(id)) { showing.delete(id); redraw(); return; }
+  showing.add(id);
+  if (!diffs.has(id)) {
+    try { diffs.set(id, await (await fetch('/api/diff?id=' + id)).json()); } catch (e) { say('The changes could not be read.'); }
+  }
+  redraw();
+}
+function changesNode(c) {
+  if (!c.done || !c.thread.commits.length) return null;
+  const d = showing.has(c.id) && diffs.get(c.id);
+  const line = (text) => el('div', { class: text.startsWith('+++') || text.startsWith('---') || text.startsWith('diff ') ? 'head' : text.startsWith('@@') ? 'at' : text.startsWith('+') ? 'plus' : text.startsWith('-') ? 'minus' : '' }, text || ' ');
+  return el('div', { class: 'changes' },
+    el('button', { onclick: () => showChanges(c.id) }, d ? 'Hide the changes' : 'Show what changed'),
+    d && d.files.map((f) => el('div', { class: 'file' }, el('span', { class: 'mono' }, f.path), el('span', { class: 'plus' }, '+' + f.added), el('span', { class: 'minus' }, '−' + f.removed))),
+    d && !d.files.length && el('div', { class: 'note' }, 'No changes on record for it in this repository.'),
+    d && d.patch && el('div', { class: 'diff' }, d.patch.split('\n').map(line)),
+    d && d.cut && el('div', { class: 'note' }, 'The rest is too long to show here.'));
+}
+// Undo is the other answer to finished work: take back exactly what this thread changed, and say why.
+function undoNode(c) {
+  if (!c.done) return null;
+  if (undoing !== c.id) return el('button', { style: 'margin-top: 10px', onclick: () => { undoing = c.id; redraw(); } }, '↩ Undo this thread');
+  const why = el('input', { placeholder: 'What was wrong with it? In your words' });
+  const go = (drop) => { undoing = ''; post('undo', { id: c.id, why: why.value, drop }, drop ? 'Undone and dropped' : 'Undone. It is back to be done again, with your words on it.'); };
+  return el('div', { class: 'undo' }, why,
+    el('div', { class: 'acts' },
+      el('button', { class: 'go', onclick: () => go(false) }, 'Undo, and do it again'),
+      el('button', { onclick: () => go(true) }, 'Undo, and drop it'),
+      el('button', { onclick: () => { undoing = ''; redraw(); } }, 'Cancel')));
+}
+
 // A ticket, the way a board has always shown one: the story on the left, its fields on the right.
 function threadNode(c, b) {
   const t = c.thread;
@@ -1339,9 +1442,11 @@ function threadNode(c, b) {
           if (!box.value.trim()) return;
           if (await post('note', { id: c.id, text: box.value }, 'Posted to the thread')) drafts.delete(c.id);
         } }, 'Reply')))),
+    changesNode(c),
     c.done && el('div', { class: 'finish' }, c.complete
       ? el('div', { class: 'ok' }, '✓ Complete. You approved this change.')
-      : el('button', { class: 'go', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓ Mark as complete')));
+      : el('button', { class: 'go', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓ Mark as complete'),
+      undoNode(c)));
 
   const field = (label, ...kids) => el('div', { class: 'field' }, el('label', {}, label), kids);
   const choose = (options, value, onchange) => {

@@ -40,7 +40,9 @@ made by themselves, new skills, notes nobody filed. Each is cleared there.
 | Change a field on the ticket | Its name, status, priority, difficulty, tags or version. Tags and versions are theirs to invent. |
 | Click a tag or a version on a card | The board shows only those threads; click again to clear. |
 | A note on a thread | It lands on that thread, in their words. |
+| **Show what changed**, on a finished thread | The files and lines its commits touched, and the patch. |
 | **Mark as complete**, at the foot of a finished thread | They have looked at the change and approve it. |
+| **Undo this thread** | Takes back exactly what that thread changed, with their reason: to be done again, or dropped. |
 | **+ Add** at the foot of Proposed or Build | A new thread in that column, named from their first line, with all their words kept on it. Added under Build, it is in build. |
 | An answer button on a question | The thread it was holding up can move again. |
 

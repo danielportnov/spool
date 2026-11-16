@@ -94,7 +94,9 @@ notes nobody filed.
 **A ticket.** Click any card. On the left, the thread as a conversation: what you said, what the
 agent answered and which agent it was, the moves in between, and a box to reply. An audit's or a
 plan's report is there in full. On the right, its fields: status, priority, difficulty, tags,
-version, sprint. Everything is editable. A ticket has its own address (`#t-4kq7`), and
+version, sprint. Everything is editable. A finished ticket shows **what changed** (the files, the lines, the patch)
+and ends with **Mark as complete** and **Undo this thread**, which takes back exactly that thread's
+commits with your reason. A ticket has its own address (`#t-4kq7`), and
 `?view=backlog` opens the Backlog view.
 
 Everything the page does is an ordinary command run as you: `build`, `propose`, `play`, `capture`,
