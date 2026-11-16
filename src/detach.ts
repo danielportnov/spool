@@ -98,11 +98,12 @@ export function forgetPage(ctx: Ctx, root: string, pid: number): void {
 }
 
 /**
- * `spool page -d`: start the page again as a process of its own, away from this terminal, and
- * come back with its address once it is listening. The page itself is the ordinary one, so it
- * restarts onto new code as any page does.
+ * Start the page as a process of its own, away from this terminal, and tell `done` once it is
+ * listening: the lines to say, and its record. With no record it is not up, and the lines say why;
+ * the code is what the command that asked should end with. The page itself is the ordinary one, so
+ * it restarts onto new code as any page does.
  */
-export function detachPage(ctx: Ctx, root: string, cli: string, args: string[]): Result {
+export function startDetached(ctx: Ctx, root: string, cli: string, args: string[], done: (code: number, lines: string[], up?: PageRecord) => void): void {
   const log = logOf(ctx, root);
   fs.mkdirSync(path.dirname(log), { recursive: true });
   const fd = fs.openSync(log, 'w');
@@ -122,15 +123,13 @@ export function detachPage(ctx: Ctx, root: string, cli: string, args: string[]):
       return '';
     }
   };
-  let done = false;
-  const finish = (code: number, lines: string[]): void => {
-    if (done) return;
-    done = true;
-    for (const line of lines) (code ? ctx.err : ctx.out)(line);
-    process.exitCode = code;
+  let over = false;
+  const finish = (code: number, lines: string[], up?: PageRecord): void => {
+    if (over) return;
+    over = true;
+    // The page stays up without this process.
     child.unref();
-    // Out with the words, and gone: the page stays up without this process.
-    process.stdout.write('', () => process.stderr.write('', () => process.exit(code)));
+    done(code, lines, up);
   };
   child.on('error', (error) => finish(1, [`spool: the page could not start: ${error.message}`]));
   child.on('exit', (code) => {
@@ -139,14 +138,14 @@ export function detachPage(ctx: Ctx, root: string, cli: string, args: string[]):
   });
   const started = Date.now();
   const look = (): void => {
-    if (done) return;
+    if (over) return;
     const up = pageUp(ctx, root);
     if (up && up.pid === child.pid) {
       const lines = [`Spool page: ${up.url}`];
       const run = said().split('\n').find((line) => line.startsWith('Agents are on') || line.startsWith('A chat builds'));
       if (run) lines.push(run);
       lines.push('It runs in the background, with no browser and no terminal to keep open. spool page --stop ends it.');
-      return finish(0, lines);
+      return finish(0, lines, up);
     }
     if (Date.now() - started > 15_000) {
       child.kill('SIGTERM');
@@ -155,6 +154,16 @@ export function detachPage(ctx: Ctx, root: string, cli: string, args: string[]):
     setTimeout(look, 50);
   };
   look();
+}
+
+/** `spool page -d`: start the page in the background, and come back with its address once it is listening. */
+export function detachPage(ctx: Ctx, root: string, cli: string, args: string[]): Result {
+  startDetached(ctx, root, cli, args, (code, lines) => {
+    for (const line of lines) (code ? ctx.err : ctx.out)(line);
+    process.exitCode = code;
+    // Out with the words, and gone.
+    process.stdout.write('', () => process.stderr.write('', () => process.exit(code)));
+  });
   return { text: '' };
 }
 
