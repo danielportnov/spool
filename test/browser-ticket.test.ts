@@ -104,7 +104,7 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
     await until('the board knows the agent gave up', async () => (await page.locator('#board .card .flag.stuck').count()) === 1);
     assert.deepEqual(
       [await flag(coins), await flag(leaderboard), await flag(music), await flag(publish)].map((f) => f.toLowerCase()),
-      ['needs you', `waiting on ${level}`, 'on hold', 'agent stopped unfinished'],
+      ['needs a call from you', `waiting on ${level}`, 'on hold', 'agent stopped unfinished'],
     );
     assert.equal(await page.locator(`#board .card[data-id="${jump}"] .flag`).count(), 0, 'a thread being built waits on nothing');
     await shot(page, 'board-waiting');

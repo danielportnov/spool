@@ -117,10 +117,15 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     s.sp('propose', typo);
     await card('proposed', 'Fix the typo on the title screen').waitFor();
 
-    // A question is answered where it is asked.
-    await card('build', 'Make coins readable at sunset').getByRole('button', { name: 'Outline' }).click();
+    // A question is asked on its thread, and nowhere else: its card says a call is wanted, its ticket asks it.
+    const asking = card('build', 'Make coins readable at sunset');
+    assert.equal(await asking.locator('.flag').innerText(), 'Needs a call from you');
+    assert.equal(await page.getByText('Outline the coins, or turn them teal?').count(), 0, 'nothing on the board asks it, the brief included');
+    await asking.locator('.title').click();
+    await page.locator('#thread .post', { hasText: 'Outline the coins, or turn them teal?' }).getByRole('button', { name: 'Outline' }).click();
     await until('the answer is on record', () => s.json('review').questions.length === 0);
-    await card('build', 'Make coins readable at sunset').locator('.q').waitFor({ state: 'detached' });
+    await page.keyboard.press('Escape');
+    await asking.locator('.flag').waitFor({ state: 'detached' });
 
     // The ticket: opened from a card, its fields changed, a reply posted, closed with Escape.
     await card('build', 'Tighten the jump arc').locator('.title').click();
@@ -239,15 +244,19 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     assert.equal(await column('done').locator('.card.past').count(), 3, 'kept as history, a click away');
     await shot(page, '4-done');
 
-    // What waits on him lives on its thread: a question on its card, a call on its card and ticket.
-    // What is about no thread, and a note nobody filed, is in a strip at the top of the backlog.
+    // What waits on him lives on its thread: a question on its ticket alone, a call on its card and ticket.
+    // A call about no thread, and a note nobody filed, is in a strip at the top of the backlog; a question never is.
     assert.deepEqual(await page.locator('.tab').allInnerTexts(), ['Board', 'Backlog', 'Roadmap'], 'three views, and no Needs you');
     s.sp('ask', 'Pause on the left, or the right?', '--option', 'Left', '--option', 'Right', '--recommend', '2', '--for', pause);
     s.sp('assume', 'Which font for the score?', '--chose', 'The pixel font', '--why', 'it matches the title screen', '--for', pause);
     s.sp('assume', 'How loud is the coin sound?', '--chose', 'Half volume', '--why', 'it plays often');
     const loose = s.id('capture', 'the menu music loops too soon');
-    await card('proposed', 'Pause button under the score').getByRole('button', { name: 'Right' }).click();
+    await card('proposed', 'Pause button under the score').locator('.title').click();
+    await ticket.locator('.post', { hasText: 'Pause on the left, or the right?' }).getByRole('button', { name: 'Right' }).click();
     await until('the question is answered', () => s.json('review').questions.length === 0);
+    await page.keyboard.press('Escape');
+    // A question asked on no thread has no thread to be on, so the page shows it nowhere.
+    s.sp('ask', 'Should the coin sound loop?', '--option', 'Yes', '--option', 'No');
     const waits = card('proposed', 'Pause button under the score').locator('.chip', { hasText: '🧾 1 to look at' });
     await waits.click();
     const call = ticket.locator('.post', { hasText: 'Decided: The pixel font' });
@@ -263,6 +272,8 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     const strip = backlog.locator('.group.waiting');
     const loud = strip.locator('.need', { hasText: 'How loud is the coin sound?' });
     await loud.waitFor();
+    await until('the page has heard of the question', async () => (await page.evaluate('current.needs.questions.length')) === 1);
+    assert.equal(await page.getByText('Should the coin sound loop?').count(), 0, 'the strip has no question in it');
     await shot(page, '6-waiting-strip');
     await loud.getByPlaceholder('No: say what you want instead').fill('quieter, a quarter');
     await loud.getByRole('button', { name: 'Overrule' }).click();

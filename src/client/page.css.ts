@@ -177,7 +177,7 @@ export const CSS = String.raw`  :root {
   #brief h2 { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; margin: 6px 6px 6px; display: flex; gap: 8px; color: var(--soft); font-weight: 600; }
   #brief h2 .count { background: var(--chip); border-radius: 999px; padding: 0 8px; }
   #brief .brow { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 7px; }
-  /* What needs him spreads across the row: a question alone gets the width to answer it in one line. */
+  /* What needs him spreads across the row: a plan or a stopped thread alone gets the width to say it in a line. */
   #brief .brow.needs { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
   #brief .card { margin-bottom: 0; cursor: pointer; min-width: 0; }
   #brief .card .note { margin-top: 3px; }
@@ -232,7 +232,7 @@ export const CSS = String.raw`  :root {
   div.opts { display: flex; flex-wrap: wrap; gap: 6px; }
   div.opts > button { flex: 1 1 auto; max-width: 100%; margin: 0; }
   .acts > div.opts { flex: 0 1 auto; }
-  .q div.opts, .notice div.opts { margin-top: 8px; }
+  .notice div.opts { margin-top: 8px; }
   .need ul { margin: 6px 0 0; padding-left: 18px; color: var(--soft); font-size: 13px; }
 
   /* the ticket */

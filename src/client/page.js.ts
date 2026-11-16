@@ -240,14 +240,16 @@ function liveLine(c, b) {
     el('span', { class: 'pulse' }), el('span', { class: 'now' }, now), el('span', { class: 'for', 'data-since': c.live.since }, took(c.live.since)));
 }
 // What a thread waits on, as its card shows it: a small mark at the top, in the colour of who has to act.
-// The note under the title says the rest; a ticket says all of it.
+// The note under the title says the rest; a ticket says all of it. A question is asked on the thread
+// alone, so its card only says a call is wanted, and the click that opens the thread is where it is made.
 function waitMark(c, b) {
   const w = c.waiting;
   if (!w) return null;
-  const label = w.kind === 'you' ? 'Needs you' : w.kind === 'hold' ? 'On hold'
+  const label = w.kind === 'you' ? (c.question ? 'Needs a call from you' : 'Needs you') : w.kind === 'hold' ? 'On hold'
     : w.kind === 'thread' ? 'Waiting on ' + (w.on.length === 1 ? w.on[0].id : w.on.length + ' threads') : 'Agent stopped unfinished';
   const said = w.kind === 'stuck' && lastWords(c, b);
-  return el('div', { class: 'flag ' + w.kind, title: w.kind === 'stuck' ? 'It ' + w.text + (said ? '. It last said: ' + said : '') : '' }, label);
+  const title = w.kind === 'stuck' ? 'It ' + w.text + (said ? '. It last said: ' + said : '') : c.question ? 'An agent asked a question: open the thread to answer it' : '';
+  return el('div', { class: 'flag ' + w.kind, title }, label);
 }
 // The last thing an agent that gave up said: on the thread if it wrote it there, or as this page heard it.
 function lastWords(c, b) {
@@ -336,7 +338,6 @@ function cardNode(c, b) {
     noteNode(c),
     liveLine(c, b),
     b && liveOf(c, b) && liveOf(c, b).asking && permitNode(c, liveOf(c, b).asking, false),
-    c.question && el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title), optionsNode(c.question)),
     el('div', { class: 'meta' },
       el('span', { class: 'key', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id),
       el('span', { class: 'push' }), facts(c), archiveNode(c), moves(c, b)));
@@ -621,14 +622,8 @@ function drawBrief(b) {
   const plural = (k, one) => k + ' ' + one + (k === 1 ? '' : 's');
   // Each card opens its thread from anywhere on it. What an agent wrote is read as it is on a thread:
   // code and bold shown, not typed out. A card has room for the first line of a result; the rest is a click away.
+  // A question is not here: it is asked on its thread, and nowhere else, and its card on the board says so.
   const needs = [
-    ...n.questions.map((q) => {
-      const asked = b.needs.questions.find((x) => x.id === q.id);
-      return opensOn(el('div', { class: 'card', 'data-id': q.id },
-        el('div', { class: 'title' }, '❓ ' + q.title),
-        q.blocks > 0 && el('div', { class: 'note' }, 'Holds up ' + plural(q.blocks, 'thread')),
-        answersNode(q)), asked && asked.threads[0]);
-    }),
     ...n.plans.map((t) => opensOn(el('div', { class: 'card', 'data-id': t.id },
       el('div', { class: 'title' }, '📋 Plan: ' + t.title),
       t.summary && el('div', { class: 'note one', title: t.summary }, inline(firstLine(t.summary))),
@@ -767,13 +762,14 @@ function archivedNode(b) {
     showArchived && (rows.length ? rows.map(row) : el('div', { class: 'empty' }, 'Nothing archived matches.')));
 }
 
-// ---- what waits on him: on the thread it is about, or at the top of the backlog when it is about none
+// ---- what waits on him: on the thread it is about, or at the top of the backlog when it is about none.
+// A question is the one thing that is only ever on its thread.
 
 // The calls agents made for a thread and the skills it taught, that he has not looked at yet.
 const callsFor = (b, id) => b.needs.calls.filter((x) => x.threads.includes(id));
 const skillsFor = (b, id) => b.needs.skills.filter((x) => x.threads.includes(id));
 const planWaits = (b, id) => b.needs.plans.some((x) => x.id === id);
-// What is about no thread on the board has nowhere else to be shown, so the backlog's strip carries it.
+// A call or a skill about no thread on the board has nowhere else to be shown, so the backlog's strip carries it.
 function homeless(b, list) {
   const ids = new Set(everyCard(b).map((c) => c.id));
   return list.filter((x) => !x.threads.some((id) => ids.has(id)));
@@ -836,15 +832,12 @@ function skillPost(skill) {
       skillActs(skill)));
 }
 
-// The strip at the top of the backlog: notes nobody filed, and anything waiting on him that is about
-// no thread. It is not there when there is nothing in it.
+// The strip at the top of the backlog: notes nobody filed, and the calls and skills about no thread.
+// A question is never in it: a question is asked on the thread it stops, and nowhere else on the page.
+// It is not there when there is nothing in it.
 function waitingNode(b) {
   const n = b.needs;
   const items = [
-    ...homeless(b, n.questions).map((q) => el('div', { class: 'need' },
-      el('div', { class: 'what' }, '❓ ' + q.title),
-      q.why && el('div', { class: 'more' }, q.why),
-      answersNode(q))),
     ...homeless(b, n.calls).map((call) => el('div', { class: 'need' },
       el('div', { class: 'what' }, 'Decided: ' + call.choice),
       el('div', { class: 'more' }, call.title),

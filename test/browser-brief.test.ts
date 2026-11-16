@@ -86,7 +86,9 @@ test('the brief sits above the board: each line opens its thread, it folds, and 
 
     // Titled as the brief's headline reads, then the parts in the order the command gives them.
     assert.match(await head.innerText(), /4 threads shipped since you last looked, over \d+m · 2 need you/);
-    assert.deepEqual((await panel.locator('h2').allInnerTexts()).map((h) => h.replace(/\s+/g, ' ').trim()), ['NEEDS YOU 2', 'WORTH A LOOK 2']);
+    assert.deepEqual((await panel.locator('h2').allInnerTexts()).map((h) => h.replace(/\s+/g, ' ').trim()), ['NEEDS YOU 1', 'WORTH A LOOK 2']);
+    // The question is counted in the headline, and asked on its thread alone: the brief does not list it.
+    assert.equal(await panel.getByText('Fade over one second, or two?').count(), 0);
     const worth = panel.locator('.card', { hasText: 'Rebuild the level editor' });
     assert.match(await worth.innerText(), /The editor saves as you go[\s\S]*large · 9 files changed/);
     await panel.locator('.card', { hasText: 'Make coins readable at sunset' }).getByText('1 call an agent made').waitFor();
@@ -108,9 +110,6 @@ test('the brief sits above the board: each line opens its thread, it folds, and 
     await panel.locator('.card', { hasText: 'Tighten the jump arc' }).locator('.title').click();
     await ticket.getByText('Tighten the jump arc').first().waitFor();
     await page.keyboard.press('Escape');
-    await panel.locator('.card', { hasText: 'Fade over one second' }).locator('.title').click();
-    await ticket.getByText('Fade the music between levels').first().waitFor();
-    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Backlog', exact: true }).click();
     await panel.waitFor({ state: 'hidden' });
     await page.getByRole('button', { name: 'Board', exact: true }).click();
@@ -129,9 +128,13 @@ test('the brief sits above the board: each line opens its thread, it folds, and 
     await panel.getByText('NEEDS YOU').waitFor();
     assert.match(await head.innerText(), /^▾\s*5 threads shipped/);
 
-    // The question is answered right there, with the buttons the cards use.
-    await panel.locator('.card', { hasText: 'Fade over one second' }).getByRole('button', { name: 'Two seconds' }).click();
-    await panel.locator('.card', { hasText: 'Fade over one second' }).waitFor({ state: 'detached' });
+    // The question is answered on its thread, opened from its card on the board.
+    const fading = page.locator('#board .card', { hasText: 'Fade the music between levels' });
+    assert.equal(await fading.locator('.flag').innerText(), 'Needs a call from you');
+    await fading.locator('.title').click();
+    await ticket.locator('.post', { hasText: 'Fade over one second, or two?' }).getByRole('button', { name: 'Two seconds' }).click();
+    await fading.locator('.flag').waitFor({ state: 'detached' });
+    await page.keyboard.press('Escape');
 
     // All good: every finished thread approved, and the call an agent made.
     await panel.getByRole('button', { name: 'All good: approve everything' }).click();

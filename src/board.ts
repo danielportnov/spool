@@ -658,7 +658,8 @@ function briefOf(ws: Workspace, spool: Item['spool']): Brief | null {
   const kept = briefs.get(spool.root);
   if (kept?.key === key) return kept.brief;
   const b = morning(ws, { project: spool });
-  const needs = b.needsYou.questions.length + b.needsYou.plans.length + b.needsYou.stopped.length;
+  // A question alone brings up no brief: the page asks it on its thread, and nowhere else.
+  const needs = b.needsYou.plans.length + b.needsYou.stopped.length;
   const brief = b.shipped || needs ? b : null;
   briefs.set(spool.root, { key, brief });
   return brief;
