@@ -299,9 +299,8 @@ function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Threa
   };
 }
 
-// The lines a log carries for bookkeeping, not for saying what the agent is doing.
+// The log lines that mean an agent has just taken the thread.
 const CLAIM = /^(started|picked up after|handed to )/;
-const BOOKKEEPING = /^(started|picked up after|handed to |edited: |moved |released from hold|check passed: )/;
 
 /**
  * What a Building card says is happening: the latest note the agent left since it took the
