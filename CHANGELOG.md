@@ -2,6 +2,19 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.21.0 · 2026-11-16
+
+- Questions are asked on their thread alone: the board's brief, the Waiting on you strip and the
+  cards no longer list them apart. A card says **Needs a call from you**, and you answer on its thread.
+- In Chat mode, an agent's question comes to you through the chat: `spool watch` prints an `ask:`
+  line the moment one is asked, and the chat that builds sends a Claude notification, asks it there
+  with its options as buttons (mockups side by side when it is about looks), and records your pick
+  on the thread, which is then built again.
+- Each thread is built by the smallest model its size can do, with no Fable step first: xs Haiku,
+  s Sonnet, m Opus, l Opus at high effort, xl Opus at xhigh. A thread whose last run did not work
+  (undone, or left unfinished) is built one model up. In Chat mode the claim names the model, and
+  the loop starts its subagent on it. A thread's own Model and Effort still win.
+
 ## 0.20.0 · 2026-11-16
 
 - A usage target for Chat mode: in the board's header a meter beside Agents shows your plan's
