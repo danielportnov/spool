@@ -79,7 +79,7 @@ import {
   taskState,
 } from './schedule.ts';
 import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, writeSkill } from './skills.ts';
-import { SPOOL_DIR, Workspace, findFolder, findHome, readConfig, skillsDir } from './store.ts';
+import { SPOOL_DIR, Workspace, findFolder, findHome, readConfig, skillsDir, worktreeOwner } from './store.ts';
 import { alikeIn, alikeLines, similarLines, similarTo } from './similar.ts';
 import { SUGGEST, suggestSkills } from './suggest.ts';
 
@@ -1930,7 +1930,9 @@ export const COMMANDS: Command[] = [
     },
     bare({ ctx, args, opts, p }) {
       // A folder may be named the way a person says it: "sky hop" finds games/sky_hop.
-      const root = args.length ? findFolder(ctx.cwd, args.join(' ')) : ctx.cwd;
+      const named = args.length ? findFolder(ctx.cwd, args.join(' ')) : ctx.cwd;
+      // Inside a thread's worktree, the project is the one the worktree belongs to: its copy of the queue is never set up or read.
+      const root = worktreeOwner(named) ?? named;
       const dir = path.join(root, SPOOL_DIR);
       const where = path.relative(ctx.cwd, root);
       const wrote: string[] = [];

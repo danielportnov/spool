@@ -29,6 +29,8 @@ import {
 } from './model.ts';
 
 export const SPOOL_DIR = '.spool';
+/** Inside a spool: the git worktrees of the threads being built in one of their own. See worktree.ts. */
+export const WORKTREES_DIR = 'worktrees';
 export const DEFAULT_SKILLS_DIR = '.claude/skills';
 const SKILL_DIRS = [DEFAULT_SKILLS_DIR, '.agents/skills'];
 
@@ -72,8 +74,30 @@ export interface Problem {
   message: string;
 }
 
-export function findHome(from: string): string | null {
+/**
+ * The project a folder inside a thread's worktree belongs to, or null anywhere else.
+ *
+ * A worktree is kept inside the spool it belongs to, at `<root>/.spool/worktrees/<id>`. Where the
+ * queue is kept in git, the worktree holds a copy of it, as it was when the worktree was cut. That
+ * copy must never be read or written: there is one queue, and it is the project's.
+ */
+export function worktreeOwner(from: string): string | null {
+  let owner: string | null = null;
   let dir = path.resolve(from);
+  for (;;) {
+    const parent = path.dirname(dir);
+    if (parent === dir) return owner;
+    if (path.basename(parent) === WORKTREES_DIR && path.basename(path.dirname(parent)) === SPOOL_DIR) {
+      const root = path.dirname(path.dirname(parent));
+      if (fs.existsSync(path.join(root, SPOOL_DIR, 'config.json'))) owner = root;
+    }
+    dir = parent;
+  }
+}
+
+export function findHome(from: string): string | null {
+  // From inside a thread's worktree, the spool is the one the worktree belongs to.
+  let dir = worktreeOwner(from) ?? path.resolve(from);
   for (;;) {
     if (fs.existsSync(path.join(dir, SPOOL_DIR, 'config.json'))) return dir;
     const parent = path.dirname(dir);
