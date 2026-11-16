@@ -167,15 +167,24 @@ function withLines(ctx: Ctx, rows: string[], lines: string[]): string[] {
 
 /**
  * The yarn, with up to three lines of text beside it: a version, a project, a hint. In a terminal
- * under 60 columns it is the one-line form, followed by as much of the text as fits on the line.
+ * under 60 columns it is the one-line form, followed by as much of the text as fits on the line,
+ * and always by the first of it.
  * Empty when nobody is at the terminal.
  */
 export function mark(ctx: Ctx, { lines = [] }: { lines?: string[] } = {}): string {
   if (!shown(ctx)) return '';
   if (ctx.columns === undefined || ctx.columns >= NARROW) return withLines(ctx, markRows(ctx), lines).join('\n');
-  let line = markLine(ctx);
-  for (const text of lines.slice(0, 3)) {
-    if (wide(`${line}  ${text}`) > ctx.columns) break;
+  const [head, ...more] = lines.slice(0, 3);
+  if (head === undefined) return markLine(ctx);
+  // The first line is what was asked for, the version for --version, so it is never left out: where
+  // the line is too narrow for it, the mark gives way, the knot and thread first, then the word.
+  // A terminal that reports no width at all (0) gets the whole line.
+  const room = ctx.columns || Infinity;
+  const word = inColor(ctx) ? `\x1b[1m${SMALL.word}\x1b[22m` : SMALL.word;
+  const lead = [markLine(ctx), word].find((form) => wide(`${form}  ${head}`) <= room);
+  let line = lead ? `${lead}  ${head}` : head;
+  for (const text of more) {
+    if (wide(`${line}  ${text}`) > room) break;
     line += `  ${text}`;
   }
   return line;
