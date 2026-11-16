@@ -335,3 +335,26 @@ test('You get a mark of your own in each spool, the way GitHub draws one', async
   const cells = [...a.matchAll(/<rect x="(\d)" y="(\d)" width="1"/g)].map((m) => [Number(m[1]), Number(m[2])]);
   for (const [x, y] of cells) assert.ok(cells.some(([u, v]) => u === 6 - x! && v === y), `${x},${y} has its twin`);
 });
+
+test('a Building card says what the agent is doing now, and since when', async () => {
+  const { board } = await import('../src/page.ts');
+  const { Workspace } = await import('../src/store.ts');
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop');
+  const jump = s.id('task', 'Tighten the jump arc', '-s', 's');
+  s.sp('build', jump);
+  const live = () => board(Workspace.open(s.root)).columns.building.find((c) => c.id === jump)?.live;
+  assert.equal(live(), undefined, 'not yet building, so no live line');
+
+  s.sp('start', jump);
+  const started = /^started: '?([^'\n]+)'?$/m.exec(s.item(jump))![1]!;
+  assert.match(started, /^2026-01-01T00:\d\d:00\.000Z$/);
+  assert.deepEqual(live(), { since: started, note: '' }, 'just taken: only starting');
+
+  s.sp('log', jump, 'measuring the arc at three speeds');
+  assert.deepEqual(live(), { since: started, note: 'measuring the arc at three speeds' });
+  s.sp('log', jump, 'the peak is now 20% lower');
+  s.sp('edit', jump, '--size', 'm');
+  assert.equal(live()?.note, 'the peak is now 20% lower', 'the line changes as the agent works; bookkeeping does not count');
+  s.cleanup();
+});

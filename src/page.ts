@@ -76,6 +76,13 @@ interface Card {
   complete: boolean;
   thread: Thread;
   question: { id: string; title: string; options: string[]; recommend: number | null } | null;
+  /** While it is being built: when the agent took it, and the latest thing it said it was doing. */
+  live: Live | null;
+}
+
+interface Live {
+  since: string;
+  note: string;
 }
 
 /** A card opened up: what was asked, what was done about it and by whom, and where it came from. */
@@ -292,6 +299,28 @@ function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Threa
   };
 }
 
+// The lines a log carries for bookkeeping, not for saying what the agent is doing.
+const CLAIM = /^(started|picked up after|handed to )/;
+const BOOKKEEPING = /^(started|picked up after|handed to |edited: |moved |released from hold|check passed: )/;
+
+/**
+ * What a Building card says is happening: the latest note the agent left since it took the
+ * thread, and when it took it. A thread with no note yet is only starting.
+ */
+export function liveNow(task: Item): Live {
+  const steps = splitBody(task.body).log.map((line) => /^- (\d{4}-\d\d-\d\d) (\d\d:\d\d)Z (.+?): (.*)$/.exec(line));
+  let claimed = -1;
+  steps.forEach((m, i) => {
+    if (m && CLAIM.test(m[4]!)) claimed = i;
+  });
+  const claim = steps[claimed];
+  const said = steps.slice(claimed + 1).filter((m) => m && !BOOKKEEPING.test(m[4]!)).at(-1);
+  return {
+    since: task.started ?? (claim ? `${claim[1]}T${claim[2]}:00Z` : task.updated),
+    note: said ? oneLine(said[4]!, 200) : '',
+  };
+}
+
 function card(ws: Workspace, task: Item, n: number | null, note: string, column: Column, routing?: Routing): Card {
   const suggest = suggestion(task, routing);
   const { main, log } = splitBody(task.body);
@@ -321,6 +350,7 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     complete: task.status === 'done' && !!task.reviewed,
     thread: threadOf(ws, task, main, log),
     question: asked ? { id: asked.id, title: asked.title, options: asked.options, recommend: asked.recommend ?? null } : null,
+    live: column === 'building' ? liveNow(task) : null,
   };
 }
 
@@ -1057,7 +1087,11 @@ const PAGE = String.raw`<!doctype html>
   .search { margin-left: auto; width: min(260px, 40vw); padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
   .runner { white-space: nowrap; color: var(--soft); }
   .runner.on { color: var(--go); border-color: var(--go); font-weight: 600; }
-  .live { margin-top: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .live { margin-top: 6px; display: flex; align-items: center; gap: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--soft); }
+  .live .now { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .live .for { color: var(--blue); white-space: nowrap; }
+  .live .pulse { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--blue); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
   .livelog { max-height: 260px; overflow: auto; background: var(--bg); border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
   .rule { padding: 8px 20px 0; color: var(--warn); font-size: 13px; }
   #quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 20px 0; font-size: 13px; min-height: 12px; }
@@ -1373,6 +1407,22 @@ function smallAvatar(who) {
 }
 // The thread the page's own runner is building right now, if it is this one.
 const liveOf = (c, b) => (b.runner.current && b.runner.current.id === c.id ? b.runner.current : null);
+// How long an agent has been at it, the way a person would say it.
+function took(since) {
+  const s = Math.max(0, Math.round((Date.now() - Date.parse(since)) / 1000));
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s / 60) + 'm';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ' + (Math.floor(s / 60) % 60) + 'm';
+  return Math.floor(s / 86400) + 'd';
+}
+// The line a Building card shows: what the agent is doing now, and for how long. The runner's own output is the freshest.
+function liveLine(c, b) {
+  if (!c.live) return null;
+  const run = b && liveOf(c, b);
+  const now = (run && run.lines.at(-1)) || c.live.note || 'starting…';
+  return el('div', { class: 'live', title: 'What the agent is doing now, and how long it has been at it' },
+    el('span', { class: 'pulse' }), el('span', { class: 'now' }, now), el('span', { class: 'for' }, took(c.live.since)));
+}
 function moves(c, b) {
   return [
     b && liveOf(c, b) && el('button', { class: 'act', title: 'Stop the agent. The thread goes back to Build.', onclick: () => post('stop', {}, 'Stopped') }, '■ Stop'),
@@ -1392,7 +1442,7 @@ function cardNode(c, b) {
     el('div', { class: 'title', onclick: () => openThread(c.id) }, c.title),
     el('div', { class: 'chips' }, chipsOf(c, b)),
     c.note && !c.done && el('div', { class: 'note' }, c.note),
-    liveOf(c, b) && el('div', { class: 'live', title: 'What the agent is doing now' }, '▸ ' + (liveOf(c, b).lines.at(-1) || 'starting…')),
+    liveLine(c, b),
     c.question && el('div', { class: 'q' }, el('div', {}, '❓ ' + c.question.title),
       c.question.options.map((o, i) => el('button', { class: c.question.recommend === i + 1 ? 'rec' : '',
         onclick: () => post('answer', { id: c.question.id, choice: String(i + 1) }, 'Answered: ' + o) }, o))),
