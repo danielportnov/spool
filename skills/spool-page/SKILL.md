@@ -55,5 +55,10 @@ set on their machine for each thread and shows what it prints. Leave it off
 when you are the one building from this chat, or two agents will work in one
 folder. `spool page --run` starts with it on.
 
+The page keeps itself current. When Spool is upgraded or rebuilt, the page
+restarts onto the new code once no agent of its own is running, at the same
+address, and the page they have open reloads itself. Do not stop and start it
+to pick up new code: stopping it ends the agent it is running.
+
 Agents keep working while the page is open, and it shows threads move as they do.
 `spool page -P <project>` shows one project of a folder of them.
