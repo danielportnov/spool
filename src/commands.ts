@@ -97,10 +97,15 @@ import { type Landing, type Opened, closeWorktree, land, openWorktree } from './
 export type Options = NonNullable<ParseArgsConfig['options']>;
 export type Values = Record<string, string | boolean | (string | boolean)[] | undefined>;
 
+/** For each option, the words that followed its value: each by its place in `args`, and how many of the option's values came before it. */
+export type Follows = Record<string, { at: number; after: number }[]>;
+
 export interface Bare {
   ctx: Ctx;
   args: string[];
   opts: Values;
+  /** The words that came straight after an option's value: `--steps "a" "b"` gives the steps "b". */
+  follows?: Follows;
   actor: string;
   p: Paint;
 }
@@ -258,14 +263,26 @@ function summaryOf({ args, opts }: Bare): string {
   return (str(opts.message) ?? args.slice(1).join(' ')).replace(/\s+/g, ' ').trim();
 }
 
+/** Where in `args` the words after the id that followed a `--steps` are: `--steps "a" "b"` has "b" as a step too. The id is never one. */
+function moreSteps(call: Bare): number[] {
+  return (call.follows?.steps ?? []).map((f) => f.at).filter((at) => at > 0);
+}
+
 /**
- * The steps a person follows to see a change working, from `--steps` (once a step), or one a line
- * from stdin with `--steps -`. A list someone pasted keeps its words, not its numbers or bullets.
- * Undefined when none were given; `none` clears them.
+ * The steps a person follows to see a change working, from `--steps` (each word after it is a
+ * step, and it can be given again), or one a line from stdin with `--steps -`. A list someone
+ * pasted keeps its words, not its numbers or bullets. Undefined when none were given; `none` clears them.
  */
 function stepsOf(call: Bare): string[] | undefined {
-  const given = raw(call.opts.steps);
+  // Each word goes in after the --steps it followed, so the steps keep the order they were typed in.
+  const given = raw(call.opts.steps).flatMap((step, n) => [
+    step,
+    ...(call.follows?.steps ?? []).filter((f) => f.at > 0 && f.after === n + 1).map((f) => call.args[f.at]!),
+  ]);
   if (!given.length) return undefined;
+  if (given.length > 1 && (given.includes('-') || given.includes('none'))) {
+    throw new SpoolError('--steps - and --steps none stand alone', 'Give the steps after --steps, or one a line on stdin with --steps -, or clear them with --steps none');
+  }
   if (given.length === 1 && given[0] === 'none') return [];
   const lines = given.length === 1 && given[0] === '-' ? call.ctx.stdin().split('\n') : given;
   const steps = lines.map((l) => oneLine(l.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, ''), 200)).filter(Boolean);
@@ -1459,6 +1476,14 @@ export const COMMANDS: Command[] = [
       // Taken back to the backlog while it was being built: the human said stop, so it is not finished by whoever was on it.
       if (t.status === 'proposed') throw new SpoolError(`${t.id} was moved back to the backlog`, 'Leave it: nothing builds it until the human moves it to build again');
       const type = t.type ?? 'change';
+      // `spool done <id> --steps "a" fixed it` could be a step or what changed: it is not guessed at.
+      const loose = moreSteps(call);
+      if (loose.length && call.opts.message === undefined) {
+        throw new SpoolError(
+          `"${oneLine(call.args[loose[0]!]!, 40)}" could be a step or what changed`,
+          `Say what changed with -m, and the steps after --steps: spool done ${t.id} -m "<what changed>" --steps "<step>" "<step>"`,
+        );
+      }
       const summary = summaryOf(call);
       if (!summary) {
         throw new SpoolError(
@@ -1480,7 +1505,7 @@ export const COMMANDS: Command[] = [
           throw new SpoolError(`cannot read the report at ${reportArg}`);
         }
         if (!report.trim()) throw new SpoolError('the report is empty');
-        if (raw(call.opts.steps).join() === '-') throw new SpoolError('only one of --report and --steps can be read from stdin', 'Give the steps with --steps "<step>", once each');
+        if (raw(call.opts.steps).join() === '-') throw new SpoolError('only one of --report and --steps can be read from stdin', 'Give the steps after --steps: --steps "<step>" "<step>"');
       } else if (type !== 'change' && !fs.existsSync(reportPath)) {
         throw new SpoolError(
           `${type === 'audit' ? 'an audit' : 'a plan'} is finished by its report`,

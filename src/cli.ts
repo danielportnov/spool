@@ -11,7 +11,7 @@ import * as path from 'node:path';
 import * as readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { COMMANDS, type Command, type Options, type Result, type Values } from './commands.ts';
+import { COMMANDS, type Command, type Follows, type Options, type Result, type Values } from './commands.ts';
 import { version } from './builtin.ts';
 import type { Ctx } from './context.ts';
 import { canUnwind, inColor, mark, unwind } from './mark.ts';
@@ -80,10 +80,10 @@ function find(name: string): Command {
  * text (a title such as "--steps takes several steps"), not a flag. Options go first, spelled
  * `--name=value`, and the words after `--`, so nothing is read twice.
  *
- * `follows` says which words came straight after an option's value, by their place among the
- * words: `--steps "a" "b"` gives the steps "b".
+ * `follows` says which words came straight after an option's value: each by its place among the
+ * words, and how many of that option's values came before it. `--steps "a" "b"` gives "b", after one.
  */
-export function readable(argv: string[], options: Options): { args: string[]; follows: Record<string, number[]> } {
+export function readable(argv: string[], options: Options): { args: string[]; follows: Follows } {
   const byShort = new Map(Object.entries(options).flatMap(([name, o]) => (o.short ? [[o.short, name] as const] : [])));
   const nameOf = (arg: string): string | undefined => {
     if (arg.startsWith('--')) {
@@ -94,7 +94,8 @@ export function readable(argv: string[], options: Options): { args: string[]; fo
   };
   const flags: string[] = [];
   const words: string[] = [];
-  const follows: Record<string, number[]> = {};
+  const follows: Follows = {};
+  const given: Record<string, number> = {};
   let after: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -110,14 +111,20 @@ export function readable(argv: string[], options: Options): { args: string[]; fo
         after = undefined;
         continue;
       }
-      if (after) (follows[after] ??= []).push(words.length);
+      if (after) (follows[after] ??= []).push({ at: words.length, after: given[after]! });
       words.push(arg);
       continue;
     }
     after = undefined;
     const next = argv[i + 1];
-    if (options[name]!.type !== 'string' || arg.includes('=')) {
+    if (options[name]!.type !== 'string') {
       flags.push(arg);
+      continue;
+    }
+    if (arg.includes('=')) {
+      flags.push(arg);
+      given[name] = (given[name] ?? 0) + 1;
+      after = name;
       continue;
     }
     if (next === undefined || next === '--') throw new Error(`Option '${arg}' needs a value`);
@@ -127,6 +134,7 @@ export function readable(argv: string[], options: Options): { args: string[]; fo
       continue;
     }
     flags.push(`--${name}=${next}`);
+    given[name] = (given[name] ?? 0) + 1;
     after = name;
     i++;
   }
@@ -186,9 +194,11 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
   const command = find(name);
   let values: Values;
   let positionals: string[];
+  let follows: Follows;
   const options = { ...GLOBAL, ...command.options };
   try {
-    const { args } = readable(rest, options);
+    let args: string[];
+    ({ args, follows } = readable(rest, options));
     ({ values, positionals } = parseArgs({ args, options, allowPositionals: true, strict: true }) as { values: Values; positionals: string[] });
   } catch (error) {
     const message = (error as Error).message.split(/\.?\s*(?:Did you forget|To specify)/)[0]!;
@@ -204,7 +214,7 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
   cwd = typeof values.cwd === 'string' ? values.cwd : cwd;
 
   const scoped: Ctx = { ...ctx, cwd: path.resolve(ctx.cwd, cwd ?? '.'), color: ctx.color && !json };
-  const base = { ctx: scoped, args: positionals, opts: values, actor, p: paint(scoped.color) };
+  const base = { ctx: scoped, args: positionals, opts: values, follows, actor, p: paint(scoped.color) };
   if (command.bare) return { result: command.bare(base), json };
 
   // Anything slow a command has to do first is done here, before the store is locked for it.
