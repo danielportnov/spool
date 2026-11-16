@@ -96,12 +96,17 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     b = await board();
     const shipped = b.columns.done.find((c: any) => c.id === coins);
     assert.deepEqual([shipped.done, shipped.complete, shipped.thread.by, shipped.thread.summary], [true, false, 'Claude Fable 5.2', 'Coins have a teal rim at sunset']);
-    assert.deepEqual(shipped.thread.steps.slice(-2).map((x: any) => [x.who, x.what]), [['Claude Fable 5.2', 'started'], ['Claude Fable 5.2', 'done: Coins have a teal rim at sunset']]);
+    assert.deepEqual(shipped.thread.steps.slice(-3).map((x: any) => [x.who, x.what]), [
+      ['Claude Fable 5.2', 'started'],
+      ['Claude Fable 5.2', 'builder model: haiku · medium, by its size'],
+      ['Claude Fable 5.2', 'done: Coins have a teal rim at sunset'],
+    ]);
     // The same story as a conversation: what they said, what Claude said back, and the moves in between.
     // (The page's server keeps real time and this test's own commands keep a made-up clock, so only
     // the order within each is checked.)
     const feed = shipped.thread.feed.map((p: any) => `${p.who} · ${p.kind} · ${p.text}`);
     assert.deepEqual([...feed].sort(), [
+      'Claude Fable 5.2 · event · builder model: haiku · medium, by its size',
       'Claude Fable 5.2 · event · started',
       'Claude Fable 5.2 · shipped · Coins have a teal rim at sunset',
       'agent · asked · Outline the coins, or turn them teal?',
@@ -367,4 +372,26 @@ test('what waits on the human says which thread it is about, and a call reads as
   assert.deepEqual(b.needs.calls.map((c) => c.title), ['How loud is the coin sound?']);
   assert.equal(ticket().thread.questions.find((q) => q.id === call.id)!.status, 'decided');
   s.cleanup();
+});
+
+test('a card says what model it gets left to itself: its size’s, or one up where its last run was undone', async () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop');
+  const typo = s.id('task', 'Fix the typo on the title screen', '-s', 'xs');
+  const coins = s.id('task', 'Make coins readable at sunset', '-s', 'xs');
+  s.sp('start', coins, '--as', 'Claude Opus 5.5');
+  s.sp('done', coins, '-m', 'A dark outline', '--as', 'Claude Opus 5.5');
+  s.sp('revert', coins, '-m', 'still sand-coloured');
+  s.sp('edit', typo, '--model', 'opus');
+  const { url, stop } = await startPage(s);
+  try {
+    const b = (await (await fetch(`${url}api/board`)).json()) as Record<string, any>;
+    const card = (id: string) => b.columns.build.find((c: any) => c.id === id);
+    assert.deepEqual(card(coins).suggest, { model: 'sonnet', effort: 'medium', why: 'stepped up from haiku: its last run was undone' });
+    // The human's pick is theirs; the box left to itself still says what leaving it would give.
+    assert.deepEqual([card(typo).model, card(typo).suggest], ['opus', { model: 'haiku', effort: 'medium', why: 'by its size' }]);
+  } finally {
+    await stop();
+    s.cleanup();
+  }
 });

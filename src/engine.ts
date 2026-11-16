@@ -25,7 +25,7 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { act } from './act.ts';
-import { type Pick as Picked, ROUTER, type Routing, commandFor, parseRoute, pickFor, routeNote, routerCommand } from './agent.ts';
+import { type Pick as Picked, type Routing, commandFor, pickFor, stepNote, takesPick } from './agent.ts';
 import { type Builder, type Ctx, builderOf, notify, parallelOf, saveBuilder, userConfig } from './context.ts';
 import { dirtyPaths, discardPaths, repoRoot } from './git.ts';
 import { DEFAULT_AGENT, PREAMBLE } from './loop.ts';
@@ -34,7 +34,7 @@ import { prime } from './prime.ts';
 import { brief, paint } from './render.ts';
 import { runOf } from './run.ts';
 import { ready, tasks } from './schedule.ts';
-import { type Session, askRouter, endAgent, endLeftover, pageRunning, promptFile, recall, remember, startSession } from './session.ts';
+import { type Session, endAgent, endLeftover, pageRunning, promptFile, recall, remember, startSession } from './session.ts';
 import { atOnceIn, sharedFolderWhy } from './slots.ts';
 import { Workspace, isOff } from './store.ts';
 import { type Ask, SESSION_ID, asking, inSession, keeps, listening, listens, sessionOf, streaming } from './stream.ts';
@@ -234,10 +234,9 @@ export interface Asking {
 /** What one try at handing out a thread came to: an agent started, nothing there to hand out, or a thread that could not be started. */
 type HandOut = 'started' | 'none' | 'skipped';
 
-/** How a card learns what will pick its model: the size table, and who chooses first. */
+/** How a card learns what its model will be: the user's table by size. */
 export interface Picking {
   models: Routing;
-  chooser: (task: Item) => string;
 }
 
 /**
@@ -428,7 +427,7 @@ export class Runner {
           told: notes.map((n) => n.id),
           spoke: picked.unheard ? Date.now() : undefined,
         };
-        fresh.command = this.afresh(this.command(task, models, asItRan(task)));
+        fresh.command = this.afresh(this.command(pickFor(task, models, asItRan(task))));
         task.by = this.name();
         task.started = timestamp(ws.now());
         addLog(task, 'page', 'its page had stopped with nobody working it; carried on where it was', ws.now());
@@ -452,7 +451,7 @@ export class Runner {
    * the human's notes that is. Nothing where the agent command cannot pick a session up.
    */
   private pickUp(task: Item, left: { session: string; how: Left }, notes: Item[], models: Routing): (Start & { unheard: number }) | undefined {
-    const command = inSession(this.command(task, models, asItRan(task)), left.session, true);
+    const command = inSession(this.command(pickFor(task, models, asItRan(task))), left.session, true);
     if (!command) return undefined;
     const given = recall(task);
     const told = new Set(given?.session === left.session ? given.told : []);
@@ -776,9 +775,7 @@ export class Runner {
     let handed: Handed;
     const fresh: Start = { prompt: '', command: this.agent };
     let again: Start | undefined;
-    let asker: string | undefined;
-    let briefText = '';
-    const { models, router } = userConfig(this.ctx);
+    const { models } = userConfig(this.ctx);
     try {
       const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
       try {
@@ -849,18 +846,20 @@ export class Runner {
           again = picked;
           // Words of theirs it is picked up with are words to it: it is kept for the next as after any other.
           if (picked.unheard) handed.spoke = Date.now();
-        } else {
-          asker = routerCommand(this.agent, task, models, router);
-          if (left) addLog(task, 'page', `session ${left.session} cannot be picked up by \`${this.agent}\`; starting afresh`, ws.now());
+        } else if (left) {
+          addLog(task, 'page', `session ${left.session} cannot be picked up by \`${this.agent}\`; starting afresh`, ws.now());
         }
+        // Afresh, a thread whose last run did not work goes one model up, and its log says so.
+        const pick = pickFor(task, models, again ? asItRan(task) : undefined);
+        const stepped = takesPick(this.agent) ? stepNote(pick) : undefined;
         task.status = 'active';
         task.by = this.name();
         task.started = timestamp(ws.now());
-        fresh.command = this.afresh(this.command(task, models, again ? asItRan(task) : undefined));
-        if (!asker) addLog(task, 'page', `handed to \`${(again ?? fresh).command}\``, ws.now());
+        fresh.command = this.afresh(this.command(pick));
+        if (stepped) addLog(task, 'page', stepped, ws.now());
+        addLog(task, 'page', `handed to \`${(again ?? fresh).command}\``, ws.now());
         ws.save(task);
-        briefText = brief(ws, task, paint(false));
-        fresh.prompt = this.opening(ws, fresh.command, briefText);
+        fresh.prompt = this.opening(ws, fresh.command, brief(ws, task, paint(false)));
       } finally {
         ws.close();
       }
@@ -868,15 +867,14 @@ export class Runner {
       return 'none'; // The store was busy for an instant; the next tick looks again.
     }
     this.handedOut++;
-    if (asker) this.route(task, handed, fresh.prompt, briefText, asker);
-    else if (again) this.start(task, handed, again, fresh);
+    if (again) this.start(task, handed, again, fresh);
     else this.start(task, handed, fresh);
     return 'started';
   }
 
   /** The agent command for a thread, with the model and effort it gets put in it, and the stream on, both ways, where it is `claude -p`. */
-  private command(task: Item, models: Routing, routed?: Picked): string {
-    return asking(listening(streaming(commandFor(this.agent, pickFor(task, models, routed)))));
+  private command(pick: Picked): string {
+    return asking(listening(streaming(commandFor(this.agent, pick))));
   }
 
   /** A command that starts a thread from nothing: where it is `claude -p`, in a new session of Spool's choosing. */
@@ -884,53 +882,9 @@ export class Runner {
     return inSession(command, randomUUID()) ?? command;
   }
 
-  /**
-   * Pass the thread to Fable first, to choose which model works it and how hard
-   * it thinks; then start that. While Fable reads, the thread shows as building
-   * and Stop ends Fable. If Fable cannot answer, the size decides.
-   */
-  private route(task: Item, handed: Handed, prompt: string, briefText: string, asker: string): void {
-    const child = askRouter(asker, task, briefText, { folder: handed.folder, env: this.ctx.env }, (code, how, out) => {
-      if (run.stopped || this.runs.get(run.id) !== run) {
-        this.settle(run, how);
-        return;
-      }
-      const routed = code === 0 ? parseRoute(out) : undefined;
-      const note = routeNote(routed, routed ? undefined : code === 0 ? 'no answer it could read' : how);
-      const command = this.afresh(this.command(task, userConfig(this.ctx).models, routed));
-      let still = true;
-      try {
-        const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
-        try {
-          const now = ws.find(task.id);
-          still = now?.status === 'active';
-          if (now && still) {
-            addLog(now, 'page', note, ws.now());
-            addLog(now, 'page', `handed to \`${command}\``, ws.now());
-            ws.save(now);
-          }
-        } finally {
-          ws.close();
-        }
-      } catch {
-        // The notes are only notes; the run goes ahead without them.
-      }
-      // Someone took the thread back while Fable read it; there is nothing to start.
-      if (still) this.start(task, handed, { prompt, command });
-      else this.settle(run, how);
-    });
-    const run: Run = { ...handed, child, lines: [`${ROUTER} is choosing the model…`], began: Date.now(), stopped: false };
-    this.keep(run);
-  }
-
-  /**
-   * The user's table of which model and effort each size gets, and the model that
-   * chooses first for a thread, if one does: read fresh so a change shows at once.
-   */
+  /** The user's table of which model and effort each size gets: read fresh so a change shows at once. */
   routing(): Picking {
-    const { models, router } = userConfig(this.ctx);
-    const by = (typeof router === 'string' && router) || ROUTER;
-    return { models, chooser: (task) => (routerCommand(this.agent, task, models, router) ? by : '') };
+    return { models: userConfig(this.ctx).models };
   }
 
   /** What the agent is called on the thread: the program it is, so "claude" shows as Claude. */

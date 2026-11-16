@@ -11,7 +11,7 @@ import type { ParseArgsConfig } from 'node:util';
 import { agentsCommand } from './agents-switch.ts';
 import { ATTACH } from './attach.ts';
 import { builderCommand } from './builder.ts';
-import { effortOf, modelOf } from './agent.ts';
+import { type Picked, builderLine, effortOf, modelOf, pickFor, pickLabel } from './agent.ts';
 import { morning, morningText } from './brief.ts';
 import { DISABLE, ENABLE } from './off.ts';
 import { HARNESSES, describe, harness, installFor, installedAnywhere, others } from './harness.ts';
@@ -557,7 +557,7 @@ function likelyProjects(ws: Workspace, text: string): Spool[] {
  * Claim a thread for whoever is calling. With `worktree`, or where the thread has one from an
  * earlier start, it is given a git worktree of its own to be built in, and that is returned.
  */
-function claim(call: Call, task: Item, force: boolean, worktree = false): Opened | undefined {
+function claim(call: Call, task: Item, force: boolean, worktree = false): { opened?: Opened; pick: Picked } {
   const { ws, actor } = call;
   const state = taskState(ws, task);
   if (state === 'done' || state === 'dropped') throw new SpoolError(`${task.id} is already ${state}`);
@@ -581,6 +581,9 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): Opened
   }
   // Before anything is written: where there can be no worktree, the thread is not claimed either.
   const opened = worktree || task.worktree ? openWorktree(task) : undefined;
+  // What the subagent that builds it is started on, read from the log as it stands, before this claim is on it.
+  const pick = pickFor(task, userConfig(call.ctx).models);
+  const given = builderLine(pick);
   task.status = 'active';
   task.by = actor;
   task.started = timestamp(ws.now());
@@ -588,9 +591,21 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): Opened
   task.place = undefined;
   const how = state === 'stale' ? 'picked up after the last claim went quiet' : 'started';
   addLog(task, actor, opened ? `${how}, in its own worktree on ${opened.branch}` : how, ws.now());
+  if (given) addLog(task, actor, given, ws.now());
   ws.save(task);
-  return opened;
+  return { opened, pick };
 }
+
+/**
+ * What a start or a claim says about the model, under the brief: the one the size gives, or one up
+ * where the last run did not work, or the human's. A chat that builds starts the thread's subagent on it.
+ */
+function modelNote(pick: Picked, p: Paint): string | undefined {
+  if (!pick.model && !pick.effort) return undefined;
+  return `${p.bold('MODEL')} — ${pickLabel(pick)}, ${pick.why}. Start the subagent that builds it on that model, at that effort.`;
+}
+
+const modelJson = (pick: Picked) => ({ model: pick.model ?? '', effort: pick.effort ?? '', why: pick.why });
 
 /** What a start says about the worktree it made or found, under the brief. */
 function worktreeNote(task: Item, opened: Opened, p: Paint): string {
@@ -1361,12 +1376,15 @@ export const COMMANDS: Command[] = [
       const list = ready(ws, project);
       const task = list[0];
       if (!task) return { text: nothingReady(ws, project), data: { task: null, ready: 0 } };
-      const opened = call.opts.claim ? claim(call, task, true, !!call.opts.worktree) : undefined;
+      const claimed = call.opts.claim ? claim(call, task, true, !!call.opts.worktree) : undefined;
+      const pick = claimed?.pick ?? pickFor(task, userConfig(call.ctx).models);
       const out = [brief(ws, task, p)];
-      if (opened) out.push(worktreeNote(task, opened, p));
+      const model = modelNote(pick, p);
+      if (model) out.push('', model);
+      if (claimed?.opened) out.push(worktreeNote(task, claimed.opened, p));
       if (!call.opts.claim) out.push(p.dim(`claim it        spool start ${task.id}`));
       if (list.length > 1) out.push(p.dim(`${list.length - 1} more ready behind it`));
-      return { text: out.join('\n'), data: { task: itemJson(ws, task, true), brief: brief(ws, task, p), ready: list.length } };
+      return { text: out.join('\n'), data: { task: itemJson(ws, task, true), brief: brief(ws, task, p), model: modelJson(pick), ready: list.length } };
     },
   },
   {
@@ -1378,10 +1396,12 @@ export const COMMANDS: Command[] = [
     options: { force: { type: 'boolean' }, worktree: { type: 'boolean' } },
     run(call) {
       const t = first(call, 'which task', 'task');
-      const opened = claim(call, t, !!call.opts.force, !!call.opts.worktree);
+      const { opened, pick } = claim(call, t, !!call.opts.force, !!call.opts.worktree);
       const out = [brief(call.ws, t, call.p)];
+      const model = modelNote(pick, call.p);
+      if (model) out.push('', model);
       if (opened) out.push(worktreeNote(t, opened, call.p));
-      return { text: out.join('\n'), data: { task: itemJson(call.ws, t, true) } };
+      return { text: out.join('\n'), data: { task: itemJson(call.ws, t, true), model: modelJson(pick) } };
     },
   },
   {
@@ -1775,11 +1795,11 @@ export const COMMANDS: Command[] = [
       if ((model !== undefined || effort !== undefined) && item.kind !== 'task') throw new SpoolError('only tasks have a model and an effort');
       if (model !== undefined) {
         item.model = model || undefined;
-        changed.push(model ? `model ${model}` : 'model left to Fable, or its size');
+        changed.push(model ? `model ${model}` : 'model left to its size');
       }
       if (effort !== undefined) {
         item.effort = effort || undefined;
-        changed.push(effort ? `effort ${effort}` : 'effort left to Fable, or its size');
+        changed.push(effort ? `effort ${effort}` : 'effort left to its size');
       }
       const tags = tagsOf(call.opts.tag);
       const version = versionOf(call.opts.version);

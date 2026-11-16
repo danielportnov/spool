@@ -14,17 +14,7 @@ import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import {
-  ROUTER,
-  ROUTE_TIMEOUT_MS,
-  type Route,
-  commandFor,
-  parseRoute,
-  pickFor,
-  routeNote,
-  routerCommand,
-  routerPrompt,
-} from './agent.ts';
+import { commandFor, pickFor, stepNote, takesPick } from './agent.ts';
 import type { Bare, Result } from './commands.ts';
 import { notify, userConfig } from './context.ts';
 import { type Item, SpoolError, addLog, firstLine, timestamp } from './model.ts';
@@ -58,42 +48,12 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
   const max = opts.once ? 1 : opts.max !== undefined ? count(opts.max, '--max') : Infinity;
   const watch = opts.watch !== undefined ? count(opts.watch, '--watch') : 0;
   const project = typeof opts.project === 'string' ? opts.project : undefined;
-  const { models: routing, router } = userConfig(ctx);
-  /** The command for this thread: the user's, with the model and effort it gets put in. */
-  const commandOf = (task: Item, routed?: Route): string => commandFor(agent, pickFor(task, routing, routed));
-  /** Pass the thread to Fable first, where the agent is Claude and the human has not picked both, and log what it chose. */
-  const route = (task: Item, briefText: string, asker: string): string => {
-    ctx.out(`  ${p.dim(`${ROUTER} is choosing the model…`)}`);
-    const run = spawnSync(asker, {
-      shell: true,
-      cwd: task.spool.root,
-      input: routerPrompt(task, briefText),
-      encoding: 'utf8',
-      timeout: ROUTE_TIMEOUT_MS,
-      maxBuffer: 16 * 1024 * 1024,
-      env: { ...ctx.env, SPOOL_ROUTING: task.id },
-    });
-    const routed = run.status === 0 ? parseRoute(run.stdout ?? '') : undefined;
-    const how = run.error ? run.error.message : run.status !== 0 ? `exited ${run.status ?? run.signal}` : 'no answer it could read';
-    const note = routeNote(routed, routed ? undefined : how);
-    ctx.out(`  ${p.dim(note)}`);
-    const command = commandOf(task, routed);
-    try {
-      const w = Workspace.open(ctx.cwd, ctx.now, true);
-      try {
-        const now = w.find(task.id);
-        if (now) {
-          addLog(now, 'loop', note, w.now());
-          addLog(now, 'loop', `handed to \`${command}\``, w.now());
-          w.save(now);
-        }
-      } finally {
-        w.close();
-      }
-    } catch {
-      // The notes are only notes; the run goes ahead without them.
-    }
-    return command;
+  const { models: routing } = userConfig(ctx);
+  /** The command for this thread: the user's, with the model and effort it gets put in, and the line that says it stepped up, if it did. */
+  const commandOf = (task: Item): { command: string; stepped?: string } => {
+    const pick = pickFor(task, routing);
+    const stepped = takesPick(agent) ? stepNote(pick) : undefined;
+    return { command: commandFor(agent, pick), ...(stepped ? { stepped } : {}) };
   };
 
   /** Tasks an agent walked away from, and the state we left them in. Untouched since → don't retry. */
@@ -107,21 +67,24 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
   if (opts['dry-run']) {
     const ws = Workspace.open(ctx.cwd, ctx.now);
     const queue = ready(ws, project);
-    const routed = queue.filter((t) => routerCommand(agent, t, routing, router)).map((t) => t.id);
+    const planned = new Map(queue.map((t) => [t.id, commandOf(t)]));
     const lines = queue.length
       ? [
           `Would run \`${agent}\` on ${queue.length} task(s), in this order:`,
-          ...queue.flatMap((t) => [
-            `  ${itemLine(ws, t, p)}`,
-            routed.includes(t.id)
-              ? `      ${p.dim(`${ROUTER} chooses the model and effort first; if it cannot: $ ${commandOf(t)}`)}`
-              : `      ${p.dim(`$ ${commandOf(t)}`)}`,
-          ]),
+          ...queue.flatMap((t) => {
+            const { command, stepped } = planned.get(t.id)!;
+            return [`  ${itemLine(ws, t, p)}`, ...(stepped ? [`      ${p.dim(stepped)}`] : []), `      ${p.dim(`$ ${command}`)}`];
+          }),
         ]
       : ['Nothing is ready, so the loop would stop at once.'];
     return {
       text: lines.join('\n'),
-      data: { agent, queue: queue.map((t) => t.id), commands: Object.fromEntries(queue.map((t) => [t.id, commandOf(t)])), routed },
+      data: {
+        agent,
+        queue: queue.map((t) => t.id),
+        commands: Object.fromEntries(queue.map((t) => [t.id, planned.get(t.id)!.command])),
+        stepped: queue.filter((t) => planned.get(t.id)!.stepped).map((t) => t.id),
+      },
     };
   }
 
@@ -129,21 +92,19 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
     let task: Item | undefined;
     let prompt = '';
     let command = agent;
-    let asker: string | undefined;
-    let briefText = '';
     const ws = Workspace.open(ctx.cwd, ctx.now, true);
     try {
       task = pick(ws);
       if (task) {
-        command = commandOf(task);
-        asker = routerCommand(agent, task, routing, router);
+        const given = commandOf(task);
+        command = given.command;
         task.status = 'active';
         task.by = 'loop';
         task.started = timestamp(ws.now());
-        if (!asker) addLog(task, 'loop', `handed to \`${command}\``, ws.now());
+        if (given.stepped) addLog(task, 'loop', given.stepped, ws.now());
+        addLog(task, 'loop', `handed to \`${command}\``, ws.now());
         ws.save(task);
-        briefText = brief(ws, task, paint(false));
-        prompt = `${PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${briefText}\n`;
+        prompt = `${PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${brief(ws, task, paint(false))}\n`;
       } else if (!toldIdle && review(ws, project).questions.length) {
         toldIdle = notify(ctx, 'idle', `Spool is idle with ${review(ws, project).questions.length} question(s) waiting on you`);
       }
@@ -159,7 +120,6 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
     toldIdle = false;
     runs++;
     ctx.out(`${p.bold('▶')} ${task.id}  ${task.title}  ${p.dim(`· ${task.spool.name}`)}`);
-    if (asker) command = route(task, briefText, asker);
 
     const promptFile = path.join(os.tmpdir(), `spool-${task.id}-${process.pid}.md`);
     fs.writeFileSync(promptFile, prompt);

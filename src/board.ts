@@ -12,7 +12,7 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { suggestion } from './agent.ts';
+import { pickFor } from './agent.ts';
 import { type Brief, morning, waitingOnYou } from './brief.ts';
 import type { Builder } from './context.ts';
 import { type Live as Running, type Picking, type Runner, stoppedInBuild } from './engine.ts';
@@ -47,11 +47,14 @@ export interface Card {
   suggested: string;
   /** The fields a ticket shows and the human can change. */
   size: string;
-  /** The model and effort the human chose for it, if they did, and what its size suggests. */
+  /** The model and effort the human chose for it, if they did. */
   model: string;
   effort: string;
-  /** `by` names the model that chooses for it when it starts, where one does. */
-  suggest: { model: string; effort: string; by: string };
+  /**
+   * What it is built with where the human does not choose, and why: "by its size", or
+   * "stepped up from haiku: its last run was undone".
+   */
+  suggest: { model: string; effort: string; why: string };
   p: number;
   tags: string[];
   version: string;
@@ -191,7 +194,7 @@ interface Post {
 }
 
 /** The queue's own log lines: what moved where. Anything else an agent logged is something it had to say. */
-const BOOKKEEPING = /^(started|check passed|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |session |transcript |reverted|reopened|dropped|agreed|filed |placed )/;
+const BOOKKEEPING = /^(started|builder model: |check passed|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |session |transcript |reverted|reopened|dropped|agreed|filed |placed )/;
 
 function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['steps']): Post[] {
   const words: Post[] = said.map((s) => ({
@@ -467,7 +470,8 @@ function waitingOf(ws: Workspace, task: Item, steps: Thread['steps'], asked: Ite
 }
 
 function card(ws: Workspace, task: Item, n: number | null, note: string, column: Column, routing?: Picking): Card {
-  const suggest = suggestion(task, routing?.models);
+  // What it gets left to itself: the human's pick is set aside, so the boxes can say what leaving them gives.
+  const suggest = pickFor({ ...task, model: undefined, effort: undefined }, routing?.models);
   const { main, log } = splitBody(task.body);
   const asked = blockers(ws, task).find((b) => b.kind === 'decision' && b.status === 'open');
   const thread = threadOf(ws, task, main, log);
@@ -485,7 +489,7 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     size: task.size ?? '',
     model: task.model ?? '',
     effort: task.effort ?? '',
-    suggest: { model: suggest.model ?? '', effort: suggest.effort ?? '', by: routing?.chooser(task) ?? '' },
+    suggest: { model: suggest.model ?? '', effort: suggest.effort ?? '', why: suggest.why },
     p: task.priority ?? 2,
     tags: task.tags,
     version: task.version ?? '',

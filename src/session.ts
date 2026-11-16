@@ -26,7 +26,6 @@ import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { ROUTE_TIMEOUT_MS, routerPrompt } from './agent.ts';
 import type { Ctx } from './context.ts';
 import type { Item } from './model.ts';
 import { type Ask, allowLine, denyLine, hearLine, interruptLine, listens, runDir, sessionOf, transcriptFile, userLine } from './stream.ts';
@@ -91,45 +90,6 @@ const STOP_GRACE_MS = 3000;
 export function endAgent(child: ChildProcess): void {
   endGroup(child);
   setTimeout(() => endGroup(child, 'SIGKILL'), END_GRACE_MS).unref();
-}
-
-/**
- * The step before a run: the thread is passed to Fable, which reads its brief and answers with
- * the model to work it and how hard to think. `done` hears how that ended and what was printed;
- * what the answer means for the thread is its caller's to say. One that takes too long is ended.
- */
-export function askRouter(
-  asker: string,
-  task: Item,
-  briefText: string,
-  at: { folder: string; env: Ctx['env'] },
-  done: (code: number | null, how: string, out: string) => void,
-): ChildProcess {
-  const child = spawn(asker, {
-    shell: true,
-    cwd: at.folder,
-    stdio: ['pipe', 'pipe', 'pipe'],
-    detached: process.platform !== 'win32',
-    env: { ...at.env, SPOOL_ROUTING: task.id },
-  });
-  let out = '';
-  child.stdout!.on('data', (chunk: Buffer) => {
-    if (out.length < 1024 * 1024) out += chunk.toString('utf8');
-  });
-  child.stderr!.on('data', () => {});
-  child.stdin!.on('error', () => {});
-  child.stdin!.end(routerPrompt(task, briefText));
-  const timer = setTimeout(() => endAgent(child), ROUTE_TIMEOUT_MS);
-  let over = false;
-  const end = (code: number | null, how: string): void => {
-    if (over) return;
-    over = true;
-    clearTimeout(timer);
-    done(code, how, out);
-  };
-  child.on('error', (error) => end(null, `could not start (${error.message})`));
-  child.on('exit', (code, signal) => end(code, `exited ${code ?? signal}`));
-  return child;
 }
 
 /**

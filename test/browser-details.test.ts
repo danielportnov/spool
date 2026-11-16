@@ -23,8 +23,8 @@ async function shot(page: Page, name: string): Promise<void> {
 }
 
 /**
- * A stand-in for `claude`, named so the page treats it as Claude: asked to choose, it answers as
- * Fable would; asked to work, it says which session it is and works on and on.
+ * A stand-in for `claude`, named so the page treats it as Claude: asked to work, it says which
+ * session it is and works on and on.
  */
 function claude(s: Sandbox): string {
   const dir = path.join(s.root, '.bin');
@@ -32,10 +32,9 @@ function claude(s: Sandbox): string {
   const file = path.join(dir, 'claude');
   fs.writeFileSync(file, [
     '#!/bin/sh',
-    'if [ -n "$SPOOL_ROUTING" ]; then cat > /dev/null; echo \'{"model": "opus", "effort": "xhigh", "why": "a small change, worth care"}\'; exit 0; fi',
     // Asked to work, its prompt is one message, and its input stays open behind it.
     'read -r prompt',
-    'echo \'{"type":"system","subtype":"init","session_id":"5f2c9e1a-77b0-4c1e-9a3d-0e6b2f4c8d11","model":"opus"}\'',
+    'echo \'{"type":"system","subtype":"init","session_id":"5f2c9e1a-77b0-4c1e-9a3d-0e6b2f4c8d11","model":"sonnet"}\'',
     'i=1; while [ $i -le 400 ]; do sleep 0.25; echo "step $i: measuring the arc"; i=$((i+1)); done',
   ].join('\n') + '\n');
   fs.chmodSync(file, 0o755);
@@ -113,20 +112,17 @@ test('the details of a ticket and a card', async (t) => {
     await page.locator(`#board .card[data-id="${jump}"]`).waitFor();
     assert.deepEqual(await slides(), [], 'the first draw does not set the whole board moving');
 
-    // Which model, and how hard it thinks: two boxes, each with its own label. Left alone, Fable
-    // decides, and a quiet line says what the size would give.
+    // Which model, and how hard it thinks: two boxes, each with its own label. Left alone, they say
+    // what its size gives: the smallest model that can build a small thread.
     await open(jump);
     const model = field('Model');
     const effort = field('Effort');
-    assert.equal(await model.locator('select option:checked').innerText(), 'Fable decides');
-    assert.equal(await effort.locator('select option:checked').innerText(), 'Fable decides');
-    assert.equal(await model.locator('.hint').innerText(), 'Its size suggests Opus');
-    assert.equal(await effort.locator('.hint').innerText(), 'Its size suggests high');
+    assert.equal(await model.locator('select option:checked').innerText(), 'Sonnet, by its size');
+    assert.equal(await effort.locator('select option:checked').innerText(), 'medium, by its size');
+    assert.equal(await model.locator('.hint').count(), 0, 'nothing has stepped it up');
     await shot(page, 'details-model');
-    await model.locator('select').selectOption('sonnet');
-    await until('the model is on record', () => /^model: sonnet$/m.test(s.item(jump)));
-    await until('the hint goes once he picks', async () => (await model.locator('.hint').count()) === 0);
-    assert.equal(await effort.locator('.hint').count(), 1, 'the effort is still left to Fable');
+    await model.locator('select').selectOption('opus');
+    await until('the model is on record', () => /^model: opus$/m.test(s.item(jump)));
     await model.locator('select').selectOption('');
     await until('the model is handed back', () => !/^model: /m.test(s.item(jump)));
 
@@ -174,17 +170,18 @@ test('the details of a ticket and a card', async (t) => {
     // ticket the session, with the command that opens it a click from the clipboard.
     s.sp('build', jump);
     const card = page.locator(`#board [data-column="building"] .card[data-id="${jump}"]`);
-    await until('Fable has chosen and the agent has its session', () => /session 5f2c9e1a/.test(s.item(jump)));
-    await until('the card says what it runs with', async () => (await card.locator('.ran').count()) === 1 && (await card.locator('.ran').innerText()) === 'opus · xhigh');
-    assert.match((await card.locator('.ran').getAttribute('title'))!, /^Started with opus · xhigh\. Why: a small change, worth care$/);
+    await until('the agent has its session', () => /session 5f2c9e1a/.test(s.item(jump)));
+    assert.doesNotMatch(s.item(jump), /fable/i, 'nothing chose its model first');
+    await until('the card says what it runs with', async () => (await card.locator('.ran').count()) === 1 && (await card.locator('.ran').innerText()) === 'sonnet · medium');
+    assert.equal(await card.locator('.ran').getAttribute('title'), 'Started with sonnet · medium');
     await open(jump);
     const working = ticket.locator('.livepost');
     await until('the ticket names the session', async () => (await working.locator('.session').count()) === 1);
-    assert.equal(await working.locator('.byline .model').innerText(), 'opus · xhigh');
+    assert.equal(await working.locator('.byline .model').innerText(), 'sonnet · medium');
     assert.equal(await working.locator('.session code').innerText(), '5f2c9e1a');
     await working.locator('.session button').click();
     assert.equal(await page.evaluate('navigator.clipboard.readText()'), 'claude --resume 5f2c9e1a-77b0-4c1e-9a3d-0e6b2f4c8d11');
-    assert.deepEqual([await field('Model').locator('.val').innerText(), await field('Effort').locator('.val').innerText()], ['Opus', 'xhigh']);
+    assert.deepEqual([await field('Model').locator('.val').innerText(), await field('Effort').locator('.val').innerText()], ['Sonnet', 'medium']);
     await shot(page, 'details-building');
     await page.keyboard.press('Escape');
     await shot(page, 'details-building-card');

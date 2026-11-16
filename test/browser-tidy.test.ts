@@ -138,8 +138,9 @@ test('a ticket shows only what a run really had; dark buttons are calm; a lost s
     const ticket = tab.locator('#thread');
     await ticket.locator('.livelog').waitFor();
     // The agent is not claude: it was given no model and no effort, and nothing says it ran with one.
+    // The boxes are there for the next run, each saying what its size would give.
     const side = ticket.locator('.side');
-    assert.doesNotMatch(await side.innerText(), /MODEL\nSonnet|EFFORT\nmedium/i);
+    assert.doesNotMatch(await side.innerText(), /MODEL\n(Haiku|Sonnet)\n|EFFORT\nmedium\n/i);
     await side.locator('.field', { hasText: 'Model' }).getByText('For the next run').waitFor();
     assert.equal(await side.locator('.field', { hasText: 'Model' }).locator('select').count(), 1);
     await shot(tab, 'ticket-building-light');

@@ -614,7 +614,7 @@ function fold(entries: Entry[]): Folded[] {
 }
 
 /** Lines a command writes on a log by itself. What is left is what the agent chose to say: its reasons. */
-const ROUTINE = /^(edited: |dropped\b|moved to build|put on hold|released from hold|archived$|brought back|started\b|placed |still proposed|moved back)/;
+const ROUTINE = /^(edited: |builder model: |dropped\b|moved to build|put on hold|released from hold|archived$|brought back|started\b|placed |still proposed|moved back)/;
 
 export interface Changes {
   dropped: number;

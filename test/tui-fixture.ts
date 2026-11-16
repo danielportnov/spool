@@ -25,7 +25,7 @@ export function card(id: string, title: string, column: Card['column'], over: Pa
     size: '',
     model: '',
     effort: '',
-    suggest: { model: '', effort: '', by: '' },
+    suggest: { model: '', effort: '', why: '' },
     p: 2,
     tags: [],
     version: '',

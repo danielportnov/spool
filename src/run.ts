@@ -1,17 +1,20 @@
 /**
  * What a thread's agent was started with, read back from the thread's log: the model and effort
- * in the command it was handed, why they were chosen, and the session to open it again with.
+ * in the command it was handed, why they were chosen where it was not simply its size, and the
+ * session to open it again with.
  *
  * The page's runner writes these lines when it starts an agent ("handed to `claude -p --model
- * opus --effort high`", "fable chose opus · high: …", "session … · open it with `claude --resume
- * …`"). An agent a chat started writes none of them, and then nothing is known.
+ * sonnet --effort medium`", "stepped up from haiku to sonnet · medium: its last run was undone",
+ * "session … · open it with `claude --resume …`"). Threads built before the size decided may say
+ * "fable chose opus · high: …" instead, and that is read too. An agent a chat started writes none
+ * of them, and then nothing is known.
  */
 
 /** What the latest run of a thread was given. Each part is empty where the log does not say. */
 export interface Run {
   model: string;
   effort: string;
-  /** Why the router chose as it did, in its words. */
+  /** Why it was given a model other than its size's: the run before did not work, or, on older threads, Fable's reason. */
   why: string;
   session: string;
 }
@@ -33,7 +36,7 @@ export function runOf(log: string[]): Run | null {
   const taken = said.findLastIndex((l) => !!l && /^(started|picked up after)/.test(l.what));
   if (handed < 0 || taken > handed) return null;
   const command = /^handed to `(.*)`$/.exec(said[handed]!.what)?.[1] ?? '';
-  const chose = said[handed - 1] && /^\S+ chose [^:]*(?:: (.*))?$/.exec(said[handed - 1]!.what);
+  const chose = said[handed - 1] && /^(?:\S+ chose|stepped up from|kept on) [^:]*(?:: (.*))?$/.exec(said[handed - 1]!.what);
   let session = '';
   for (const l of said.slice(handed + 1)) {
     const id = l && /^session (\S+)/.exec(l.what)?.[1];

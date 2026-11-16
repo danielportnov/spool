@@ -3,16 +3,19 @@
  *
  * The agent command is the user's, from their own machine. A thread can say
  * which model and which effort it wants, as two plain words: the human's pick,
- * which always wins. Where it says nothing and the agent is Claude, the thread
- * is first passed to Fable, which reads its brief and decides which model works
- * it and how hard it thinks, leaning bigger and heavier than it seems to need;
- * it may take the thread itself. Where Fable cannot answer, or the user turned
- * it off, the size suggests a pick, again on the big side.
+ * which always wins. Where it says nothing, its size does: the smallest model
+ * that can do work of that size, to spare the plan's usage when several are
+ * built at once. A thread whose last run did not work (its work was undone, or
+ * the run ended without finishing) is built next by the model one up from the
+ * one that ran it (`stepUp`), and its log says so.
  *
  * The words reach the command one of two ways. A command that names
  * `{model}` or `{effort}` has them put in its place. A `claude` command that
  * does not choose for itself gets `--model` and `--effort` added. Any other
- * command is run as it is: Spool does not know its flags.
+ * command is run as it is: Spool does not know its flags. A chat that builds
+ * is told the pick by the brief its claim prints, and starts the subagent that
+ * builds the thread on it; the claim's log line says what it was told
+ * (`builderLine`), so the next step up knows where it stood.
  *
  * The words come from files in the project, so they are checked here, at the
  * last moment, before they go near a shell: anything but a plain model name or
@@ -20,7 +23,7 @@
  */
 
 import * as path from 'node:path';
-import { type Item, type Size, SIZES, SpoolError } from './model.ts';
+import { type Item, type Size, SIZES, SpoolError, splitBody } from './model.ts';
 
 export const MODELS = ['fable', 'opus', 'sonnet', 'haiku'] as const;
 export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
@@ -32,21 +35,24 @@ export interface Pick {
 }
 
 /**
- * What each size gets when neither the human nor Fable says. Unsized work is
- * treated as medium. Every row leans a step bigger than the work looks: a
- * thread given too little does it badly, and one given too much only costs more.
+ * What each size gets when the human does not say: the smallest model that can do it. Unsized
+ * work is treated as medium. A tiny thread is a line or a value, and Haiku does it; a small one is
+ * one function or screen, for Sonnet; from several files up it is Opus, thinking harder the more
+ * the work cuts across. Fable is left for a thread Opus could not do (`stepUp`), or the human's pick.
  */
 export const SUGGESTED: Record<Size, Required<Pick>> = {
-  xs: { model: 'sonnet', effort: 'medium' },
-  s: { model: 'opus', effort: 'high' },
-  m: { model: 'opus', effort: 'xhigh' },
-  l: { model: 'fable', effort: 'high' },
-  xl: { model: 'fable', effort: 'xhigh' },
+  xs: { model: 'haiku', effort: 'medium' },
+  s: { model: 'sonnet', effort: 'medium' },
+  m: { model: 'opus', effort: 'medium' },
+  l: { model: 'opus', effort: 'high' },
+  xl: { model: 'opus', effort: 'xhigh' },
 };
 
-/** The model that reads a thread first and decides who works it, and how hard it thinks doing so. */
-export const ROUTER = 'fable';
-const ROUTER_EFFORT: Effort = 'high';
+/** The models, smallest first: a thread whose run did not work goes one up. */
+export const LADDER = ['haiku', 'sonnet', 'opus', 'fable'] as const;
+
+/** The least effort a thread that steps up to a model is given there: Fable is at its best from high. */
+const LEAST_EFFORT: Partial<Record<(typeof LADDER)[number], Effort>> = { fable: 'high' };
 
 /** The user's own say, from their config: their table by size, or `false` for no suggestion at all. */
 export type Routing = false | Partial<Record<Size, { model?: string; effort?: string }>> | undefined;
@@ -85,88 +91,137 @@ export function suggestion(task: Item, routing: Routing): Pick {
   };
 }
 
+/** A thread stepped up a model: the one that ran it last, why that run did not work, and whether that was already the biggest. */
+export interface Step {
+  from: string;
+  reason: string;
+  top: boolean;
+}
+
+/** What will run the thread, and why: "by its size", "as the thread says", "stepped up from haiku: …". */
+export type Picked = Pick & { suggested: Pick; stepped?: Step; why: string };
+
 /**
- * What will run the thread: what the human picked, then what Fable decided,
- * then the size's suggestion for whatever is still open.
+ * What will run the thread: what the human picked, then, where its last run did not work, the
+ * model one up from that run's, then the size's suggestion for whatever is still open. A run
+ * picked up again in its own session is given `ran`, the pick it was started with: it carries on
+ * as it ran, and does not step up.
  */
-export function pickFor(task: Item, routing: Routing, routed?: Pick): Pick & { suggested: Pick } {
+export function pickFor(task: Item, routing: Routing, ran?: Pick): Picked {
   const suggested = suggestion(task, routing);
+  const human = { model: safeModel(task.model), effort: safeEffort(task.effort) };
+  const up = ran || human.model ? undefined : stepUp(task, routing);
   return {
-    model: safeModel(task.model) ?? safeModel(routed?.model) ?? suggested.model,
-    effort: safeEffort(task.effort) ?? safeEffort(routed?.effort) ?? suggested.effort,
+    model: human.model ?? safeModel(ran?.model) ?? up?.model ?? suggested.model,
+    effort: human.effort ?? safeEffort(ran?.effort) ?? up?.effort ?? suggested.effort,
     suggested,
+    ...(up ? { stepped: { from: up.from, reason: up.reason, top: up.top } } : {}),
+    why: up ? stepWhy(up) : human.model || human.effort ? 'as the thread says' : ran ? 'as it ran' : 'by its size',
   };
 }
 
-/** The user's say on routing, from their config: another model to route with, or `false` for the size table only. */
-export type RouterSetting = false | string | undefined;
+// ------------------------------------------------------------ stepping up
+
+/** What a log line says, without its time and who said it. */
+const said = (line: string): string => /^- \S+ \S+ .+?: (.*)$/.exec(line)?.[1] ?? '';
+
+/** How a claim's log line names what a chat's subagent is to be started on. */
+const BUILDER = 'builder model: ';
+
+/** The value of a command's `--name` flag. */
+const flagOf = (command: string, name: string): string | undefined => new RegExp(`(?:^|\\s)--${name}[ =](\\S+)`).exec(command)?.[1];
 
 /**
- * The command that asks Fable to choose, or nothing where there is nothing to
- * ask: the agent is not Claude, the user switched routing or picking off, or
- * the human already picked both the model and the effort.
+ * What a run was given, from the log line that started it: the command the page or the loop
+ * handed it to, or the model a claim named for a chat's subagent. Nothing for any other line.
  */
-export function routerCommand(base: string, task: Item, routing: Routing, router: RouterSetting): string | undefined {
-  if (routing === false || router === false) return undefined;
-  if (safeModel(task.model) && safeEffort(task.effort)) return undefined;
-  if (/\{model\}|\{effort\}/.test(base)) return undefined;
-  const program = base.trim().split(/\s+/)[0] ?? '';
-  if (path.basename(program) !== 'claude') return undefined;
-  return `${program} -p --model ${safeModel(router) ?? ROUTER} --effort ${ROUTER_EFFORT}`;
+function givenBy(what: string): Pick | undefined {
+  const handed = /^handed to `(.*)`$/.exec(what)?.[1];
+  if (handed !== undefined) return { model: safeModel(flagOf(handed, 'model')), effort: safeEffort(flagOf(handed, 'effort')) };
+  if (!what.startsWith(BUILDER)) return undefined;
+  const [model, effort] = what.slice(BUILDER.length).split(',')[0]!.split(' · ');
+  return { model: safeModel(model?.trim()), effort: safeEffort(effort?.trim()) };
 }
 
-/** What Fable is asked: the thread's brief, what the human already fixed, and how to answer. */
-export function routerPrompt(task: Item, brief: string): string {
-  const fixed = [
-    safeModel(task.model) && `The human already chose the model: ${task.model}. Keep it, and choose the effort.`,
-    safeEffort(task.effort) && `The human already chose the effort: ${task.effort}. Keep it, and choose the model.`,
-  ].filter(Boolean);
-  return `You are choosing which Claude model works one thread of a coding project, and how hard it thinks.
-Do not work the thread, and do not run anything: read the brief below and choose.
-
-Models, biggest first: ${MODELS.join(', ')} (or a full model id). Efforts, lowest first: ${EFFORTS.join(', ')}.
-You are ${ROUTER}; you may take the thread yourself.
-
-Always lean bigger and toward heavier thinking than you think the thread needs. Between two
-models, take the bigger; between two efforts, take the higher. A thread given too little is done
-badly; one given too much only costs a little more.
-${fixed.length ? `\n${fixed.join('\n')}\n` : ''}
-Answer with one line of JSON and nothing else:
-{"model": "<model>", "effort": "<effort>", "why": "<one short sentence>"}
-
-THE THREAD
-
-${brief}
-`;
-}
-
-export type Route = Pick & { why?: string };
-
-/** Fable's answer, read from what it printed: the last JSON object in it, with only plain words kept. */
-export function parseRoute(out: string): Route | undefined {
-  for (const raw of (out.match(/\{[^{}]*\}/g) ?? []).reverse()) {
-    try {
-      const v = JSON.parse(raw) as { model?: unknown; effort?: unknown; why?: unknown };
-      const model = safeModel(typeof v.model === 'string' ? v.model.trim().toLowerCase() : undefined);
-      const effort = safeEffort(typeof v.effort === 'string' ? v.effort.trim().toLowerCase() : undefined);
-      if (!model && !effort) continue;
-      const why = typeof v.why === 'string' ? v.why.replace(/\s+/g, ' ').trim().slice(0, 300) : '';
-      return { model, effort, ...(why ? { why } : {}) };
-    } catch {
-      // Not JSON after all; look at the one before.
-    }
+/**
+ * Why the last run did not work, read from what happened to the thread after it was given out,
+ * or nothing where it did. Two things count: its work was undone (reverted, or taken back from
+ * done), and it ended without finishing (its agent left, whether or not its check had failed).
+ * The human stopping or aborting a run does not: that is their call, and a stopped run carries
+ * on as it ran. Nor does a question: the thread waits on them, not on a better model.
+ */
+function setback(after: string[]): string | undefined {
+  let done = false;
+  let why: string | undefined;
+  for (const what of after) {
+    if (what.startsWith('done: ')) done = true;
+    if (/\breverted \d+ commit/.test(what) || (done && /^moved back to /.test(what))) why = 'its last run was undone';
+    else if (/^agent .* without finishing/.test(what)) why = 'its last run ended without finishing';
   }
-  return undefined;
+  return why;
 }
 
-/** The log line that says what Fable chose and why, or that it could not. */
-export function routeNote(routed: Route | undefined, how?: string): string {
-  if (!routed) return `${ROUTER} could not choose${how ? ` (${how})` : ''}; going by its size`;
-  return `${ROUTER} chose ${pickLabel(routed)}${routed.why ? `: ${routed.why}` : ''}`;
+/** The rung of the ladder a model is on, by its alias or a full id that names it, or -1. */
+const rung = (model: string): number => LADDER.findIndex((m) => model.toLowerCase().includes(m));
+
+/** The highest of some efforts. */
+const highest = (...efforts: (Effort | undefined)[]): Effort =>
+  efforts.reduce<Effort>((top, e) => (e && EFFORTS.indexOf(e) > EFFORTS.indexOf(top) ? e : top), 'low');
+
+/** A step up: the model and effort it gives, and the step itself. */
+export type Up = Required<Pick> & Step;
+
+/**
+ * The model one up from the one that last ran the thread, where that run did not work: Haiku to
+ * Sonnet, Sonnet to Opus, Opus to Fable; a thread Fable could not do stays on Fable. It thinks at
+ * least as hard as it did, and as hard as its size gives. Where the log does not say which model
+ * ran it, the step is up from what its size gives. Nothing where the last run worked, or there
+ * has been none.
+ */
+export function stepUp(task: Item, routing: Routing): Up | undefined {
+  if (routing === false) return undefined;
+  const lines = splitBody(task.body).log.map(said);
+  const at = lines.findLastIndex((what) => !!givenBy(what));
+  if (at < 0) return undefined;
+  const reason = setback(lines.slice(at + 1));
+  if (!reason) return undefined;
+  const ran = givenBy(lines[at]!)!;
+  const size = suggestion(task, routing);
+  const from = ran.model ?? size.model ?? '';
+  const on = rung(from);
+  if (on < 0) return undefined;
+  const top = on === LADDER.length - 1;
+  const model = LADDER[top ? on : on + 1]!;
+  return { model, effort: highest(ran.effort, size.effort, LEAST_EFFORT[model]), from, reason, top };
 }
 
-/** How long Fable gets to choose before the size decides instead. */
-export const ROUTE_TIMEOUT_MS = 5 * 60 * 1000;
+const stepWhy = (up: Step): string => `${up.top ? 'kept on the biggest model' : `stepped up from ${up.from}`}: ${up.reason}`;
+
+/**
+ * The log line that says a thread stepped up, just before the line that hands it out:
+ * "stepped up from haiku to sonnet · medium: its last run was undone".
+ */
+export function stepNote(pick: Picked): string | undefined {
+  const up = pick.stepped;
+  if (!up) return undefined;
+  const to = pickLabel(pick);
+  return `${up.top ? `kept on ${to}, the biggest model` : `stepped up from ${up.from} to ${to}`}: ${up.reason}`;
+}
+
+/**
+ * The log line a claim leaves, saying what the subagent that builds the thread is to be started
+ * on: "builder model: sonnet · medium, by its size". The next step up reads it back. Nothing
+ * where there is no pick to say.
+ */
+export function builderLine(pick: Picked): string | undefined {
+  return pick.model || pick.effort ? `${BUILDER}${pickLabel(pick)}, ${pick.why}` : undefined;
+}
+
+/** Whether an agent command takes the pick at all: a `claude` command, or one that names `{model}` or `{effort}`. */
+export function takesPick(base: string): boolean {
+  if (/\{model\}|\{effort\}/.test(base)) return true;
+  return path.basename(base.trim().split(/\s+/)[0] ?? '') === 'claude';
+}
 
 /** The user's command, with the pick put in it where it can be. */
 export function commandFor(base: string, pick: Pick): string {

@@ -1294,14 +1294,16 @@ function threadNode(c, b) {
     node.value = value;
     return node;
   };
-  // Which model builds it and how hard it thinks: Fable decides when it starts (or the size suggests)
-  // until the human picks, and the human's pick always wins.
+  // Which model builds it and how hard it thinks: left to itself, what its size gives (the smallest
+  // model that can do it), or one model up where its last run did not work. The human's pick always wins.
   const cap = (s) => s ? s[0].toUpperCase() + s.slice(1) : '';
   const models = [...new Set([...MODELS, c.model].filter(Boolean))];
-  const by = c.suggest.by;
-  const leave = (what, suggested) => by ? cap(by) + ' decides' : suggested ? 'Suggested: ' + suggested : what;
-  // Left to the chooser, a quiet line says what the size would give if it could not choose.
-  const sizeSays = (mine, suggested) => !mine && by && suggested && el('div', { class: 'hint' }, 'Its size suggests ' + suggested);
+  const why = c.suggest.why || 'by its size';
+  const stepped = why !== 'by its size';
+  const leave = (what, given) => given ? given + ', ' + (!stepped ? 'by its size' : why.startsWith('kept') ? 'kept' : 'stepped up') : what;
+  const leftTo = stepped ? 'the step up' : 'its size';
+  // Stepped up, a quiet line under the model says from what, and why.
+  const stepSays = () => !c.model && stepped && el('div', { class: 'hint' }, cap(why));
   // A run that has been, or is going on, is shown as what it really had, and only that: its agent's
   // command named a model or an effort. A run that named neither (an agent that is not claude, or
   // one a chat started) says nothing about it, and the boxes are the choice for the next run.
@@ -1310,13 +1312,13 @@ function threadNode(c, b) {
   const modelPick = ran
     ? el('div', { class: 'val', title: ran.why ? 'Why: ' + ran.why : '' }, cap(ran.model) || 'As your agent runs')
     : [choose([['', leave('As your agent runs', cap(c.suggest.model))], ...models.map((m) => [m, cap(m)])], c.model,
-        (v) => save({ model: v }, v ? 'Model: ' + cap(v) : by ? cap(by) + ' decides the model' : 'Model as its size suggests')),
-      sizeSays(c.model, cap(c.suggest.model)), next()];
+        (v) => save({ model: v }, v ? 'Model: ' + cap(v) : 'Model left to ' + leftTo)),
+      stepSays(), next()];
   const effortPick = ran
     ? el('div', { class: 'val' }, ran.effort || 'Default effort')
     : [choose([['', leave('Default effort', c.suggest.effort)], ...EFFORTS.map((e) => [e, e])], c.effort,
-        (v) => save({ effort: v }, v ? 'Effort: ' + v : by ? cap(by) + ' decides the effort' : 'Effort as its size suggests')),
-      sizeSays(c.effort, c.suggest.effort), next()];
+        (v) => save({ effort: v }, v ? 'Effort: ' + v : 'Effort left to ' + leftTo)),
+      next()];
   const movable = c.column === 'proposed' || c.column === 'build';
   const status = movable
     ? choose([['proposed', '🟠 Proposed'], ['build', '🟢 Build']], c.column, (to) => post('move', { id: c.id, to }, to === 'build' ? 'In build' : 'Back to proposed', moveBack(c.id, c.column, to)))

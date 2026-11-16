@@ -11,7 +11,11 @@ test('a thread says what its agent was started with: the model, the effort, why,
   ];
   assert.deepEqual(runOf(log), { model: 'opus', effort: 'xhigh', why: 'a small change, worth care', session: '5f2c9e1a-77b0' });
   assert.deepEqual(runOf(log.slice(0, 3)), { model: 'opus', effort: 'xhigh', why: 'a small change, worth care', session: '' }, 'no session yet');
-  // Without a router, the command is all there is; a command that names no model says none.
+  // A step up says why on the line before; without one, the command is all there is, and a command that names no model says none.
+  assert.deepEqual(
+    runOf(['- 2026-01-01 00:02Z page: stepped up from haiku to sonnet · medium: its last run was undone', '- 2026-01-01 00:02Z page: handed to `claude -p --model sonnet --effort medium`']),
+    { model: 'sonnet', effort: 'medium', why: 'its last run was undone', session: '' },
+  );
   assert.deepEqual(runOf(['- 2026-01-01 00:02Z page: handed to `claude -p --model=sonnet`']), { model: 'sonnet', effort: '', why: '', session: '' });
   assert.deepEqual(runOf(['- 2026-01-01 00:02Z page: handed to `./agent.sh`']), { model: '', effort: '', why: '', session: '' });
   // A chat that took it after the page did, or never a page at all: nothing is known.

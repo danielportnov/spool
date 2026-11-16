@@ -71,8 +71,6 @@ export interface StandIn {
  *   - `hear`, which waits for the next line written to it and leaves it in `$heard`, or fails once its input is closed.
  *     The first is its prompt: Spool gives a `claude -p` the prompt as a message, and keeps its input open;
  *   - `spool`, the real CLI; and `$here`, a folder of its own to leave files in.
- *
- * Asked to choose a model for a thread, it answers haiku and low, and leaves a line in `routed.txt`.
  */
 export function claude(s: Sandbox, script: string, parts: Record<string, string[]> = {}): StandIn {
   const here = path.join(s.root, 'claude-bin');
@@ -85,7 +83,6 @@ export function claude(s: Sandbox, script: string, parts: Record<string, string[
       '#!/bin/sh',
       `spool() { "${process.execPath}" "${CLI}" "$@"; }`,
       `here="${here}"`,
-      'if [ -n "$SPOOL_ROUTING" ]; then echo asked >> "$here/routed.txt"; echo \'{"model": "haiku", "effort": "low"}\'; exit 0; fi',
       'echo "$*" >> "$here/args.txt"',
       'n=$(wc -l < "$here/args.txt" | tr -d " ")',
       'sid=""; resumed=""; last=""',

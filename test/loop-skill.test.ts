@@ -24,6 +24,8 @@ test('the loop skill has one job: make this chat the builder', () => {
   // Agents sign their work, the lead and each subagent.
   assert.match(flat, /`--as` signs the work, as in `--as "Claude Fable 5\.2"`: the board shows who built each thread\./);
   assert.match(flat, /sign every `spool` command the same way/);
+  // Each subagent runs on the model its claim names: the smallest that can build the thread, so building several spends less.
+  assert.match(flat, /Start it on the model and effort the brief's `MODEL` line names \(`model` and `effort` on Claude Code's Agent tool\): the smallest that can build it\./);
   // They can steer while it builds; everything else they say is /spool's.
   assert.match(flat, /\*\*They can steer at any time\.\*\* Their words on a thread being built change it at once: pass them on, and say what changed in a line\. Everything else they say is for the `spool` skill, which has the one table\./);
 
@@ -32,8 +34,8 @@ test('the loop skill has one job: make this chat the builder', () => {
   assert.match(flat, /\*\*The worker's rules are not in this skill\.\*\* `spool prime worker` prints them, and whoever builds a thread reads them first: you, or each subagent\./);
   // Up to their usage target: read before each thread, reported, and a stop is a stop.
   assert.match(flat, /\*\*Up to their usage target,\*\* where they set one on the board \(`spool target` says\)\. Before you claim each thread, read the plan's usage with your harness's tool \(`get_usage` in the Claude app\) and report it: `spool usage --weekly <n> --five-hour <n>`\. It says keep building, or stop: then claim nothing new, let what is building land, and notify them once\. No usage tool\? Say so once, and build as if no target were set\./);
-  // Short enough to be read every time: it was 553 lines, and grew six for the usage target and 29 for questions asked in the chat.
-  assert.ok(loop.trimEnd().split('\n').length <= 160, `${loop.trimEnd().split('\n').length} lines`);
+  // Short enough to be read every time: it was 553 lines, and grew six for the usage target, 29 for questions asked in the chat and two for the model.
+  assert.ok(loop.trimEnd().split('\n').length <= 162, `${loop.trimEnd().split('\n').length} lines`);
 });
 
 test('the loop watches the spool, and falls back to one scheduled job', () => {

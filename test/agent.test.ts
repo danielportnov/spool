@@ -2,23 +2,25 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { commandFor, parseRoute } from '../src/agent.ts';
+import { commandFor, pickFor, stepUp } from '../src/agent.ts';
+import type { Item } from '../src/model.ts';
 import { CLI, type Sandbox, spool } from './helpers.ts';
 
-test('a claude command falls back to a pick on the big side of what the thread size suggests', () => {
+test('a claude command gets the smallest model the thread’s size can be built with, and nothing chooses first', () => {
   const s = spool();
   const tiny = s.id('task', 'Fix a typo', '--size', 'xs');
-  const big = s.id('task', 'Rework the store', '--size', 'l');
+  const small = s.id('task', 'Tidy the score screen', '--size', 's');
   const unsized = s.id('task', 'Something');
-  const { commands, routed } = s.json('loop', '--dry-run', '--agent', 'claude -p');
-  assert.equal(commands[tiny], 'claude -p --model sonnet --effort medium');
-  assert.equal(commands[big], 'claude -p --model fable --effort high');
-  assert.equal(commands[unsized], 'claude -p --model opus --effort xhigh', 'unsized work is treated as medium');
-  assert.deepEqual([...routed].sort(), [tiny, big, unsized].sort(), 'Fable chooses first for every one');
-  assert.match(
-    s.sp('loop', '--dry-run', '--agent', 'claude -p'),
-    /fable chooses the model and effort first; if it cannot: \$ claude -p --model sonnet --effort medium/,
-  );
+  const big = s.id('task', 'Rework the store', '--size', 'l');
+  const huge = s.id('task', 'A level editor', '--size', 'xl');
+  const { commands, stepped } = s.json('loop', '--dry-run', '--agent', 'claude -p');
+  assert.equal(commands[tiny], 'claude -p --model haiku --effort medium');
+  assert.equal(commands[small], 'claude -p --model sonnet --effort medium');
+  assert.equal(commands[unsized], 'claude -p --model opus --effort medium', 'unsized work is treated as medium');
+  assert.equal(commands[big], 'claude -p --model opus --effort high');
+  assert.equal(commands[huge], 'claude -p --model opus --effort xhigh');
+  assert.deepEqual(stepped, [], 'nothing has run yet, so nothing steps up');
+  assert.doesNotMatch(s.sp('loop', '--dry-run', '--agent', 'claude -p'), /fable|chooses/i);
   s.cleanup();
 });
 
@@ -29,12 +31,10 @@ test('the human picks a thread’s model and effort, and can hand it back', () =
   assert.match(s.item(t), /^model: fable$/m);
   const picked = s.json('loop', '--dry-run', '--agent', 'claude -p');
   assert.equal(picked.commands[t], 'claude -p --model fable --effort max');
-  assert.deepEqual(picked.routed, [], 'nothing is left for Fable to choose');
 
-  s.sp('edit', t, '--effort', 'none');
+  assert.match(s.sp('edit', t, '--effort', 'none'), /effort left to its size/);
   const half = s.json('loop', '--dry-run', '--agent', 'claude -p');
   assert.equal(half.commands[t], 'claude -p --model fable --effort medium');
-  assert.deepEqual(half.routed, [t]);
   s.sp('edit', t, '--model', 'none');
   assert.doesNotMatch(s.item(t), /^model:/m);
 
@@ -46,14 +46,12 @@ test('the human picks a thread’s model and effort, and can hand it back', () =
 test('the user’s own table, or none, decides what each size falls back to', () => {
   const s = spool();
   const t = s.id('task', 'Fix a typo', '--size', 'xs');
-  s.write('.home/.config/spool/config.json', JSON.stringify({ models: { xs: { model: 'haiku' } }, router: false }));
+  s.write('.home/.config/spool/config.json', JSON.stringify({ models: { xs: { model: 'sonnet', effort: 'low' } } }));
   const own = s.json('loop', '--dry-run', '--agent', 'claude -p');
-  assert.equal(own.commands[t], 'claude -p --model haiku --effort medium');
-  assert.deepEqual(own.routed, [], 'router: false goes by the table alone');
+  assert.equal(own.commands[t], 'claude -p --model sonnet --effort low');
   s.write('.home/.config/spool/config.json', JSON.stringify({ models: false }));
   const none = s.json('loop', '--dry-run', '--agent', 'claude -p');
   assert.equal(none.commands[t], 'claude -p');
-  assert.deepEqual(none.routed, []);
   s.cleanup();
 });
 
@@ -66,17 +64,6 @@ test('only plain words reach the command, and it chooses for itself where it alr
   assert.equal(commandFor('claude -p', { model: '$(touch pwned)', effort: 'high; rm' as never }), 'claude -p');
 });
 
-test('Fable’s answer is read from what it prints, and only plain words are kept', () => {
-  assert.deepEqual(parseRoute('thinking…\n{"model": "Opus", "effort": "XHIGH", "why": "a big   change"}'), {
-    model: 'opus',
-    effort: 'xhigh',
-    why: 'a big change',
-  });
-  assert.deepEqual(parseRoute('{"model":"$(rm -rf ~)","effort":"high"}'), { model: undefined, effort: 'high' });
-  assert.equal(parseRoute('I would use opus'), undefined);
-  assert.equal(parseRoute('{"model": 3}'), undefined);
-});
-
 test('the loop runs the thread with its pick put in the command', () => {
   const s = spool();
   const t = s.id('task', 'Fix a typo', '--size', 's');
@@ -85,61 +72,135 @@ test('the loop runs the thread with its pick put in the command', () => {
   fs.writeFileSync(file, `#!/bin/sh\necho "$1 $2" > "${seen}"\n"${process.execPath}" "${CLI}" done "$SPOOL_TASK" -m ok > /dev/null\n`);
   fs.chmodSync(file, 0o755);
   assert.match(s.sp('loop', '--agent', `${file} {model} {effort}`), /1 done/);
-  assert.equal(fs.readFileSync(seen, 'utf8').trim(), 'opus high');
-  assert.match(s.item(t), /loop: handed to `.*worker\.sh opus high`/);
+  assert.equal(fs.readFileSync(seen, 'utf8').trim(), 'sonnet medium');
+  assert.match(s.item(t), /loop: handed to `.*worker\.sh sonnet medium`/);
   s.cleanup();
 });
 
-/** A stand-in `claude`: asked to route, it prints `answer`; asked to work, it notes its flags and finishes. */
-function fakeClaude(s: Sandbox, name: string, answer: string): { agent: string; asked: string; worked: string } {
-  const dir = path.join(s.root, name);
-  fs.mkdirSync(dir, { recursive: true });
-  const asked = path.join(dir, 'asked.txt');
-  const worked = path.join(dir, 'worked.txt');
-  const file = path.join(dir, 'claude');
-  fs.writeFileSync(
-    file,
-    [
-      '#!/bin/sh',
-      'if [ -n "$SPOOL_ROUTING" ]; then',
-      `  echo "$@" > "${asked}"`,
-      `  echo '${answer}'`,
-      '  exit 0',
-      'fi',
-      `echo "$@" > "${worked}"`,
-      `"${process.execPath}" "${CLI}" done "$SPOOL_TASK" -m ok > /dev/null`,
-      '',
-    ].join('\n'),
-  );
-  fs.chmodSync(file, 0o755);
-  return { agent: `${file} -p`, asked, worked };
+
+/** A pick, as its model and effort. */
+const pick = (p: { model?: string; effort?: string } | undefined): (string | undefined)[] => [p?.model, p?.effort];
+
+/** A thread as far as picking its model goes: its size, the human's pick, and a log. */
+function thread(size: string | undefined, log: string[], chosen: { model?: string; effort?: string } = {}): Item {
+  const lines = log.map((what, i) => `- 2026-01-01 00:${String(i).padStart(2, '0')}Z page: ${what}`);
+  return { size, ...chosen, body: `Do it.\n\n## Log\n${lines.join('\n')}` } as unknown as Item;
 }
 
-test('Fable reads the thread first and its choice runs it, with the reason on the thread', () => {
+test('a thread whose last run did not work goes one model up from the one that ran it, and only then', () => {
+  const handed = (model: string, effort = 'medium') => `handed to \`claude -p --model ${model} --effort ${effort} --verbose\``;
+  const up = (log: string[], size = 'xs') => stepUp(thread(size, log), undefined);
+  // Undone: reverted, or taken back from done; or left unfinished, whether its check failed or not.
+  assert.deepEqual(up([handed('haiku'), 'done: it works', 'reverted 2 commit(s): moved back to build on the page']), {
+    model: 'sonnet',
+    effort: 'medium',
+    from: 'haiku',
+    reason: 'its last run was undone',
+    top: false,
+  });
+  assert.equal(up([handed('haiku'), 'done: it works', 'moved back to proposed', 'moved to build'])?.model, 'sonnet');
+  assert.equal(up([handed('sonnet'), 'agent exited 1 without finishing; back in build'])?.reason, 'its last run ended without finishing');
+  assert.equal(up([handed('sonnet'), 'agent exited 1 without finishing; back in build'])?.model, 'opus');
+  // It thinks at least as hard as it did; Fable is given high at least; and a thread Fable could not do stays on Fable.
+  assert.deepEqual(pick(up([handed('opus', 'xhigh'), 'agent exited 1 without finishing'], 's')), ['fable', 'xhigh']);
+  assert.deepEqual(pick(up([handed('opus', 'low'), 'agent exited 1 without finishing'], 's')), ['fable', 'high']);
+  assert.deepEqual(pick(up([handed('fable', 'high'), 'done: ok', 'reverted 1 commit(s)'])), ['fable', 'high']);
+  assert.equal(up([handed('fable', 'high'), 'done: ok', 'reverted 1 commit(s)'])?.top, true);
+  // A full model id is on the ladder by its name.
+  assert.equal(up([handed('claude-sonnet-5-5'), 'agent exited 1 without finishing'])?.model, 'opus');
+  // A chat's claim says what its subagent was started on, and that is where the step is from.
+  assert.equal(up(['started', 'builder model: sonnet · medium, by its size', 'done: ok', 'reverted 1 commit(s)'])?.model, 'opus');
+  // A run whose command named no model: the step is up from what its size gives.
+  assert.equal(up(['handed to `./agent.sh`', 'agent exited 1 without finishing'], 's')?.model, 'opus');
+
+  // None where it worked, or the human stopped or aborted it, or it asked them something, or nothing has run.
+  assert.equal(up([handed('haiku'), 'done: it works']), undefined);
+  assert.equal(up([handed('haiku'), 'stopped from the page; back in build']), undefined);
+  assert.equal(up([handed('haiku'), 'aborted while page was building it; moved back to proposed', 'moved to build']), undefined);
+  assert.equal(up([handed('haiku'), 'waiting on d-1234: which way?']), undefined);
+  assert.equal(up(['moved to build']), undefined);
+  // Only what happened since the last run counts: a run after the undoing one that worked is the one that stands.
+  assert.equal(up([handed('haiku'), 'done: ok', 'reverted 1 commit(s)', handed('sonnet'), 'done: ok']), undefined);
+  // The user turning the table off turns the step off too.
+  assert.equal(stepUp(thread('xs', [handed('haiku'), 'agent exited 1 without finishing']), false), undefined);
+});
+
+test('the human’s pick wins over a step up, and a run carried on in its session does not step', () => {
+  const log = ['handed to `claude -p --model haiku --effort medium`', 'agent exited 1 without finishing; back in build'];
+  const stepped = pickFor(thread('xs', log), undefined);
+  assert.deepEqual([stepped.model, stepped.effort, stepped.why], ['sonnet', 'medium', 'stepped up from haiku: its last run ended without finishing']);
+  const theirs = pickFor(thread('xs', log, { model: 'opus' }), undefined);
+  assert.deepEqual([theirs.model, theirs.effort, theirs.stepped, theirs.why], ['opus', 'medium', undefined, 'as the thread says']);
+  // Their effort alone still lets the model step up.
+  assert.deepEqual(pick(pickFor(thread('xs', log, { effort: 'high' }), undefined)), ['sonnet', 'high']);
+  const carried = pickFor(thread('xs', log), undefined, { model: 'haiku', effort: 'medium' });
+  assert.deepEqual([carried.model, carried.stepped, carried.why], ['haiku', undefined, 'as it ran']);
+  assert.equal(pickFor(thread('xs', []), undefined).why, 'by its size');
+});
+
+test('a thread undone and moved back to build is built one model up from its last run, and its log says so', () => {
   const s = spool();
   const t = s.id('task', 'Fix a typo', '--size', 'xs');
-  const claude = fakeClaude(s, 'bin', '{"model": "opus", "effort": "max", "why": "it touches the store"}');
-  assert.match(s.sp('loop', '--agent', claude.agent), /1 done/);
-  assert.equal(fs.readFileSync(claude.asked, 'utf8').trim(), '-p --model fable --effort high');
-  assert.equal(fs.readFileSync(claude.worked, 'utf8').trim(), '-p --model opus --effort max');
-  const item = s.item(t);
-  assert.match(item, /loop: fable chose opus · max: it touches the store/);
-  assert.match(item, /loop: handed to `.*claude -p --model opus --effort max`/);
+  const dir = path.join(s.root, 'bin');
+  fs.mkdirSync(dir, { recursive: true });
+  const worked = path.join(dir, 'worked.txt');
+  const give = path.join(dir, 'give-up');
+  const file = path.join(dir, 'claude');
+  // A stand-in `claude`: it notes its flags, then finishes the thread, or leaves it where it is told to give up.
+  fs.writeFileSync(
+    file,
+    `#!/bin/sh\necho "$@" >> "${worked}"\n[ -e "${give}" ] && exit 1\n"${process.execPath}" "${CLI}" done "$SPOOL_TASK" -m ok > /dev/null\n`,
+  );
+  fs.chmodSync(file, 0o755);
+  const agent = `${file} -p`;
+  const runs = (): string[] => fs.readFileSync(worked, 'utf8').trim().split('\n');
+
+  assert.match(s.sp('loop', '--agent', agent), /1 done/);
+  assert.equal(runs().at(-1), '-p --model haiku --effort medium');
+  assert.doesNotMatch(s.item(t), /stepped up/);
+
+  // Undone, and back in build: Sonnet builds it next, and the log says why.
+  s.sp('revert', t, '-m', 'the typo is still there');
+  assert.deepEqual(s.json('loop', '--dry-run', '--agent', agent).stepped, [t]);
+  assert.match(s.sp('loop', '--dry-run', '--agent', agent), /stepped up from haiku to sonnet · medium: its last run was undone/);
+  assert.match(s.sp('loop', '--agent', agent), /1 done/);
+  assert.equal(runs().at(-1), '-p --model sonnet --effort medium');
+  assert.match(s.item(t), /loop: stepped up from haiku to sonnet · medium: its last run was undone\n.*loop: handed to `.*claude -p --model sonnet --effort medium`/);
+
+  // Undone again, and this time its agent gives up: Opus, then Fable, then Fable again.
+  s.sp('revert', t);
+  fs.writeFileSync(give, '');
+  assert.match(s.sp('loop', '--agent', agent), /unfinished/);
+  assert.equal(runs().at(-1), '-p --model opus --effort medium');
+  fs.rmSync(give);
+  s.sp('edit', t, '--tag', 'again');
+  assert.match(s.sp('loop', '--agent', agent), /1 done/);
+  assert.equal(runs().at(-1), '-p --model fable --effort high');
+  assert.match(s.item(t), /loop: stepped up from opus to fable · high: its last run ended without finishing/);
+
+  // The human's pick wins over the step.
+  s.sp('revert', t);
+  s.sp('edit', t, '--model', 'haiku');
+  assert.match(s.sp('loop', '--agent', agent), /1 done/);
+  assert.equal(runs().at(-1), '-p --model haiku --effort medium');
   s.cleanup();
 });
 
-test('the human’s pick wins over Fable’s, and the size decides when Fable cannot', () => {
+test('a chat’s claim names the model its subagent is started on, one up where the last run was undone', () => {
   const s = spool();
   const t = s.id('task', 'Fix a typo', '--size', 'xs');
-  s.sp('edit', t, '--model', 'sonnet');
-  const claude = fakeClaude(s, 'bin', '{"model": "opus", "effort": "xhigh"}');
-  assert.match(s.sp('loop', '--agent', claude.agent), /1 done/);
-  assert.equal(fs.readFileSync(claude.worked, 'utf8').trim(), '-p --model sonnet --effort xhigh');
+  const first = s.sp('start', t, '--as', 'Claude Opus 5.5');
+  assert.match(first, /MODEL — haiku · medium, by its size\. Start the subagent that builds it on that model, at that effort\./);
+  assert.match(s.item(t), /Claude Opus 5\.5: builder model: haiku · medium, by its size/);
+  s.sp('done', t, '-m', 'fixed', '--as', 'Claude Opus 5.5');
+  s.sp('revert', t, '-m', 'still there');
 
-  const u = s.id('task', 'Another typo', '--size', 'xs');
-  const mute = fakeClaude(s, 'mute', 'no idea');
-  assert.match(s.sp('loop', '--agent', mute.agent), /1 done/);
-  assert.equal(fs.readFileSync(mute.worked, 'utf8').trim(), '-p --model sonnet --effort medium');
-  assert.match(s.item(u), /loop: fable could not choose \(no answer it could read\); going by its size/);
+  const next = s.json('next', '--claim', '--as', 'Claude Opus 5.5');
+  assert.equal(next.task.id, t);
+  assert.deepEqual(next.model, { model: 'sonnet', effort: 'medium', why: 'stepped up from haiku: its last run was undone' });
+  assert.match(s.item(t), /builder model: sonnet · medium, stepped up from haiku: its last run was undone/);
+  const small = s.id('task', 'Tidy the score screen', '--size', 's');
+  assert.match(s.sp('next'), /MODEL — sonnet · medium, by its size/);
+  assert.doesNotMatch(s.item(small), /builder model/, 'only a claim says it on the thread');
   s.cleanup();
 });
