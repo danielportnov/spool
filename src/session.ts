@@ -22,7 +22,7 @@
  * and what is written on it are the engine's (`engine.ts`).
  */
 
-import { type ChildProcess, spawn } from 'node:child_process';
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -136,11 +136,14 @@ export function askRouter(
 /**
  * What Spool remembers of a thread's session from one run to the next: which session it is, and
  * which of the human's notes on the thread it has been given, so that each is given to it once.
- * It is kept beside the thread's transcripts, on this machine only, as the session itself is.
+ * And the process that last ran it, so that one whose page died under it can be ended before the
+ * session is picked up again. It is kept beside the thread's transcripts, on this machine only,
+ * as the session itself is.
  */
 export interface Kept {
   session: string;
   told: string[];
+  pid?: number;
 }
 
 const keptFile = (task: Item): string => path.join(task.spool.dir, 'runs', task.id, 'session.json');
@@ -149,7 +152,8 @@ export function recall(task: Item): Kept | undefined {
   try {
     const kept = JSON.parse(fs.readFileSync(keptFile(task), 'utf8')) as Partial<Kept> | null;
     if (!kept || typeof kept.session !== 'string' || !Array.isArray(kept.told)) return undefined;
-    return { session: kept.session, told: kept.told.filter((id): id is string => typeof id === 'string') };
+    const pid = typeof kept.pid === 'number' && Number.isInteger(kept.pid) && kept.pid > 1 ? kept.pid : undefined;
+    return { session: kept.session, told: kept.told.filter((id): id is string => typeof id === 'string'), pid };
   } catch {
     return undefined; // Nothing kept, or not what Spool writes: the session is told again.
   }
@@ -161,6 +165,40 @@ export function remember(task: Item, kept: Kept): void {
     fs.writeFileSync(keptFile(task), `${JSON.stringify(kept)}\n`);
   } catch {
     // Nowhere to keep it: at worst the session hears a note twice.
+  }
+}
+
+const alive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+};
+
+/**
+ * End what is left of an agent whose page died under it. Its input closed with the page, but a
+ * Claude session works on to the end of its turn, and two programs must not be in one session.
+ * The number alone is not trusted, since the system hands numbers out again: the process is ended
+ * only if its command still names the session. It waits until the agent is gone, a moment at most.
+ */
+export function endLeftover(kept: Kept): void {
+  const pid = kept.pid;
+  if (!pid || !kept.session || process.platform === 'win32' || !alive(pid)) return;
+  const command = spawnSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }).stdout ?? '';
+  if (!command.includes(kept.session)) return;
+  const wait = (ms: number): void => {
+    for (const until = Date.now() + ms; alive(pid) && Date.now() < until; ) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+  };
+  for (const signal of ['SIGTERM', 'SIGKILL'] as const) {
+    try {
+      process.kill(-pid, signal);
+    } catch {
+      return; // Gone already.
+    }
+    wait(END_GRACE_MS);
+    if (!alive(pid)) return;
   }
 }
 

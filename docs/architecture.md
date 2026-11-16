@@ -86,13 +86,15 @@ those comments are the detail.
   agent has gone. A thread a run left unfinished is carried on in the Claude session it was in
   (`leftOff`, `carryOn`), and what the human writes on a thread being built is said to its agent
   (`attend`). A tool call an agent needs a yes for is held for the human where one is looking
-  (`asked`, `permit`). There is no HTTP in it.
+  (`asked`, `permit`). On start, a thread a dead page left handed out is carried on in its
+  session, or put back (`recover`). There is no HTTP in it.
 - `session.ts` is one agent on one thread, and the only file that knows how one is started and
   heard: `startSession` runs the command and reads what it prints, `askRouter` asks Fable first
   where it chooses the model, and `endAgent` ends an agent and everything it started. A `claude -p`
   session's input stays open, so it can be told things (`say`, `interrupt`, `leave`), and its
   permission questions wait in `asking` for an `answer`. `recall`
-  and `remember` keep what a session has been told, from one run to the next.
+  and `remember` keep what a session has been told, from one run to the next, and
+  `endLeftover` ends an agent whose page died under it.
 - `upkeep.ts` is `Upkeep`: it restarts the page when the code on disk changes, and, where the
   page runs from a checkout of Spool that is also the project it shows, runs `npm run build` there
   once Build and Building are empty.

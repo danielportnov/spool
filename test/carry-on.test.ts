@@ -185,5 +185,7 @@ test('a thread moved, undone or taken by someone else since its run is not carri
   assert.equal(leftOff(log(...ran, 'page: stopped from the page; back in build', 'human: moved back to proposed', 'human: moved to build')), undefined);
   assert.equal(leftOff(log(...ran, 'page: stopped from the page; back in build', 'claude: started', 'human: stopped while claude was building it; back in build')), undefined);
   assert.equal(leftOff(log('page: handed to `./worker.sh`', 'page: agent exited 1 without finishing; back in build')), undefined, 'no session to pick up');
+  // Cut short before its agent said which session it was: the hand-off says which Spool put it in.
+  assert.deepEqual(leftOff(log(ran[0]!, 'page: its page had stopped with nobody working it; back in build')), { session: ID, how: 'cut off' });
   assert.equal(leftOff(log(...ran)), undefined, 'still being built');
 });

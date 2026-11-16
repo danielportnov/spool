@@ -618,7 +618,16 @@ since. It runs with the model it had, and nobody chooses one again. A thread you
 Build and back, or undid, starts afresh, since what the session remembers may no longer be so. So
 does one whose session cannot be picked up, because the agent command is not `claude -p` or Claude
 no longer has the session; its log says which. What the page remembers of a session is beside the
-thread's transcripts, in `.spool/runs/<id>/session.json`. [docs/claude-stream.md](claude-stream.md)
+thread's transcripts, in `.spool/runs/<id>/session.json`.
+
+**A run that was cut off carries on.** A page that is killed outright, or a machine that goes
+down, leaves its threads marked as being built with nobody building them. The next page to start
+finds them. With agents on, each that was in a Claude session is carried on there at once, in the
+folder it was in, and never leaves Building; its agent is told that Spool was stopped and is back.
+Any other is put back in Build as before, and so are all of them where agents are off: those wait
+there, and are carried on in their sessions when agents are switched on. Whatever is left of the
+agent the dead page had started is ended first. It would otherwise work on to the end of its turn,
+and two programs must not be in one session. [docs/claude-stream.md](claude-stream.md)
 has what was tried against Claude Code, and on which version.
 
 **How many at once.** Three, unless you say otherwise: the page gives each thread it builds a git

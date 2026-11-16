@@ -84,6 +84,9 @@ Also printed, and of no use to Spool yet: `system` events with the subtypes `pos
   what changed since. If Claude has no such session, the thread is started afresh at once, in a new
   one, and its log says so.
 
+- **A run that was cut off.** A page that starts and finds a thread a dead page left handed out
+  picks its session up the same way, after ending what is left of the agent that page had started:
+  its input closed with the page, but it works on to the end of its turn.
 - **Its input left open.** The same command is started with `--input-format stream-json`, unless it
   chooses an input or an output of its own, and is given its prompt as the first message.
 - **Your reply reaches it.** A note you write on a thread being built is written to the session as a

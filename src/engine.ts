@@ -13,7 +13,8 @@
  * Such a session can also be spoken to while it works: a note the human writes on a thread being
  * built is said to its agent within a second (`attend`), and Stop asks it to stop before ending it.
  * And a tool call it needs a yes for comes here as a question (`asked`): held for the human where
- * one is looking, to answer with `permit`, and refused at once where nobody is.
+ * one is looking, to answer with `permit`, and refused at once where nobody is. A thread a page
+ * that died left handed out is carried on the same way when the next page starts (`recover`).
  *
  * There is no HTTP here, and nothing about requests: the page's server (`server.ts`) holds a
  * Runner and reads its fields, and anything else that builds can hold one the same way.
@@ -33,10 +34,10 @@ import { prime } from './prime.ts';
 import { brief, paint } from './render.ts';
 import { runOf } from './run.ts';
 import { ready, tasks } from './schedule.ts';
-import { type Session, askRouter, endAgent, pageRunning, promptFile, recall, remember, startSession } from './session.ts';
+import { type Session, askRouter, endAgent, endLeftover, pageRunning, promptFile, recall, remember, startSession } from './session.ts';
 import { atOnceIn, sharedFolderWhy } from './slots.ts';
 import { Workspace } from './store.ts';
-import { type Ask, SESSION_ID, asking, inSession, keeps, listening, listens, streaming } from './stream.ts';
+import { type Ask, SESSION_ID, asking, inSession, keeps, listening, listens, sessionOf, streaming } from './stream.ts';
 import { closeWorktree, openWorktree, workDir } from './worktree.ts';
 
 /** Whether the last claim on a thread was a page handing it to an agent, not someone starting it. */
@@ -104,8 +105,26 @@ export function leftOff(task: Item): { session: string; how: Left } | undefined 
   const said = log.map((line) => /^- \S+ \S+ .+?: (.*)$/.exec(line)?.[1] ?? '');
   const last = said.filter((what) => STANDS.test(what)).at(-1) ?? '';
   const how = LEFT.find(([ended]) => ended.test(last))?.[1];
-  const session = runOf(log)?.session ?? '';
-  return how && SESSION_ID.test(session) ? { session, how } : undefined;
+  const session = sessionRan(log);
+  return how && session ? { session, how } : undefined;
+}
+
+/**
+ * The Claude session a thread's last run by a page was in, or nothing: as its agent said it, or,
+ * where the run was cut short before the agent said anything, as the hand-off put it.
+ */
+function sessionRan(log: string[]): string {
+  const ran = runOf(log);
+  if (!ran) return '';
+  const handed = log.map((line) => /^- \S+ \S+ .+?: handed to `(.*)`$/.exec(line)?.[1]).findLast(Boolean) ?? '';
+  const session = ran.session || sessionOf(handed)?.id || '';
+  return SESSION_ID.test(session) ? session : '';
+}
+
+/** The model and effort a thread's last run was started with: picked up again, it runs as it ran. */
+function asItRan(task: Item): Picked {
+  const ran = runOf(splitBody(task.body).log);
+  return { model: ran?.model, effort: ran?.effort as Picked['effort'] };
 }
 
 /**
@@ -345,25 +364,101 @@ export class Runner {
 
   /**
    * A page that ended without settling (killed outright, or a version before this
-   * one) leaves its thread marked as handed out with nobody on it. On start, put
-   * back every thread whose last claim was a page's hand-off where no page has an
-   * agent on it: a running agent's prompt file, named with its page's pid, lives as long as it does.
+   * one) leaves its thread marked as handed out with nobody on it. On start, every
+   * thread whose last claim was a page's hand-off, where no page has an agent on
+   * it, is seen to: a running agent's prompt file, named with its page's pid, lives as long as it does.
+   *
+   * With agents on, one that was in a Claude session is carried on there, in the folder it was
+   * in, as far as there is room; any other is put back in Build, to be handed out like the rest.
+   * Either way what is left of the agent the dead page started is ended first.
    */
   private recover(): void {
-    let orphans: string[] = [];
+    let orphans: Item[] = [];
     try {
       const ws = Workspace.open(this.ctx.cwd, this.ctx.now);
       try {
-        orphans = tasks(ws, this.project)
-          .filter((t) => t.status === 'active' && handedByPage(t) && !pageRunning(t.id))
-          .map((t) => t.id);
+        orphans = tasks(ws, this.project).filter((t) => t.status === 'active' && handedByPage(t) && !pageRunning(t.id));
       } finally {
         ws.close();
       }
     } catch {
       return;
     }
-    for (const id of orphans) this.putBack(id, 'its page had stopped with nobody working it; back in build');
+    for (const task of orphans) {
+      const kept = recall(task);
+      if (kept) endLeftover(kept);
+      const room = this.on && this.builder !== 'chat' && this.runs.size < parallelOf(this.ctx);
+      if (!room || !this.carryOnCutOff(task.id)) this.putBack(task.id, 'its page had stopped with nobody working it; back in build');
+    }
+  }
+
+  /**
+   * Carry on a thread that a page which died left handed out: its agent is started again in the
+   * session it was in, and the thread never leaves Building. False where there is no session to
+   * carry on in, or the agent command cannot pick one up, or its folder is gone.
+   */
+  private carryOnCutOff(id: string): boolean {
+    let task: Item | undefined;
+    let handed: Handed;
+    let again: Start | undefined;
+    const fresh: Start = { prompt: '', command: this.agent };
+    try {
+      const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
+      try {
+        task = ws.find(id);
+        if (task?.status !== 'active') return false;
+        const session = sessionRan(splitBody(task.body).log);
+        const folder = runFolder(task);
+        // Two agents never share the project's own folder, and one whose worktree was cleared away has nowhere to carry on.
+        if (!session || !fs.existsSync(folder) || [...this.runs.values()].some((run) => run.folder === folder)) return false;
+        const { models } = userConfig(this.ctx);
+        const notes = task.from.map((n) => ws.find(n)).filter((n): n is Item => n?.kind === 'note');
+        const picked = this.pickUp(task, { session, how: 'cut off' }, notes, models);
+        if (!picked) return false;
+        again = picked;
+        handed = {
+          id: task.id,
+          title: task.title,
+          folder,
+          before: null,
+          worktree: task.worktree ? { folder: task.worktree, branch: task.branch ?? '' } : undefined,
+          told: notes.map((n) => n.id),
+          spoke: picked.unheard ? Date.now() : undefined,
+        };
+        fresh.command = this.afresh(this.command(task, models, asItRan(task)));
+        task.started = timestamp(ws.now());
+        addLog(task, 'page', 'its page had stopped with nobody working it; carried on where it was', ws.now());
+        addLog(task, 'page', `handed to \`${again.command}\``, ws.now());
+        ws.save(task);
+        fresh.prompt = this.opening(ws, fresh.command, brief(ws, task, paint(false)));
+      } finally {
+        ws.close();
+      }
+    } catch {
+      return false;
+    }
+    this.handedOut++;
+    this.start(task, handed, again, fresh);
+    return true;
+  }
+
+  /**
+   * How to pick a thread's session up again: the command that does, and what its agent is told,
+   * which is only what has changed since it was last given the thread. `unheard` is how many of
+   * the human's notes that is. Nothing where the agent command cannot pick a session up.
+   */
+  private pickUp(task: Item, left: { session: string; how: Left }, notes: Item[], models: Routing): (Start & { unheard: number }) | undefined {
+    const command = inSession(this.command(task, models, asItRan(task)), left.session, true);
+    if (!command) return undefined;
+    const given = recall(task);
+    const told = new Set(given?.session === left.session ? given.told : []);
+    const unheard = notes.filter((n) => !told.has(n.id));
+    return { command, prompt: carryOn(task, left.how, unheard, listens(command)), unheard: unheard.length };
+  }
+
+  /** What an agent starting a thread from nothing is given: what it is here to do, the worker's rules, and the thread's brief. */
+  private opening(ws: Workspace, command: string, briefText: string): string {
+    return `${listens(command) ? PREAMBLE_HEARD : PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${briefText}\n`;
   }
 
   /**
@@ -619,7 +714,7 @@ export class Runner {
               run.spoke = Date.now();
               (run.unsaid ??= []).push(`passed on to the agent: "${oneLine(words, 200)}"`);
             }
-            if (fresh.length && session.id) remember(task, { session: session.id, told: run.told });
+            if (fresh.length && session.id) remember(task, { session: session.id, told: run.told, pid: run.child.pid });
           }
           const kept = ours && !this.held && run.spoke !== undefined && Date.now() - run.spoke < this.replyWindow;
           if (session.waiting !== undefined && !kept) session.leave();
@@ -731,15 +826,11 @@ export class Runner {
         };
         // Left unfinished by a run in a session of Claude's, it is carried on there, as it ran: nobody chooses its model a second time.
         const left = leftOff(task);
-        const ran = left ? runOf(splitBody(task.body).log) : null;
-        const resumed = left && inSession(this.command(task, models, { model: ran?.model, effort: ran?.effort as Picked['effort'] }), left.session, true);
-        if (left && resumed) {
-          const given = recall(task);
-          const told = new Set(given?.session === left.session ? given.told : []);
-          const unheard = notes.filter((n) => !told.has(n.id));
-          again = { command: resumed, prompt: carryOn(task, left.how, unheard, listens(resumed)) };
+        const picked = left && this.pickUp(task, left, notes, models);
+        if (picked) {
+          again = picked;
           // Words of theirs it is picked up with are words to it: it is kept for the next as after any other.
-          if (unheard.length) handed.spoke = Date.now();
+          if (picked.unheard) handed.spoke = Date.now();
         } else {
           asker = routerCommand(this.agent, task, models, router);
           if (left) addLog(task, 'page', `session ${left.session} cannot be picked up by \`${this.agent}\`; starting afresh`, ws.now());
@@ -747,11 +838,11 @@ export class Runner {
         task.status = 'active';
         task.by = this.name();
         task.started = timestamp(ws.now());
-        fresh.command = this.afresh(this.command(task, models, again ? { model: ran?.model, effort: ran?.effort as Picked['effort'] } : undefined));
+        fresh.command = this.afresh(this.command(task, models, again ? asItRan(task) : undefined));
         if (!asker) addLog(task, 'page', `handed to \`${(again ?? fresh).command}\``, ws.now());
         ws.save(task);
         briefText = brief(ws, task, paint(false));
-        fresh.prompt = `${listens(fresh.command) ? PREAMBLE_HEARD : PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${briefText}\n`;
+        fresh.prompt = this.opening(ws, fresh.command, briefText);
       } finally {
         ws.close();
       }
@@ -850,7 +941,7 @@ export class Runner {
     }
     const run: Run = { ...handed, child: session.child, lines: session.lines, began: session.began, session, afresh, stopped: false };
     // Which session it is, and what of the human's words it has now been given: kept for the run after this one.
-    if (session.id) remember(task, { session: session.id, told: handed.told });
+    if (session.id) remember(task, { session: session.id, told: handed.told, pid: session.child.pid });
     this.keep(run);
   }
 
