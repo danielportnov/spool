@@ -25,7 +25,7 @@ test('spool agents says whether the page’s agents are on, and switches them as
     assert.equal(fs.statSync(recordFile(s)).mode & 0o777, 0o600);
     assert.match(JSON.parse(fs.readFileSync(recordFile(s), 'utf8')).token, /^[\w-]{20,}$/);
 
-    assert.equal(s.sp('agents'), `Agents are off on the page at ${url}.`);
+    assert.equal(s.sp('agents'), `The page at ${url} has its agents off.`);
     assert.equal(s.sp('agents', 'on'), 'Agents are on: this page builds what is in Build.', 'in the page’s own words');
     assert.equal((await board()).runner.on, true);
     assert.deepEqual(s.json('agents'), { project: 'skyhop', page: url, builder: 'headless', on: true });

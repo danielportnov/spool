@@ -46,7 +46,7 @@ export function agentsCommand(ctx: Ctx, project: { name: string; root: string },
     if (!runner) return { text: `The Spool page at ${up.url} is not answering just now.`, data: data(up.url, null) };
     const on = runner.on === true;
     const chat = builder === 'chat' ? ' A chat builds here (Chat), so the page starts none either way.' : '';
-    return { text: `Agents are ${on ? 'on' : 'off'} on the page at ${up.url}.${chat}`, data: data(up.url, on) };
+    return { text: `The page at ${up.url} has its agents ${on ? 'on' : 'off'}.${chat}`, data: data(up.url, on) };
   }
 
   if (!up.token) {

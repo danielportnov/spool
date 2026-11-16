@@ -99,8 +99,10 @@ export function similarLines(ws: Workspace, task: Item, similar: Similar[], p: P
     if (m.how === 'done') out.push(p.dim('    finished lately: check it does not already cover this'));
   }
   const open = similar.find((m) => m.how === 'open');
-  if (open && note) out.push(p.dim(`  To add these words to ${open.item.id} instead: spool file ${note} --into ${open.item.id}, then spool drop ${task.id}`));
-  out.push(p.dim('  Or leave it as it is.'));
+  if (open && note) {
+    out.push(p.dim(`  To add these words to ${open.item.id} instead: spool file ${note} --into ${open.item.id}, then spool drop ${task.id}`));
+    out.push(p.dim('  Or leave it as it is.'));
+  } else out.push(p.dim(`  Drop it if it is the same (spool drop ${task.id}), or leave it as it is.`));
   return out;
 }
 

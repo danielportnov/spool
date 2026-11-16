@@ -624,6 +624,9 @@ export interface Changes {
   sprints: number;
   proposals: number;
   built: number;
+  placed: number;
+  archived: number;
+  held: number;
   notes: number;
   other: number;
   items: number;
@@ -652,7 +655,7 @@ export function changesOf(entries: Entry[]): { lines: string[]; counts: Changes 
     return rows.length;
   };
 
-  const counts: Changes = { dropped: 0, sized: 0, reordered: 0, plans: 0, sprints: 0, proposals: 0, built: 0, notes: 0, other: 0, items: items.length };
+  const counts: Changes = { dropped: 0, sized: 0, reordered: 0, plans: 0, sprints: 0, proposals: 0, built: 0, placed: 0, archived: 0, held: 0, notes: 0, other: 0, items: items.length };
   counts.dropped = group(
     'Dropped',
     old.filter((f) => f.to.status === 'dropped').map((f) => row(f, 'status', '', f.said.map((s) => /^dropped: (.*)$/.exec(s)?.[1]).find(Boolean) ?? 'no reason given')),
@@ -675,7 +678,7 @@ export function changesOf(entries: Entry[]): { lines: string[]; counts: Changes 
       return row(sprint, '', inIt.length ? `${plural(inIt.length, 'thread')}: ${inIt.map((t) => t.id).join(', ')}` : 'empty');
     }),
   );
-  group('Put in a sprint', old.filter((f) => typeof f.to.sprint === 'string' && !explained.get(f.id)?.has('sprint')).map((f) => row(f, 'sprint', String(f.to.sprint))));
+  counts.placed = group('Put in a sprint', old.filter((f) => typeof f.to.sprint === 'string' && !explained.get(f.id)?.has('sprint')).map((f) => row(f, 'sprint', String(f.to.sprint))));
   counts.proposals = group(
     'New ideas',
     made
@@ -683,8 +686,8 @@ export function changesOf(entries: Entry[]): { lines: string[]; counts: Changes 
       .map((f) => row(f, '', [f.to.size, f.to.type].filter(Boolean).join(' · '), typeof f.to.suggested === 'string' ? `Why: ${f.to.suggested}` : undefined)),
   );
   counts.built = group('Moved to build', old.filter((f) => f.from.status === 'proposed' && f.to.status === 'open').map((f) => row(f, 'status')));
-  group('Archived', old.filter((f) => f.to.archived).map((f) => row(f, 'archived')));
-  group('Put on hold', old.filter((f) => f.to.hold).map((f) => row(f, 'hold', String(f.to.hold))));
+  counts.archived = group('Archived', old.filter((f) => f.to.archived).map((f) => row(f, 'archived')));
+  counts.held = group('Put on hold', old.filter((f) => f.to.hold).map((f) => row(f, 'hold', String(f.to.hold))));
   counts.notes = group('Notes left', old.filter((f) => !Object.keys(f.to).length && f.said.some((s) => !ROUTINE.test(s))).map((f) => row(f, '')));
   // Whatever no group above accounts for, so that nothing a run did goes unsaid.
   const unexplained = (f: Folded) => Object.keys(f.to).filter((key) => !explained.get(f.id)?.has(key));
@@ -705,6 +708,9 @@ function countsLine(c: Changes): string {
     [c.sprints, c.sprints === 1 ? 'sprint drafted' : 'sprints drafted'],
     [c.proposals, c.proposals === 1 ? 'new idea' : 'new ideas'],
     [c.built, 'moved to build'],
+    [c.placed, 'put in a sprint'],
+    [c.archived, 'archived'],
+    [c.held, 'put on hold'],
     [c.notes, c.notes === 1 ? 'note left' : 'notes left'],
     [c.other, 'changed otherwise'],
   ];
