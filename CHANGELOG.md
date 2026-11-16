@@ -2,7 +2,7 @@
 
 What shipped in each version of Spool, newest first.
 
-## Unreleased
+## 0.18.0 · 2026-11-16
 
 - `/spool-lazy`, lazy dev mode for a chat: it builds what is in Build and decides how without asking
   (it takes the recommended option and leaves a receipt), comes to you with a screenshot and a line
