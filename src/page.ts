@@ -4284,10 +4284,10 @@ function openFocused() {
   const c = focused();
   if (c && !c.archived) openThread(c.id);
 }
-// b and x do just what the card's own buttons do, and only where the card shows them.
+// b and x do just what the card's own buttons do, Undo on the toast included, and only where the card shows them.
 function buildFocused() {
   const c = focused();
-  if (c && !c.archived && c.column === 'proposed') post('move', { id: c.id, to: 'build' }, 'In build: ' + c.title);
+  if (c && !c.archived && c.column === 'proposed') post('move', { id: c.id, to: 'build' }, 'In build: ' + c.title, moveBack(c.id, 'proposed', 'build'));
 }
 function archiveFocused() {
   const c = focused();
@@ -4297,7 +4297,7 @@ function archiveFocused() {
   const list = lane >= 0 ? all[lane] : [];
   const next = list[at + 1] || list[at - 1];
   focusId = next ? next.dataset.id : null;
-  post('archive', { id: c.id }, 'Archived: ' + c.title);
+  post('archive', { id: c.id }, 'Archived: ' + c.title, () => post('unarchive', { id: c.id }, 'Back in the backlog: ' + c.title));
 }
 function goTo(where) {
   const tab = document.querySelector('.tab[data-view="' + where + '"]');
