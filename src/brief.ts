@@ -37,7 +37,8 @@ export interface Brief {
     plans: { id: string; title: string; summary: string | null; parts: number; project: string }[];
     stopped: { id: string; title: string; why: string; when: string; lastSaid: string | null; project: string }[];
   };
-  worthALook: { id: string; title: string; summary: string | null; size: string | null; files: number; reasons: string[]; project: string }[];
+  /** `steps`: how to see each one working, as the agent that finished it wrote them. */
+  worthALook: { id: string; title: string; summary: string | null; steps: string[]; size: string | null; files: number; reasons: string[]; project: string }[];
   /** The rest of what shipped, by sprint: threads in no sprint come first, under a null sprint. */
   alsoShipped: { sprint: { id: string; title: string } | null; threads: { id: string; title: string; summary: string | null; project: string }[] }[];
   calls: { id: string; question: string; chose: string; for: string[]; project: string }[];
@@ -262,6 +263,7 @@ export function morning(ws: Workspace, opts: { since?: string; project?: Scope }
       id: t.id,
       title: t.title,
       summary: t.summary ?? null,
+      steps: t.steps,
       size: t.size ?? null,
       files,
       reasons,
@@ -312,6 +314,7 @@ export function morningText(ws: Workspace, b: Brief, p: Paint): string {
       out.push(line(`  ${i + 1}. `, t.title, `${t.id}${where(t.project)}`));
       if (t.summary) out.push(line('     ', t.summary));
       out.push(line('     why: ', t.reasons.join(' · ')));
+      if (t.steps.length) out.push('     to check:', ...t.steps.map((s, n) => line(`       ${n + 1}) `, s)));
     });
   }
 

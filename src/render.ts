@@ -597,6 +597,7 @@ export function reviewText(ws: Workspace, queue: Review, p: Paint): string {
       const commits = t.commits.length ? p.dim(`  · ${plural(t.commits.length, 'commit')}`) : '';
       out.push(`  ${p.bold(t.id)}  ${t.type ? `${t.type}: ` : ''}${t.title}${commits}${where(t)}`);
       if (t.summary) out.push(`      ${oneLine(t.summary, 110)}`);
+      t.steps.forEach((s, i) => out.push(p.dim(`        ${i + 1}. ${oneLine(s, 104)}`)));
       const made = progress(ws, t);
       const report = reportOf(t);
       if (report) out.push(p.dim(`      read ${report}${made ? `  · ${made.total} ${t.type === 'plan' ? 'parts' : 'findings'} filed` : ''}`));
@@ -642,6 +643,7 @@ export function showText(ws: Workspace, item: Item, p: Paint): string {
     if (item.choice) out.push(`  → ${item.choice}`);
   }
   if (item.summary) out.push(`  ${item.summary}`);
+  if (item.steps.length) out.push('', 'TO CHECK', ...item.steps.map((s, i) => `  ${i + 1}. ${s}`));
   if (item.body) out.push('', item.body);
   const held = dependents(ws, item);
   if (held.length) out.push('', p.dim(`needed by ${held.map((t) => t.id).join(', ')}`));

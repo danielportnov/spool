@@ -153,6 +153,12 @@ export interface Item {
   choice?: string;
   /** Tasks: what changed, in a sentence, for the human's review. */
   summary?: string;
+  /**
+   * Tasks: how a person sees the change working, as two or three short steps they can follow in a
+   * minute ("Open the board", "Drag a card up"). Read at review, so they are written for someone who
+   * has not seen the code.
+   */
+  steps: string[];
   /** Tasks: the commits that did the work — the handle `spool revert` pulls. */
   commits: string[];
   /** Tasks: labels the human or an agent put on it, to group and find work by. */
@@ -208,6 +214,7 @@ const FIELDS: readonly (readonly [string, FieldType])[] = [
   ['recommend', 'int'],
   ['choice', 'string'],
   ['summary', 'string'],
+  ['steps', 'strings'],
   ['commits', 'tokens'],
   ['tags', 'tokens'],
   ['version', 'string'],
@@ -253,7 +260,7 @@ export function serialize(item: Item): string {
 export function deserialize(text: string, spool: Spool): Item {
   const fm = parseFrontmatter(text);
   if (!fm.found) throw new Error('no frontmatter');
-  const record: Record<string, unknown> = { needs: [], from: [], options: [], commits: [], skills: [], tags: [] };
+  const record: Record<string, unknown> = { needs: [], from: [], options: [], steps: [], commits: [], skills: [], tags: [] };
   for (const [key, type] of FIELDS) {
     const value = fm.data.get(key);
     if (value === undefined) continue;

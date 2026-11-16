@@ -16,6 +16,7 @@ function task(fields: Partial<Item>): Item {
     needs: [],
     from: [],
     options: [],
+    steps: [],
     commits: [],
     skills: [],
     tags: [],

@@ -246,7 +246,8 @@ It reads `GEMINI.md` unless its settings name `AGENTS.md` too.
 - ✅ Name your tests once (`spool checks "npm test"`) and no thread can be marked done unless they pass.
 - 🏷️ What ships gets a version: a bump, a changelog entry, and a tag that stays on your machine.
 - 🌅 Back in the morning? Ask "catch me up", or run `spool brief`: one screen with what shipped,
-  the few threads worth checking and why, and what needs you. `spool approve --all` clears it.
+  the few threads worth checking, why, and the two or three steps to see each one working, and
+  what needs you. `spool approve --all` clears it.
   The board opens with the same brief above its columns, each line a click from its thread, and
   one button to approve the lot.
 

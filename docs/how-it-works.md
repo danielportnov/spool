@@ -127,8 +127,8 @@ Every time it runs, the loop does three things:
    the thread's place in line, so it means the same thread here and on the page, and a group's
    numbers can skip.
 2. **Builds what is in Build**, one thread at a time. For each: a line saying what it is starting
-   and its plan, the work in small commits, then `spool done` with what changed and how you can
-   see it. Two or three can be built at once where each has a worktree of its own: see
+   and its plan, the work in small commits, then `spool done` with what changed and two or three
+   steps you can follow in a minute to see it working. Two or three can be built at once where each has a worktree of its own: see
    "Several at once", below.
 3. **Says when it is done**, or when something needs you.
 
@@ -432,8 +432,8 @@ ones marked 🔒:
 | `spool next [--claim]` · `start <t-id>` | The next thread in Build with its brief; claim it. `--worktree` gives it a git worktree of its own |
 | `spool log <id> <fact>` | Leave a note for whoever comes next |
 | `spool ask` · `assume` | Put a call to the human; or make it and leave a receipt |
-| `spool done <t-id> -m <summary>` | Finish: record the commits, or hand in a report. Work in a worktree of its own is landed first |
-| `spool edit <id>` | Change a title, priority, size, kind, model, effort, tags, version, sprint |
+| `spool done <t-id> -m <summary> [--steps <step>…]` | Finish: record the commits, or hand in a report. Work in a worktree of its own is landed first. `--steps` (once a step, or `-` for one a line from stdin) says how to see a change working; a change finished without them says so |
+| `spool edit <id>` | Change a title, priority, size, kind, model, effort, tags, version, sprint, or the steps to check it by (`--steps`, `none` clears them) |
 | `spool hold <t-id> -m why` · `drop <id>` | Park work; abandon it |
 | `spool sprint <name>` | Make a sprint |
 | `spool skill add` | Write a procedure down as a skill |

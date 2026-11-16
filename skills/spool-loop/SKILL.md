@@ -409,7 +409,13 @@ End every commit message with the trailer
 so the work can be found, and undone, by thread. Check the result the way a user
 would meet it. Then:
 
-    spool done <id> -m "<what changed, and how the human can see it>"
+    spool done <id> -m "<what changed, and how the human can see it>" \
+      --steps "<a step>" --steps "<a step>"
+
+The steps are how the human sees it working in a minute: two or three, written
+for someone who has not seen the code, each something they do or see ("Open
+the board", "Drag a card up in Build", "The top card is built first"), never
+"run the tests". Forgot them? `spool edit <id> --steps "<a step>"` adds them.
 
 **In a worktree.** A brief that says `WORKTREE` gives the thread a checkout
 of its own, so others can be built beside it. Work and commit only in the

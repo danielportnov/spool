@@ -417,6 +417,7 @@ export class Workspace {
       needs: [],
       from: [],
       options: [],
+      steps: [],
       commits: [],
       tags: [],
       skills: [],

@@ -95,6 +95,8 @@ interface Card {
   /** Shipped, and whether the human has marked it complete. */
   done: boolean;
   complete: boolean;
+  /** Finished: the steps a person follows to see it working, as the agent wrote them. */
+  steps: string[];
   thread: Thread;
   question: { id: string; title: string; options: string[]; recommend: number | null } | null;
   /** While it is being built: when the agent took it, and the latest thing it said it was doing. */
@@ -465,6 +467,7 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     updated: task.updated,
     done: task.status === 'done',
     complete: task.status === 'done' && !!task.reviewed,
+    steps: task.status === 'done' ? task.steps : [],
     thread,
     question: asked ? { id: asked.id, title: asked.title, options: asked.options, recommend: asked.recommend ?? null } : null,
     live: column === 'building' ? liveNow(task) : null,

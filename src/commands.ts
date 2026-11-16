@@ -251,6 +251,26 @@ function summaryOf({ args, opts }: Bare): string {
 }
 
 /**
+ * The steps a person follows to see a change working, from `--steps` (once a step), or one a line
+ * from stdin with `--steps -`. A list someone pasted keeps its words, not its numbers or bullets.
+ * Undefined when none were given; `none` clears them.
+ */
+function stepsOf(call: Bare): string[] | undefined {
+  const given = raw(call.opts.steps);
+  if (!given.length) return undefined;
+  if (given.length === 1 && given[0] === 'none') return [];
+  const lines = given.length === 1 && given[0] === '-' ? call.ctx.stdin().split('\n') : given;
+  const steps = lines.map((l) => oneLine(l.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, ''), 200)).filter(Boolean);
+  if (!steps.length) throw new SpoolError('the steps are empty', 'One short thing a person does or sees, each: --steps "Open the board" --steps "The card is at the top"');
+  return steps;
+}
+
+/** What `spool done` says of a change that leaves no way to see it working. A courtesy: it never refuses. */
+function noSteps(id: string): string {
+  return `  No steps to check it by. Add two or three a person can follow in a minute: spool edit ${id} --steps "<step>" --steps "<step>"`;
+}
+
+/**
  * What `spool done` does first, with nothing locked: run the check where the thread was worked.
  * For a thread in the project's own checkout that is all. A thread with a worktree of its own is
  * landed here too: rebased onto the checkout, checked there, and the checkout fast-forwarded to it.
@@ -1305,7 +1325,7 @@ export const COMMANDS: Command[] = [
   {
     name: 'done',
     group: 'agents',
-    usage: 'done <t-id> -m <what changed> [--report <file>|-] [--commit <ref>…] [--skill <name>…]',
+    usage: 'done <t-id> -m <what changed> [--steps <step>…|-] [--report <file>|-] [--commit <ref>…] [--skill <name>…]',
     summary: 'Finish a task: record how to undo a change, or hand in the report of an audit or plan; work in a worktree of its own is landed on the checkout first',
     write: true,
     options: {
@@ -1313,6 +1333,7 @@ export const COMMANDS: Command[] = [
       commit: { type: 'string', multiple: true },
       skill: { type: 'string', multiple: true },
       report: { type: 'string' },
+      steps: { type: 'string', multiple: true },
     },
     reads: 'report',
     before: beforeDone,
@@ -1346,6 +1367,7 @@ export const COMMANDS: Command[] = [
           throw new SpoolError(`cannot read the report at ${reportArg}`);
         }
         if (!report.trim()) throw new SpoolError('the report is empty');
+        if (raw(call.opts.steps).join() === '-') throw new SpoolError('only one of --report and --steps can be read from stdin', 'Give the steps with --steps "<step>", once each');
       } else if (type !== 'change' && !fs.existsSync(reportPath)) {
         throw new SpoolError(
           `${type === 'audit' ? 'an audit' : 'a plan'} is finished by its report`,
@@ -1353,6 +1375,7 @@ export const COMMANDS: Command[] = [
         );
       }
 
+      const steps = stepsOf(call);
       const root = repoRoot(t.spool.root);
       const commits = new Set(t.commits);
       for (const ref of many(call.opts.commit)) {
@@ -1396,6 +1419,7 @@ export const COMMANDS: Command[] = [
       t.checked = checked?.command;
       if (checked) addLog(t, actor, `check passed: ${checked.command} (${checked.seconds}s)`, ws.now());
       t.summary = summary;
+      if (steps) t.steps = steps;
       t.commits = [...commits];
       t.skills = uniq([...t.skills, ...used]);
       addLog(t, actor, `done: ${summary}`, ws.now());
@@ -1429,6 +1453,7 @@ export const COMMANDS: Command[] = [
           out.push(`  ${gated.length} of them wait for the human's go-ahead${told ? ', and the human was notified' : ''}: spool approve ${t.id}`);
         }
       }
+      if (type === 'change' && !t.steps.length) out.push(p.yellow(noSteps(t.id)));
       if (commits.size) out.push(p.dim(`  ${commits.size} commit(s) on record — spool revert ${t.id} would undo them`));
       else if (root && type === 'change') {
         out.push(p.yellow(`  No commits found for it. Without the "Spool: ${t.id}" trailer or --commit, it cannot be reverted.`));
@@ -1519,7 +1544,7 @@ export const COMMANDS: Command[] = [
   {
     name: 'edit',
     group: 'agents',
-    usage: 'edit <id> [--title <t>] [-p 0-3] [-s size] [-t type] [--model <m>|none] [--effort <e>|none] [--tag <tag>…|none] [--version <v>|none] [--sprint <sprint>|none] [-b <body>] [--needs <id>…|none] [--reopen]',
+    usage: 'edit <id> [--title <t>] [-p 0-3] [-s size] [-t type] [--model <m>|none] [--effort <e>|none] [--tag <tag>…|none] [--version <v>|none] [--sprint <sprint>|none] [--steps <step>…|-|none] [-b <body>] [--needs <id>…|none] [--reopen]',
     summary: 'Change an item',
     write: true,
     options: {
@@ -1534,6 +1559,7 @@ export const COMMANDS: Command[] = [
       tag: { type: 'string', multiple: true },
       version: { type: 'string' },
       sprint: { type: 'string' },
+      steps: { type: 'string', multiple: true },
       ...BODY,
     },
     run(call) {
@@ -1594,6 +1620,13 @@ export const COMMANDS: Command[] = [
           item.sprint = sprint.id;
           changed.push(`sprint ${sprint.title}`);
         }
+      }
+      if (raw(call.opts.steps).join() === '-' && call.opts.body === '-') throw new SpoolError('only one of --body and --steps can be read from stdin');
+      const steps = stepsOf(call);
+      if (steps) {
+        if (item.kind !== 'task') throw new SpoolError('only tasks have steps to check them by');
+        item.steps = steps;
+        changed.push(steps.length ? `${steps.length} step(s) to check it by` : 'steps cleared');
       }
       const body = bodyOf(call);
       if (body !== undefined) {
