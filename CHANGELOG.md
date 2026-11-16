@@ -2,6 +2,13 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.20.0 · 2026-11-16
+
+- A usage target for Chat mode: in the board's header a meter beside Agents shows your plan's
+  weekly or 5-hour usage against a target you set with a slider or a number (or
+  `spool target --weekly 80`). The chat that builds reads its usage before each thread and keeps
+  working until it reaches the target, then takes no new thread.
+
 ## 0.19.0 · 2026-11-16
 
 - Spool can be off: `spool disable` switches it off in a project, so it is one tool you reach for
