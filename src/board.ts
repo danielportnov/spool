@@ -18,11 +18,11 @@ import type { Builder } from './context.ts';
 import { type Picking, type Runner, stoppedInBuild } from './engine.ts';
 import { git, repoRoot } from './git.ts';
 import { type Item, isPlan, oneLine, reportFile, splitBody, whyOf } from './model.ts';
-import type { Upkeep } from './page.ts';
 import { age, sprintAbout, tableRows } from './render.ts';
 import { type Run as StartedWith, runOf } from './run.ts';
 import { blockers, children, dependents, docket, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
 import type { Workspace } from './store.ts';
+import type { Upkeep } from './upkeep.ts';
 import { watched } from './watch.ts';
 
 export type Column = 'proposed' | 'build' | 'building' | 'done';
