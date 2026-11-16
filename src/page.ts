@@ -2813,7 +2813,13 @@ function describeNode(c) {
 function threadNode(c, b) {
   const t = c.thread;
   const save = (fields, done) => post('edit', { id: c.id, ...fields }, done);
-  const box = el('textarea', { placeholder: 'Post your reply', oninput: (e) => drafts.set(c.id, e.target.value) });
+  const reply = async () => {
+    if (!box.value.trim()) return;
+    if (await post('note', { id: c.id, text: box.value }, 'Posted to the thread')) drafts.delete(c.id);
+  };
+  // Enter sends, as in any chat; Shift+Enter is a new line. A word still being composed (an IME) is left to finish.
+  const box = el('textarea', { placeholder: 'Post your reply', oninput: (e) => drafts.set(c.id, e.target.value),
+    onkeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); reply(); } } });
   box.value = drafts.get(c.id) || '';
   const lineage = [
     ...t.cameFrom.map((f) => 'Came out of: ' + f.title),
@@ -2864,10 +2870,7 @@ function threadNode(c, b) {
 
     el('div', { class: 'compose' }, avatar('human'),
       el('div', {}, box,
-        el('div', { class: 'acts' }, el('button', { class: 'go', onclick: async () => {
-          if (!box.value.trim()) return;
-          if (await post('note', { id: c.id, text: box.value }, 'Posted to the thread')) drafts.delete(c.id);
-        } }, 'Reply')))),
+        el('div', { class: 'acts' }, el('button', { class: 'go', onclick: reply }, 'Reply')))),
     changesNode(c),
     c.done && el('div', { class: 'finish' }, c.complete
       ? el('div', { class: 'ok' }, '✓ Complete. You approved this change.')
