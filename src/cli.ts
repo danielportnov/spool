@@ -19,6 +19,7 @@ import { SpoolError } from './model.ts';
 import { paint } from './render.ts';
 import { record } from './journal.ts';
 import { Workspace, findHome } from './store.ts';
+import { openQueue } from './tui.ts';
 
 const GLOBAL: Options = {
   json: { type: 'boolean' },
@@ -48,6 +49,7 @@ function help(): string {
     for (const c of COMMANDS.filter((c) => c.group === group)) lines.push(`  ${c.name.padEnd(width)}  ${c.summary}`);
     lines.push('');
   }
+  lines.push('spool alone, in a terminal, opens the queue full-screen (--run switches agents on); spool --plain prints the status.');
   lines.push('Every command takes --json, -C <dir> and --as <name>.   spool help <command> for details.');
   return lines.join('\n');
 }
@@ -80,10 +82,15 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
   const art = !argv.includes('--json');
   const beside = paint(inColor(ctx));
   const versioned = (): string[] => [beside.bold(`v${version()}`)];
+  // For `spool` with no command: the status and not the interface, and agents switched on.
+  let plain = false;
+  let agentsOn = false;
   let i = 0;
   for (; i < argv.length && argv[i]!.startsWith('-'); i++) {
     const arg = argv[i]!;
     if (arg === '--json') json = true;
+    else if (arg === '--plain') plain = true;
+    else if (arg === '--run') agentsOn = true;
     else if (arg === '-h' || arg === '--help') wantHelp = true;
     else if (arg === '-V' || arg === '--version') {
       // With --unwind the thread is drawn writing the word, a frame at a time, and nothing more is printed here.
@@ -104,8 +111,13 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
     return { result: { text: commandHelp(find(rest[0])) }, json };
   }
   const bare = !name;
+  if (name && (plain || agentsOn)) throw new SpoolError(`unknown option ${plain ? '--plain' : '--run'}`, 'It goes with spool alone. See: spool help');
   if (!name) {
-    if (wantHelp || !findHome(path.resolve(ctx.cwd, cwd ?? '.'))) return { result: { text: greeted() }, json };
+    const here = path.resolve(ctx.cwd, cwd ?? '.');
+    if (wantHelp || !findHome(here)) return { result: { text: greeted() }, json };
+    // A person at their own terminal gets the queue, full-screen. A pipe, an agent, --json and --plain get the status, as always.
+    const opened = ctx.tty && !json && !plain ? openQueue({ ...ctx, cwd: here }, { run: agentsOn }) : undefined;
+    if (opened) return { result: opened, json };
     name = 'status';
     rest = [];
   }

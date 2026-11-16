@@ -32,7 +32,8 @@ those comments are the detail.
 
 - `cli.ts` only parses arguments and routes. `run(argv, ctx)` finds the command, opens the
   workspace, calls it and prints the `Result`. It is the one door: the tests, the page and the MCP
-  server all go through it.
+  server all go through it. With no command it is `status`, or, typed at a real terminal, the
+  queue full-screen (`tui.ts`).
 - `commands.ts` is the `COMMANDS` table: every verb, its options, its help line, and the rules
   about what may follow what. A command with `write` runs under the lock; one with `human` acts as
   the human unless told otherwise; `before` does slow work, such as running a check, before the
@@ -96,7 +97,17 @@ those comments are the detail.
   whatever still imports them from it.
 - `detach.ts` is `spool page -d`, `--status` and `--stop`, and the record every page leaves under
   `~/.config/spool/pages/` saying which process holds it and at what address (`pageUp`), which is
-  how a second start finds the first.
+  how a second start finds the first. `startDetached` starts a page in the background and says
+  when it is listening.
+- `tui.ts` is Spool in the terminal: what bare `spool` opens at a real terminal (`openQueue`). It
+  is a client of the page's server, not a runner. Two pure functions do the work: `frame` draws a
+  screen, as lines of text, from the board and the interface's own `State`, and `key` turns a key
+  into a new state and maybe an `Action`, which is one of the page's POSTs. `watchQueue` is the
+  loop around them: it asks for the board about once a second, draws, and posts. Its top line
+  opens with the yarn mark's one-line form (`mark.ts`).
+- `term.ts` is the terminal under it, written by hand: `width`, `cut`, `fit` and `wrap` measure
+  text as a terminal shows it, `keys` reads raw input into key names, and `openTerm` takes the
+  screen over and gives it back on every way out.
 - `stream.ts` reads what a `claude -p` agent prints with `--output-format stream-json`
   (`streaming` adds the flags, `hearLine` reads a line) into the short lines a card shows, and
   says where each run's stream is kept (`transcriptFile`).

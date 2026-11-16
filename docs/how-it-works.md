@@ -182,6 +182,58 @@ conversation.
 Everything the page does is an ordinary command run as you: `build`, `propose`, `play`, `capture`,
 `task`, `edit`, `answer`, `approve`. It can do nothing the command line cannot.
 
+## In the terminal
+
+`spool`, typed in a terminal with nothing after it, opens the queue full-screen. It is the page's
+board in another shape, for when the terminal is where you are: a client of the page's server,
+over the same `127.0.0.1` address the browser uses, so there is still one runner to a project. A
+key is one of the page's buttons, sent with the token the page keeps in its record on your machine.
+
+The left side is the queue, top to bottom:
+
+- **Needs you**: each open question, each plan waiting for your go-ahead, and each thread in Build
+  that you stopped or that its agent left unfinished.
+- **Building**: each thread being built, how long it has been, and under it the last thing its
+  agent said. On a short screen the last lines go first, so every thread stays in sight.
+- **Build**: what waits, numbered in the order it will be built, with the sprint being played
+  named beside the count.
+- **Done, to check**: finished threads you have not approved, each with what it changed
+  (`+38 -12`).
+- **Backlog**: a count. Enter opens it to a list: threads in no sprint, then each sprint with what
+  waits in it.
+
+The right side is whatever the cursor is on, to read: a thread's why, what it waits on, its result
+and the steps to check it, and its last lines; a question with its options; a sprint with its goal.
+The top line says whether agents are on, how many threads are being built, how many things need
+you, and where the page is.
+
+| Key | What it does |
+| --- | --- |
+| `up` `down`, or `j` `k` | Move through the queue |
+| `Enter` | Read what the cursor is on: the arrows then scroll it, and `Esc` goes back. On the backlog, open or close its list |
+| `PgUp` `PgDn` `Home` `End` | Scroll what is beside the queue, from either side |
+| `b` | Send a backlog thread to Build; on a thread you stopped, or one left unfinished, carry on |
+| `p` | Play a sprint: on its row in the open backlog, or on a thread in it |
+| `s` | Stop the agent on a thread being built. It waits in Build until you carry on |
+| `a` | Approve a finished thread, or give a plan its go-ahead |
+| `1` to `9` | Answer a question with that option, on the question or on a thread it holds up |
+| `g` | Switch the page's agents on or off |
+| `/` | Add a thread: type one line, `Enter` files it in the backlog, `Esc` leaves it |
+| `?` | Every key |
+| `q`, or `Ctrl-C` | Leave. The page stays up, and its agents carry on |
+
+With no page up for the project, `spool` starts one in the background, as `spool page -d` does,
+and says so in the top line. Its agents are off unless you typed `spool --run`, which also
+switches them on where a page is already up. Leaving stops nothing: `spool` again finds the same
+page, and `spool page --stop` ends it.
+
+When something shipped since you last looked and nothing is being built, it opens on the brief,
+the same one `spool brief` prints; Enter goes on to the queue.
+
+It needs a terminal of 80 by 24 or more, and says so in a smaller one. Whatever happens, a quit, a
+signal or an error, the terminal is put back as it was. Where there is no terminal, piped or run
+by an agent, `spool` alone prints the status as it always did; `spool --plain` prints it anywhere.
+
 ## The loop
 
 `/spool-loop` makes a chat the builder: the one that builds what you moved to Build. It does three
@@ -681,6 +733,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it. After an upgrade it also names a retired skill that is still installed, for any agent, and a Spool block in `AGENTS.md` that is not the one this version writes; changes nothing |
 | `spool page [--run] [--agent cmd] [--port n] [--no-open] [-P project]` | The board; `--run` has it build what is in Build too. In a folder of projects it shows them all, one click apart |
 | `spool page -d \| --status \| --stop` | The board in the background, with no browser opened; whether it is up, and where; end it |
+| `spool [--run \| --plain]` | With nothing after it, in a terminal: the queue, full-screen, over the page that is up, or one it starts in the background (`--run` with agents on). Piped, run by an agent, or with `--plain`: the status |
 | `spool watch` | Print a line when there is something for the loop to do |
 | `spool loop [--watch s] [--agent cmd]` | The runner with no chat |
 | `spool mcp [-C dir]` | The commands as MCP tools |

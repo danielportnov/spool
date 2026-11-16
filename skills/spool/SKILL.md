@@ -32,6 +32,7 @@ the detail.**
 | They say | Run |
 | --- | --- |
 | "open the board", "show me the spool" | `spool page -d`: it starts the board in the background, or finds the one already up, and gives its address. Show it in your browser pane, or `spool page` opens it in theirs. Do not describe the board in the chat |
+| "show it in my terminal", "I'd rather stay in the terminal" | Theirs to type: `spool` with nothing after it, in their own terminal, opens the queue full-screen over the same board, and starts the board in the background if none is up. Run by you, it only prints the status |
 | "where do things stand" | `spool overview --brief`, as it comes |
 | "show me everything", "what's in the spool" | `spool overview --table`, as it comes: every open thread, numbered, so they can say "build 4" |
 | "what needs me", "what's blocked" | `spool review` |

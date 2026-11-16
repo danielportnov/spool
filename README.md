@@ -218,6 +218,54 @@ and who builds; `spool page --stop` ends it, as Ctrl-C would. One page to a proj
 another while one is up gives you the address of the one that is up, and plain `spool page` opens
 it in your browser.
 
+## In the terminal
+
+```bash
+spool
+```
+
+Typed in a terminal with nothing after it, `spool` opens the queue full-screen: what needs you,
+what is being built and each agent's last line, Build in the order it will be built, what is done
+and waiting for your check, and the backlog, which Enter opens to a list. What the cursor is on is
+read beside it.
+
+```
+ ▐▚▌── spool · skyhop 0.16.0   agents on · 2 building · 2 need you · page :4747
+────────────────────────────────────┬───────────────────────────────────────────
+ NEEDS YOU  2                       │ t-4kq7  Tighter jump        building · 6m
+  ? d-9d2a  Which font for the… 1-3 │ Medium · Feel
+  ! t-e2b7  Credits screen  stopped │───────────────────────────────────────────
+                                    │ Why
+ BUILDING  2 of 3                   │   The jump feels floaty at the top of the
+> * t-4kq7  Tighter jump         6m │   arc.
+     The small platform is 3px too… │
+  * t-b81c  Coins at sunset      2m │ What
+     The coins use the noon sprite… │   More gravity at the top of the arc, so
+                                    │   the fall starts sooner.
+ BUILD  2              sprint: Feel │
+  1 t-c0de  Double jump           m │ Done when
+  2 t-e2b7  Credits screen  stopped │   A full jump takes under 600ms and still
+                                    │   clears the small platform.
+ DONE, TO CHECK  2                  │
+  + t-5aa1  Coyote time     +38 -12 │ Last lines
+  + t-0b2c  Fix wall clip     +6 -2 │   Reading the jump code first.
+ BACKLOG  5                         │ … 9 more lines: enter, then down
+────────────────────────────────────┴───────────────────────────────────────────
+
+ s stop its agent · enter read it
+ up/down move · g agents · / add · ? keys · q leave, agents carry on
+```
+
+`b` sends a backlog thread to Build, `p` plays a sprint, `s` stops an agent, `a` approves a
+finished thread, `1` to `9` answer a question, `/` adds a thread, `g` switches agents on or off,
+and `?` lists every key. Each is a button of the page, pressed from here.
+
+It is a face of the page, not a second runner. With no page up it starts one in the background,
+agents off unless you typed `spool --run`, and `q` leaves it running: your agents carry on. When
+something shipped while you were away and nothing is being built, it opens on the brief. Piped, or
+run by an agent, `spool` alone prints the status as it always did, and `spool --plain` prints it
+anywhere.
+
 ## No chat at all
 
 ```bash
