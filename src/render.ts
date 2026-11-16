@@ -10,6 +10,7 @@ import { type Item, type Spool, isPlan, isSettled, oneLine, reportFile, splitBod
 import { type Docket, type Review, blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, stateOf, taskState, tasks } from './schedule.ts';
 import { lessonLine, lessonsFor } from './lessons.ts';
 import { BUILT_IN, fileFor, ledgerFor, matchSkills } from './skills.ts';
+import { visionOf } from './sprints.ts';
 import { type Candidate, SUGGEST, addLine, offerLine } from './suggest.ts';
 import type { Workspace } from './store.ts';
 import { workDir } from './worktree.ts';
@@ -404,15 +405,18 @@ export function tableRows(ws: Workspace, d: Docket): TableRow[] {
   return rows.map((r, i) => ({ n: i + 1, ...r }));
 }
 
-/** A sprint's goal, reason and done-when, read from the three lines of its body. Whatever else is there is the goal. */
-export function sprintAbout(sprint: Item): { goal: string; why: string; doneWhen: string } {
-  const lines = splitBody(sprint.body).main.split('\n').map((l) => l.trim()).filter(Boolean);
+/**
+ * A sprint's goal, reason and done-when, read from the three lines of its body, and the vision
+ * it was made from, in the human's words. Whatever else is there, and not quoted, is the goal.
+ */
+export function sprintAbout(sprint: Item): { goal: string; why: string; doneWhen: string; vision: string } {
+  const lines = splitBody(sprint.body).main.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('>'));
   const take = (label: string) => {
     const at = lines.findIndex((l) => l.toLowerCase().startsWith(`${label}:`));
     return at < 0 ? '' : lines.splice(at, 1)[0]!.slice(label.length + 1).trim();
   };
   const [why, doneWhen, goal] = [take('why'), take('done when'), take('goal')];
-  return { goal: goal || lines.join(' '), why, doneWhen };
+  return { goal: goal || lines.join(' '), why, doneWhen, vision: visionOf(sprint) };
 }
 
 /**
@@ -469,8 +473,10 @@ function openSprints(ws: Workspace, spool: Spool): Item[] {
 /** A sprint in one line: its name, where it stands, how far along it is, and what it is for. */
 function sprintLine(ws: Workspace, s: Item): string {
   const inIt = sprintTasks(ws, s);
-  const goal = sprintAbout(s).goal;
-  return `🏁 **${s.title}** · ${s.status} · ${inIt.filter((t) => t.status === 'done').length} of ${inIt.length} done${goal ? ` — ${oneLine(goal, 140)}` : ''}`;
+  const { goal, vision } = sprintAbout(s);
+  // With no goal written yet, the human's own words say what it is for.
+  const what = goal ? oneLine(goal, 140) : vision ? `“${oneLine(vision, 140)}”` : '';
+  return `🏁 **${s.title}** · ${s.status} · ${inIt.filter((t) => t.status === 'done').length} of ${inIt.length} done${what ? ` — ${what}` : ''}`;
 }
 
 export interface ListGroup {
@@ -649,6 +655,8 @@ export function showText(ws: Workspace, item: Item, p: Paint): string {
   if (held.length) out.push('', p.dim(`needed by ${held.map((t) => t.id).join(', ')}`));
   const kids = item.kind === 'task' ? children(ws, item) : [];
   if (kids.length) out.push('', item.type === 'plan' ? 'PARTS' : 'CAME OUT OF IT', ...kids.map((k) => `  ${itemLine(ws, k, p, false)}`));
+  const inIt = item.kind === 'sprint' ? sprintTasks(ws, item) : [];
+  if (inIt.length) out.push('', 'IN IT', ...inIt.map((t) => `  ${itemLine(ws, t, p, false)}`));
   return out.join('\n');
 }
 
@@ -734,6 +742,8 @@ export function itemJson(ws: Workspace, item: Item, full = false): Record<string
           ...(progress(ws, item) ? { progress: { done: progress(ws, item)!.done, total: progress(ws, item)!.total } } : {}),
         }
       : {}),
+    // A sprint says what it is for, and which threads are in it.
+    ...(item.kind === 'sprint' ? { ...sprintAbout(item), threads: sprintTasks(ws, item).map((t) => t.id) } : {}),
     ...(full ? { body, file: ws.file(item) } : {}),
   };
 }

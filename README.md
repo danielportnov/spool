@@ -135,7 +135,7 @@ Two threads land in the backlog, in your words. Nothing is built until you move 
 | Every new thread. Yours, or an agent's ✨. | The ones you picked. | An agent has it. | Shipped, and undoable. |
 
 1. **Threads start in the backlog.** Agents size them, explain them and suggest their own. They cannot start them. One you do not want to see, archive: it is kept, out of the way, a click from coming back.
-2. **You move a thread to Build.** Drag it, press ▶, or say "build that one". Or group a few into a **sprint** and press ▶ on the sprint.
+2. **You move a thread to Build.** Drag it, press ▶, or say "build that one". Or group a few into a **sprint** and press ▶ on the sprint. Say what you want a stretch of work to achieve and the agent makes the sprint for you: your words, a goal, and the threads that get there.
 3. **The loop builds it.** In order, a line when it starts and a line when it ships: three at a time where your chat can start subagents and the project is a git repository, each in a worktree of its own; one at a time otherwise.
 4. **You can take it back.** "Undo that" reverts everything that thread changed, and nothing else. Say why, and the reason is kept as a lesson: every agent reads it before it works, so you never say it twice. `spool lessons` lists them; `spool lessons --drop <n>` forgets one.
 

@@ -240,12 +240,22 @@ Repeat until `spool next --claim` says nothing is ready:
 on it: every thread in it lands in build at once, and you build them like any
 others. `spool next` hands them out ahead of other work of the same urgency. A sprint has no dates; it is over when its last thread is done, and
 `spool done` says so. Say it too, in a line, and give it its version then.
-You may draft one from the backlog: say what it is for
-(`spool sprint "<name>" --goal "<what it is for>" --why "<why now>"
---done-when "<what will be true>"`), then fill it
-(`spool edit <t-id> --sprint <name>`). Only they play it (`spool play`).
-Agreeing to a sprint with a goal is agreeing to a plan: that is what lets
-you build the whole of it without stopping.
+
+When they describe what a stretch of work should achieve, rather than one
+change, make it a sprint: capture their words; write its goal, why and
+done-when from them; split it into the threads that get there, each with
+What, Why, Done when and a size (one too big for one sitting is a plan, with
+parts); then make it and fill it in one go, the threads in the order they
+should be built (`--needs` where one waits on another):
+
+    spool sprint "<name>" --goal "<what it is for>" --why "<why now>" --done-when "<what will be true>" --from <note-id> --add <t-id…>
+
+Show them the sprint in a few lines: its goal, and its threads a line each.
+You may draft one from the backlog the same way; `spool sprint "<name>" --add
+<t-id…>` adds to one that exists. They press play on the page, or say "play
+it". Only they play it (`spool play`). Never play it for them. Agreeing to a
+sprint with a goal is agreeing to a plan: that is what lets you build the
+whole of it without stopping.
 
 Then take the next one. The order is read again every time, so a thread they
 moved to build while you worked comes up in its turn. A question about one
@@ -270,7 +280,8 @@ else they say, take every part of it:
 | --- | --- |
 | "build 3", "go on that one", "yes, do it" | `spool build <t-id>` |
 | "play the sprint", "start sprint 2" | `spool play <sprint>` |
-| "put that in the sprint", "take it out" | `spool edit <t-id> --sprint <sprint or none>` |
+| "put that in the sprint", "take it out" | `spool sprint "<sprint>" --add <t-id>`, or `spool edit <t-id> --sprint none` |
+| what a stretch of work should achieve | a sprint: see "Sprints" above |
 | "not yet", "take that out of build" | `spool propose <t-id>` |
 | an answer: "the second one", "a", "no, do X" | `spool answer <d-id> <n or their words>` |
 | "do X first", "X before Y", about threads in build | `spool order <t-id> --first`, or `--before <t-id>` |

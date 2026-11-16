@@ -255,6 +255,11 @@ when its threads are done, not when a fortnight is. It says what it is for: a go
 when it is done, written by you on the page or drafted by an agent. Being in a sprint starts
 nothing. Playing it moves everything in it to Build at once. `spool done` says when a sprint's last thread has shipped.
 
+Say what you want a stretch of work to achieve, in your own words, and the agent makes it a
+sprint: your words kept on it as its vision, a goal, a reason and a done-when written from them,
+and the threads that get there put in it in the order they should be built. It shows you the
+sprint in a few lines. You press play, or say "play it"; it never plays one for you.
+
 ## Skills that compound
 
 When an agent works out a multi-step procedure it will need again — shipping a beta, regenerating
@@ -454,7 +459,7 @@ ones marked 🔒:
 | `spool done <t-id> -m <summary> [--steps <step>…]` | Finish: record the commits, or hand in a report. Work in a worktree of its own is landed first. `--steps` (once a step, or `-` for one a line from stdin) says how to see a change working; a change finished without them says so |
 | `spool edit <id>` | Change a title, priority, size, kind, model, effort, tags, version, sprint, or the steps to check it by (`--steps`, `none` clears them) |
 | `spool hold <t-id> -m why` · `drop <id>` | Park work; abandon it |
-| `spool sprint <name>` | Make a sprint |
+| `spool sprint <name> [--goal …] [--why …] [--done-when …] [--vision - \| --from <n-id>] [--add <t-id…>]` | Make a sprint and fill it in one go, keeping the vision in your words; on a sprint that exists, add to it |
 | `spool skill add` | Write a procedure down as a skill |
 | `spool prime [worker\|recorder]` | A role's rules and this project now, for an agent with no skills |
 

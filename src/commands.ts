@@ -61,6 +61,7 @@ import {
   reviewText,
   showText,
   skillsText,
+  sprintAbout,
   statusText,
   suggestText,
 } from './render.ts';
@@ -82,6 +83,7 @@ import {
 import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, writeSkill } from './skills.ts';
 import { SPOOL_DIR, Workspace, findFolder, findHome, readConfig, skillsDir, worktreeOwner } from './store.ts';
 import { alikeIn, alikeLines, similarLines, similarTo } from './similar.ts';
+import { addQuote, setLine, visionQuote } from './sprints.ts';
 import { SUGGEST, suggestSkills } from './suggest.ts';
 import { standingLines, standingOf } from './standing.ts';
 import { type Landing, type Opened, closeWorktree, land, openWorktree } from './worktree.ts';
@@ -933,28 +935,82 @@ export const COMMANDS: Command[] = [
   {
     name: 'sprint',
     group: 'agents',
-    usage: 'sprint <name…> [--goal <what it is for>] [--why <why now>] [--done-when <what will be true>] [-P <project>]',
-    summary: 'Make a sprint: a named set of work to build together, with a goal and no dates',
+    usage:
+      'sprint <name…> [--goal <what it is for>] [--why <why now>] [--done-when <what will be true>] [--vision <their words>|- | --from <n-id>] [--add <t-id…>] [-P <project>]',
+    summary: 'Make a sprint, a named set of work to build together with a goal and no dates; or fill one that exists',
     write: true,
-    options: { goal: { type: 'string' }, why: { type: 'string' }, 'done-when': { type: 'string' }, ...PROJECT },
+    options: {
+      goal: { type: 'string' },
+      why: { type: 'string' },
+      'done-when': { type: 'string' },
+      vision: { type: 'string' },
+      from: { type: 'string' },
+      add: { type: 'string', multiple: true },
+      ...PROJECT,
+    },
     run(call) {
-      const { ws, p } = call;
-      const name = oneLine(words(call, call.args, 'the sprint\'s name', 'spool sprint "Sprint 1"'), 60);
+      const { ws, p, actor } = call;
+      // `--add t-a t-b`: the ids after the first arrive as words of the name, and are taken back out.
+      const named: string[] = [];
+      const adding = many(call.opts.add);
+      for (const arg of call.args) (call.opts.add !== undefined && /^t-[a-z0-9]+$/i.test(arg) && ws.find(arg.toLowerCase())?.kind === 'task' ? adding : named).push(arg);
+      const name = oneLine(words(call, named, 'the sprint\'s name', 'spool sprint "Sprint 1"'), 60);
       const spool = str(call.opts.project) ? ws.project(str(call.opts.project)) : ws.home;
-      if (ws.items.some((i) => i.kind === 'sprint' && i.spool === spool && i.status !== 'dropped' && i.title.toLowerCase() === name.toLowerCase())) {
-        throw new SpoolError(`there is already a sprint called "${name}"`);
+      const threads = uniq(adding.map((ref) => ws.get(ref, 'task')));
+      const closed = threads.find((t) => t.status === 'done' || t.status === 'dropped');
+      if (closed) throw new SpoolError(`${closed.id} is ${closed.status}`, 'A sprint holds the work still to do.');
+      if (str(call.opts.vision) && str(call.opts.from)) throw new SpoolError('give the vision once: --vision or --from', 'spool sprint "<name>" --from <note-id>');
+      const vision = str(call.opts.vision) === '-' ? call.ctx.stdin().trim() : str(call.opts.vision)?.trim();
+      if (str(call.opts.vision) === '-' && !vision) throw new SpoolError('the vision is missing', 'Pipe their words in: spool sprint "<name>" --vision -');
+      const note = str(call.opts.from) ? ws.get(str(call.opts.from)!, 'note') : undefined;
+
+      const existing = ws.items.find((i) => i.kind === 'sprint' && i.spool === spool && i.status !== 'dropped' && i.title.toLowerCase() === name.toLowerCase());
+      if (existing?.status === 'done') throw new SpoolError(`${existing.title} is finished`, 'Put the work in another sprint, or make one: spool sprint "<name>"');
+      const sprint = existing ?? ws.create(spool, 'sprint', { title: name });
+      const changed: string[] = [];
+      // The human's words for it come first, quoted and signed, the way a thread keeps its note.
+      if (note) {
+        addQuote(sprint, quoteNote(note));
+        sprint.from = uniq([...sprint.from, note.id]);
+        if (note.status === 'new') {
+          note.status = 'filed';
+          ws.save(note);
+        }
+        changed.push('vision');
+      } else if (vision) {
+        addQuote(sprint, visionQuote(vision, timestamp(ws.now()).slice(0, 10)));
+        changed.push('vision');
       }
       // What the sprint is for is its body, in the same three lines a thread's spec has.
-      const about = [
-        str(call.opts.goal) && `Goal: ${oneLine(str(call.opts.goal)!, 300)}`,
-        str(call.opts.why) && `Why: ${oneLine(str(call.opts.why)!, 300)}`,
-        str(call.opts['done-when']) && `Done when: ${oneLine(str(call.opts['done-when'])!, 300)}`,
-      ].filter(Boolean);
-      const sprint = ws.create(spool, 'sprint', { title: name, body: about.join('\n') });
-      return {
-        text: `Sprint made in ${spool.name}:\n  ${itemLine(ws, sprint, p, false)}\n${about.length ? '' : p.dim('  say what it is for: spool edit ' + sprint.id + ' -b "Goal: …\\nWhy: …\\nDone when: …"\n')}${p.dim(`  put work in it: spool edit <t-id> --sprint ${sprint.id}      the human starts it: spool play ${sprint.id}`)}`,
-        data: { sprint: itemJson(ws, sprint) },
-      };
+      for (const [opt, label] of [['goal', 'Goal'], ['why', 'Why'], ['done-when', 'Done when']] as const) {
+        if (!str(call.opts[opt])) continue;
+        setLine(sprint, label, oneLine(str(call.opts[opt])!, 300));
+        changed.push(label.toLowerCase());
+      }
+      const added: Item[] = [];
+      for (const t of threads) {
+        if (t.sprint === sprint.id) continue;
+        const moved = sprintOf(ws, t);
+        t.sprint = sprint.id;
+        addLog(t, actor, moved ? `moved from the sprint ${moved.title} to ${sprint.title}` : `put in the sprint ${sprint.title}`, ws.now());
+        ws.save(t);
+        added.push(t);
+      }
+      if (added.length) changed.push(`${added.length} added`);
+      if (existing && !changed.length) throw new SpoolError(`there is already a sprint called "${name}"`, `Fill it: spool sprint "${name}" --add <t-id…>`);
+      if (existing) addLog(sprint, actor, `edited: ${changed.join(', ')}`, ws.now());
+      ws.save(sprint);
+
+      const about = sprintAbout(sprint);
+      const out = [existing ? `Sprint ${sprint.title}: ${changed.join(', ')}.` : `Sprint made in ${spool.name}:`, `  ${itemLine(ws, sprint, p, false)}`];
+      for (const t of added) out.push(`    ${itemLine(ws, t, p, false)}`);
+      if (!about.goal) out.push(p.dim(`  say what it is for: spool sprint "${sprint.title}" --goal "…" --why "…" --done-when "…"`));
+      if (!sprintTasks(ws, sprint).length) out.push(p.dim(`  put work in it: spool sprint "${sprint.title}" --add <t-id…>`));
+      // A sprint being played takes in new work, and the human's play is still what starts it.
+      if (sprint.status === 'running' && added.some((t) => t.status === 'proposed' || t.hold)) {
+        out.push(p.dim(`  it is running: what was added waits in the backlog until the human presses play again (spool play ${sprint.id})`));
+      } else if (sprint.status === 'planned') out.push(p.dim(`  the human starts it: spool play ${sprint.id}`));
+      return { text: out.join('\n'), data: { sprint: itemJson(ws, sprint), added: added.map((t) => t.id), made: !existing } };
     },
   },
   {

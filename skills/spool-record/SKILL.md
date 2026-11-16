@@ -104,6 +104,23 @@ Ask them only when you cannot tell which project they mean, or what they
 meant at all. Then one short question, and leave the note in the inbox until
 they answer.
 
+## A stretch of work: a sprint
+
+When they describe what a stretch of work should achieve, rather than one
+change ("the first five minutes should feel finished"), make it a sprint:
+
+1. Capture their words, as always.
+2. Split it into the threads that get there, each filed as above with What,
+   Why, Done when and a size. One too big for one sitting is a plan, with parts.
+3. Make the sprint and fill it in one go, its goal, why and done-when written
+   from their words, the threads in the order they should be built (`--needs`
+   where one waits on another):
+
+       spool sprint "<name>" --goal "<what it is for>" --why "<why now>" --done-when "<what will be true>" --from <note-id> --add <t-id…>
+
+4. Show them the sprint in a few lines: its goal, and its threads a line
+   each. They press play on the page, or say "play it". Never play it for them.
+
 ## What is not recorded
 
 A thread is an idea, a wish, feedback or a bug about the project. The rest is not:

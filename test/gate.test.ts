@@ -139,7 +139,7 @@ test('a sprint is a named set of work with no dates: fill it, play it, and it en
   assert.equal(s.json('show', launch.id).item.body, 'Goal: A build a stranger can finish\nWhy: the beta opens on Friday\nDone when: three testers clear level five');
   s.sp('edit', later, '--sprint', 'Launch');
   assert.match(s.sp('overview', '--table'), /^\*\*🧶 skyhop\*\*[^\n]*\n\n🏁 \*\*Launch\*\* · planned · 0 of 1 done — A build a stranger can finish\n\n\| # \|/);
-  assert.match(s.sp('sprint', 'Bare'), /say what it is for: spool edit r-\w+ -b "Goal: …/);
+  assert.match(s.sp('sprint', 'Bare'), /say what it is for: spool sprint "Bare" --goal "…"/);
   s.cleanup();
 });
 
