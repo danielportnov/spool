@@ -1,6 +1,6 @@
 /**
  * The small details of a ticket and a card, in a real browser: what the model boxes say, and who
- * is building a thread, with what; times that read the way people say them; and Markdown.
+ * is building a thread, with what; times that read the way people say them; Markdown; and Undo on a toast.
  *
  * It uses the Chrome already on the machine, like test/browser.test.ts, and is skipped where
  * there is none. Set SPOOL_SHOTS to a folder for pictures, light and dark.
@@ -206,6 +206,30 @@ test('the details of a ticket and a card', async (t) => {
     await shot(page, 'details-building');
     await page.keyboard.press('Escape');
     await shot(page, 'details-building-card');
+
+    // A move, or an archive, can be taken back from its toast for a few seconds: longer while the
+    // pointer rests on it. (The agent is busy with the jump, so nothing starts on the coins.)
+    const toast = page.locator('#said');
+    const coinsCard = page.locator(`#board .card[data-id="${coins}"]`);
+    const state = (id: string): string => s.json('show', id).item.state;
+    await coinsCard.getByRole('button', { name: '▶ Build' }).click();
+    await until('the coins are in build', () => state(coins) === 'ready');
+    await toast.getByRole('button', { name: 'Undo' }).waitFor();
+    assert.match(await toast.innerText(), /^In build: Make coins readable at sunset/);
+    await shot(page, 'details-undo');
+    await toast.hover();
+    await page.waitForTimeout(5600);
+    assert.ok(await toast.evaluate((n) => n.classList.contains('on')), 'it stays while the pointer is on it');
+    await toast.getByRole('button', { name: 'Undo' }).click();
+    await until('the move is taken back', () => state(coins) === 'proposed');
+    await page.locator(`#board [data-column="proposed"] .card[data-id="${coins}"]`).waitFor();
+    assert.equal(await toast.locator('button').count(), 0, 'taking it back cannot itself be taken back');
+    await coinsCard.getByRole('button', { name: 'Archive' }).click();
+    await until('the coins are archived', () => state(coins) === 'archived');
+    await toast.getByRole('button', { name: 'Undo' }).click();
+    await until('the archive is taken back', () => state(coins) === 'proposed');
+    await page.mouse.move(0, 0);
+    await until('the toast goes', async () => !(await toast.evaluate((n) => n.classList.contains('on'))));
 
     // An archived thread says when, the same way.
     await page.getByRole('button', { name: 'Backlog', exact: true }).click();

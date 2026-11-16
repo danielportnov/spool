@@ -87,6 +87,8 @@ kept or dropped on its thread. Click the headline to fold the panel to that one 
 finishes. With nothing shipped and nothing needing you, the panel is not there.
 
 - **▶ Build** on a card, or a drag into Build, moves it there. **Not yet** moves it back.
+- A move between Backlog and Build, or an archive, can be taken back: its toast has **Undo** for
+  about five seconds, longer while the pointer is on it.
 - **+ Add** at the foot of Backlog or Build adds a thread to that column.
 - **Add to Build** at the foot of the backlog moves everything the backlog is *showing*, after
   every filter, and asks once first.

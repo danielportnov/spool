@@ -2630,6 +2630,8 @@ SYSTEM_DARK.addEventListener('change', paintTheme);
     button, .search { min-height: 36px; }
     .tick, .arch { width: 36px; height: 36px; }
   }
+  #said.undoable { pointer-events: auto; }
+  #said button { margin-left: 12px; padding: 0; border: 0; background: none; color: inherit; font-weight: 650; text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -2716,12 +2718,19 @@ const el = (tag, attrs = {}, ...kids) => {
   return node;
 };
 
-function say(words) {
+// What the page has to say, for a moment. What can be taken back carries an Undo for a few seconds,
+// and stays up while the pointer is on it.
+function say(words, undo) {
   const box = document.getElementById('said');
-  box.textContent = words;
+  const away = () => box.classList.remove('on', 'undoable');
+  const wait = undo ? 5000 : 2600;
+  box.replaceChildren(words, undo ? el('button', { onclick: () => { clearTimeout(say.t); away(); undo(); } }, 'Undo') : '');
   box.classList.add('on');
+  box.classList.toggle('undoable', !!undo);
   clearTimeout(say.t);
-  say.t = setTimeout(() => box.classList.remove('on'), 2600);
+  say.t = setTimeout(away, wait);
+  box.onmouseenter = () => clearTimeout(say.t);
+  box.onmouseleave = () => { clearTimeout(say.t); say.t = setTimeout(away, wait); };
 }
 
 // Copy words for him, and say so. Where the clipboard is not to be had, the old way still works.
@@ -2760,7 +2769,7 @@ function send(action, body) {
   return fetch('/api/' + action, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': token }, body: JSON.stringify(body) });
 }
 
-async function post(action, body, done) {
+async function post(action, body, done, undo) {
   busy = true;
   say('Saving…');
   try {
@@ -2770,7 +2779,7 @@ async function post(action, body, done) {
       res = await send(action, body);
     }
     const out = await res.json();
-    say(out.ok ? out.text || done : out.text || 'That did not work');
+    say(out.ok ? out.text || done : out.text || 'That did not work', out.ok ? undo : null);
     return out.ok;
   } catch (e) {
     say('The page lost its server. Run spool page again.');
@@ -2883,6 +2892,14 @@ function lastWords(c, b) {
   const cut = run ? run.outcome.indexOf(' — ') : -1;
   return cut >= 0 ? run.outcome.slice(cut + 3) : '';
 }
+// A move between the backlog and Build is taken back by the same move the other way. Moves that stop
+// an agent or undo its work cannot be taken back like that, and a thread on hold would lose its hold.
+function moveBack(id, from, to) {
+  const c = current && everyCard(current).find((x) => x.id === id);
+  const plain = (k) => k === 'proposed' || k === 'build';
+  if (!c || c.column !== from || from === to || !plain(from) || !plain(to) || (c.waiting && c.waiting.kind === 'hold')) return null;
+  return () => post('move', { id, to: from }, from === 'build' ? 'Back in build: ' + c.title : 'Back in the backlog: ' + c.title);
+}
 // Abort a thread being built: the agent on it stops, and the thread goes straight back to the backlog.
 const abortNode = (c, cls) => el('button', { class: cls, title: 'Stop building this, undo what it changed, and move it back to the backlog. Nothing builds it until you move it to Build again.',
   onclick: () => post('abort', { id: c.id }, 'Aborted. Back in the backlog: ' + c.title) }, '↩ Abort');
@@ -2891,8 +2908,8 @@ function moves(c, b) {
     b && liveOf(c, b) && stopNode(c, 'act', '■ Stop'),
     b && stoppedOf(c, b) && carryOnNode(c, 'act go'),
     c.column === 'building' && abortNode(c, 'act'),
-    c.column === 'proposed' && el('button', { class: 'act go', title: 'Move to Build', onclick: () => post('move', { id: c.id, to: 'build' }, 'In build: ' + c.title) }, '▶ Build'),
-    c.column === 'build' && el('button', { class: 'act', title: 'Back to the backlog', onclick: () => post('move', { id: c.id, to: 'proposed' }, 'Back in the backlog') }, 'Not yet'),
+    c.column === 'proposed' && el('button', { class: 'act go', title: 'Move to Build', onclick: () => post('move', { id: c.id, to: 'build' }, 'In build: ' + c.title, moveBack(c.id, 'proposed', 'build')) }, '▶ Build'),
+    c.column === 'build' && el('button', { class: 'act', title: 'Back to the backlog', onclick: () => post('move', { id: c.id, to: 'proposed' }, 'Back in the backlog', moveBack(c.id, 'build', 'proposed')) }, 'Not yet'),
     c.done && !c.complete && el('button', { class: 'tick', title: 'Mark as complete', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓'),
   ];
 }
@@ -2901,7 +2918,7 @@ const ARCHIVE_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor"
 function archiveNode(c) {
   if (c.column !== 'proposed') return null;
   const node = el('button', { class: 'arch', title: 'Archive: out of sight, not dropped. It is kept under Archived, at the foot of the Backlog view.', 'aria-label': 'Archive',
-    onclick: () => post('archive', { id: c.id }, 'Archived: ' + c.title) });
+    onclick: () => post('archive', { id: c.id }, 'Archived: ' + c.title, () => post('unarchive', { id: c.id }, 'Back in the backlog: ' + c.title)) });
   node.innerHTML = ARCHIVE_ICON;
   return node;
 }
@@ -3117,8 +3134,11 @@ function drawBoard(b) {
         e.preventDefault();
         // The server says what the move did: stopped an agent, undid its work, or queued it to build next.
         // Dropped at a place in Build, it is moved there first if it came from elsewhere, then put in that place.
-        if (spot) post('order', { id, ...spot }, '');
-        else post('move', { id, to: key }, '');
+        // A move that can be taken back says so, with its Undo.
+        const back = moveBack(id, from, key);
+        const said = back ? (key === 'build' ? 'In build' : 'Back in the backlog') : '';
+        if (spot) post('order', { id, ...spot }, said, back);
+        else post('move', { id, to: key }, said, back);
       } },
       el('h2', {}, DOT[key] + ' ' + name, el('span', { class: 'count' }, filter ? every.length + ' of ' + whole.length : String(cards.length))),
       line && cards.length > 1 && el('div', { class: 'hint' }, 'Built top first. Drag a card up or down to change the order.'),
@@ -3845,7 +3865,7 @@ function threadNode(c, b) {
       sizeSays(c.effort, c.suggest.effort)];
   const movable = c.column === 'proposed' || c.column === 'build';
   const status = movable
-    ? choose([['proposed', '🟠 Proposed'], ['build', '🟢 Build']], c.column, (to) => post('move', { id: c.id, to }, to === 'build' ? 'In build' : 'Back to proposed'))
+    ? choose([['proposed', '🟠 Proposed'], ['build', '🟢 Build']], c.column, (to) => post('move', { id: c.id, to }, to === 'build' ? 'In build' : 'Back to proposed', moveBack(c.id, c.column, to)))
     : c.column === 'building' ? el('div', { class: 'val' }, '🔵 Building' + (t.by ? ', by ' + whoIs(t.by) : '') + ' ', abortNode(c, ''))
     : el('div', { class: 'val' }, c.complete ? '✅ Done · complete' : '✅ Done · for you to check');
   const addTag = el('input', { placeholder: 'Add a tag', list: 'known-tags',
