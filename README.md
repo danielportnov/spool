@@ -100,6 +100,7 @@ Keep that chat open while you want things built: that is where Claude is working
 | The board did not open | Go to the address Claude printed, usually `http://127.0.0.1:4747`. |
 | Nothing gets built | Is the thread under **Build**? Is the chat where you typed `/spool-page` still open? |
 | Claude keeps asking permission | Choose **Yes, and don't ask again** for `spool` commands. |
+| You do not know what is missing | Run `spool doctor`. It checks git, the agent, your check and the skills, and prints the line that fixes each. |
 
 ## Every day
 

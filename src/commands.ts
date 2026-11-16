@@ -12,6 +12,7 @@ import { effortOf, modelOf } from './agent.ts';
 import { RETIRED, installSkills, installedIn, userSkillsDir } from './builtin.ts';
 import { spawnSync } from 'node:child_process';
 import { type Ctx, notify, saveUserConfig, userConfig } from './context.ts';
+import { doctor } from './doctor.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
 import { runLoop } from './loop.ts';
 import { servePage } from './page.ts';
@@ -844,6 +845,13 @@ export const COMMANDS: Command[] = [
         data: { project: spool.name, check: command || null },
       };
     },
+  },
+  {
+    name: 'doctor',
+    group: 'setup',
+    usage: 'doctor',
+    summary: 'Check what a run needs (a git repository, an agent, a check, the skills) and say exactly what is missing; changes nothing',
+    bare: (call) => doctor(call),
   },
   {
     name: 'propose',

@@ -361,6 +361,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool init [folder] [--gate \| --lock] [--share]` | Start a spool; does nothing where one exists |
 | `spool install [--here \| --dir path]` | Put the skills where your agent finds them |
 | `spool checks [command \| --none]` | Name the command that must pass before a change is done here |
+| `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it; changes nothing |
 | `spool page [--run] [--agent cmd] [--port n] [--no-open]` | The board; `--run` has it build what is in Build too |
 | `spool watch` | Print a line when there is something for the loop to do |
 | `spool loop [--watch s] [--agent cmd]` | The runner with no chat |
