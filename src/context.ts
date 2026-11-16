@@ -75,6 +75,12 @@ export interface UserConfig {
    * this says, since two agents in one folder trample each other's edits. See slots.ts.
    */
   parallel?: number;
+  /**
+   * How much of their Claude plan the human wants used while a chat builds, in percent of each
+   * limit: `{ "weekly": 80, "fiveHour": 90 }`. The plan is the account's, so one target holds in
+   * every project. A chat building in Chat mode works up to it. Set on the page. See usage.ts.
+   */
+  usageTarget?: { weekly?: number; fiveHour?: number };
 }
 
 /** Threads built at once when nothing is said: each has a worktree of its own, and three is plenty. */
@@ -103,9 +109,15 @@ export function saveBuilder(ctx: Ctx, root: string, builder: Builder): void {
   });
 }
 
-function userConfigFile(ctx: Ctx): string {
+/** The folder of Spool's own files on this machine, `~/.config/spool`: empty where there is no home. */
+export function configDir(ctx: Ctx): string {
   const base = ctx.env.XDG_CONFIG_HOME || (ctx.env.HOME ? path.join(ctx.env.HOME, '.config') : '');
-  return base ? path.join(base, 'spool', 'config.json') : '';
+  return base ? path.join(base, 'spool') : '';
+}
+
+function userConfigFile(ctx: Ctx): string {
+  const dir = configDir(ctx);
+  return dir ? path.join(dir, 'config.json') : '';
 }
 
 /** Change the user's own settings, leaving everything else in the file as it was. */

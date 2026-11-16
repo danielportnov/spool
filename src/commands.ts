@@ -26,6 +26,7 @@ import { dropLesson, learn, lessonLine, lessons } from './lessons.ts';
 import { runLoop } from './loop.ts';
 import { manage } from './manage.ts';
 import { markLine } from './mark.ts';
+import { targetCommand, usageCommand } from './usage.ts';
 import { servePage } from './page.ts';
 import { watch } from './watch.ts';
 import { serve } from './mcp.ts';
@@ -1203,6 +1204,19 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: 'target',
+    group: 'setup',
+    usage: 'target [--weekly <percent>|none] [--five-hour <percent>|none]',
+    summary: 'Say how much of your Claude plan a chat in Chat mode may use: it works up to the target, then takes no new thread. none takes one off. With nothing after it, says what is set and the usage last read',
+    human: true,
+    options: { weekly: { type: 'string' }, 'five-hour': { type: 'string' } },
+    run(call) {
+      const { ws, ctx, args, opts } = call;
+      if (args.length) throw new SpoolError('a target is given with its flag', 'spool target --weekly 80 --five-hour 90, or --weekly none to take it off');
+      return targetCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']) }, () => byTheHuman(call, [ws.home], 'target'));
+    },
+  },
+  {
     name: 'doctor',
     group: 'setup',
     usage: 'doctor',
@@ -1368,6 +1382,19 @@ export const COMMANDS: Command[] = [
       const out = [brief(call.ws, t, call.p)];
       if (opened) out.push(worktreeNote(t, opened, call.p));
       return { text: out.join('\n'), data: { task: itemJson(call.ws, t, true) } };
+    },
+  },
+  {
+    name: 'usage',
+    group: 'agents',
+    usage: 'usage [--weekly <percent>] [--five-hour <percent>]',
+    summary: "Building in Chat mode: report the plan usage you just read, before you claim a thread, and hear whether the human's usage target lets you take it. With nothing after it, says the last reading",
+    write: true,
+    options: { weekly: { type: 'string' }, 'five-hour': { type: 'string' } },
+    run(call) {
+      const { ctx, args, opts } = call;
+      if (args.length) throw new SpoolError('a figure is given with its flag', 'spool usage --weekly 62 --five-hour 18');
+      return usageCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']) }, call.actor);
     },
   },
   {
