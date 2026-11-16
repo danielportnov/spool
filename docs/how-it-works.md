@@ -114,6 +114,11 @@ and ends with **Mark as complete** and **Undo this thread**, which takes back ex
 commits with your reason. A ticket has its own address (`#t-4kq7`), and
 `?view=backlog` opens the Backlog view.
 
+**In a background tab.** The tab's title and icon say what is going on: a count, `(2) skyhop`, of
+the threads waiting on you (a question, a plan wanting a go-ahead, finished work not yet marked
+complete, an agent that stopped and wants a word), and a dot, `● skyhop`, while agents build. With
+nothing going on, the title is the project's name.
+
 Everything the page does is an ordinary command run as you: `build`, `propose`, `play`, `capture`,
 `task`, `edit`, `answer`, `approve`. It can do nothing the command line cannot.
 

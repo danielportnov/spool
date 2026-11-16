@@ -88,7 +88,7 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     await column('proposed').waitFor();
 
     // What is on screen: the project and its version, four columns, the two views.
-    assert.equal(await page.title(), 'skyhop');
+    assert.equal(await page.title(), '(1) skyhop');
     assert.deepEqual([await page.locator('#project').innerText(), await page.locator('#where').innerText()], ['skyhop', 'v1.4.2']);
     assert.deepEqual((await page.locator('#board .col h2').allInnerTexts()).map((h) => h.replace(/\s+/g, ' ').trim()), [
       '🟠 BACKLOG 2',

@@ -2261,7 +2261,7 @@ const PAGE = String.raw`<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spool</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧶%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧶%3C/text%3E%3C/svg%3E" id="icon">
 <style>
   :root {
     --bg: #f7f6f3; --panel: #ffffff; --col: #efede8; --ink: #1d1c1a; --soft: #6b6861; --line: #dfdcd5;
@@ -3745,8 +3745,7 @@ function liveInPlace(pane, c, b) {
 function draw(b) {
   YOU = b.you || '';
   document.getElementById('project').textContent = b.project;
-  // The yarn is the tab's icon, so the title is the project's name alone.
-  document.title = b.project;
+  drawTab(b);
   document.getElementById('where').textContent = b.version ? 'v' + b.version : '';
   // Two things are still worth a line: a project where the gate is off, because there the board
   // cannot promise that nothing builds by itself; and what the page has to say about itself, when
@@ -3810,6 +3809,35 @@ function draw(b) {
   const box = document.querySelector('.adding textarea, .adding input');
   if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
   drawThread(b);
+}
+
+// The board lives in a background tab, where its title and icon are all that shows. Both say what
+// waits on him, as a count: an open question, a plan wanting its go-ahead, a finished thread not yet
+// marked complete, an agent that stopped and wants a word. Failing that, a dot while agents build.
+// With nothing going on, the title is the project's name and the icon is the yarn alone.
+function waitsOnYou(b) {
+  const seen = new Set();
+  for (const c of everyCard(b)) {
+    if (c.done ? !c.complete : c.waiting && (c.waiting.kind === 'you' || c.waiting.kind === 'stuck')) seen.add(c.id);
+  }
+  for (const q of b.needs.questions) for (const id of q.threads.length ? q.threads : [q.id]) seen.add(id);
+  for (const p of b.needs.plans) seen.add(p.id);
+  return seen.size;
+}
+let drawnTab = '';
+function drawTab(b) {
+  const waits = waitsOnYou(b);
+  const building = b.columns.building.length > 0;
+  document.title = (waits ? '(' + waits + ') ' : '') + (building ? '● ' : '') + b.project;
+  const mark = waits ? 'waits-' + waits : building ? 'building' : '';
+  if (mark === drawnTab) return;
+  drawnTab = mark;
+  // The yarn, with a badge in the colour of what waits on him, or a dot in the colour of an agent at work.
+  const yarn = "<text y='.9em' font-size='90'>🧶</text>";
+  const badge = waits ? "<circle cx='70' cy='30' r='30' fill='#b45309' stroke='#fff' stroke-width='5'/><text x='70' y='44' font-size='" + (waits > 9 ? 32 : 42) + "' font-weight='700' fill='#fff' text-anchor='middle' font-family='sans-serif'>" + (waits > 9 ? '9+' : waits) + '</text>'
+    : building ? "<circle cx='78' cy='22' r='19' fill='#1d4ed8' stroke='#fff' stroke-width='5'/>" : '';
+  const svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>" + yarn + badge + '</svg>';
+  document.getElementById('icon').href = 'data:image/svg+xml,' + encodeURIComponent(svg);
 }
 
 // Draw again from what is already here: a view, a filter or a box changed, and nothing on disk did.
