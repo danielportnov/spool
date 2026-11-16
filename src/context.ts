@@ -68,16 +68,20 @@ export interface UserConfig {
    */
   builder?: Record<string, string>;
   /**
-   * How many agents the page runs at once, for every project: 1 unless set. Every agent works in
-   * the project's own folder, and two in one folder trample each other's edits.
+   * How many agents the page runs at once, for every project: 3 unless set. Each works in a git
+   * worktree of its own; a project that cannot have one is built one thread at a time whatever
+   * this says, since two agents in one folder trample each other's edits. See slots.ts.
    */
   parallel?: number;
 }
 
+/** Threads built at once when nothing is said: each has a worktree of its own, and three is plenty. */
+export const PARALLEL_DEFAULT = 3;
+
 /** How many agents the page runs at once: a whole number, and one at least. */
 export function parallelOf(ctx: Ctx): number {
   const asked = userConfig(ctx).parallel;
-  return typeof asked === 'number' && Number.isInteger(asked) && asked > 1 ? asked : 1;
+  return typeof asked === 'number' && Number.isInteger(asked) && asked >= 1 ? asked : PARALLEL_DEFAULT;
 }
 
 /** Who builds a project's threads: the page, starting the agent command itself, or a chat running the loop. */

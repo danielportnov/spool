@@ -190,10 +190,12 @@ spool page --run
 
 With `--run`, or the **Agents** switch at the top of the page, the page builds what is in Build by
 itself: it starts your agent on each thread the moment it lands there, shows what it prints on the
-card, and puts a Stop on the card that ends that agent and no other. One thread at a time for now:
-several at once arrives with a git worktree for each, so that agents do not edit one folder
-together. Close every chat; press ▶; come back to Done. From a terminal or a chat,
-`spool agents on` and `spool agents off` press the same switch, and `spool agents` says where it is.
+card, and puts a Stop on the card that ends that agent and no other. Three threads at a time, each
+in a git worktree of its own so that no two agents edit one folder, and each lands on your branch
+when its agent finishes; `spool builder --at-once <n>` sets how many. A project that is not a git
+repository is built one thread at a time, in its own folder. Close every chat; press ▶; come back
+to Done. From a terminal or a chat, `spool agents on` and `spool agents off` press the same switch,
+and `spool agents` says where it is.
 
 Next to that switch you pick who builds. **Headless** is the above: the page starts the agent
 itself. **Chat** hands building to a Claude Code chat running `/spool-loop`, where you can watch
@@ -264,7 +266,7 @@ It reads `GEMINI.md` unless its settings name `AGENTS.md` too.
 
 - **Plain files.** One markdown file per thread in `.spool/`, ignored by git unless you choose to share it.
 - **A small CLI.** `spool` holds the queue, the lock, the order and the undo. The skills run it; you rarely type it.
-- **Several at once.** A thread can be built in a git worktree of its own (`spool start <id> --worktree`), and lands on your branch when its check passes there. Two or three agents work side by side without touching each other's files.
+- **Several at once.** Each thread the page builds gets a git worktree of its own, three at a time unless you say otherwise, and lands on your branch when its check passes there; a chat does the same with `spool start <id> --worktree`. Agents work side by side without touching each other's files.
 - **Any agent.** The skills are plain [Agent Skills](https://agentskills.io), installed for Codex and Cursor too ([other agents](#other-agents)). `spool mcp` serves the same commands as tools to an agent with no shell, and `spool loop` runs with no chat at all.
 - **Your machine.** A repo's config is data and is never executed. The page listens on `127.0.0.1` only.
 

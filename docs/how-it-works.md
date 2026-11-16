@@ -200,6 +200,10 @@ Taking a thread back takes its worktree too: `spool propose --abort`, `spool pro
 `spool drop` remove the worktree and the branch, with any commits that had not landed. Stopping one
 (`spool build --abort`) keeps both, and the next start picks up where it was.
 
+The page builds every thread this way, three at a time unless `spool builder --at-once` says
+otherwise: see "How many at once", below. A chat running the loop does the same with a subagent
+for each thread.
+
 `spool` run inside a worktree acts on the project's one queue. Where `.spool/` is kept in git, a
 worktree carries a copy of it, and that copy is never read or written.
 
@@ -312,7 +316,7 @@ page build what is in Build: it starts your agent command on a thread the moment
 and shows what the agent prints on the card and in the ticket. A thread the agent finishes is done;
 one it asks a question on waits for you; one it walks away from is put back and not tried again
 until something about it changes. The page says what the agent last said, which is usually why. Use
-the page's runner or a chat's loop, not both: they would be two agents in one folder.
+the page's runner or a chat's loop, not both: they would race each other for the same threads.
 
 **Stop.** A card being built has a **■ Stop**. It ends that thread's agent at once, with anything
 the agent started, and one that does not listen is killed two seconds later; agents on other
@@ -323,14 +327,24 @@ Building does; so does moving it out of Build and in again. Dragging a card from
 is the same stop. **↩ Abort** goes further: back to the backlog, with what the agent changed
 undone.
 
-**How many at once.** One, unless you say more: every agent works in the project's own folder, and
-two there would trample each other's edits. `spool builder --at-once 3`, kept as `"parallel": 3` in
-`~/.config/spool/config.json`, has the page build three threads at a time, each card showing its
-own agent and the Agents switch saying how many; the rest of Build waits for one to finish, and a
-thread dragged into Building goes to the front. It is read fresh, so no restart is needed. More than one at a time becomes the rule when
-each run gets a git worktree of its own. Until then, raise it only for threads that will not touch
-the same files; and where two agents did share the folder, sending one's thread back to the backlog
-undoes its commits and leaves uncommitted files as they are, since they could be the other's.
+**How many at once.** Three, unless you say otherwise: the page gives each thread it builds a git
+worktree of its own, as `spool start --worktree` does (see "Several at once"), so no two agents
+edit one folder. Its agent is started there, its card and ticket say which folder, and its own
+`spool done` lands the work on your branch. `spool builder --at-once 5`, kept as `"parallel": 5` in
+`~/.config/spool/config.json`, sets the number; 1 builds one at a time, still in a worktree. Each
+card shows its own agent and the Agents switch says how many; the rest of Build waits for one to
+finish, and a thread dragged into Building goes to the front. It is read fresh, so no restart is
+needed. A project that cannot have worktrees, because it is not a git repository or nothing of it
+is committed yet, is built in its own folder, one thread at a time whatever the number says, and
+each thread's log says so once. A thread whose worktree cannot be made says why on its log and
+waits in Build until something about it changes.
+
+What becomes of the worktree: **Stop** keeps it, with everything in it, and **Carry on** starts the
+agent in it again; so does an agent that walks away, and a page that is stopped. **Abort** removes
+it and its branch, with every commit made there: none of it had landed, so your checkout is as it
+was, and the outcome says so. Done lands it and removes it. A landing that is refused (a conflict,
+a failing check, your own uncommitted changes in the way) lands nothing and keeps the worktree, for
+the agent to fix and run `spool done` again.
 
 **Which of the two, picked on the page.** Left of the Agents switch are two picks. **Headless** is
 the page's own runner, as above. **Chat** is a Claude Code chat running the loop: the page then
@@ -357,8 +371,9 @@ whether agents are on (it asks the page) and who builds; `spool page --stop` sen
 does, so the agent it started is ended and its thread put back, and waits for it to go.
 
 The page keeps itself current. When the code of Spool on disk is no longer the code the page
-started from, after an upgrade or a rebuild, it restarts onto it once no agent of its own is
-running, at the same address, and the page you have open reloads itself. Where the project is
+started from, after an upgrade or a rebuild, it starts nothing new, lets the agents at work finish,
+then restarts onto it, at the same address, and the page you have open reloads itself. Its
+worktrees are never part of a rebuild: the build reads `src/` alone. Where the project is
 Spool's own checkout, the page also runs `npm run build` there each time Build and Building have
 both emptied, and never while a thread is being built, so finished work on Spool shows on the page
 with no step of yours. A rebuild that fails changes nothing, and the page says why.

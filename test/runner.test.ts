@@ -160,6 +160,7 @@ test('a thread being built can be aborted straight to the backlog, from the page
 });
 
 test('a card dragged to any column: to the backlog, the agent is ended and everything it changed is undone', async () => {
+  // A git repository, so the page builds each thread in a worktree of its own: what the agent changes is there, not in the checkout.
   const s = new Sandbox();
   s.gitInit();
   fs.writeFileSync(path.join(s.root, '.git', 'info', 'exclude'), '.home/\n');
@@ -194,27 +195,31 @@ test('a card dragged to any column: to the backlog, the agent is ended and every
   };
   try {
     await until('the agent has made its changes', async () => { const b = await board(); return b.runner.running[0]?.lines.includes('changing things') && b; });
-    assert.equal(s.read('physics.txt'), 'gravity 20\n');
+    const start = s.git('rev-parse', 'HEAD');
+    assert.deepEqual([s.cd(`.spool/worktrees/${hard}`).read('physics.txt'), s.read('physics.txt')], ['gravity 20\n', 'gravity 9\n']);
 
     // Building, dragged to the backlog.
     const back = await move(hard, 'proposed');
     assert.equal(back.status, 200, back.text);
     const after = await until('the agent is ended and its work undone', async () => { const b = await board(); return !b.runner.running.length && b.runner.recent[0] && b; });
-    assert.match(after.runner.recent[0].outcome, /^back in the backlog; edits undone: \d+ uncommitted file\(s\) put back; 1 commit\(s\) reverted$/);
+    assert.equal(after.runner.recent[0].outcome, 'back in the backlog; edits undone: its worktree and branch are gone, with the 1 commit(s) made there; nothing had reached the checkout');
     assert.equal(s.json('show', hard).item.state, 'proposed');
-    assert.deepEqual([s.read('physics.txt'), s.read('sound.txt'), s.exists('new.txt')], ['gravity 9\n', 'quiet\n', false]);
+    assert.deepEqual([s.read('physics.txt'), s.read('sound.txt'), s.exists('new.txt'), s.exists(`.spool/worktrees/${hard}`)], ['gravity 9\n', 'quiet\n', false, false]);
     assert.equal(s.read('mine.txt'), 'the human, half way\n', 'what was changed before the agent began is left alone');
-    assert.match(s.git('log', '-1', '--format=%B'), /Spool-Revert: /);
+    assert.equal(s.git('rev-parse', 'HEAD'), start, 'the checkout never had any of it');
 
     // The backlog, dragged straight to Building: it is built next.
     s.git('checkout', '-q', '--', 'mine.txt');
     const now = await move(easy, 'building');
     assert.equal(now.status, 200, now.text);
     await until('it is picked up and at work', async () => { const c = (await board()).runner.running[0]; return c?.id === easy && c.lines.includes('changing things'); });
-    // Building, dragged to Done: the human says it is finished, and the agent is ended.
+    // Building, dragged to Done: the human says it is finished, and the agent is ended. Done lands the worktree's
+    // commits on the checkout, and a landing refuses what is not committed, so the rest is committed first.
+    s.cd(`.spool/worktrees/${easy}`).commitAll(`Make the coins loud\n\nSpool: ${easy}`);
     const done = await move(easy, 'done');
     assert.equal(done.status, 200, done.text);
     assert.equal(s.json('show', easy).item.status, 'done');
+    assert.equal(s.read('sound.txt'), 'loud\n', 'what it built has landed');
     await until('the agent is ended', async () => !(await board()).runner.running.length);
     // Done, dragged back to Build: undone, and waiting there.
     assert.equal((await move(easy, 'build')).status, 200);

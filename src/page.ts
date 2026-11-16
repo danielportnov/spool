@@ -57,9 +57,11 @@ import { type Item, SpoolError, addLog, isPlan, oneLine, reportFile, splitBody, 
 import { prime } from './prime.ts';
 import { age, brief, paint, sprintAbout, tableRows } from './render.ts';
 import { blockers, children, dependents, docket, ready, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
+import { atOnceIn, sharedFolderWhy } from './slots.ts';
 import { Workspace } from './store.ts';
 import { hearLine, streaming, transcriptFile } from './stream.ts';
 import { watched } from './watch.ts';
+import { closeWorktree, openWorktree, workDir } from './worktree.ts';
 
 type Column = 'proposed' | 'build' | 'building' | 'done';
 
@@ -101,6 +103,8 @@ interface Card {
   question: { id: string; title: string; options: string[]; recommend: number | null } | null;
   /** While it is being built: when the agent took it, and the latest thing it said it was doing. */
   live: Live | null;
+  /** The folder it is built in, from the project's, where it has a git worktree of its own; empty where it is the project's own folder. */
+  worktree: string;
   /** Why it cannot move on by itself, where it cannot. */
   waiting: Waiting | null;
 }
@@ -471,6 +475,7 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     thread,
     question: asked ? { id: asked.id, title: asked.title, options: asked.options, recommend: asked.recommend ?? null } : null,
     live: column === 'building' ? liveNow(task) : null,
+    worktree: task.worktree ?? '',
     waiting: task.status === 'done' || task.status === 'dropped' ? null : waitingOf(ws, task, thread.steps, asked),
   };
 }
@@ -687,13 +692,16 @@ function endGroup(child: ChildProcess, signal: NodeJS.Signals = 'SIGTERM'): void
 const END_GRACE_MS = 2000;
 
 /**
- * The folder a run's agent works in. Today that is the project's own folder for every run, which
- * is why one at a time is the rule unless the user says more: two agents in one folder trample
- * each other. This is the one place to change when each run gets a worktree of its own.
+ * The folder a run's agent works in: the thread's own worktree, where `handOut` gave it one, or the
+ * project's folder where it could not have one. Two agents never share the project's folder: see
+ * `handOut`.
  */
 function runFolder(task: Item): string {
-  return task.spool.root;
+  return workDir(task);
 }
+
+/** How a thread's log says, once, that it is built in the project's own folder and not in a worktree. */
+const OWN_FOLDER = "built in the project's own folder, not a worktree of its own: ";
 
 /** One agent on one thread. Everything about a run is kept here, so that several can go at once. */
 interface Run {
@@ -712,17 +720,25 @@ interface Run {
   undo?: boolean;
   /** Another run worked in the same folder while this one did: what is uncommitted there cannot be told apart. */
   shared?: boolean;
+  /** Its worktree, by its folder from the project, and the branch it is on: none where it works in the project's own folder. */
+  worktree?: { folder: string; branch: string };
 }
 
 /** What is settled about a run when its thread is handed out, before any program is started for it. */
-type Handed = Pick<Run, 'id' | 'title' | 'folder' | 'before'>;
+type Handed = Pick<Run, 'id' | 'title' | 'folder' | 'before' | 'worktree'>;
+
+/** What one try at handing out a thread came to: an agent started, nothing there to hand out, or a thread that could not be started. */
+type HandOut = 'started' | 'none' | 'skipped';
 
 /**
  * The runner: with it on, the page builds what is in Build by itself. It takes
  * the next thread, starts the user's agent command on it with the rules and
  * the brief on stdin, shows what the agent prints as it works, and takes the
  * next when there is room: as many at once as `parallel` in the user's config
- * says, one unless it is set. A thread is taken the moment it lands in Build.
+ * says, three unless it is set. Each is built in a git worktree of its own and
+ * lands on the checkout with its own `spool done`; a project that cannot have
+ * worktrees is built in its own folder, one thread at a time. A thread is
+ * taken the moment it lands in Build.
  *
  * It is the same contract as `spool loop`: a thread the agent finished is
  * done, one it asked a question on waits for the human, and one it walked
@@ -786,9 +802,12 @@ export class Runner {
     if (this.root) saveBuilder(this.ctx, this.root, builder);
   }
 
-  /** How many threads are built at once: read fresh, so a change to the user's config shows at once. */
+  /**
+   * How many of this project's threads are built at once: read fresh, so a change to the user's
+   * config shows at once. One where they would share the project's folder.
+   */
   get parallel(): number {
-    return parallelOf(this.ctx);
+    return this.root ? atOnceIn(this.ctx, this.root) : parallelOf(this.ctx);
   }
 
   /**
@@ -909,6 +928,7 @@ export class Runner {
    * Files that were already changed when it began are left alone: they may be the human's.
    */
   private undoEdits(run: Run): string {
+    if (run.worktree) return this.undoWorktree(run, run.worktree);
     const { id, before } = run;
     const said: string[] = [];
     try {
@@ -946,6 +966,46 @@ export class Runner {
   }
 
   /**
+   * The same, for a run in a worktree of its own. Taking the thread back to the backlog removed the
+   * worktree and its branch already, with every commit made there: none of it had landed, and the
+   * checkout was never touched. Nothing uncommitted is put back, since the folder it was in is gone.
+   * What is left: a folder the agent may have written on its way out, and any commit of the thread's
+   * that did land on the checkout before, which is reverted as anywhere.
+   */
+  private undoWorktree(run: Run, worktree: { folder: string; branch: string }): string {
+    const said: string[] = [];
+    try {
+      const ws = Workspace.open(this.ctx.cwd, this.ctx.now);
+      try {
+        const task = ws.find(run.id);
+        if (task) {
+          // What `propose --abort` took with the worktree, as it wrote it on the thread.
+          const removed = splitBody(task.body)
+            .log.map((line) => / worktree and branch \S+ removed(?:, with (\d+) commit\(s\) that never landed)?/.exec(line))
+            .filter(Boolean)
+            .at(-1);
+          const lost = Number(removed?.[1] ?? 0);
+          said.push(lost ? `its worktree and branch are gone, with the ${lost} commit(s) made there` : 'its worktree and branch are gone; nothing had been committed there');
+          // Started again since, it has a worktree that is not this run's to touch.
+          const left = task.worktree ? null : closeWorktree({ ...task, worktree: worktree.folder, branch: worktree.branch });
+          if (left?.problem) said.push(left.problem);
+        }
+      } finally {
+        ws.close();
+      }
+    } catch (error) {
+      said.push(`its worktree could not be looked at (${(error as Error).message})`);
+    }
+    const undone = act(this.ctx, ['propose', '--undo', run.id]);
+    const shas = ((undone.data as { reverted?: Record<string, string[]> } | null)?.reverted ?? {})[run.id] ?? [];
+    if (!undone.ok) said.push(`its commits could not be undone: ${undone.text}`);
+    else said.push(shas.length ? `${shas.length} commit(s) that had landed reverted` : 'nothing had reached the checkout');
+    const line = `edits undone: ${said.join('; ')}`;
+    this.note(run.id, [line]);
+    return line;
+  }
+
+  /**
    * End the agent and whatever it started: it runs in a group of its own, so the whole group is
    * told. A stuck agent may not listen, so what is left of the group a moment later is killed.
    */
@@ -964,7 +1024,14 @@ export class Runner {
     if (this.held || !this.on) return;
     // A chat builds here: nothing is started from the page.
     if (this.builder === 'chat') return;
-    for (let room = this.parallel - this.runs.size; room > 0; room--) if (!this.handOut()) return;
+    // The user's number is for the whole page; a project whose threads would share its folder gets one of them at most.
+    // A thread that could not be started is not tried again until it changes, so each try here either starts one or moves on.
+    let room = parallelOf(this.ctx) - this.runs.size;
+    for (let tries = 0; room > 0 && tries < 100; tries++) {
+      const out = this.handOut();
+      if (out === 'none') return;
+      if (out === 'started') room--;
+    }
   }
 
   /** Take a run on. It takes the place of the run that chose its thread's model, where there was one. */
@@ -977,8 +1044,12 @@ export class Runner {
     this.runs.set(run.id, run);
   }
 
-  /** Hand the next waiting thread to an agent. False if there is none to hand out. */
-  private handOut(): boolean {
+  /**
+   * Hand the next waiting thread to an agent, in a git worktree of its own: made now, or the one it
+   * kept from a stop. Where the project cannot have one, the agent works in the project's folder,
+   * and no other thread of it is handed out until that one is over.
+   */
+  private handOut(): HandOut {
     let task: Item | undefined;
     let handed: Handed;
     let prompt = '';
@@ -993,15 +1064,50 @@ export class Runner {
         const waiting = ready(ws, this.project).filter((t) => !this.runs.has(t.id));
         // What was dragged into Building and still waits comes first; the rest of Build follows, top first.
         this.first = this.first.filter((id) => waiting.some((t) => t.id === id));
+        // A project whose threads would share its folder, with an agent at work there already: the rest of it waits.
+        const why = new Map<string, string>();
+        const shares = (t: Item): string => {
+          if (!why.has(t.spool.root)) why.set(t.spool.root, sharedFolderWhy(t.spool.root));
+          return why.get(t.spool.root)!;
+        };
+        const inOwnFolder = new Set([...this.runs.values()].filter((r) => !r.worktree).map((r) => r.folder));
+        const free = waiting.filter((t) => !inOwnFolder.has(t.spool.root) || !shares(t));
         // Left where they are: a thread whose agent walked away, until something about it changes, and one the human stopped.
-        task = waiting.find((t) => t.id === this.first[0]) ?? waiting.find((t) => this.gaveUp.get(t.id) !== t.updated && !stoppedInBuild(t));
-        if (!task) return false;
+        task =
+          this.first.map((id) => free.find((t) => t.id === id)).find(Boolean) ??
+          free.find((t) => this.gaveUp.get(t.id) !== t.updated && !stoppedInBuild(t));
+        if (!task) return 'none';
         const taken = task.id;
         this.first = this.first.filter((id) => id !== taken);
+        const shared = shares(task);
+        if (shared) {
+          // Said once on the thread, the first time it is built so: it is the same every time after.
+          if (!splitBody(task.body).log.some((line) => line.includes(OWN_FOLDER))) {
+            addLog(task, 'page', `${OWN_FOLDER}${shared}, so its threads are built one at a time`, ws.now());
+          }
+        } else {
+          try {
+            openWorktree(task);
+          } catch (error) {
+            // Not this tick, and not every second after: it waits in Build until something about it changes.
+            const e = error as SpoolError;
+            addLog(task, 'page', `not started: it could not have a worktree of its own (${e.message}${e.hint ? `. ${e.hint}` : ''})`, ws.now());
+            ws.save(task);
+            this.gaveUp.set(task.id, task.updated);
+            return 'skipped';
+          }
+        }
         const folder = runFolder(task);
-        const root = repoRoot(folder);
+        // In a worktree of its own, nothing there is anyone else's: it is the run's to keep or lose whole.
+        const root = task.worktree ? null : repoRoot(folder);
         const dirty = root ? dirtyPaths(root, task.spool.dir) : null;
-        handed = { id: task.id, title: task.title, folder, before: dirty ? new Set(dirty) : null };
+        handed = {
+          id: task.id,
+          title: task.title,
+          folder,
+          before: dirty ? new Set(dirty) : null,
+          worktree: task.worktree ? { folder: task.worktree, branch: task.branch ?? '' } : undefined,
+        };
         command = streaming(commandFor(this.agent, pickFor(task, models)));
         asker = routerCommand(this.agent, task, models, router);
         task.status = 'active';
@@ -1015,12 +1121,12 @@ export class Runner {
         ws.close();
       }
     } catch {
-      return false; // The store was busy for an instant; the next tick looks again.
+      return 'none'; // The store was busy for an instant; the next tick looks again.
     }
     this.handedOut++;
     if (asker) this.route(task, handed, prompt, briefText, asker);
     else this.start(task, handed, prompt, command);
-    return true;
+    return 'started';
   }
 
   /**
@@ -1309,6 +1415,8 @@ function ownCheckout(ctx: Ctx, project: string | undefined): string | undefined 
 
 /** How long the code on disk must have been still before it is taken for a finished build. */
 const SETTLE_MS = 2000;
+/** What the page says while it lets its agents finish before restarting onto new code. */
+const DRAINING = 'A new build of Spool is on disk. Nothing new is started until the agents at work now have finished; then this page restarts onto it.';
 /** How long new work waits for a restart that is on its way. */
 const HOLD_MS = 30_000;
 const REBUILD_MINUTES = 10;
@@ -1322,7 +1430,8 @@ const REBUILD_MINUTES = 10;
  *     thread is being built bakes in an agent's half-made edits, and a `spool` call made while
  *     the build writes can find half a file.
  *   - When the code on disk is no longer the code this process loaded (that rebuild, anyone
- *     else's, or an upgrade) and no agent of this page's is running, it restarts onto it. The
+ *     else's, an upgrade, or a thread landing on Spool's own sources), it starts nothing new,
+ *     and once no agent of this page's is running it restarts onto it. The
  *     board carries the name of the build that serves it, and an open page that sees another
  *     name reloads itself.
  *
@@ -1456,9 +1565,15 @@ export class Upkeep {
     child.on('exit', (code, signal) => end(code === 0 ? '' : signal ? `was stopped (${signal})` : `failed (exit ${code})`));
   }
 
-  /** True while a restart is on its way, so that nothing is started only to be ended by it. */
+  /**
+   * True while a restart is on its way, so that nothing is started only to be ended by it. With
+   * several agents at once, one finishing makes room for the next, and a moment with none at work
+   * might never come: so once new code is waiting, nothing new starts, and the page restarts as
+   * soon as the last agent has gone.
+   */
   private restartWhenNew(): boolean {
     if (!this.restart) return false;
+    if (this.notice === DRAINING) this.notice = '';
     const stamp = codeStamp();
     if (!stamp || stamp === this.loaded || stamp === this.refused) {
       this.changed = 0;
@@ -1478,8 +1593,11 @@ export class Upkeep {
       this.changed = 0;
       return false;
     }
-    // Never under an agent: a restart would end it. It comes when the last of them has gone.
-    if (this.runner.runs.size) return false;
+    // Never under an agent: a restart would end it. It comes when the last of them has gone, and none is started meanwhile.
+    if (this.runner.runs.size) {
+      this.notice = DRAINING;
+      return true;
+    }
     if (!this.starts()) {
       this.refused = stamp;
       this.changed = 0;
@@ -3229,6 +3347,7 @@ function livePost(c, b) {
     el('div', {},
       el('div', { class: 'byline' }, el('b', {}, s.name), s.model && el('span', { class: 'model' }, s.model), el('span', { class: 'sep' }, '·'),
         el('span', { class: 'at' }, 'working for ', el('span', { 'data-since': c.live.since }, took(c.live.since))),
+        c.worktree && el('span', { class: 'at', title: 'Its own git worktree: a checkout apart from yours, that lands on yours when it is done' }, ' · in ' + c.worktree),
         run && stopNode(c, 'act stop', '■ Stop the agent')),
       el('div', { class: 'livenow' }, el('span', { class: 'nowtext' }, (run && run.lines.at(-1)) || c.live.note || 'starting…'), el('span', { class: 'caret' })),
       run && el('div', { class: 'livelog', 'data-keep': 'livelog', 'data-follow': 'true' }, run.lines.join('\n') || 'starting…')));

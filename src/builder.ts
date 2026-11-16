@@ -4,31 +4,24 @@
  * page follows within a second (it reads the pick fresh on every board refresh).
  */
 
-import { type Builder, type Ctx, builderOf, saveBuilder, saveUserConfig, userConfig } from './context.ts';
+import { type Builder, type Ctx, builderOf, parallelOf, saveBuilder, saveUserConfig } from './context.ts';
 import { SpoolError } from './model.ts';
-
-/** Agents the page runs at once when nothing is said. */
-const ONE = 1;
+import { atOnceIn, sharedFolderWhy } from './slots.ts';
 
 export interface BuilderResult {
   text: string;
   data: { project: string; builder: Builder; atOnce: number };
 }
 
-function atOnceOf(ctx: Ctx): number {
-  const n = userConfig(ctx).parallel;
-  return typeof n === 'number' && Number.isInteger(n) && n >= 1 ? n : ONE;
-}
-
 function threads(n: number): string {
   return n === 1 ? '1 thread' : `${n} threads`;
 }
 
-/** The line the page and the command say, in the page's own words. */
-function sayWho(name: string, builder: Builder, n: number): string {
-  return builder === 'chat'
-    ? `A chat builds ${name}: say /spool-loop in a Claude Code chat there. The page starts no agents.`
-    : `The page builds ${name}, headless, ${threads(n)} at once. Switch its Agents on to start.`;
+/** The line the page and the command say, in the page's own words. `shared` is why its threads would share one folder. */
+function sayWho(name: string, builder: Builder, n: number, shared: string): string {
+  if (builder === 'chat') return `A chat builds ${name}: say /spool-loop in a Claude Code chat there. The page starts no agents.`;
+  const why = shared ? `: ${shared}, so its threads cannot have a worktree each` : ', each in a worktree of its own';
+  return `The page builds ${name}, headless, ${threads(n)} at once${n > 1 || shared ? why : ''}. Switch its Agents on to start.`;
 }
 
 /**
@@ -61,6 +54,8 @@ export function builderCommand(
     }
   }
   const builder = builderOf(ctx, project.root);
-  const now = atOnceOf(ctx);
-  return { text: sayWho(project.name, builder, now), data: { project: project.name, builder, atOnce: now } };
+  // The page's own number, read through the same function the page reads it with, so the two never disagree.
+  const now = atOnceIn(ctx, project.root);
+  const shared = parallelOf(ctx) > 1 ? sharedFolderWhy(project.root) : '';
+  return { text: sayWho(project.name, builder, now, shared), data: { project: project.name, builder, atOnce: now } };
 }

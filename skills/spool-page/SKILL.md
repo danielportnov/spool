@@ -64,11 +64,12 @@ threads go straight to build. Offer to turn it on: `spool init --gate`.
 **Agents: on / off**, at the top right, is the page's own runner. On, the page
 builds what is in Build by itself, with no chat: it starts the agent command
 set on their machine for each thread, the moment it lands in Build, and shows
-what it prints. It builds one thread at a time, or as many as `parallel` in
-their `~/.config/spool/config.json` says, and then the button says how many;
-agents share the project's folder until each run gets a worktree of its own,
-so one is the rule. Leave it off when you are the one building from this chat,
-or two agents will work in one folder. `spool page --run` starts with it on.
+what it prints. It builds three threads at a time, or as many as
+`spool builder --at-once <n>` set, each in a git worktree of its own that
+lands on their branch when its agent finishes, and the button says how many.
+A project that is not a git repository is built one thread at a time, in its
+own folder. Leave it off when you are the one building from this chat, or two
+builders will take the same threads. `spool page --run` starts with it on.
 They say "turn the agents off" or "on" to you: that is `spool agents off` or
 `spool agents on`, the same switch, and `spool agents` alone says where it
 is. Off whenever they ask; on only on their word, never on your own. With
