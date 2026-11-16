@@ -109,11 +109,12 @@ projects, `--all` switches every one of them.
 
 **Board.** Four columns: Backlog, Build, Building, Done.
 
-When anything has shipped that you have not looked at, or anything needs you, a panel sits above
-the columns: the morning brief, as `spool brief` gives it, titled with its headline ("4 threads
-shipped since you last looked · 2 need you"). Under it: what needs you (a question with its answer
-buttons, a plan, a thread that was stopped and what its agent last said), the few threads worth a
-look and why, and the rest by sprint, folded shut. Each line opens its thread. **All good: approve
+When anything has shipped that you have not looked at, or a plan or a stopped thread needs you, a
+panel sits above the columns: the morning brief, as `spool brief` gives it, titled with its headline
+("4 threads shipped since you last looked · 2 need you"). Under it: what needs you (a plan, a thread
+that was stopped and what its agent last said), the few threads worth a look and why, and the rest
+by sprint, folded shut. A question is counted in the headline but not listed: it is asked on its
+thread, and nowhere else. Each line opens its thread. **All good: approve
 everything** approves every finished thread and every call an agent made; a new skill is still
 kept or dropped on its thread. Click the headline to fold the panel to that one line; it stays folded until another thread
 finishes. With nothing shipped and nothing needing you, the panel is not there.
@@ -140,8 +141,8 @@ finishes. With nothing shipped and nothing needing you, the panel is not there.
 
 **Backlog.** For planning: sprints stacked above the backlog. Create a sprint, drag threads into it,
 press **▶ Play sprint**. Notes nobody filed sit in a strip at the top (**Make it a thread**, or
-**Set aside**), with anything waiting on you that is about no thread. The strip is gone when it is
-empty.
+**Set aside**), with the calls and skills that are about no thread. A question is never there: it is
+on its thread. The strip is gone when it is empty.
 
 **Roadmap.** Where the work is going, in one row. At the top, the project's goals under a quiet
 **Goals** heading: what it is for, then one line for each thing it is heading towards (where none
@@ -166,8 +167,9 @@ links to its ticket and its changes. Under them, anything undone or stopped on t
 them, and nothing outside it: `spool approve` with those ids. A sprint with no version yet says
 the loop cuts it once the sprint is reached; the page cuts none.
 
-**What waits on you is on its thread.** A question is answered on its card, or on its ticket with a
-button or in your own words. A call an agent made by itself is a post in its thread, "Decided: …"
+**What waits on you is on its thread.** A question is on its thread and nowhere else on the page:
+its card says **Needs a call from you**, and its ticket asks it, answered with a button or in your
+own words. A call an agent made by itself is a post in its thread, "Decided: …"
 with the question and the why: **Fine**, or overrule it in a sentence and the rework is filed. A card
 with calls or a new skill you have not looked at says how many. A plan wanting a go-ahead says so
 on its card and gets it on its ticket; a new skill is kept or dropped on the thread that taught it.
@@ -373,12 +375,12 @@ It does one of two things, and the policy decides which.
 - **It makes the call and leaves a receipt**: `spool assume`. For anything one undo takes back.
   You see every receipt, and can overrule one in a sentence: the rework is filed for you.
 - **It asks**: `spool ask`, with real options, a recommendation and the reason. That thread waits;
-  the agent takes the next. On the page, a question is answered with one button.
+  the agent takes the next. On the page, a question is answered on its thread with one button.
 - **In Chat mode the chat asks you.** The chat that builds hears of the question at once, sends you
   a Claude notification that something needs you, and asks it in the chat: its options as buttons,
   the recommended one first, or mockups side by side when it is about how something looks. Your
   pick is the answer, kept on the thread, and the thread is built again. Where the chat has no such
-  tools, the question waits on the board as before.
+  tools, the question waits on its thread as before.
 
 `.spool/policy.md` is the line between the two, in plain words, and it is yours to edit: what
 agents may decide alone, what they must ask about, and what they never do (answer their own
