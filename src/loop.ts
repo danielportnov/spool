@@ -14,6 +14,7 @@ import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { commandFor, pickFor } from './agent.ts';
 import type { Bare, Result } from './commands.ts';
 import { notify, userConfig } from './context.ts';
 import { type Item, SpoolError, addLog, timestamp } from './model.ts';
@@ -47,6 +48,9 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
   const max = opts.once ? 1 : opts.max !== undefined ? count(opts.max, '--max') : Infinity;
   const watch = opts.watch !== undefined ? count(opts.watch, '--watch') : 0;
   const project = typeof opts.project === 'string' ? opts.project : undefined;
+  const routing = userConfig(ctx).models;
+  /** The command for this thread: the user's, with the model and effort it gets put in. */
+  const commandOf = (task: Item): string => commandFor(agent, pickFor(task, routing));
 
   /** Tasks an agent walked away from, and the state we left them in. Untouched since → don't retry. */
   const gaveUp = new Map<string, string>();
@@ -60,22 +64,30 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
     const ws = Workspace.open(ctx.cwd, ctx.now);
     const queue = ready(ws, project);
     const lines = queue.length
-      ? [`Would run \`${agent}\` on ${queue.length} task(s), in this order:`, ...queue.map((t) => `  ${itemLine(ws, t, p)}`)]
+      ? [
+          `Would run \`${agent}\` on ${queue.length} task(s), in this order:`,
+          ...queue.flatMap((t) => [`  ${itemLine(ws, t, p)}`, `      ${p.dim(`$ ${commandOf(t)}`)}`]),
+        ]
       : ['Nothing is ready, so the loop would stop at once.'];
-    return { text: lines.join('\n'), data: { agent, queue: queue.map((t) => t.id) } };
+    return {
+      text: lines.join('\n'),
+      data: { agent, queue: queue.map((t) => t.id), commands: Object.fromEntries(queue.map((t) => [t.id, commandOf(t)])) },
+    };
   }
 
   while (runs < max) {
     let task: Item | undefined;
     let prompt = '';
+    let command = agent;
     const ws = Workspace.open(ctx.cwd, ctx.now, true);
     try {
       task = pick(ws);
       if (task) {
+        command = commandOf(task);
         task.status = 'active';
         task.by = 'loop';
         task.started = timestamp(ws.now());
-        addLog(task, 'loop', `handed to \`${agent}\``, ws.now());
+        addLog(task, 'loop', `handed to \`${command}\``, ws.now());
         ws.save(task);
         prompt = `${PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${brief(ws, task, paint(false))}\n`;
       } else if (!toldIdle && review(ws, project).questions.length) {
@@ -96,7 +108,7 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
 
     const promptFile = path.join(os.tmpdir(), `spool-${task.id}-${process.pid}.md`);
     fs.writeFileSync(promptFile, prompt);
-    const run = spawnSync(agent.replaceAll('{prompt_file}', promptFile), {
+    const run = spawnSync(command.replaceAll('{prompt_file}', promptFile), {
       shell: true,
       cwd: task.spool.root,
       input: prompt,

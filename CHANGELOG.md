@@ -2,6 +2,12 @@
 
 What shipped in each version of Spool, newest first.
 
+## Unreleased
+
+- Each thread is built by the model its size suggests, at a matching effort: Haiku for a tiny fix,
+  up to Fable for a huge one. Pick another on the ticket's **Model** field, or with
+  `spool edit <id> --model <m> --effort <e>`. Your own table goes under `models` in your config.
+
 ## 0.16.0 · 2026-11-15
 
 - Brief in the chat: the loop leads with what it needs from you or with the result, in a few lines,

@@ -35,6 +35,7 @@ import { run } from './cli.ts';
 import type { Bare, Result } from './commands.ts';
 import { type Ctx, userConfig } from './context.ts';
 import { DEFAULT_AGENT, PREAMBLE } from './loop.ts';
+import { EFFORTS, MODELS, type Routing, commandFor, pickFor, suggestion } from './agent.ts';
 import { git, repoRoot } from './git.ts';
 import { type Item, SpoolError, addLog, oneLine, reportFile, splitBody, timestamp } from './model.ts';
 import { prime } from './prime.ts';
@@ -58,6 +59,10 @@ interface Card {
   suggested: string;
   /** The fields a ticket shows and the human can change. */
   size: string;
+  /** The model and effort the human chose for it, if they did, and what its size suggests. */
+  model: string;
+  effort: string;
+  suggest: { model: string; effort: string };
   p: number;
   tags: string[];
   version: string;
@@ -287,7 +292,8 @@ function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Threa
   };
 }
 
-function card(ws: Workspace, task: Item, n: number | null, note: string, column: Column): Card {
+function card(ws: Workspace, task: Item, n: number | null, note: string, column: Column, routing?: Routing): Card {
+  const suggest = suggestion(task, routing);
   const { main, log } = splitBody(task.body);
   const asked = blockers(ws, task).find((b) => b.kind === 'decision' && b.status === 'open');
   return {
@@ -301,6 +307,9 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     note,
     suggested: task.suggested ?? '',
     size: task.size ?? '',
+    model: task.model ?? '',
+    effort: task.effort ?? '',
+    suggest: { model: suggest.model ?? '', effort: suggest.effort ?? '' },
     p: task.priority ?? 2,
     tags: task.tags,
     version: task.version ?? '',
@@ -366,10 +375,11 @@ export function board(ws: Workspace, project?: string, runner?: Runner): Board {
   const spool = project ? ws.project(project) : ws.home;
   const d = docket(ws, spool);
   const columns: Record<Column, Card[]> = { proposed: [], build: [], building: [], done: [] };
+  const routing = runner?.routing();
   // The open threads, in the order and with the numbers the loop's list gives them.
   for (const row of tableRows(ws, d)) {
     const column = columnOf(taskState(ws, row.item));
-    if (column) columns[column].push(card(ws, row.item, row.n, cardNote(row), column));
+    if (column) columns[column].push(card(ws, row.item, row.n, cardNote(row), column, routing));
   }
   const done = tasks(ws, spool)
     .filter((t) => t.status === 'done')
@@ -377,7 +387,7 @@ export function board(ws: Workspace, project?: string, runner?: Runner): Board {
   // What the human has not looked at yet comes first, all of it; what they marked complete is history.
   const shown = [...done.filter((t) => !t.reviewed), ...done.filter((t) => t.reviewed).slice(0, HISTORY_SHOWN)];
   for (const t of shown) {
-    columns.done.push(card(ws, t, null, `${age(t.updated, ws.now())} ago${t.summary ? ` · ${oneLine(t.summary, 160)}` : ''}`, 'done'));
+    columns.done.push(card(ws, t, null, `${age(t.updated, ws.now())} ago${t.summary ? ` · ${oneLine(t.summary, 160)}` : ''}`, 'done', routing));
   }
   const queue = review(ws, spool);
   const all = tasks(ws, spool);
@@ -564,15 +574,17 @@ export class Runner {
     if (!this.on || this.current) return;
     let task: Item | undefined;
     let prompt = '';
+    let command = this.agent;
     try {
       const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
       try {
         task = ready(ws, this.project).find((t) => this.gaveUp.get(t.id) !== t.updated);
         if (!task) return;
+        command = commandFor(this.agent, pickFor(task, userConfig(this.ctx).models));
         task.status = 'active';
         task.by = this.name();
         task.started = timestamp(ws.now());
-        addLog(task, 'page', `handed to \`${this.agent}\``, ws.now());
+        addLog(task, 'page', `handed to \`${command}\``, ws.now());
         ws.save(task);
         prompt = `${PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${brief(ws, task, paint(false))}\n`;
       } finally {
@@ -581,7 +593,12 @@ export class Runner {
     } catch {
       return; // The store was busy for an instant; the next tick looks again.
     }
-    this.start(task, prompt);
+    this.start(task, prompt, command);
+  }
+
+  /** The user's table of which model and effort each size gets, read fresh so a change shows at once. */
+  routing(): Routing {
+    return userConfig(this.ctx).models;
   }
 
   /** What the agent is called on the thread: the program it is, so "claude" shows as Claude. */
@@ -589,10 +606,10 @@ export class Runner {
     return this.ctx.env.SPOOL_ACTOR ?? path.basename(this.agent.trim().split(/\s+/)[0] ?? 'agent');
   }
 
-  private start(task: Item, prompt: string): void {
+  private start(task: Item, prompt: string, command: string): void {
     const file = promptFile(task.id, process.pid);
     fs.writeFileSync(file, prompt);
-    const child = spawn(this.agent.replaceAll('{prompt_file}', file), {
+    const child = spawn(command.replaceAll('{prompt_file}', file), {
       shell: true,
       cwd: task.spool.root,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -824,6 +841,9 @@ function change(ctx: Ctx, action: string, body: Body, project?: string): { ok: b
     if (typeof body.title === 'string' && body.title.trim()) argv.push(`--title=${body.title.trim()}`);
     if (typeof body.priority === 'number') argv.push(`--priority=${body.priority}`);
     if (typeof body.size === 'string' && body.size) argv.push(`--size=${body.size}`);
+    // An empty model or effort is the human handing the choice back to the thread's size.
+    if (typeof body.model === 'string') argv.push(`--model=${body.model.trim() || 'none'}`);
+    if (typeof body.effort === 'string') argv.push(`--effort=${body.effort.trim() || 'none'}`);
     if (Array.isArray(body.tags)) argv.push(...(body.tags.length ? body.tags.map((t) => `--tag=${String(t)}`) : ['--tag=none']));
     if (typeof body.version === 'string') argv.push(`--version=${body.version.trim() || 'none'}`);
     if (argv.length === 2) return { ok: false, text: 'nothing to change' };
@@ -1150,6 +1170,8 @@ const PAGE = String.raw`<!doctype html>
   .field label { display: block; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); margin-bottom: 5px; }
   .field select, .field input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
   .field .val { font-size: 14px; }
+  .field .pick { display: flex; gap: 6px; }
+  .field .pick select { flex: 1; min-width: 0; }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
   .feed { margin-top: 18px; }
   .post { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; position: relative; padding-bottom: 18px; }
@@ -1230,6 +1252,8 @@ const DOT = { proposed: '🟠', build: '🟢', building: '🔵', done: '✅' };
 const STATE = { proposed: 'Backlog', build: 'Build', building: 'Building', done: 'Done' };
 const SIZES = [['xs', 'Tiny'], ['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Huge']];
 const PRIORITIES = ['Urgent', 'High', 'Normal', 'Someday'];
+const MODELS = ${JSON.stringify(MODELS)};
+const EFFORTS = ${JSON.stringify(EFFORTS)};
 const ARROWS = ['↑↑', '↑', '=', '↓'];
 
 let last = '';
@@ -1838,6 +1862,16 @@ function threadNode(c, b) {
     node.value = value;
     return node;
   };
+  // Which model builds it and how hard it thinks: the size's suggestion until the human picks.
+  const cap = (s) => s ? s[0].toUpperCase() + s.slice(1) : '';
+  const models = [...new Set([...MODELS, c.model].filter(Boolean))];
+  const agentPick = c.done || c.column === 'building'
+    ? el('div', { class: 'val' }, [cap(c.model || c.suggest.model) || 'Your agent', c.effort || c.suggest.effort].filter(Boolean).join(' · '))
+    : el('div', { class: 'pick' },
+        choose([['', c.suggest.model ? 'Suggested: ' + cap(c.suggest.model) : 'As your agent runs'], ...models.map((m) => [m, cap(m)])], c.model,
+          (v) => save({ model: v }, v ? 'Model: ' + cap(v) : 'Model as its size suggests')),
+        choose([['', c.suggest.effort ? 'Suggested: ' + c.suggest.effort : 'Default effort'], ...EFFORTS.map((e) => [e, e])], c.effort,
+          (v) => save({ effort: v }, v ? 'Effort: ' + v : 'Effort as its size suggests')));
   const movable = c.column === 'proposed' || c.column === 'build';
   const status = movable
     ? choose([['proposed', '🟠 Proposed'], ['build', '🟢 Build']], c.column, (to) => post('move', { id: c.id, to }, to === 'build' ? 'In build' : 'Back to proposed'))
@@ -1857,6 +1891,7 @@ function threadNode(c, b) {
     field('Status', status),
     field('Priority', c.done ? el('div', { class: 'val' }, c.priority) : choose(PRIORITIES.map((name, i) => [String(i), name]), String(c.p), (v) => save({ priority: Number(v) }, 'Priority: ' + PRIORITIES[Number(v)]))),
     field('Difficulty', c.done ? el('div', { class: 'val' }, c.difficulty || 'Not sized') : choose([['', 'Not sized'], ...SIZES], c.size, (v) => v && save({ size: v }, 'Difficulty changed'))),
+    field('Model', agentPick),
     field('Tags',
       el('div', { class: 'chips', style: 'margin: 0 0 7px' }, c.tags.map((tag) => el('span', { class: 'chip tag' }, '#' + tag,
         el('b', { title: 'Remove', onclick: () => save({ tags: c.tags.filter((x) => x !== tag) }, 'Tag removed') }, '✕')))),

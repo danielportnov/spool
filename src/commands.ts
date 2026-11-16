@@ -8,6 +8,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ParseArgsConfig } from 'node:util';
+import { effortOf, modelOf } from './agent.ts';
 import { RETIRED, installSkills, installedIn, userSkillsDir } from './builtin.ts';
 import { spawnSync } from 'node:child_process';
 import { type Ctx, notify, saveUserConfig, userConfig } from './context.ts';
@@ -1175,7 +1176,7 @@ export const COMMANDS: Command[] = [
   {
     name: 'edit',
     group: 'agents',
-    usage: 'edit <id> [--title <t>] [-p 0-3] [-s size] [-t type] [--tag <tag>…|none] [--version <v>|none] [--sprint <sprint>|none] [-b <body>] [--needs <id>…|none] [--reopen]',
+    usage: 'edit <id> [--title <t>] [-p 0-3] [-s size] [-t type] [--model <m>|none] [--effort <e>|none] [--tag <tag>…|none] [--version <v>|none] [--sprint <sprint>|none] [-b <body>] [--needs <id>…|none] [--reopen]',
     summary: 'Change an item',
     write: true,
     options: {
@@ -1183,6 +1184,8 @@ export const COMMANDS: Command[] = [
       priority: { type: 'string', short: 'p' },
       size: { type: 'string', short: 's' },
       type: { type: 'string', short: 't' },
+      model: { type: 'string' },
+      effort: { type: 'string' },
       needs: { type: 'string', multiple: true },
       reopen: { type: 'boolean' },
       tag: { type: 'string', multiple: true },
@@ -1214,6 +1217,17 @@ export const COMMANDS: Command[] = [
       if (type) {
         item.type = type === 'change' ? undefined : type;
         changed.push(`type ${type}`);
+      }
+      const model = modelOf(call.opts.model);
+      const effort = effortOf(call.opts.effort);
+      if ((model !== undefined || effort !== undefined) && item.kind !== 'task') throw new SpoolError('only tasks have a model and an effort');
+      if (model !== undefined) {
+        item.model = model || undefined;
+        changed.push(model ? `model ${model}` : 'model back to what its size suggests');
+      }
+      if (effort !== undefined) {
+        item.effort = effort || undefined;
+        changed.push(effort ? `effort ${effort}` : 'effort back to what its size suggests');
       }
       const tags = tagsOf(call.opts.tag);
       const version = versionOf(call.opts.version);

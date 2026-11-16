@@ -106,6 +106,10 @@ export interface Item {
   size?: Size;
   /** Tasks: what finishing produces. Absent means a change. */
   type?: WorkType;
+  /** Tasks: the model the human chose to work it, over what its size suggests. See agent.ts. */
+  model?: string;
+  /** Tasks: how hard that model thinks: low, medium, high, xhigh or max. */
+  effort?: string;
   created: string;
   updated: string;
   /** Tasks: when it was last claimed. The scheduler reads these to pace large work. */
@@ -168,6 +172,8 @@ const FIELDS: readonly (readonly [string, FieldType])[] = [
   ['priority', 'int'],
   ['size', 'string'],
   ['type', 'string'],
+  ['model', 'string'],
+  ['effort', 'string'],
   ['created', 'string'],
   ['updated', 'string'],
   ['started', 'string'],

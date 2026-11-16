@@ -255,6 +255,16 @@ your agent command in that project with the rules and the brief on stdin, and lo
 exits. `spool loop --watch 5` keeps looking. The agent command comes from your own machine
 (`SPOOL_AGENT`, or `agent` in `~/.config/spool/config.json`); the default is `claude -p`.
 
+**Which model, and how hard it thinks.** Each thread is run by the model its size suggests, unless
+you pick one: the **Model** field on the ticket, or `spool edit <id> --model opus --effort high`
+(`none` hands either back to the size). Out of the box a tiny thread gets Haiku at low effort, a
+small one Sonnet at medium, a medium one Opus at high, a large one Opus at xhigh, and a huge one
+Fable at high. A `claude` command gets `--model` and `--effort` added where it does not set them
+itself; any other agent command can take `{model}` and `{effort}` where it wants them, and is run as
+it is otherwise. Change the table under `models` in `~/.config/spool/config.json`, as
+`{ "xs": { "model": "sonnet", "effort": "low" } }`, or set `"models": false` to leave the command
+alone. `spool loop --dry-run` shows the command each thread would get.
+
 **An agent with no shell.** `spool mcp -C <project>` serves the same commands as
 [Model Context Protocol](https://modelcontextprotocol.io) tools over stdio. The set-up commands are
 left out, and where the gate is locked the tools that start work are refused there too.
@@ -301,7 +311,7 @@ ones marked 🔒:
 | `spool log <id> <fact>` | Leave a note for whoever comes next |
 | `spool ask` · `assume` | Put a call to the human; or make it and leave a receipt |
 | `spool done <t-id> -m <summary>` | Finish: record the commits, or hand in a report |
-| `spool edit <id>` | Change a title, priority, size, kind, tags, version, sprint |
+| `spool edit <id>` | Change a title, priority, size, kind, model, effort, tags, version, sprint |
 | `spool hold <t-id> -m why` · `drop <id>` | Park work; abandon it |
 | `spool sprint <name>` | Make a sprint |
 | `spool skill add` | Write a procedure down as a skill |
