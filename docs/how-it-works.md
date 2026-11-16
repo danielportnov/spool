@@ -344,7 +344,7 @@ ones marked 🔒:
 | Command | What it does |
 | --- | --- |
 | `spool overview [--table]` | The whole spool under its colours; `--table` is the loop's numbered list |
-| `spool status` · `list` · `show <id>` · `inbox` | One screen · find items · one item · unfiled notes |
+| `spool status` · `list` · `show <id> [--report]` · `inbox` | One screen · find items · one item, or the text of its report (over MCP too, for an agent with no shell) · unfiled notes |
 | `spool skills [--suggest]` | Every skill; or procedures that keep recurring with no skill |
 | `spool graph` · `check` | The items and their links as a diagram; validate the store |
 

@@ -1575,10 +1575,20 @@ export const COMMANDS: Command[] = [
   {
     name: 'show',
     group: 'see',
-    usage: 'show <id>',
-    summary: 'One item in full',
+    usage: 'show <id> [--report]',
+    summary: 'One item in full; --report gives the text of its report, for an agent that cannot open the file',
+    options: { report: { type: 'boolean' } },
     run(call) {
       const item = first(call, 'which item');
+      if (call.opts.report) {
+        let report: string;
+        try {
+          report = fs.readFileSync(reportFile(item), 'utf8').trim();
+        } catch {
+          throw new SpoolError(`${item.id} has no report`, 'An audit or plan has one once it is done');
+        }
+        return { text: report, data: { id: item.id, report } };
+      }
       return { text: showText(call.ws, item, call.p), data: { item: itemJson(call.ws, item, true) } };
     },
   },
