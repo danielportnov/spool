@@ -824,21 +824,27 @@ export const COMMANDS: Command[] = [
   {
     name: 'propose',
     group: 'you',
-    usage: 'propose <t-id…>',
-    summary: 'Take work out of build, back to proposed: nothing builds it until you say',
+    usage: 'propose <t-id…> [--abort]',
+    summary: 'Take work out of build, back to proposed: nothing builds it until you say. --abort takes it off whoever is building it',
     human: true,
     write: true,
-    run({ ws, args, actor, p }) {
+    options: { abort: { type: 'boolean' } },
+    run({ ws, args, actor, p, opts }) {
       if (!args.length) throw new SpoolError('what to move back is missing', 'spool propose <t-id>');
       const tasks = args.map((ref) => ws.get(ref, 'task'));
       for (const t of tasks) {
         if (t.status === 'done' || t.status === 'dropped') throw new SpoolError(`${t.id} is already ${t.status}`);
-        if (t.status === 'active') throw new SpoolError(`${t.id} is being built by ${t.by ?? 'someone'}`, 'Let it finish, or drop it: spool drop');
+        if (t.status === 'active' && !opts.abort) {
+          throw new SpoolError(`${t.id} is being built by ${t.by ?? 'someone'}`, `Let it finish, or abort it: spool propose --abort ${t.id}`);
+        }
       }
       for (const t of tasks) {
         if (t.status === 'proposed') continue;
+        // Aborting: whoever was building it is off it, and it waits in the backlog for a yes.
+        const was = t.status === 'active' ? (t.by ?? 'someone') : undefined;
         t.status = 'proposed';
-        addLog(t, actor, 'moved back to proposed', ws.now());
+        t.by = undefined;
+        addLog(t, actor, was ? `aborted while ${was} was building it; moved back to proposed` : 'moved back to proposed', ws.now());
         ws.save(t);
       }
       return { text: `Proposed:\n${tasks.map((t) => `  ${itemLine(ws, t, p)}`).join('\n')}`, data: { proposed: tasks.map((t) => itemJson(ws, t)) } };
@@ -1005,6 +1011,8 @@ export const COMMANDS: Command[] = [
       const checked = call.before as { command: string; seconds: number } | undefined;
       const t = first(call, 'which task', 'task');
       if (isClosed(t)) throw new SpoolError(`${t.id} is already ${t.status}`);
+      // Taken back to the backlog while it was being built: the human said stop, so it is not finished by whoever was on it.
+      if (t.status === 'proposed') throw new SpoolError(`${t.id} was moved back to the backlog`, 'Leave it: nothing builds it until the human moves it to build again');
       const type = t.type ?? 'change';
       const summary = (str(call.opts.message) ?? call.args.slice(1).join(' ')).replace(/\s+/g, ' ').trim();
       if (!summary) {

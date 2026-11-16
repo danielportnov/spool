@@ -609,6 +609,16 @@ export class Runner {
     this.end(this.current.child);
   }
 
+  /**
+   * The thread was aborted, taken back to the backlog: if this page's agent is
+   * on it, end that agent. The runner stays on, so it goes on to the next thread.
+   */
+  abort(id: string): void {
+    if (this.current?.id !== id) return;
+    this.current.stopped = true;
+    this.end(this.current.child);
+  }
+
   /** End the agent and whatever it started: it runs in a group of its own, so the whole group is told. */
   private end(child: ChildProcess): void {
     try {
@@ -768,6 +778,7 @@ export class Runner {
       try {
         const now = ws.find(run.id);
         if (now?.status === 'done') outcome = 'done';
+        else if (now?.status === 'proposed') outcome = 'aborted: back in the backlog';
         else if (now?.status === 'active') {
           // The agent left without finishing or asking. Put the thread back, and do not spin on it.
           now.status = 'open';
@@ -1072,6 +1083,14 @@ export function startPage(
           if (action === 'runner') {
             runner.on = body.on === true;
             return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: runner.on ? 'Agents are on: this page builds what is in Build.' : 'Agents are off.' }));
+          }
+          if (action === 'abort') {
+            // Out of Building, straight to the backlog: taken off whoever has it, then this page's agent, if it was that, is ended.
+            const id = text(body.id);
+            if (!/^t-[a-z0-9]+$/.test(id)) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which thread?' }));
+            const result = act(ctx, ['propose', '--abort', id]);
+            if (result.ok) runner.abort(id);
+            return send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify(result));
           }
           if (action === 'stop') {
             runner.stop();
@@ -1513,9 +1532,13 @@ function liveLine(c, b) {
   return el('div', { class: 'live', title: 'What the agent is doing now, and how long it has been at it' },
     el('span', { class: 'pulse' }), el('span', { class: 'now' }, now), el('span', { class: 'for' }, took(c.live.since)));
 }
+// Abort a thread being built: the agent on it stops, and the thread goes straight back to the backlog.
+const abortNode = (c, cls) => el('button', { class: cls, title: 'Stop building this and move it back to the backlog. Nothing builds it until you move it to Build again.',
+  onclick: () => post('abort', { id: c.id }, 'Aborted. Back in the backlog: ' + c.title) }, '↩ Abort');
 function moves(c, b) {
   return [
     b && liveOf(c, b) && el('button', { class: 'act', title: 'Stop the agent. The thread goes back to Build.', onclick: () => post('stop', {}, 'Stopped') }, '■ Stop'),
+    c.column === 'building' && abortNode(c, 'act'),
     c.column === 'proposed' && el('button', { class: 'act go', title: 'Move to Build', onclick: () => post('move', { id: c.id, to: 'build' }, 'In build: ' + c.title) }, '▶ Build'),
     c.column === 'build' && el('button', { class: 'act', title: 'Back to the backlog', onclick: () => post('move', { id: c.id, to: 'proposed' }, 'Back in the backlog') }, 'Not yet'),
     c.done && !c.complete && el('button', { class: 'tick', title: 'Mark as complete', onclick: () => post('complete', { id: c.id }, 'Marked as complete') }, '✓'),
@@ -2018,7 +2041,8 @@ function threadNode(c, b) {
   const movable = c.column === 'proposed' || c.column === 'build';
   const status = movable
     ? choose([['proposed', '🟠 Proposed'], ['build', '🟢 Build']], c.column, (to) => post('move', { id: c.id, to }, to === 'build' ? 'In build' : 'Back to proposed'))
-    : el('div', { class: 'val' }, c.column === 'building' ? '🔵 Building' + (t.by ? ', by ' + whoIs(t.by) : '') : c.complete ? '✅ Done · complete' : '✅ Done · for you to check');
+    : c.column === 'building' ? el('div', { class: 'val' }, '🔵 Building' + (t.by ? ', by ' + whoIs(t.by) : '') + ' ', abortNode(c, ''))
+    : el('div', { class: 'val' }, c.complete ? '✅ Done · complete' : '✅ Done · for you to check');
   const addTag = el('input', { placeholder: 'Add a tag', list: 'known-tags',
     onkeydown: (e) => {
       if (e.key !== 'Enter' || !e.target.value.trim()) return;

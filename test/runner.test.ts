@@ -124,6 +124,40 @@ test('an agent that walks away has its thread put back once; one that hangs can 
   }
 });
 
+test('a thread being built can be aborted straight to the backlog, from the page or the command line', async () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop', '--gate');
+  const hard = s.id('task', 'Too hard');
+  const next = s.id('task', 'Next one');
+  s.sp('build', hard);
+  const sleeper = agent(s, 'sleeper.sh', 'echo "thinking hard"; sleep 30');
+  const page = await startPage(s, '--run', '--agent', sleeper, '--port', String(52500 + (process.pid % 1500)));
+  try {
+    const board = async () => (await (await fetch(`${page.url}api/board`)).json()) as Record<string, any>;
+    await until('the agent is heard working', async () => { const b = await board(); return b.runner.current?.lines.length && b; });
+    const post = (body: unknown) => fetch(`${page.url}api/abort`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': page.token }, body: JSON.stringify(body) });
+    assert.equal((await post({ id: hard })).status, 200);
+    const after = await until('the agent is ended', async () => { const b = await board(); return !b.runner.current && b.runner.recent[0] && b; });
+    assert.deepEqual([after.runner.on, after.runner.recent[0].outcome], [true, 'aborted: back in the backlog'], 'the runner stays on for the next thread');
+    const back = s.json('show', hard).item;
+    assert.deepEqual([back.state, back.by], ['proposed', undefined]);
+    assert.match(s.item(hard), /aborted while sleeper\.sh was building it; moved back to proposed/);
+    await new Promise((r) => setTimeout(r, 1300));
+    assert.equal(s.json('show', next).item.state, 'proposed', 'nothing else was picked up');
+  } finally {
+    page.child.kill();
+  }
+
+  // An agent the page did not start: the thread is taken off it, and its done is refused.
+  s.sp('build', hard);
+  s.sp('start', hard);
+  assert.match(s.fails('propose', hard), /being built[\s\S]*spool propose --abort/);
+  s.sp('propose', '--abort', hard);
+  assert.equal(s.json('show', hard).item.state, 'proposed');
+  assert.match(s.fails('done', hard, '-m', 'finished anyway'), /moved back to the backlog/);
+  s.cleanup();
+});
+
 test('a page stopped mid-build puts its thread back, and a page starting up rescues one left behind', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop', '--gate');
