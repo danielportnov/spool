@@ -27,6 +27,11 @@ export interface PageRecord {
   /** Agents were on when it started; the page itself says how they are now. */
   run: boolean;
   detached: boolean;
+  /**
+   * What the page's buttons send with every change. A command on this machine reads it here to
+   * press one (`spool agents on`), so the file is the user's alone to read.
+   */
+  token?: string;
 }
 
 function pagesDir(ctx: Ctx): string {
@@ -68,9 +73,14 @@ export function rememberPage(ctx: Ctx, record: PageRecord): void {
   try {
     const file = fileOf(ctx, record.root, '.json');
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    // Written whole and then moved into place, so a reader never sees half of it.
-    fs.writeFileSync(`${file}.${process.pid}`, `${JSON.stringify(record, null, 2)}\n`);
-    fs.renameSync(`${file}.${process.pid}`, file);
+    // Written whole and then moved into place, so a reader never sees half of it. Readable by this
+    // user only: it holds the page's token, and with it anyone could press the page's buttons. The
+    // token keeps other websites out; this keeps other users of the machine out.
+    const part = `${file}.${process.pid}`;
+    fs.writeFileSync(part, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
+    // A part left over from a process with the same pid kept the mode it was made with.
+    fs.chmodSync(part, 0o600);
+    fs.renameSync(part, file);
   } catch {
     // A page that cannot say where it is still works: only --status and --stop will not find it.
   }

@@ -1549,6 +1549,8 @@ export function diffOf(ws: Workspace, id: string): Diff {
 interface Started {
   url: string;
   server: http.Server;
+  /** What a POST must carry: kept in the page's record, so `spool agents` on this machine can use it. */
+  token: string;
 }
 
 /** Run one command as the human, in-process, and say whether it worked. */
@@ -1949,7 +1951,7 @@ export function startPage(
     }
   });
   // Once, however many ports were tried first.
-  server.once('listening', () => ready({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`, server }));
+  server.once('listening', () => ready({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`, server, token }));
   const listen = (port: number, triesLeft: number): void => {
     server.once('error', (error: NodeJS.ErrnoException) => {
       // The usual port is taken, by another project's page perhaps: take the next one.
@@ -2112,10 +2114,10 @@ export function servePage({ ctx, opts }: Bare): Result {
   };
   // What tells a page it is taking over is for that page alone, not for the agents it starts.
   const own: Ctx = { ...ctx, env: { ...ctx.env, SPOOL_PAGE_RESUME: undefined, SPOOL_PAGE_DETACHED: undefined } };
-  const server = startPage(own, { port, project, run, agent, resumed: !!resumed, restart }, ({ url }) => {
+  const server = startPage(own, { port, project, run, agent, resumed: !!resumed, restart }, ({ url, token }) => {
     const before = resumed ? pageUp(ctx, root) : undefined;
     const since = before?.pid === owner ? before.since : ctx.now().toISOString();
-    rememberPage(ctx, { pid: owner, url, root, project, since, run, detached: ctx.env.SPOOL_PAGE_DETACHED === '1' });
+    rememberPage(ctx, { pid: owner, url, root, project, since, run, detached: ctx.env.SPOOL_PAGE_DETACHED === '1', token });
     if (resumed) {
       ctx.out(`Restarted on the new build: ${url}`);
       return;

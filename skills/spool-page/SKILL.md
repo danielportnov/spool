@@ -69,6 +69,10 @@ their `~/.config/spool/config.json` says, and then the button says how many;
 agents share the project's folder until each run gets a worktree of its own,
 so one is the rule. Leave it off when you are the one building from this chat,
 or two agents will work in one folder. `spool page --run` starts with it on.
+They say "turn the agents off" or "on" to you: that is `spool agents off` or
+`spool agents on`, the same switch, and `spool agents` alone says where it
+is. Off whenever they ask; on only on their word, never on your own. With
+Chat picked, on is refused: the page starts nothing while a chat builds.
 
 **■ Stop**, on the card of a thread the page is building, ends that thread's
 agent at once and no other. The thread waits in Build, its card saying

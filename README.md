@@ -192,7 +192,8 @@ With `--run`, or the **Agents** switch at the top of the page, the page builds w
 itself: it starts your agent on each thread the moment it lands there, shows what it prints on the
 card, and puts a Stop on the card that ends that agent and no other. One thread at a time for now:
 several at once arrives with a git worktree for each, so that agents do not edit one folder
-together. Close every chat; press ▶; come back to Done.
+together. Close every chat; press ▶; come back to Done. From a terminal or a chat,
+`spool agents on` and `spool agents off` press the same switch, and `spool agents` says where it is.
 
 Next to that switch you pick who builds. **Headless** is the above: the page starts the agent
 itself. **Chat** hands building to a Claude Code chat running `/spool-loop`, where you can watch

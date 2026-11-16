@@ -457,6 +457,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool install [--here \| --dir path]` | Put the skills where your agent finds them |
 | `spool checks [command \| --none]` | Name the command that must pass before a change is done here |
 | `spool builder [headless \| chat] [--at-once n]` | Say who builds here, and how many threads at once; with nothing after it, says what is set. The human's, like `spool build` |
+| `spool agents [on \| off]` | Switch the page's agents on or off, as its Agents button does; with nothing after it, says whether a page is up and its agents are on. On is the human's, like `spool build`, and refused while a chat builds; off is always allowed |
 | `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it; changes nothing |
 | `spool page [--run] [--agent cmd] [--port n] [--no-open]` | The board; `--run` has it build what is in Build too |
 | `spool page -d \| --status \| --stop` | The board in the background, with no browser opened; whether it is up, and where; end it |

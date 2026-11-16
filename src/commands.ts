@@ -8,6 +8,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ParseArgsConfig } from 'node:util';
+import { agentsCommand } from './agents-switch.ts';
 import { builderCommand } from './builder.ts';
 import { effortOf, modelOf } from './agent.ts';
 import { morning, morningText } from './brief.ts';
@@ -1023,6 +1024,20 @@ export const COMMANDS: Command[] = [
       if (args.length > 1) throw new SpoolError('too many words', 'spool builder [headless | chat] [--at-once <n>]');
       const spool = str(opts.project) ? ws.project(str(opts.project)) : ws.home;
       return builderCommand(ctx, spool, args[0], str(opts['at-once']), () => byTheHuman(call, [spool], 'builder'));
+    },
+  },
+  {
+    name: 'agents',
+    group: 'setup',
+    usage: 'agents [on | off] [-P <project>]',
+    summary: 'Switch the page\'s agents on or off, the same switch as the one on the page. With nothing after it, says whether a page is up and its agents are on. The human\'s, like spool build',
+    human: true,
+    options: { ...PROJECT },
+    run(call) {
+      const { ws, ctx, args, opts } = call;
+      if (args.length > 1) throw new SpoolError('too many words', 'spool agents [on | off]');
+      const spool = str(opts.project) ? ws.project(str(opts.project)) : ws.home;
+      return agentsCommand(ctx, spool, args[0], () => byTheHuman(call, [spool], 'agents on'));
     },
   },
   {
