@@ -2,6 +2,12 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.16.0 · 2026-11-15
+
+- Brief in the chat: the loop leads with what it needs from you or with the result, in a few lines,
+  and leaves the detail to the page. `spool overview --brief` prints those lines; the full table
+  comes only when you ask for everything.
+
 ## 0.15.0 · 2026-11-15
 
 - The page runs the agents: `spool page --run`, or the **Agents** switch. Press ▶ and the thread is
