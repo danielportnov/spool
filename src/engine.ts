@@ -389,7 +389,8 @@ export class Runner {
     for (const task of orphans) {
       const kept = recall(task);
       if (kept) endLeftover(kept);
-      const room = this.on && this.builder !== 'chat' && this.runs.size < parallelOf(this.ctx);
+      // As for any hand-out: with agents on, as many as are built at once, and never where a chat builds.
+      const room = this.on && builderOf(this.ctx, task.spool.root) !== 'chat' && this.runs.size < this.parallel;
       if (!room || !this.carryOnCutOff(task.id)) this.putBack(task.id, 'its page had stopped with nobody working it; back in build');
     }
   }
