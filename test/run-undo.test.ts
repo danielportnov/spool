@@ -236,6 +236,22 @@ test('a run at the top of a folder of projects puts back what it changed in the 
   s.cleanup();
 });
 
+test('a skill’s record is put back, and the undo says its files are not the queue’s to put back', () => {
+  const s = spool();
+  const skill = s.id('skill', 'add', 'ship-a-beta', '-d', 'How a beta is cut and sent to testers. Use when asked to ship a beta.', '-b', '1. Bump the build.\n2. Archive it.');
+  assert.ok(s.exists('.claude/skills/ship-a-beta/SKILL.md'));
+  const was = s.item(skill);
+  const run = s.id('audit', 'Tidy the backlog');
+  under(s, run)('drop', skill, '-m', 'nobody uses it');
+  assert.equal(s.exists('.claude/skills/ship-a-beta/SKILL.md'), false, 'dropping a skill deletes its folder');
+
+  const out = s.sp('revert', run);
+  assert.match(out, new RegExp(`\\nNot undone: the files of 1 skill \\(${skill}\\)\\. A skill's folder is outside the queue, so what the run wrote or deleted there is as the run left it\\.$`));
+  assert.equal(s.item(skill), was);
+  assert.equal(s.exists('.claude/skills/ship-a-beta/SKILL.md'), false);
+  s.cleanup();
+});
+
 test('the brief does not read a run’s journal as something an agent said', () => {
   const s = spool();
   const jump = s.id('task', 'Tighten the jump arc');

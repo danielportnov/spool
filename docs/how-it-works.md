@@ -405,6 +405,10 @@ commits, and is listed with its own undo. Your reason is kept as a lesson, as wi
 the run's thread is dropped. None of this leans on git, since in most projects `.spool/` is not in
 git.
 
+What is undone is the queue: the items. A skill's own folder is outside it, so where a run wrote
+or dropped a skill, the undo puts the skill's record back and says that its files are as the run
+left them.
+
 A run is undone once. After that, or once its thread is done, a command that still carries its
 `SPOOL_RUN` is refused, so nothing is changed in the belief that it is on record.
 

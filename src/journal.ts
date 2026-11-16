@@ -317,9 +317,14 @@ export function undoRun(ws: Workspace, run: Item, actor: string, why: string, p:
     lines.push('Built since the run moved them to build. Their commits are their own, and so is their undo:');
     for (const t of built) lines.push(`  ${itemLine(ws, t, p)}`, p.dim(`      ${undoOf(t)}`));
   }
+  // A skill's folder is outside the queue. Its record is put back; what the run wrote or deleted on disk is not, and is said.
+  const skills = [...writes].filter(([, mine]) => mine.some((e) => e.kind === 'skill' && (e.change === 'created' || e.now.status === 'dropped'))).map(([id]) => id);
+  if (skills.length) {
+    lines.push(`Not undone: the files of ${plural(skills.length, 'skill')} (${skills.join(', ')}). A skill's folder is outside the queue, so what the run wrote or deleted there is as the run left it.`);
+  }
   return {
     lines,
-    data: { run: itemJson(ws, run), restored, removed, left, built: built.map((t) => ({ id: t.id, undo: undoOf(t) })), leaveEnded: leave?.words ?? null },
+    data: { run: itemJson(ws, run), restored, removed, left, built: built.map((t) => ({ id: t.id, undo: undoOf(t) })), skills, leaveEnded: leave?.words ?? null },
   };
 }
 
