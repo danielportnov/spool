@@ -8,43 +8,13 @@
  */
 
 import assert from 'node:assert/strict';
-import { type ChildProcess, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { type Browser, type Page, chromium } from 'playwright-core';
-import { CLI, Sandbox } from './helpers.ts';
+import { type Browser, type Page } from 'playwright-core';
+import { Sandbox, openChrome, startPage, until } from './helpers.ts';
 
 const SHOTS = process.env.SPOOL_SHOTS;
-
-function startPage(s: Sandbox, port: number, ...args: string[]): Promise<{ child: ChildProcess; url: string }> {
-  const child = spawn(process.execPath, [CLI, 'page', '--no-open', '--port', String(port), '-C', s.root, ...args], {
-    env: { ...process.env, HOME: `${s.root}/.home`, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return new Promise((resolve, reject) => {
-    let out = '';
-    const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
-    child.stdout!.on('data', (chunk: Buffer) => {
-      out += chunk.toString();
-      const found = /Spool page: (http:\/\/127\.0\.0\.1:\d+\/)/.exec(out);
-      if (found) {
-        clearTimeout(timer);
-        resolve({ child, url: found[1]! });
-      }
-    });
-    child.stderr!.on('data', (chunk: Buffer) => (out += chunk.toString()));
-  });
-}
-
-/** Wait for something to become true: in the spool, or on the page. */
-async function until(what: string, check: () => boolean | Promise<boolean>, tries = 200): Promise<void> {
-  for (let i = 0; i < tries; i++) {
-    if (await check()) return;
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  assert.fail(`never happened: ${what}`);
-}
 
 async function shot(page: Page, name: string): Promise<void> {
   if (!SHOTS) return;
@@ -74,7 +44,7 @@ function claude(s: Sandbox): string {
 test('the details of a ticket and a card', async (t) => {
   let browser: Browser;
   try {
-    browser = await chromium.launch({ channel: 'chrome', headless: true });
+    browser = await openChrome();
   } catch {
     t.skip('no Chrome on this machine to drive');
     return;
@@ -109,7 +79,7 @@ test('the details of a ticket and a card', async (t) => {
   const note = s.id('capture', 'One more thing:\n```\nno end to this');
   s.sp('file', note, '--into', coins);
 
-  const { child, url } = await startPage(s, 19500 + (process.pid % 1500), '--run', '--agent', `${claude(s)} -p`);
+  const { url, stop } = await startPage(s, '--run', '--agent', `${claude(s)} -p`);
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'], timezoneId: 'UTC' });
   // Every animation the page starts is noted, to see what slides and what fades.
   await context.addInitScript({ content: `
@@ -203,7 +173,7 @@ test('the details of a ticket and a card', async (t) => {
     // ticket the session, with the command that opens it a click from the clipboard.
     s.sp('build', jump);
     const card = page.locator(`#board [data-column="building"] .card[data-id="${jump}"]`);
-    await until('Fable has chosen and the agent has its session', () => /session 5f2c9e1a/.test(s.item(jump)), 300);
+    await until('Fable has chosen and the agent has its session', () => /session 5f2c9e1a/.test(s.item(jump)));
     await until('the card says what it runs with', async () => (await card.locator('.ran').count()) === 1 && (await card.locator('.ran').innerText()) === 'opus · xhigh');
     assert.match((await card.locator('.ran').getAttribute('title'))!, /^Started with opus · xhigh\. Why: a small change, worth care$/);
     await open(jump);
@@ -275,7 +245,7 @@ test('the details of a ticket and a card', async (t) => {
 
     assert.deepEqual(problems, [], 'the page logged no errors');
   } finally {
-    child.kill();
+    await stop();
     s.cleanup();
   }
 });

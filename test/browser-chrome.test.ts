@@ -7,44 +7,13 @@
  */
 
 import assert from 'node:assert/strict';
-import { type ChildProcess, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { type Browser, type Page, chromium } from 'playwright-core';
-import { CLI, Sandbox } from './helpers.ts';
+import { type Browser, type Page } from 'playwright-core';
+import { Sandbox, openChrome, startPage, until } from './helpers.ts';
 
 const SHOTS = process.env.SPOOL_SHOTS;
-const PORT = 16500 + (process.pid % 1500);
-
-function startPage(s: Sandbox, port: number): Promise<{ child: ChildProcess; url: string }> {
-  const child = spawn(process.execPath, [CLI, 'page', '--no-open', '--port', String(port), '-C', s.root], {
-    env: { ...process.env, HOME: `${s.root}/.home`, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return new Promise((resolve, reject) => {
-    let out = '';
-    const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
-    child.stdout!.on('data', (chunk: Buffer) => {
-      out += chunk.toString();
-      const found = /Spool page: (http:\/\/127\.0\.0\.1:\d+\/)/.exec(out);
-      if (found) {
-        clearTimeout(timer);
-        resolve({ child, url: found[1]! });
-      }
-    });
-    child.stderr!.on('data', (chunk: Buffer) => (out += chunk.toString()));
-  });
-}
-
-/** Wait for something to become true: in the spool, or on the page. */
-async function until(what: string, check: () => boolean | Promise<boolean>, tries = 200): Promise<void> {
-  for (let i = 0; i < tries; i++) {
-    if (await check()) return;
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  assert.fail(`never happened: ${what}`);
-}
 
 async function shot(page: Page, name: string): Promise<void> {
   if (!SHOTS) return;
@@ -54,7 +23,7 @@ async function shot(page: Page, name: string): Promise<void> {
 
 async function chrome(t: { skip: (why: string) => void }): Promise<Browser | null> {
   try {
-    return await chromium.launch({ channel: 'chrome', headless: true });
+    return await openChrome();
   } catch {
     t.skip('no Chrome on this machine to drive');
     return null;
@@ -71,7 +40,7 @@ test('the tab says what is happening: a dot while agents build, a count when som
   const jump = s.id('task', 'Tighten the jump arc', '-s', 's');
   const coins = s.id('task', 'Make coins readable at sunset', '-s', 'xs');
 
-  const { child, url } = await startPage(s, PORT);
+  const { url, stop } = await startPage(s);
   const page = await browser.newPage();
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(String(error)));
@@ -103,7 +72,7 @@ test('the tab says what is happening: a dot while agents build, a count when som
     assert.deepEqual(problems, []);
   } finally {
     await browser.close();
-    child.kill();
+    await stop();
     s.cleanup();
   }
 });
@@ -115,7 +84,8 @@ test('a page that loses its server says so, and is back by itself when the serve
   s.sp('init', '--name', 'skyhop');
   s.id('task', 'Tighten the jump arc', '-s', 's');
 
-  let { child, url } = await startPage(s, PORT + 1);
+  let server = await startPage(s);
+  const { url } = server;
   const page = await browser.newPage();
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(String(error)));
@@ -129,15 +99,15 @@ test('a page that loses its server says so, and is back by itself when the serve
     const before = await page.evaluate('token');
 
     // The server goes: after a few missed looks, a line under the bar says so, and the board dims.
-    child.kill();
-    await banner.waitFor({ timeout: 15_000 });
+    await server.stop();
+    await banner.waitFor();
     assert.match(await banner.innerText(), /^Not connected to the Spool server\. Last heard from it \d+s ago\. Trying again…$/);
     assert.equal(await page.evaluate('document.body.classList.contains("away")'), true);
     await shot(page, 'chrome-away');
 
     // The same address answers again, a new server with a new token: the line goes, with no reload.
-    ({ child } = await startPage(s, PORT + 1));
-    await banner.waitFor({ state: 'hidden', timeout: 15_000 });
+    server = await startPage(s, '--port', String(server.port));
+    await banner.waitFor({ state: 'hidden' });
     assert.equal(await page.evaluate('document.body.classList.contains("away")'), false);
     assert.equal(await page.evaluate('window.stayed'), true);
     const fresh = /const TOKEN = '([^']+)';/.exec(await (await fetch(url)).text())![1];
@@ -146,7 +116,7 @@ test('a page that loses its server says so, and is back by itself when the serve
     assert.deepEqual(problems, []);
   } finally {
     await browser.close();
-    child.kill();
+    await server.stop();
     s.cleanup();
   }
 });
@@ -158,7 +128,7 @@ test('light or dark by his pick, kept in the browser, or by the system', async (
   s.sp('init', '--name', 'skyhop');
   s.id('task', 'Tighten the jump arc', '-s', 's');
 
-  const { child, url } = await startPage(s, PORT + 2);
+  const { url, stop } = await startPage(s);
   const page = await browser.newPage({ colorScheme: 'light' });
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(String(error)));
@@ -199,7 +169,7 @@ test('light or dark by his pick, kept in the browser, or by the system', async (
     assert.deepEqual(problems, []);
   } finally {
     await browser.close();
-    child.kill();
+    await stop();
     s.cleanup();
   }
 });
@@ -225,7 +195,7 @@ test('on a phone: the bar in two rows, one column at a time, the ticket filling 
   s.sp('build', music);
   s.sp('start', music);
 
-  const { child, url } = await startPage(s, PORT + 3);
+  const { url, stop } = await startPage(s);
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, colorScheme: 'light' });
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(String(error)));
@@ -304,7 +274,7 @@ test('on a phone: the bar in two rows, one column at a time, the ticket filling 
     assert.deepEqual(problems, []);
   } finally {
     await browser.close();
-    child.kill();
+    await stop();
     s.cleanup();
   }
 });

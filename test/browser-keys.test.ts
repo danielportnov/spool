@@ -5,43 +5,13 @@
  */
 
 import assert from 'node:assert/strict';
-import { type ChildProcess, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { after, before, test } from 'node:test';
-import { type Browser, type Page, chromium } from 'playwright-core';
-import { CLI, Sandbox } from './helpers.ts';
+import { type Browser, type Page } from 'playwright-core';
+import { Sandbox, openChrome, startPage, until } from './helpers.ts';
 
 const SHOTS = process.env.SPOOL_SHOTS;
-
-function startPage(s: Sandbox, port: number): Promise<{ child: ChildProcess; url: string }> {
-  const child = spawn(process.execPath, [CLI, 'page', '--no-open', '--port', String(port), '-C', s.root], {
-    env: { ...process.env, HOME: `${s.root}/.home` },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return new Promise((resolve, reject) => {
-    let out = '';
-    const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
-    child.stdout!.on('data', (chunk: Buffer) => {
-      out += chunk.toString();
-      const found = /Spool page: (http:\/\/127\.0\.0\.1:\d+\/)/.exec(out);
-      if (found) {
-        clearTimeout(timer);
-        resolve({ child, url: found[1]! });
-      }
-    });
-    child.stderr!.on('data', (chunk: Buffer) => (out += chunk.toString()));
-  });
-}
-
-/** Wait for something in the spool itself to become true: the page saves, then the files say so. */
-async function until(what: string, check: () => boolean): Promise<void> {
-  for (let i = 0; i < 100; i++) {
-    if (check()) return;
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  assert.fail(`never happened: ${what}`);
-}
 
 async function shot(page: Page, name: string): Promise<void> {
   if (!SHOTS) return;
@@ -51,7 +21,7 @@ async function shot(page: Page, name: string): Promise<void> {
 
 // One page for every test here: each test is a part of the keyboard, used as a person would.
 let browser: Browser | undefined;
-let child: ChildProcess | undefined;
+let stop: (() => Promise<void>) | undefined;
 let url = '';
 const s = new Sandbox();
 s.sp('init', '--name', 'skyhop', '--gate');
@@ -66,16 +36,16 @@ const state = (id: string): string => s.json('show', id).item.state;
 
 before(async () => {
   try {
-    browser = await chromium.launch({ channel: 'chrome', headless: true });
+    browser = await openChrome();
   } catch {
     return;
   }
-  ({ child, url } = await startPage(s, 18000 + (process.pid % 1500)));
+  ({ url, stop } = await startPage(s));
 });
 
 after(async () => {
   await browser?.close();
-  child?.kill();
+  await stop?.();
   s.cleanup();
 });
 

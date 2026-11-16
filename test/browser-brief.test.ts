@@ -8,34 +8,13 @@
  */
 
 import assert from 'node:assert/strict';
-import { type ChildProcess, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { type Browser, type Page, chromium } from 'playwright-core';
-import { CLI, Sandbox } from './helpers.ts';
+import { type Browser, type Page } from 'playwright-core';
+import { Sandbox, openChrome, startPage } from './helpers.ts';
 
 const SHOTS = process.env.SPOOL_SHOTS;
-
-function startPage(s: Sandbox, port: number): Promise<{ child: ChildProcess; url: string }> {
-  const child = spawn(process.execPath, [CLI, 'page', '--no-open', '--port', String(port), '-C', s.root], {
-    env: { ...process.env, HOME: `${s.root}/.home` },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return new Promise((resolve, reject) => {
-    let out = '';
-    const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
-    child.stdout!.on('data', (chunk: Buffer) => {
-      out += chunk.toString();
-      const found = /Spool page: (http:\/\/127\.0\.0\.1:\d+\/)/.exec(out);
-      if (found) {
-        clearTimeout(timer);
-        resolve({ child, url: found[1]! });
-      }
-    });
-    child.stderr!.on('data', (chunk: Buffer) => (out += chunk.toString()));
-  });
-}
 
 async function shot(page: Page, name: string): Promise<void> {
   if (!SHOTS) return;
@@ -53,7 +32,7 @@ function ship(s: Sandbox, id: string, summary: string, files = 1): void {
 test('the brief sits above the board: each line opens its thread, it folds, and approving everything clears it', async (t) => {
   let browser: Browser;
   try {
-    browser = await chromium.launch({ channel: 'chrome', headless: true });
+    browser = await openChrome();
   } catch {
     t.skip('no Chrome on this machine to drive');
     return;
@@ -86,7 +65,7 @@ test('the brief sits above the board: each line opens its thread, it folds, and 
   s.sp('build', '--abort', jump);
   s.sp('ask', 'Fade over one second, or two?', '--option', 'One second', '--option', 'Two seconds', '--recommend', '2', '--for', music);
 
-  const { child, url } = await startPage(s, 21000 + (process.pid % 1500));
+  const { url, stop } = await startPage(s);
   const problems: string[] = [];
   const open = async (options: Parameters<Browser['newPage']>[0]): Promise<Page> => {
     const page = await browser.newPage(options);
@@ -194,7 +173,7 @@ test('the brief sits above the board: each line opens its thread, it folds, and 
     }
     assert.deepEqual(problems, []);
   } finally {
-    child.kill();
+    await stop();
     await browser.close();
     s.cleanup();
   }

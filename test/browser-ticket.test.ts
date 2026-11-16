@@ -7,43 +7,13 @@
  */
 
 import assert from 'node:assert/strict';
-import { type ChildProcess, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { type Browser, type Page, chromium } from 'playwright-core';
-import { CLI, Sandbox } from './helpers.ts';
+import { type Browser, type Page } from 'playwright-core';
+import { CLI, Sandbox, openChrome, startPage, until } from './helpers.ts';
 
 const SHOTS = process.env.SPOOL_SHOTS;
-
-function startPage(s: Sandbox, port: number, ...args: string[]): Promise<{ child: ChildProcess; url: string }> {
-  const child = spawn(process.execPath, [CLI, 'page', '--no-open', '--port', String(port), '-C', s.root, ...args], {
-    env: { ...process.env, HOME: `${s.root}/.home`, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return new Promise((resolve, reject) => {
-    let out = '';
-    const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
-    child.stdout!.on('data', (chunk: Buffer) => {
-      out += chunk.toString();
-      const found = /Spool page: (http:\/\/127\.0\.0\.1:\d+\/)/.exec(out);
-      if (found) {
-        clearTimeout(timer);
-        resolve({ child, url: found[1]! });
-      }
-    });
-    child.stderr!.on('data', (chunk: Buffer) => (out += chunk.toString()));
-  });
-}
-
-/** Wait for something to become true: in the spool, or on the page. */
-async function until(what: string, check: () => boolean | Promise<boolean>, tries = 200): Promise<void> {
-  for (let i = 0; i < tries; i++) {
-    if (await check()) return;
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  assert.fail(`never happened: ${what}`);
-}
 
 async function shot(page: Page, name: string): Promise<void> {
   if (!SHOTS) return;
@@ -62,7 +32,7 @@ function agent(s: Sandbox, script: string): string {
 test('the ticket: replies on Enter, says what it waits on, and a live log that holds still', async (t) => {
   let browser: Browser;
   try {
-    browser = await chromium.launch({ channel: 'chrome', headless: true });
+    browser = await openChrome();
   } catch {
     t.skip('no Chrome on this machine to drive');
     return;
@@ -104,7 +74,7 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
   ].join('\n'));
   s.sp('build', publish);
 
-  const { child, url } = await startPage(s, 20000 + (process.pid % 1500), '--run', '--agent', worker);
+  const { url, stop } = await startPage(s, '--run', '--agent', worker);
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(String(error)));
@@ -123,9 +93,9 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
   };
 
   try {
-    await until('the publish thread is given up on', () => /agent exited 3 without finishing/.test(s.item(publish)), 300);
+    await until('the publish thread is given up on', () => /agent exited 3 without finishing/.test(s.item(publish)));
     s.sp('build', jump);
-    await until('the jump is being built', () => s.json('show', jump).item.state === 'active', 300);
+    await until('the jump is being built', () => s.json('show', jump).item.state === 'active');
 
     await page.goto(url);
 
@@ -177,7 +147,7 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
     // The live log holds still while it is read, and follows new lines only while it is at its foot.
     await open(jump);
     const log = ticket.locator('.livelog');
-    await until('the log runs past its box', async () => (await log.evaluate((n) => n.scrollHeight > n.clientHeight + 100)), 300);
+    await until('the log runs past its box', async () => (await log.evaluate((n) => n.scrollHeight > n.clientHeight + 100)));
     const lines = (): Promise<string> => log.evaluate((n) => n.textContent ?? '');
     const atFoot = (): Promise<boolean> => log.evaluate((n) => n.scrollHeight - n.scrollTop - n.clientHeight < 8);
     const newLine = async (): Promise<void> => {
@@ -218,7 +188,7 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
 
     assert.deepEqual(problems, [], 'the page logged no errors');
   } finally {
-    child.kill();
+    await stop();
     s.cleanup();
   }
 });

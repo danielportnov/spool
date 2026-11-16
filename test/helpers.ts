@@ -316,7 +316,7 @@ function launchPage(options: PageOptions, args: string[]): Promise<Page> {
  * skips. Every page and context it makes waits twice Playwright's default before it gives up: a
  * browser on a busy machine can take that long to draw what a test waits for.
  */
-export async function chrome(): Promise<Browser> {
+export async function openChrome(): Promise<Browser> {
   const { chromium } = await import('playwright-core');
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   const newContext = browser.newContext.bind(browser);
