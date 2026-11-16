@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
-import { type ChildProcess, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { CLI, Sandbox } from './helpers.ts';
+import { Sandbox, startPage } from './helpers.ts';
 
 const configFile = (s: Sandbox): string => path.join(s.root, '.home', '.config', 'spool', 'config.json');
 const config = (s: Sandbox): Record<string, any> => JSON.parse(fs.readFileSync(configFile(s), 'utf8'));
@@ -61,24 +60,8 @@ test('where the gate is locked, an agent may read but not set; the human may', (
 test('a page already running follows the command without a restart', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop');
-  const child: ChildProcess = spawn(process.execPath, [CLI, 'page', '--no-open', '-C', s.root, '--port', String(15000 + (process.pid % 1500))], {
-    env: { ...process.env, HOME: `${s.root}/.home`, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  const { url, stop } = await startPage(s);
   try {
-    const url = await new Promise<string>((resolve, reject) => {
-      let out = '';
-      const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
-      child.stdout!.on('data', (chunk: Buffer) => {
-        out += chunk.toString();
-        const found = /Spool page: (http:\/\/127\.0\.0\.1:\d+\/)/.exec(out);
-        if (found) {
-          clearTimeout(timer);
-          resolve(found[1]!);
-        }
-      });
-      child.stderr!.on('data', (chunk: Buffer) => (out += chunk.toString()));
-    });
     const builder = async (): Promise<string> => ((await (await fetch(`${url}api/board`)).json()) as any).runner.builder;
     assert.equal(await builder(), 'headless');
     s.sp('builder', 'chat');
@@ -86,7 +69,7 @@ test('a page already running follows the command without a restart', async () =>
     s.sp('builder', 'headless');
     assert.equal(await builder(), 'headless');
   } finally {
-    child.kill();
+    await stop();
     s.cleanup();
   }
 });

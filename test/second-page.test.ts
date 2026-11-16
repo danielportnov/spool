@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { test } from 'node:test';
-import { CLI, Sandbox } from './helpers.ts';
+import { CLI, Sandbox, WAIT_MS, freePorts, gone } from './helpers.ts';
 
 /** Start `spool page` and give back what it printed first: the address of a page, its own or the one already up. */
 function page(s: Sandbox, ...args: string[]): Promise<{ child: ChildProcess; said: string }> {
@@ -11,7 +11,7 @@ function page(s: Sandbox, ...args: string[]): Promise<{ child: ChildProcess; sai
   });
   return new Promise((resolve, reject) => {
     let out = '';
-    const timer = setTimeout(() => reject(new Error(`the page said nothing: ${out}`)), 15_000);
+    const timer = setTimeout(() => reject(new Error(`the page said nothing: ${out}`)), WAIT_MS);
     const hear = (chunk: Buffer): void => {
       out += chunk.toString();
       if (!/http:\/\/127\.0\.0\.1:\d+\//.test(out)) return;
@@ -26,7 +26,7 @@ function page(s: Sandbox, ...args: string[]): Promise<{ child: ChildProcess; sai
 test('a second page for a project is pointed at the first, unless it asks for a port of its own', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop', '--gate');
-  const [a, b] = [11000 + (process.pid % 1500), 12500 + (process.pid % 1500)];
+  const [a, b] = await freePorts(2);
   const first = await page(s, '--port', String(a));
   let second: ChildProcess | undefined;
   try {
@@ -43,8 +43,10 @@ test('a second page for a project is pointed at the first, unless it asks for a 
     assert.equal((await fetch(`http://127.0.0.1:${b}/api/board`)).status, 200);
     assert.equal((await fetch(`http://127.0.0.1:${a}/api/board`)).status, 200);
   } finally {
-    second?.kill();
-    first.child.kill();
+    for (const child of [second, first.child]) {
+      child?.kill();
+      if (child) await gone(child);
+    }
     s.cleanup();
   }
 });

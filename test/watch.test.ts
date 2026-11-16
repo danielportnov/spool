@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { test } from 'node:test';
-import { CLI, Sandbox, watchUp } from './helpers.ts';
+import { CLI, Sandbox, gone, pause, until as untilThat, watchUp } from './helpers.ts';
 
 /** Start the real watcher and collect what it prints. */
 function startWatch(s: Sandbox): { child: ChildProcess; lines: string[]; until: (n: number) => Promise<void> } {
@@ -12,13 +12,14 @@ function startWatch(s: Sandbox): { child: ChildProcess; lines: string[]; until: 
   const lines: string[] = [];
   child.stdout!.on('data', (chunk: Buffer) => lines.push(...chunk.toString().split('\n').filter(Boolean)));
   const until = async (n: number): Promise<void> => {
-    for (let i = 0; i < 200 && lines.length < n; i++) await new Promise((r) => setTimeout(r, 25));
-    if (lines.length < n) throw new Error(`waited for ${n} line(s), got: ${JSON.stringify(lines)}`);
+    await untilThat(`${n} line(s)`, () => lines.length >= n, { every: 25 }).catch(() => {
+      throw new Error(`waited for ${n} line(s), got: ${JSON.stringify(lines)}`);
+    });
   };
   return { child, lines, until };
 }
 
-const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 250));
+const settle = (): Promise<void> => pause(250);
 
 test('the watcher prints a line the moment the human gives the loop something to do, and nothing otherwise', async () => {
   const s = new Sandbox();
@@ -66,6 +67,7 @@ test('the watcher prints a line the moment the human gives the loop something to
     assert.equal(lines.length, 5);
   } finally {
     child.kill();
+    await gone(child);
     s.cleanup();
   }
 });

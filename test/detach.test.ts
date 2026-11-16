@@ -5,9 +5,7 @@ import * as net from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { CLI, Sandbox } from './helpers.ts';
-
-const PORT = 28500 + (process.pid % 1500);
+import { CLI, Sandbox, WAIT_MS, freePort, until } from './helpers.ts';
 
 /**
  * The real CLI, run as a person or an agent would and waited for. A browser opener that only
@@ -77,9 +75,10 @@ test('spool page -d comes back with the address, and the page stays up without i
   try {
     assert.equal(spool(s, 'page', '--status').out, 'No Spool page is up for this project. spool page -d starts one.');
 
-    const started = spool(s, 'page', '-d', '--port', String(PORT));
+    const port = await freePort();
+    const started = spool(s, 'page', '-d', '--port', String(port));
     assert.equal(started.code, 0, started.err);
-    const url = `http://127.0.0.1:${PORT}/`;
+    const url = `http://127.0.0.1:${port}/`;
     assert.match(started.out, new RegExp(`^Spool page: ${url}\nIt runs in the background`));
     assert.ok(started.ms < 10_000, `came back in ${started.ms}ms`);
 
@@ -102,7 +101,7 @@ test('spool page -d comes back with the address, and the page stays up without i
     }
     // Plain `spool page` with one up shows the one that is up.
     const opened = path.join(s.root, 'opened.txt');
-    for (let i = 0; i < 100 && !fs.existsSync(opened); i++) await new Promise((r) => setTimeout(r, 20));
+    await until('the page is shown', () => fs.existsSync(opened), { every: 20 });
     assert.equal(fs.readFileSync(opened, 'utf8').trim(), url);
     fs.rmSync(path.join(s.root, 'opened.txt'));
 
@@ -130,9 +129,9 @@ test('a detached page that cannot start says why, and the command fails', async 
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop');
   const holder = net.createServer();
-  await new Promise<void>((resolve) => holder.listen(PORT + 1, '127.0.0.1', resolve));
+  await new Promise<void>((resolve) => holder.listen(0, '127.0.0.1', resolve));
   try {
-    const taken = spool(s, 'page', '-d', '--port', String(PORT + 1));
+    const taken = spool(s, 'page', '-d', '--port', String((holder.address() as net.AddressInfo).port));
     assert.notEqual(taken.code, 0);
     assert.match(taken.err, /^spool: the page did not start: .*EADDRINUSE/);
     assert.equal(spool(s, 'page', '--status').out, 'No Spool page is up for this project. spool page -d starts one.');
@@ -161,10 +160,10 @@ test('--stop ends a detached page as Ctrl-C would, putting back the thread its a
   fs.writeFileSync(sleeper, '#!/bin/sh\ncat > /dev/null\necho "thinking hard"\nsleep 30\n');
   fs.chmodSync(sleeper, 0o755);
   try {
-    const started = spool(s, 'page', '-d', '--run', '--agent', sleeper, '--port', String(PORT + 2));
+    const started = spool(s, 'page', '-d', '--run', '--agent', sleeper, '--port', String(await freePort()));
     assert.equal(started.code, 0, started.err);
     assert.match(started.out, /\nAgents are on: this page builds what is in Build, with no chat open\.\n/);
-    for (let i = 0; i < 160 && s.json('show', hard).item.state !== 'active'; i++) await new Promise((r) => setTimeout(r, 50));
+    await until('the thread is being built', () => s.json('show', hard).item.state === 'active');
     assert.equal(s.json('show', hard).item.state, 'active');
     assert.match(spool(s, 'page', '--status').out, /\nAgents are on\. The page builds here itself \(Headless\)\.$/);
 
@@ -180,11 +179,12 @@ test('a page started in a terminal is seen too: --status finds it, a second star
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop');
   spool(s, 'page', '--status');
-  const child = spawn(process.execPath, [CLI, 'page', '--no-open', '-C', s.root, '--port', String(PORT + 3)], { env: env(s), stdio: ['ignore', 'pipe', 'pipe'] });
+  const port = await freePort();
+  const child = spawn(process.execPath, [CLI, 'page', '--no-open', '-C', s.root, '--port', String(port)], { env: env(s), stdio: ['ignore', 'pipe', 'pipe'] });
   try {
     await new Promise<void>((resolve, reject) => {
       let out = '';
-      const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), 10_000);
+      const timer = setTimeout(() => reject(new Error(`the page did not start: ${out}`)), WAIT_MS);
       child.stdout!.on('data', (chunk: Buffer) => {
         out += chunk.toString();
         if (out.includes('Spool page: ')) {
@@ -193,7 +193,7 @@ test('a page started in a terminal is seen too: --status finds it, a second star
         }
       });
     });
-    const url = `http://127.0.0.1:${PORT + 3}/`;
+    const url = `http://127.0.0.1:${port}/`;
     assert.match(spool(s, 'page', '--status').out, new RegExp(`^Spool page: ${url}\nUp since .*, in a terminal \\(pid ${child.pid}\\)\\.`));
     assert.equal(spool(s, 'page', '-d').out, `The Spool page is already up for this project: ${url}`);
     const exited = new Promise<number | null>((r) => child.once('exit', (code) => r(code)));
@@ -220,17 +220,18 @@ test('a detached page restarts onto new code as any page does, and is still the 
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop');
   try {
-    assert.equal(spoolOf(cli, s, 'page', '-d', '--port', String(PORT + 4)).code, 0);
-    const url = `http://127.0.0.1:${PORT + 4}/`;
+    const port = await freePort();
+    assert.equal(spoolOf(cli, s, 'page', '-d', '--port', String(port)).code, 0);
+    const url = `http://127.0.0.1:${port}/`;
     const before = spoolOf(cli, s, 'page', '--status').out;
     const build = ((await (await fetch(`${url}api/board`)).json()) as { build: string }).build;
 
     fs.appendFileSync(path.join(root, 'dist', 'watch.ts'), '\n// built again\n');
-    let now = build;
-    for (let i = 0; i < 300 && now === build; i++) {
-      await new Promise((r) => setTimeout(r, 100));
-      now = await fetch(`${url}api/board`).then(async (res) => ((await res.json()) as { build: string }).build, () => build);
-    }
+    // A page that is restarting answers nobody for a moment: until looks again.
+    const now = await until('the page is on the new build', async () => {
+      const b = ((await (await fetch(`${url}api/board`)).json()) as { build: string }).build;
+      return b !== build && b;
+    });
     assert.notEqual(now, build, 'the page is on the new build');
     // The same page as far as anyone can tell: the same process to signal, up since the same time.
     assert.equal(spoolOf(cli, s, 'page', '--status').out, before);
