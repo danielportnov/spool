@@ -61,7 +61,9 @@ test('/spool is the one skill for the chat: status first, a short reply, and one
   assert.match(run('"where do things stand"'), /^`spool overview --brief`, as it comes/);
   assert.match(run('"show me everything"'), /^`spool overview --table`, as it comes/);
   assert.match(run('"why is nothing building"'), /^`spool status`: its "Build is not moving" line says why[\s\S]*`spool doctor`/);
-  assert.match(run('"tidy the backlog"'), /^`spool list --alike`, then propose merges, archives and drops in a few lines; act only on their yes/);
+  // Tidying is the manager's run, which landed after the plan: one pass that one undo takes back, and a leave says how far it may go.
+  assert.match(run('"tidy the backlog"'), /^`spool manage --start`: it opens a run, and prints the facts to judge from and how to end it\. One undo takes the whole pass back\. Only "what is duplicated"\? `spool list --alike`$/);
+  assert.match(run('"manage it while I sleep"'), /^`spool leave "<their exact words>" --until <time>`, with `--build <n>` only if they said how many may be built\. Then tidy, as above$/);
   assert.match(run('"make a sprint of these"'), /^`spool sprint "<name>" --goal "<what it is for>" --add <t-id…>`/);
   assert.match(run('"make a sprint of these and play it"'), /^`spool play <sprint>`, once it is made: everything in it moves to Build at once/);
   assert.match(run('"archive that"'), /^`spool archive <t-id>`; it is kept, and `spool archive --undo <t-id>` brings it back/);
@@ -73,7 +75,7 @@ test('/spool is the one skill for the chat: status first, a short reply, and one
   assert.match(run('"the goal has changed"'), /^`spool goals`; `spool goals --edit -` with their words/);
 
   // The gate: only they start work, and a locked gate is not to be got round.
-  assert.match(flat, /\*\*Only they start work\.\*\* Moving a thread to Build is the only way anything gets built, and `spool build`, `spool play`, `spool release`, `spool builder` and `spool agents on` are theirs: run one only on their plain word\./);
+  assert.match(flat, /\*\*Only they start work\.\*\* Moving a thread to Build is the only way anything gets built, and `spool build`, `spool play`, `spool release`, `spool leave`, `spool builder` and `spool agents on` are theirs: run one only on their plain word\./);
   assert.match(flat, /Never guess a go, an answer or an approval\. If their reply does not plainly say it, ask in one line\./);
   assert.match(flat, /\*\*Where the gate is locked,\*\* those commands refuse you\.[\s\S]*Do not look for a way round it: that refusal is the point\./);
   // Their commands run as them: signed by an agent, an undo keeps no lesson (test/lessons.test.ts).

@@ -44,7 +44,8 @@ the detail.**
 | "park that until the launch" | `spool hold <t-id> -m "<their words>"`; "take it off hold" is `spool release <t-id>` |
 | "archive that", "get it out of the way" | `spool archive <t-id>`; it is kept, and `spool archive --undo <t-id>` brings it back |
 | "drop that", "no", about any thread | `spool drop <t-id> -m "<their words>"` |
-| "tidy the backlog", "what is duplicated" | `spool list --alike`, then propose merges, archives and drops in a few lines; act only on their yes |
+| "tidy the backlog", "put the backlog in order" | `spool manage --start`: it opens a run, and prints the facts to judge from and how to end it. One undo takes the whole pass back. Only "what is duplicated"? `spool list --alike` |
+| "manage it while I sleep", "work through it until midnight" | `spool leave "<their exact words>" --until <time>`, with `--build <n>` only if they said how many may be built. Then tidy, as above |
 | "make a sprint of these", "put that in the sprint" | `spool sprint "<name>" --goal "<what it is for>" --add <t-id…>`; `spool edit <t-id> --sprint none` takes one out |
 | "play the sprint", "make a sprint of these and play it" | `spool play <sprint>`, once it is made: everything in it moves to Build at once |
 | an answer, or "no" to a call an agent made: "the second one", "a", "no, do X" | `spool answer <d-id> <n or their words>`; a call they overrule is queued to be done again |
@@ -63,12 +64,12 @@ the detail.**
 | how to work: "stop at midnight", "use subagents" | nothing to record: do it |
 
 **Only they start work.** Moving a thread to Build is the only way anything
-gets built, and `spool build`, `spool play`, `spool release`, `spool builder`
-and `spool agents on` are theirs: run one only on their plain word. Never
-guess a go, an answer or an approval. If their reply does not plainly say it,
-ask in one line. **Where the gate is locked,** those commands refuse you.
-Give them the thread's place on the board and they press ▶. Do not look for a
-way round it: that refusal is the point.
+gets built, and `spool build`, `spool play`, `spool release`, `spool leave`,
+`spool builder` and `spool agents on` are theirs: run one only on their plain
+word. Never guess a go, an answer or an approval. If their reply does not
+plainly say it, ask in one line. **Where the gate is locked,** those commands
+refuse you. Give them the thread's place on the board and they press ▶. Do
+not look for a way round it: that refusal is the point.
 
 **Their words are the record.** Pass what they said through as they said it,
 and run their commands as them, with no `--as`: an undo signed by you keeps

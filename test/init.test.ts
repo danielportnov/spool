@@ -239,7 +239,7 @@ test('install takes away a retired skill nobody edited, and says where its job w
   const steer = shipped('spool');
   assert.match(steer, /\| "what needs me", "what's blocked" \| `spool review` \|/);
   assert.match(steer, /`spool approve --all`; it never covers plans/);
-  assert.match(steer, /Never\nguess a go, an answer or an approval/);
+  assert.match(steer.replace(/\s+/g, ' '), /Never guess a go, an answer or an approval/);
   for (const name of SKILL_NAMES) assert.doesNotMatch(shipped(name), /spool-blockers|spool-overview|spool-help|spool-recorder/);
 
   // The same goes for the two that were dropped and the one that was renamed.
