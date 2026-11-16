@@ -163,8 +163,8 @@ function homeBrief(r) {
   const n = r.needsYou;
   const line = (mark, title, project, sub, id) => el('button', { class: 'hline', onclick: () => goProject(project, id) },
     el('span', { class: 'htitle' }, mark + ' ' + title), el('span', { class: 'psub' }, project + (sub ? ' · ' + sub : '')));
+  // A question is not listed here: it is asked on its thread alone, and the project's row counts it.
   const needs = [
-    ...n.questions.map((q) => line('❓', q.title, q.project, q.blocks ? 'holds up ' + plural(q.blocks, 'thread') : '', null)),
     ...n.plans.map((t) => line('📋', 'Plan: ' + t.title, t.project, 'waits for your go-ahead', t.id)),
     ...n.stopped.map((t) => line('↺', t.title, t.project, t.why, t.id)),
   ];
@@ -182,7 +182,7 @@ function homeRow(p) {
       el('span', { class: 'pname' }, p.name), needsNode(p), el('span', { class: 'psub' }, countsOf(p))),
     p.building.map((t) => el('div', { class: 'live' }, el('span', { class: 'pulse' }),
       el('span', { class: 'for' }, t.title), t.said && el('span', { class: 'now', title: t.said }, t.said))),
-    p.needs.map((x) => el('div', { class: 'hneed' }, x.id.startsWith('d-') ? '❓ ' + x.title : '📋 Plan: ' + x.title)),
+    p.needs.map((x) => el('div', { class: 'hneed' }, '📋 Plan: ' + x.title)),
     p.sprint && el('div', { class: 'hsprint' }, el('span', {}, '▶ ' + p.sprint.name),
       el('span', { class: 'hbar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(p.sprint.total), 'aria-valuenow': String(p.sprint.done) },
         el('span', { style: 'width: ' + (p.sprint.total ? Math.round((100 * p.sprint.done) / p.sprint.total) : 0) + '%' })),

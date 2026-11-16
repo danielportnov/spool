@@ -47,7 +47,7 @@ test('a page started over several projects knows them all, and each board is tha
         ['games/sky_hop', 'games/sky_hop', { backlog: 1, build: 1, building: 0, check: 0, needs: 0 }, true],
       ],
     );
-    assert.deepEqual(b.workspace.projects[1].needs.map((n: any) => n.title), ['Sunday or Monday?']);
+    assert.deepEqual(b.workspace.projects[1].needs, [], 'a question is counted, and asked on its thread alone');
     assert.deepEqual(b.columns.proposed.map((c: any) => c.id), [top], 'the top board holds the top project\'s threads only');
 
     // Named in the address, another project's board, and only its own threads.
@@ -90,7 +90,12 @@ test('a page started over several projects knows them all, and each board is tha
 
     // The home view's brief, across every project, comes only when the home view asks for it.
     assert.equal('brief' in (await board()).workspace, false);
+    // A question alone brings none: it is asked on its thread. A thread an agent was stopped on does.
+    assert.equal((await board('?home=1')).workspace.brief, null);
+    game.sp('start', jump);
+    game.sp('build', '--abort', jump);
     const home = await board('?home=1');
+    assert.deepEqual(home.workspace.brief.needsYou.stopped.map((t: any) => [t.title, t.project]), [['Tighten the jump arc', 'games/sky_hop']]);
     assert.deepEqual(home.workspace.brief.needsYou.questions.map((q: any) => [q.title, q.project]), [['Sunday or Monday?', 'apps/tidy_up']]);
   } finally {
     await page.stop();

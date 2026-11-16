@@ -45,6 +45,9 @@ test('a page over several projects opens on all of them, and switches between th
   game.sp('play', sprint);
   game.sp('start', coins, '--as', 'Claude Fable 5.2');
   game.sp('log', coins, 'Outlining the coins in two pixels', '--as', 'Claude Fable 5.2');
+  // A thread its agent was stopped on: something that needs him, which the brief across them lists.
+  game.sp('start', music, '--as', 'Claude Fable 5.2');
+  game.sp('build', '--abort', music);
   const chores = app.id('task', 'Weekly chores list');
   app.sp('ask', 'Start the week on Sunday or Monday?', '--option', 'Sunday', '--option', 'Monday', '--for', chores);
   const state = (on: Sandbox, id: string): string => on.json('show', id).item.state;
@@ -71,8 +74,10 @@ test('a page over several projects opens on all of them, and switches between th
     assert.match(await sky.locator('.live').innerText(), /Make coins readable at sunset[\s\S]*Outlining the coins in two pixels/, 'what is building, and its agent\'s last line');
     assert.match(await sky.locator('.hsprint').innerText(), /Polish[\s\S]*0\/2/, 'its sprint, playing, and how far along');
     const tidy = home.locator('.prow[data-project="apps/tidy_up"]');
-    assert.match(await tidy.innerText(), /1 needs you[\s\S]*Start the week on Sunday or Monday\?/, 'what needs him');
-    assert.match(await home.locator('.hbrief').innerText(), /needs you[\s\S]*Start the week on Sunday or Monday\?[\s\S]*apps\/tidy_up/i, 'the brief names the project');
+    // A question is counted on its project's row, and asked on its thread alone: neither the row nor the brief lists it.
+    assert.match(await tidy.innerText(), /1 needs you/, 'what needs him');
+    assert.match(await home.locator('.hbrief').innerText(), /needs you[\s\S]*A calmer title theme[\s\S]*games\/sky_hop/i, 'the brief names the project');
+    assert.equal(await home.getByText('Start the week on Sunday or Monday?').count(), 0, 'the question is on its thread only');
     await shot(page, 'projects-1-home');
 
     // A row opens that project's board, in place: its cards, and its name in the address.

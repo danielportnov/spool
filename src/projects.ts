@@ -25,7 +25,7 @@ export interface Project {
   built: boolean;
   /** What is being built right now, with the last thing its agent said. */
   building: { id: string; title: string; said: string }[];
-  /** What waits on the human: questions and plans, a line each. */
+  /** The plans waiting on the human's go-ahead, a line each. A question is not here: the page asks it on its thread alone. */
   needs: { id: string; title: string }[];
   /** The sprint being played, if one is, and how far along it is. */
   sprint: { id: string; name: string; done: number; total: number } | null;
@@ -52,7 +52,7 @@ export function projectsOf(ws: Workspace, builds: (spool: Spool) => boolean, hea
     const state = new Map(mine.map((t) => [t.id, taskState(ws, t)]));
     const count = (...states: string[]) => mine.filter((t) => states.includes(state.get(t.id)!)).length;
     const queue = review(ws, spool);
-    const needs = [...queue.questions, ...queue.plans].map((i) => ({ id: i.id, title: oneLine(i.title, 110) }));
+    const needs = queue.plans.map((i) => ({ id: i.id, title: oneLine(i.title, 110) }));
     const playing = ws.items
       .filter((i) => i.kind === 'sprint' && i.spool === spool && i.status === 'running')
       .sort((a, b) => b.updated.localeCompare(a.updated))[0];
@@ -91,7 +91,8 @@ export function briefAcross(ws: Workspace): Brief | null {
     .join(' ');
   if (kept?.key === key) return kept.brief;
   const b = morning(ws);
-  const needs = b.needsYou.questions.length + b.needsYou.plans.length + b.needsYou.stopped.length;
+  // A question alone brings up no brief: the page asks it on its thread, and nowhere else.
+  const needs = b.needsYou.plans.length + b.needsYou.stopped.length;
   kept = { key, brief: b.shipped || needs ? b : null };
   return kept.brief;
 }
