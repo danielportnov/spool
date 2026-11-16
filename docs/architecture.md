@@ -51,6 +51,10 @@ those comments are the detail.
   and no judgment; `worksheetText` prints them. `changesOf` folds a run's journal into the report
   `--end` writes. A run's own thread is told by `isRun` in `model.ts`, and `ready` never hands
   it out.
+- `usage.ts` is the usage target: `spool target`, how much of their Claude plan the human wants a
+  chat in Chat mode to use, kept in their own settings; and `spool usage`, the plan's usage that
+  chat read and reported before a thread, kept beside it in `usage.json`. `usageOf` is both, and
+  which limits are reached, for the board's header.
 - `leave.ts` is `spool leave`: how far agents may go while the human is away, and until when,
   kept in `.spool/leave.json`. `settle` gives the live leave and removes one that has run out.
   `buildUnderLeave` and `dropUnderLeave` are what `spool build --leave` and `spool drop --leave`

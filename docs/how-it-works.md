@@ -278,6 +278,11 @@ things, and nothing else. Questions about the spool, and steering it, are `/spoo
 3. **Says when Build is empty**, or when something needs you. First it gives what shipped a
    version, adds up to three ideas of its own, marked AI suggested, and shows the morning brief.
 
+**It works up to your usage target,** where you set one in the board's header (`spool target`).
+Before it claims each thread it reads your plan's weekly and 5-hour usage with its own tool and
+reports it with `spool usage`, which says keep building or stop. Stopped, it claims nothing new and
+lets what is being built land. With no target it builds what is in Build, whatever the usage.
+
 **It reacts; it does not wait on a clock.** `spool watch` stays up and prints a line when a thread
 can be built, when you reply on one, or when a note stays unfiled for a few seconds. In Claude Code the loop listens to that
 with the Monitor tool, so pressing ▶ starts the build within seconds. Where a harness cannot listen,

@@ -295,6 +295,13 @@ the work and step in; the page then starts nothing, and the switch says whether 
 watching, or not there. The pick is kept for the project. Say "switch to chat mode" to a chat and it
 runs `spool builder chat`; "let the page build" is `spool builder headless`.
 
+In Chat mode the header also holds a **usage target**: how much of your Claude plan the chat may
+use, as a percent of the weekly limit, the 5-hour limit, or both. Set it with the slider or type the
+number. Before each thread the chat reads the plan's usage with its own tool (`get_usage` in the
+Claude app) and reports it with `spool usage`; once a target is reached it takes no new thread, and
+the header shows the usage against the target. `spool target --weekly 80` sets it from a chat or a
+terminal. Spool never reads your usage or your account itself: it keeps what the chat reports.
+
 The agent it starts is a command on your machine, `claude -p` unless you say otherwise, and it can
 only do what you allow it. What you have not allowed, it asks for while the page is open: the
 question shows on its card, with **Allow once**, **Allow for this run** and **No**. With nobody

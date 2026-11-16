@@ -30,8 +30,10 @@ test('the loop skill has one job: make this chat the builder', () => {
   // What it no longer holds: the table of what they say, the reply's shape, the worker's rules.
   assert.doesNotMatch(loop, /\| They say \| Run \||## Show the spool|## Put the spool in order|spool overview/);
   assert.match(flat, /\*\*The worker's rules are not in this skill\.\*\* `spool prime worker` prints them, and whoever builds a thread reads them first: you, or each subagent\./);
-  // Short enough to be read every time: it was 553 lines.
-  assert.ok(loop.trimEnd().split('\n').length <= 125, `${loop.trimEnd().split('\n').length} lines`);
+  // Up to their usage target: read before each thread, reported, and a stop is a stop.
+  assert.match(flat, /\*\*Up to their usage target,\*\* where they set one on the board \(`spool target` says\)\. Before you claim each thread, read the plan's usage with your harness's tool \(`get_usage` in the Claude app\) and report it: `spool usage --weekly <n> --five-hour <n>`\. It says keep building, or stop: then claim nothing new, let what is building land, and notify them once\. No usage tool\? Say so once, and build as if no target were set\./);
+  // Short enough to be read every time: it was 553 lines, and grew six for the usage target.
+  assert.ok(loop.trimEnd().split('\n').length <= 131, `${loop.trimEnd().split('\n').length} lines`);
 });
 
 test('the loop watches the spool, and falls back to one scheduled job', () => {
