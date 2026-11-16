@@ -94,8 +94,8 @@ those comments are the detail.
   (`asked`, `permit`). On start, a thread a dead page left handed out is carried on in its
   session, or put back (`recover`). There is no HTTP in it.
 - `session.ts` is one agent on one thread, and the only file that knows how one is started and
-  heard: `startSession` runs the command and reads what it prints, `askRouter` asks Fable first
-  where it chooses the model, and `endAgent` ends an agent and everything it started. A `claude -p`
+  heard: `startSession` runs the command and reads what it prints, and `endAgent` ends an agent
+  and everything it started. A `claude -p`
   session's input stays open, so it can be told things (`say`, `interrupt`, `leave`), and its
   permission questions wait in `asking` for an `answer`. `recall`
   and `remember` keep what a session has been told, from one run to the next, and
@@ -142,9 +142,10 @@ those comments are the detail.
 **Agents and models**
 
 - `agent.ts` decides which model works a thread and at what effort. `pickFor` takes the human's
-  pick first, then Fable's answer where the agent is Claude (asked with `routerCommand`, read with
-  `parseRoute`), then what the size suggests (`suggestion`). `commandFor` puts the pick into the
-  agent command. Anything but a plain model name or a known effort is left out.
+  pick first, then a step up where the thread's last run did not work (`stepUp`, read from its
+  log: one model up from the one that ran it), then the smallest model its size can be built with
+  (`suggestion`). `commandFor` puts the pick into the agent command; `builderLine` is what a
+  chat's claim logs of it. Anything but a plain model name or a known effort is left out.
 
 **Skills, and the rules agents are primed with**
 

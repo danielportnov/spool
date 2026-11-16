@@ -724,22 +724,26 @@ your agent command in that project with the rules and the brief on stdin, and lo
 exits. `spool loop --watch 5` keeps looking. The agent command comes from your own machine
 (`SPOOL_AGENT`, or `agent` in `~/.config/spool/config.json`); the default is `claude -p`.
 
-**Which model, and how hard it thinks.** Where your agent is `claude`, each thread is first passed
-to Fable (`claude -p --model fable --effort high`), which reads its brief and decides which model
-works it and at what effort, told to lean bigger and heavier than the thread seems to need; it may
-take the thread itself. Its choice and its reason go on the thread's log, and the run uses it.
-Your own pick always wins: the **Model** and **Effort** fields on the ticket (left unset, they
-say Fable decides, and what the size would give; once a thread has run, they show the model and
-effort its agent's command really named, and where it named none, the boxes are for the next run), or
-`spool edit <id> --model opus --effort high` (`none` hands either back). Where Fable cannot
-answer, the size decides, on the big side: a tiny thread gets Sonnet at medium, a small one Opus at
-high, a medium one Opus at xhigh, a large one Fable at high, and a huge one Fable at xhigh. A
-`claude` command gets `--model` and `--effort` added where it does not set them itself; any other
-agent command can take `{model}` and `{effort}` where it wants them, and gets the size's pick.
-In `~/.config/spool/config.json`, `"router": false` skips Fable and goes by the table, `"router":
-"opus"` asks another model; change the table under `models`, as
-`{ "xs": { "model": "sonnet", "effort": "low" } }`, or set `"models": false` to leave the command
-alone altogether. `spool loop --dry-run` shows the command each thread would get.
+**Which model, and how hard it thinks.** Each thread is built by the smallest model that can do
+work of its size, to spare your plan's usage when several are built at once: a tiny thread by Haiku
+at medium effort, a small one by Sonnet at medium, a medium one (or one not sized) by Opus at
+medium, a large one by Opus at high, and a huge one by Opus at xhigh. A thread whose last run did
+not work is built next by the model one up from the one that ran it (Haiku, Sonnet, Opus, then
+Fable), thinking at least as hard: did not work means its work was undone (reverted, or taken back
+from Done), or its agent left it without finishing. Stopping it yourself, or a question it asked,
+does not count, and a run carried on in its own session keeps the model it had. The step and its
+reason go on the thread's log ("stepped up from haiku to sonnet · medium: its last run was
+undone"). Your own pick always wins: the **Model** and **Effort** fields on the ticket (left
+unset, they say what the size gives, as "Sonnet, by its size", or the step up and why; once a
+thread has run, they show the model and effort its agent's command really named, and where it
+named none, the boxes are for the next run), or `spool edit <id> --model opus --effort high`
+(`none` hands either back). A `claude` command gets `--model` and `--effort` added where it does
+not set them itself; any other agent command can take `{model}` and `{effort}` where it wants them.
+In Chat mode, `spool start` and `spool next --claim` print the pick on a `MODEL` line under the
+brief, and log it on the thread ("builder model: haiku · medium, by its size"): the chat starts
+the subagent that builds the thread on it. In `~/.config/spool/config.json`, change the table under
+`models`, as `{ "xs": { "model": "sonnet", "effort": "low" } }`, or set `"models": false` to leave
+the command alone altogether. `spool loop --dry-run` shows the command each thread would get.
 
 **An agent with no shell.** `spool mcp -C <project>` serves the same commands as
 [Model Context Protocol](https://modelcontextprotocol.io) tools over stdio. The set-up commands are
