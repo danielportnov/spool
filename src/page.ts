@@ -24,13 +24,14 @@
  * website open in the same browser cannot press play on your behalf.
  */
 
-import { type ChildProcess, spawn } from 'node:child_process';
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { run } from './cli.ts';
 import type { Bare, Result } from './commands.ts';
 import { type Ctx, userConfig } from './context.ts';
@@ -199,6 +200,10 @@ interface Board {
   /** The human's mark in this project: an identicon drawn from its name, so each spool has its own. */
   you: string;
   version: string;
+  /** Which build of Spool's own code this page is served by. The open page reloads itself when it changes. */
+  build: string;
+  /** Something about the page itself the human should know: it is rebuilding, or a rebuild failed. */
+  notice: string;
   gate: boolean;
   /** Only a person can move work to build: an agent is refused. */
   locked: boolean;
@@ -421,7 +426,7 @@ export function identicon(seed: string): string {
 }
 
 /** The whole board for one project, read fresh from disk. */
-export function board(ws: Workspace, project?: string, runner?: Runner): Board {
+export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?: Upkeep): Board {
   const spool = project ? ws.project(project) : ws.home;
   const d = docket(ws, spool);
   const columns: Record<Column, Card[]> = { proposed: [], build: [], building: [], done: [] };
@@ -445,6 +450,8 @@ export function board(ws: Workspace, project?: string, runner?: Runner): Board {
     project: spool.name,
     you: identicon(spool.name),
     version: projectVersion(spool.root),
+    build: upkeep?.build ?? '',
+    notice: upkeep?.notice ?? '',
     gate: !!spool.config.gate,
     locked: spool.config.gate === 'locked',
     tags: [...new Set(all.flatMap((t) => t.tags))].sort(),
@@ -513,6 +520,16 @@ function pageRunning(id: string): boolean {
   });
 }
 
+/** End a program started in a process group of its own, and everything it started. */
+function endGroup(child: ChildProcess): void {
+  try {
+    if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, 'SIGTERM');
+    else child.kill('SIGTERM');
+  } catch {
+    child.kill('SIGTERM');
+  }
+}
+
 /**
  * The runner: with it on, the page builds what is in Build by itself. It takes
  * the next thread, starts the user's agent command on it with the rules and
@@ -531,6 +548,11 @@ export class Runner {
   current: { id: string; title: string; child: ChildProcess; lines: string[]; began: number; stopped: boolean; undo?: boolean } | null = null;
   /** The thread dragged into Building: it is the next one taken, ahead of the rest of Build. */
   next: string | undefined;
+  /**
+   * The page looking after its own code, once a tick and before anything is started. It answers
+   * true while nothing new should start: Spool is being rebuilt, or the page is about to restart.
+   */
+  upkeep: (() => boolean) | undefined;
   /** Files already changed, and not committed, when each thread was handed out: undoing its edits leaves those alone. */
   private before = new Map<string, Set<string> | null>();
   /** How the last few threads it ran turned out, newest first. */
@@ -671,15 +693,11 @@ export class Runner {
 
   /** End the agent and whatever it started: it runs in a group of its own, so the whole group is told. */
   private end(child: ChildProcess): void {
-    try {
-      if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, 'SIGTERM');
-      else child.kill('SIGTERM');
-    } catch {
-      child.kill('SIGTERM');
-    }
+    endGroup(child);
   }
 
   private tick(): void {
+    if (this.upkeep?.()) return;
     if (!this.on || this.current) return;
     let task: Item | undefined;
     let prompt = '';
@@ -937,6 +955,258 @@ export class Runner {
     this.recent.unshift({ id: run.id, title: run.title, outcome });
     this.recent.splice(5);
     if (this.current === run) this.current = null;
+  }
+}
+
+// ------------------------------------------------------------------ the page keeps its own code current
+
+/** Where the code this page runs was loaded from: the package's dist/, or src/ when it is run from source. */
+const CODE_FILE = fileURLToPath(import.meta.url);
+const CODE_DIR = path.dirname(CODE_FILE);
+const CODE_EXT = path.extname(CODE_FILE);
+
+/** The code files beside this one. */
+function codeFiles(): string[] {
+  return fs.readdirSync(CODE_DIR).filter((name) => name.endsWith(CODE_EXT)).sort();
+}
+
+/** The size and time of every code file: cheap to take, and different whenever a build has written. */
+function codeStamp(): string {
+  try {
+    return codeFiles()
+      .map((name) => {
+        const stat = fs.statSync(path.join(CODE_DIR, name));
+        return `${name} ${stat.size} ${stat.mtimeMs}`;
+      })
+      .join('\n');
+  } catch {
+    return ''; // A build is moving the files about; the next look sees them.
+  }
+}
+
+/** A short name for exactly this code. The same files with the same contents always give the same one. */
+export function buildId(): string {
+  try {
+    const hash = createHash('sha256');
+    for (const name of codeFiles()) hash.update(`${name}\n`).update(fs.readFileSync(path.join(CODE_DIR, name))).update('\n');
+    return hash.digest('hex').slice(0, 12);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Spool building Spool. The page serves the code it was started from. Where that is a checkout
+ * of Spool with its sources beside it, and not an installed copy, the code is only as new as the
+ * last `npm run build`; and where that checkout is a project this page builds, agents are
+ * changing those sources. Only then does the page rebuild, and this is the folder to do it in.
+ */
+function ownCheckout(ctx: Ctx, project: string | undefined): string | undefined {
+  const root = path.dirname(CODE_DIR);
+  try {
+    const scripts = (JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { scripts?: Record<string, unknown> }).scripts;
+    if (typeof scripts?.build !== 'string' || !fs.statSync(path.join(root, 'src')).isDirectory()) return undefined;
+    const real = fs.realpathSync(root);
+    const ws = Workspace.open(ctx.cwd, ctx.now);
+    try {
+      const built = project ? [ws.project(project)] : ws.spools;
+      return built.some((s) => fs.realpathSync(s.root) === real) ? root : undefined;
+    } finally {
+      ws.close();
+    }
+  } catch {
+    return undefined; // No package.json, no sources, no spool: nothing of Spool's own to build here.
+  }
+}
+
+/** How long the code on disk must have been still before it is taken for a finished build. */
+const SETTLE_MS = 2000;
+/** How long new work waits for a restart that is on its way. */
+const HOLD_MS = 30_000;
+const REBUILD_MINUTES = 10;
+
+/**
+ * The page keeping its own code current, so that what is marked done is what the page shows.
+ * Two things, looked at once a second:
+ *
+ *   - When Build and Building have both emptied after work was in them, and this page builds
+ *     Spool's own checkout, it runs `npm run build` there. Never sooner: a build made while a
+ *     thread is being built bakes in an agent's half-made edits, and a `spool` call made while
+ *     the build writes can find half a file.
+ *   - When the code on disk is no longer the code this process loaded (that rebuild, anyone
+ *     else's, or an upgrade) and no agent of this page's is running, it restarts onto it. The
+ *     board carries the name of the build that serves it, and an open page that sees another
+ *     name reloads itself.
+ *
+ * A build that failed, or one that does not start, is never restarted onto: the page stays as it
+ * is, and says so.
+ */
+export class Upkeep {
+  /** The name of the code this process loaded. */
+  readonly build: string;
+  /** What the human should know about the page itself, shown on it: it is rebuilding, or a rebuild failed. */
+  notice = '';
+  /** The code on disk as it was when this process loaded it, or as it was last found to be the same. */
+  private loaded: string;
+  /** The newest code on disk that is not what was loaded: when it was first seen so, and its name once worked out. */
+  private seen = { stamp: '', at: 0, id: '' };
+  /** When the code on disk was first found changed, for as long as that is not settled. */
+  private changed = 0;
+  /** Code on disk that is not to be started: a failed build left it, or it was tried and did not start. */
+  private refused = '';
+  /** Something has been in Build or Building since the last rebuild. */
+  private worked = false;
+  private building = false;
+  private over = false;
+  private ctx: Ctx;
+  private project: string | undefined;
+  private runner: Runner;
+  private own: string | undefined;
+  private restart: ((agentsOn: boolean) => void) | undefined;
+
+  constructor(ctx: Ctx, project: string | undefined, runner: Runner, restart?: (agentsOn: boolean) => void) {
+    this.ctx = ctx;
+    this.project = project;
+    this.runner = runner;
+    this.build = buildId();
+    this.loaded = codeStamp();
+    this.own = ownCheckout(ctx, project);
+    // With no name for what was loaded, there is nothing to hold the disk against.
+    this.restart = this.build && this.loaded ? restart : undefined;
+  }
+
+  /** One look. True while nothing new should be started: a rebuild is running, or a restart is on its way. */
+  check(): boolean {
+    if (this.over) return true;
+    try {
+      this.rebuildWhenIdle();
+      return this.restartWhenNew() || this.building;
+    } catch {
+      return this.building; // The spool was busy for an instant; the next look is a second away.
+    }
+  }
+
+  close(): void {
+    this.over = true;
+  }
+
+  private rebuildWhenIdle(): void {
+    if (!this.own || this.building) return;
+    // An agent that has said done may still be on its way out: it counts until it has gone.
+    let busy = !!this.runner.current;
+    if (!busy) {
+      const ws = Workspace.open(this.ctx.cwd, this.ctx.now);
+      try {
+        busy = tasks(ws, this.project).some((t) => {
+          const column = columnOf(taskState(ws, t));
+          return column === 'build' || column === 'building';
+        });
+      } finally {
+        ws.close();
+      }
+    }
+    if (busy) {
+      this.worked = true;
+      return;
+    }
+    if (!this.worked) return;
+    this.worked = false;
+    this.rebuild(this.own);
+  }
+
+  private rebuild(root: string): void {
+    const kept = path.join(os.tmpdir(), `spool-rebuild-${process.pid}.log`);
+    let log: number | undefined;
+    try {
+      log = fs.openSync(kept, 'w');
+    } catch {
+      log = undefined; // Nowhere to keep what it prints; it runs all the same.
+    }
+    this.building = true;
+    this.notice = 'Build and Building are empty, so Spool is being rebuilt. This page reloads itself if anything changed.';
+    const child = spawn('npm run build', {
+      shell: true,
+      cwd: root,
+      // Printing to a file, in a group of its own: a page stopped mid-build must not leave half a build behind.
+      stdio: ['ignore', log ?? 'ignore', log ?? 'ignore'],
+      detached: process.platform !== 'win32',
+      env: this.ctx.env,
+    });
+    if (log !== undefined) fs.closeSync(log);
+    const timer = setTimeout(() => endGroup(child), REBUILD_MINUTES * 60_000);
+    let ended = false;
+    const end = (failed: string): void => {
+      if (ended) return;
+      ended = true;
+      clearTimeout(timer);
+      let said = '';
+      try {
+        // The last thing the build itself said, past npm's own lines about it.
+        const lines = fs.readFileSync(kept, 'utf8').split('\n').map((line) => line.trim()).filter(Boolean);
+        said = lines.filter((line) => !/^(npm |>)/.test(line)).at(-1) ?? lines.at(-1) ?? '';
+        fs.rmSync(kept, { force: true });
+      } catch {
+        // What it printed is lost; how it ended is still known.
+      }
+      this.building = false;
+      if (!failed) {
+        this.notice = '';
+        return;
+      }
+      // Whatever a failed build left on disk is not started.
+      this.refused = codeStamp();
+      this.notice = `Rebuilding Spool ${failed}, so this page is still the build from before${said ? `: ${oneLine(said, 300)}` : '.'}`;
+    };
+    child.on('error', (error) => end(`could not run (${error.message})`));
+    child.on('exit', (code, signal) => end(code === 0 ? '' : signal ? `was stopped (${signal})` : `failed (exit ${code})`));
+  }
+
+  /** True while a restart is on its way, so that nothing is started only to be ended by it. */
+  private restartWhenNew(): boolean {
+    if (!this.restart) return false;
+    const stamp = codeStamp();
+    if (!stamp || stamp === this.loaded || stamp === this.refused) {
+      this.changed = 0;
+      return false;
+    }
+    const now = Date.now();
+    if (stamp !== this.seen.stamp) this.seen = { stamp, at: now, id: '' };
+    this.changed ||= now;
+    const soon = now - this.changed < HOLD_MS;
+    // A build may still be writing: wait until the files have been still for a moment.
+    if (this.building || now - this.seen.at < SETTLE_MS) return soon;
+    this.seen.id ||= buildId();
+    if (!this.seen.id) return soon;
+    if (this.seen.id === this.build) {
+      // Written again, and the same code: there is nothing to restart for.
+      this.loaded = stamp;
+      this.changed = 0;
+      return false;
+    }
+    // Never under an agent: a restart would end it. It comes when the agent has gone.
+    if (this.runner.current) return false;
+    if (!this.starts()) {
+      this.refused = stamp;
+      this.changed = 0;
+      this.notice = 'A new build of Spool is on disk, but it does not start, so this page is still the build from before.';
+      return false;
+    }
+    try {
+      this.restart(this.runner.on);
+    } catch {
+      // It could not be handed over; this page carries on as it is.
+      this.refused = stamp;
+      this.changed = 0;
+      return false;
+    }
+    this.over = true;
+    return true;
+  }
+
+  /** Whether the code now on disk starts at all: the whole of it is loaded, in a process of its own. */
+  private starts(): boolean {
+    const ran = spawnSync(process.execPath, [...process.execArgv, path.join(CODE_DIR, `cli${CODE_EXT}`), '--version'], { stdio: 'ignore', timeout: 30_000 });
+    return ran.status === 0;
   }
 }
 
@@ -1249,25 +1519,45 @@ function send(res: http.ServerResponse, status: number, type: string, payload: s
   res.end(payload);
 }
 
-/** Start the page's server. Returns once it is listening. */
+/** What a page restarting onto new code hands to the page that takes over: the same address, and whether agents were on. */
+interface Resume {
+  port: number;
+  run: boolean;
+}
+
+/**
+ * Start the page's server. Returns once it is listening.
+ *
+ * `restart` is how the page gets onto new code once it finds some on disk: without it, it stays
+ * on what it loaded. `resumed` says this page is taking over from one that restarted.
+ */
 export function startPage(
   ctx: Ctx,
-  options: { port?: number; project?: string; run?: boolean; agent?: string },
+  options: { port?: number; project?: string; run?: boolean; agent?: string; resumed?: boolean; restart?: (resume: Resume) => void },
   ready: (started: Started) => void,
 ): http.Server {
   const token = randomBytes(18).toString('base64url');
   const runner = new Runner(ctx, options.project, options.agent, !!options.run);
+  const handOver = (agentsOn: boolean): void => {
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('the page is not listening');
+    // Nothing more is started from here: the page that takes over does it.
+    runner.close();
+    options.restart!({ port: address.port, run: agentsOn });
+  };
+  const upkeep = new Upkeep(ctx, options.project, runner, options.restart ? handOver : undefined);
+  runner.upkeep = () => upkeep.check();
   const server = http.createServer((req, res) => {
     const { port } = server.address() as AddressInfo;
     // Only a browser pointed at this machine: a name another site resolved here is refused.
     if (!new Set([`127.0.0.1:${port}`, `localhost:${port}`]).has(req.headers.host ?? '')) return send(res, 403, 'text/plain', 'not this machine');
     const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
     try {
-      if (req.method === 'GET' && url.pathname === '/') return send(res, 200, 'text/html', PAGE.replace('__TOKEN__', token));
+      if (req.method === 'GET' && url.pathname === '/') return send(res, 200, 'text/html', PAGE.replace('__TOKEN__', token).replace('__BUILD__', upkeep.build));
       if (req.method === 'GET' && url.pathname === '/api/board') {
         const ws = Workspace.open(ctx.cwd, ctx.now);
         try {
-          return send(res, 200, 'application/json', JSON.stringify(board(ws, options.project, runner)));
+          return send(res, 200, 'application/json', JSON.stringify(board(ws, options.project, runner, upkeep)));
         } finally {
           ws.close();
         }
@@ -1325,13 +1615,17 @@ export function startPage(
       if (!(error instanceof SpoolError)) ctx.err(String(error));
     }
   });
+  // Once, however many ports were tried first.
+  server.once('listening', () => ready({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`, server }));
   const listen = (port: number, triesLeft: number): void => {
     server.once('error', (error: NodeJS.ErrnoException) => {
       // The usual port is taken, by another project's page perhaps: take the next one.
       if (error.code === 'EADDRINUSE' && triesLeft > 0 && !options.port) listen(port + 1, triesLeft - 1);
+      // A page taking over keeps the address the open page already has: wait for the last one to let go of it.
+      else if (error.code === 'EADDRINUSE' && triesLeft > 0 && options.resumed) setTimeout(() => listen(port, triesLeft - 1), 150);
       else ctx.err(`spool: the page could not start: ${error.message}`);
     });
-    server.listen(port, '127.0.0.1', () => ready({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`, server }));
+    server.listen(port, '127.0.0.1');
   };
   listen(options.port ?? 4747, 20);
   // The server's own close comes later than a process that is exiting: put the thread back on the way out too.
@@ -1340,13 +1634,88 @@ export function startPage(
   server.on('close', () => {
     process.off('exit', leaving);
     runner.close();
+    upkeep.close();
   });
   return server;
 }
 
+const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
+
+/**
+ * How a page that was started by another says, as it ends: start me again, on the code now on
+ * disk. The exit code also says whether its agents were on, since nothing else is sure to arrive.
+ */
+const RESTART = { on: 75, off: 76 } as const;
+
+/** What a restarting page handed over, read from wherever it arrived; nothing unless it is whole. */
+function resumeOf(value: unknown): Resume | undefined {
+  try {
+    const given = (typeof value === 'string' ? JSON.parse(value) : value) as { port?: unknown; run?: unknown } | null;
+    if (given && typeof given.port === 'number' && Number.isInteger(given.port) && given.port > 0 && given.port < 65536) {
+      return { port: given.port, run: given.run === true };
+    }
+  } catch {
+    // Not what a page writes: there is nothing to take over.
+  }
+  return undefined;
+}
+
+/**
+ * Stay up as the process the terminal, or the harness, started, and run the page in a child of
+ * it. A process cannot load its own code a second time, so a page moves onto a new build by
+ * ending and being started again; this is what starts it again, at the same address and with
+ * agents as they were. Stopping this process stops the page, as it always did.
+ */
+function keepPage(ctx: Ctx, page: { project?: string; agent?: string }, first: Resume): void {
+  const argv = [
+    ...process.execArgv,
+    path.join(CODE_DIR, `cli${CODE_EXT}`),
+    'page',
+    '--no-open',
+    ...(page.project ? ['--project', page.project] : []),
+    ...(page.agent ? ['--agent', page.agent] : []),
+  ];
+  let child: ChildProcess | undefined;
+  let leaving = false;
+  const start = (resume: Resume): void => {
+    const started = spawn(process.execPath, argv, {
+      cwd: ctx.cwd,
+      // The terminal, and a channel: the page knows by the channel closing that this process has died.
+      stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+      env: { ...ctx.env, SPOOL_PAGE_RESUME: JSON.stringify(resume) },
+    });
+    child = started;
+    started.on('error', (error) => {
+      ctx.err(`spool: the page could not be started again: ${error.message}`);
+      process.exit(1);
+    });
+    started.on('exit', (code, signal) => {
+      if (!leaving && (code === RESTART.on || code === RESTART.off)) start({ port: first.port, run: code === RESTART.on });
+      else process.exit(code ?? (signal ? 1 : 0));
+    });
+  };
+  for (const signal of SIGNALS) {
+    process.on(signal, () => {
+      // Told to stop: the page is told the same, and puts back what it was building before both go.
+      leaving = true;
+      const running = child;
+      if (running && running.exitCode === null && running.signalCode === null) {
+        running.kill(signal);
+        setTimeout(() => {
+          running.kill('SIGKILL');
+          process.exit(0);
+        }, 5000).unref();
+      } else process.exit(0);
+    });
+  }
+  start(first);
+}
+
 /** `spool page`: start the server, say where it is, and open it. The process stays up until it is stopped. */
 export function servePage({ ctx, opts }: Bare): Result {
-  const port = opts.port === undefined ? undefined : Number(opts.port);
+  // A page that restarted onto new code says where the one before it was, and whether its agents were on.
+  const resumed = resumeOf(ctx.env.SPOOL_PAGE_RESUME);
+  const port = resumed ? resumed.port : opts.port === undefined ? undefined : Number(opts.port);
   if (port !== undefined && (!Number.isInteger(port) || port < 1 || port > 65535)) throw new SpoolError('--port must be a port number');
   const project = typeof opts.project === 'string' ? opts.project : undefined;
   // Fail now, in words, where there is no spool or no such project.
@@ -1356,9 +1725,31 @@ export function servePage({ ctx, opts }: Bare): Result {
   } finally {
     ws.close();
   }
-  const run = !!opts.run;
+  const run = resumed ? resumed.run : !!opts.run;
   const agent = typeof opts.agent === 'string' ? opts.agent : undefined;
-  const server = startPage(ctx, { port, project, run, agent }, ({ url }) => {
+  // Started by a page that is staying up to restart this one: it is told how, and this one ends if it does.
+  const kept = !!resumed && typeof process.send === 'function';
+  // Ctrl-C, or closing the terminal, ends the page and the agent it started with it.
+  const stop = (): void => {
+    server.close();
+    process.exit(0);
+  };
+  const restart = (resume: Resume): void => {
+    // Started by a page that stayed up for this: ending this way is asking it to start the next.
+    if (kept) process.exit(resume.run ? RESTART.on : RESTART.off);
+    // The first restart. This process stays, since it is the one the terminal holds, and the page runs in a child from here on.
+    for (const signal of SIGNALS) process.off(signal, stop);
+    server.close();
+    server.closeAllConnections();
+    keepPage(ctx, { project, agent }, resume);
+  };
+  // What tells a page it is taking over is for that page alone, not for the agents it starts.
+  const own: Ctx = { ...ctx, env: { ...ctx.env, SPOOL_PAGE_RESUME: undefined } };
+  const server = startPage(own, { port, project, run, agent, resumed: !!resumed, restart }, ({ url }) => {
+    if (resumed) {
+      ctx.out(`Restarted on the new build: ${url}`);
+      return;
+    }
     ctx.out(`Spool page: ${url}`);
     if (run) ctx.out('Agents are on: this page builds what is in Build, with no chat open.');
     ctx.out('Leave this running while you use the page. Ctrl-C stops it.');
@@ -1368,8 +1759,8 @@ export function servePage({ ctx, opts }: Bare): Result {
       spawn(opener, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref();
     }
   });
-  // Ctrl-C, or closing the terminal, ends the page and the agent it started with it.
-  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.once(signal, () => { server.close(); process.exit(0); });
+  for (const signal of SIGNALS) process.once(signal, stop);
+  if (kept) process.once('disconnect', stop);
   return { text: '' };
 }
 
@@ -1602,6 +1993,8 @@ const PAGE = String.raw`<!doctype html>
 <div id="said"></div>
 <script>
 const TOKEN = '__TOKEN__';
+// Which build of Spool this page came from. The board names the build that serves it now.
+const BUILD = '__BUILD__';
 const COLUMNS = [
   ['proposed', 'Backlog', 'Nothing here is built. Drag a thread to Build, or press ▶.'],
   ['build', 'Build', 'Agents take these in order, top first.'],
@@ -1628,6 +2021,11 @@ if (asked) view = asked[1];
 // The thread that is open, if one is, and notes begun but not yet added.
 let openId = null;
 const drafts = new Map();
+// A page that reloaded itself onto a new build brings the replies that were begun along.
+try {
+  for (const [id, words] of JSON.parse(sessionStorage.getItem('spool-drafts') || '[]')) drafts.set(id, words);
+  sessionStorage.removeItem('spool-drafts');
+} catch (e) {}
 // Completed threads are history: kept, and out of the way until asked for.
 let showHistory = false;
 // What the board is narrowed to: { kind: 'tag' | 'version' | 'sprint', value }, and whatever is typed in the search.
@@ -2314,11 +2712,13 @@ function draw(b) {
   // The yarn is the tab's icon, so the title is the project's name alone.
   document.title = b.project;
   document.getElementById('where').textContent = b.version ? 'v' + b.version : '';
-  // One thing is still worth a line: a project where the gate is off, because there the board
-  // cannot promise that nothing builds by itself.
+  // Two things are still worth a line: a project where the gate is off, because there the board
+  // cannot promise that nothing builds by itself; and what the page has to say about itself, when
+  // it is rebuilding Spool or could not.
   const rule = document.getElementById('rule');
-  rule.textContent = b.gate ? '' : 'The build gate is off in this project: new threads go straight to Build.';
-  rule.hidden = b.gate;
+  const lines = [b.gate ? '' : 'The build gate is off in this project: new threads go straight to Build.', b.notice || ''].filter(Boolean);
+  rule.textContent = lines.join(' ');
+  rule.hidden = !lines.length;
   for (const tab of document.querySelectorAll('.tab')) tab.classList.toggle('on', tab.dataset.view === view);
 
   // Quick filters: one pill a sprint, and whatever tag or version the board is narrowed to.
@@ -2355,18 +2755,36 @@ function draw(b) {
 // Draw again from what is already here: a view, a filter or a box changed, and nothing on disk did.
 function redraw() { if (current) draw(current); }
 
+// The server is now another build of Spool than the one this page came from: load the page again,
+// so what is on screen is what was built. Once for each build, so a page that cannot get onto it
+// does not spin. True if the page is going.
+function renew(build) {
+  try {
+    if (sessionStorage.getItem('spool-renewed') === build) return false;
+    sessionStorage.setItem('spool-renewed', build);
+    sessionStorage.setItem('spool-drafts', JSON.stringify([...drafts]));
+  } catch (e) {}
+  location.reload();
+  return true;
+}
+
+// How many looks in a row found no server. A page restarting onto a new build is away for a moment.
+let misses = 0;
 async function load(now) {
   // Never redraw under someone's typing or choosing; a redraw that was asked for goes ahead.
   const at = document.activeElement;
   if (!now && (busy || (at && at.id !== 'search' && (['TEXTAREA', 'INPUT', 'SELECT'].includes(at.tagName) || at.isContentEditable)))) return;
   try {
     const text = await (await fetch('/api/board')).text();
+    misses = 0;
     if (text === last) return;
+    const b = JSON.parse(text);
+    if (b.build && b.build !== BUILD && renew(b.build)) return;
     last = text;
-    current = JSON.parse(text);
+    current = b;
     draw(current);
   } catch (e) {
-    say('The page lost its server. Run spool page again.');
+    if (++misses >= 3) say('The page lost its server. Run spool page again.');
   }
 }
 
