@@ -1,6 +1,6 @@
 /**
  * Small things a person sees on the page, in a real browser: the bar fits a phone, a question's
- * answers line up, a card opens from anywhere on it, a thread's Why names its own project, a
+ * answers line up on its thread, a card opens from anywhere on it, a thread's Why names its own project, a
  * ticket says only what a run really had, the dark theme's green buttons are calm, and a page that
  * lost its server says so plainly. SPOOL_SHOTS=<folder> leaves pictures of each.
  */
@@ -45,6 +45,16 @@ test('on a phone the name has its room and the search is a button; answers line 
     // Side by side, or one to a line at one width.
     assert.ok(tops[0] === tops[1] || widths[0] === widths[1], `${where}: ${widths.join(', ')} at ${tops.join(', ')}`);
   };
+  // A question is asked on its thread alone: its card and the brief say nothing of it, and its ticket has the answers.
+  const answers = async (tab: Page): Promise<void> => {
+    assert.equal(await tab.locator('#brief, #board').getByText('Who pays the cent').count(), 0, 'no question on the board or in the brief');
+    await tab.locator('#board .card', { hasText: 'Make the shares add up' }).locator('.title').click();
+    await sameWidths(tab, '#thread .post:has-text("Who pays the cent") .opts button');
+  };
+  const shut = async (tab: Page): Promise<void> => {
+    await tab.keyboard.press('Escape');
+    await tab.locator('#thread').waitFor({ state: 'hidden' });
+  };
 
   try {
     for (const scheme of ['light', 'dark'] as const) {
@@ -53,8 +63,8 @@ test('on a phone the name has its room and the search is a button; answers line 
       const brand = phone.locator('.brand');
       assert.ok(await brand.evaluate((n) => n.scrollWidth <= n.clientWidth), `${scheme}: the project's name is not cut`);
       assert.match(await brand.innerText(), /tip-splitter/);
-      await sameWidths(phone, '#brief .card:has-text("Who pays the cent") .opts button');
-      await sameWidths(phone, '#board .card:has-text("Make the shares add up") .opts button');
+      await answers(phone);
+      await shut(phone);
       if (scheme === 'light') {
         // The search opens over the bar's second row, from its button or from /, and folds away left empty.
         const box = phone.locator('#search');
@@ -79,8 +89,9 @@ test('on a phone the name has its room and the search is a button; answers line 
     // A result written over several lines: whole, it is read with its list; where there is room for a line, its first.
     assert.deepEqual(await wide.evaluate("[firstLine('Shares add up now:\\n- the first person pays the cent'), firstLine('\\n- one\\n- two'), richNote('Shares add up now:\\n- the first person pays the cent').querySelectorAll('li').length]"),
       ['Shares add up now:', 'one', 1]);
-    await sameWidths(wide, '#board .card:has-text("Make the shares add up") .opts button');
+    await answers(wide);
     await shot(wide, 'answers-wide');
+    await shut(wide);
     // A click on the body of a card opens its ticket; one on its id copies, and opens nothing.
     const card = wide.locator('#board .card', { hasText: 'Refuse to split a bill between no one' });
     await card.locator('.why').click();
