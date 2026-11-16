@@ -19,6 +19,7 @@ import { doctor } from './doctor.ts';
 import { GOALS_STARTER, goalsFile, goalsOf, goalsText } from './goals.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
 import { demo } from './demo.ts';
+import { buildUnderLeave, dropUnderLeave, leaveCommand } from './leave.ts';
 import { dropLesson, learn, lessonLine, lessons } from './lessons.ts';
 import { runLoop } from './loop.ts';
 import { manage } from './manage.ts';
@@ -931,16 +932,20 @@ export const COMMANDS: Command[] = [
   {
     name: 'build',
     group: 'you',
-    usage: 'build <t-id…> [--abort]',
-    summary: 'Move proposed work to build: it may be built now, in its turn. --abort takes it off whoever is building it, back to waiting in build',
+    usage: 'build <t-id…> [--abort] [--leave]',
+    summary:
+      'Move proposed work to build: it may be built now, in its turn. --abort takes it off whoever is building it, back to waiting in build. --leave is how an agent moves it there itself, under a leave the human gave',
     human: true,
     write: true,
-    options: { abort: { type: 'boolean' } },
+    options: { abort: { type: 'boolean' }, leave: { type: 'boolean' } },
     run(call) {
-      const { ws, args, actor, p } = call;
+      const { ws, args, p } = call;
       if (!args.length) throw new SpoolError('what to build is missing', 'spool build <t-id>');
       const tasks = args.map((ref) => ws.get(ref, 'task'));
-      byTheHuman(call, tasks.map((t) => t.spool), 'build');
+      // Under a leave the human gave, an agent moves work to build itself, up to the leave's count. See leave.ts.
+      const leave = call.opts.leave ? buildUnderLeave(call, tasks) : undefined;
+      if (!leave) byTheHuman(call, tasks.map((t) => t.spool), 'build');
+      const actor = leave?.actor ?? call.actor;
       for (const t of tasks) {
         const state = taskState(ws, t);
         if (state === 'done' || state === 'dropped') throw new SpoolError(`${t.id} is already ${state}`);
@@ -957,13 +962,27 @@ export const COMMANDS: Command[] = [
         }
         // Moving something to build is the human saying start: it clears a hold as well, and brings back an archived thread.
         if (t.status !== 'proposed' && !t.hold && !t.archived) continue;
-        addLog(t, actor, t.hold ? `moved to build (was on hold: ${t.hold})` : t.archived ? 'moved to build (was archived)' : 'moved to build', ws.now());
+        addLog(t, actor, leave ? leave.moved(t) : t.hold ? `moved to build (was on hold: ${t.hold})` : t.archived ? 'moved to build (was archived)' : 'moved to build', ws.now());
         if (t.status === 'proposed') t.status = 'open';
         t.hold = undefined;
         t.archived = undefined;
         ws.save(t);
       }
       return { text: `In build:\n${tasks.map((t) => `  ${itemLine(ws, t, p)}`).join('\n')}`, data: { build: tasks.map((t) => itemJson(ws, t)) } };
+    },
+  },
+  {
+    name: 'leave',
+    group: 'you',
+    usage: 'leave [<your words…> [--until <time>] [--build <n>] [--drop-shipped] [--proposals <n>] | --end] [-P <project>]',
+    summary:
+      'Say how far agents may go while you are away, and until when: tidying only, or also building up to n threads, dropping what has shipped, filing more ideas. It ends at --until (8 the next morning unless said, 24 hours at most) or with --end, and nothing renews it; with nothing after it, says what is live',
+    human: true,
+    write: true,
+    options: { until: { type: 'string' }, build: { type: 'string' }, 'drop-shipped': { type: 'boolean' }, proposals: { type: 'string' }, end: { type: 'boolean' }, ...PROJECT },
+    run(call) {
+      const spool = str(call.opts.project) ? call.ws.project(str(call.opts.project)) : call.ws.home;
+      return leaveCommand(call, spool, () => byTheHuman(call, [spool], 'leave'));
     },
   },
   {
@@ -1765,19 +1784,22 @@ export const COMMANDS: Command[] = [
   {
     name: 'drop',
     group: 'agents',
-    usage: 'drop <id…> [-m <why>]',
-    summary: 'Abandon an item (a skill is deleted from disk)',
+    usage: 'drop <id…> [-m <why>] [--leave]',
+    summary: 'Abandon an item (a skill is deleted from disk); --leave drops a thread as shipped under a leave the human gave, with the commit named in -m',
     write: true,
-    options: { ...MESSAGE },
+    options: { ...MESSAGE, leave: { type: 'boolean' } },
     run(call) {
       const { ws, p, actor } = call;
       if (!call.args.length) throw new SpoolError('what to drop is missing');
       const items = call.args.map((ref) => ws.get(ref));
-      const why = str(call.opts.message);
+      // Under a leave that allows it, what has shipped is dropped with its commit as the reason. See leave.ts.
+      const leave = call.opts.leave ? dropUnderLeave(call, items) : undefined;
+      const why = leave?.why ?? str(call.opts.message);
       const out: string[] = [];
       const ready: Item[] = [];
       for (const item of items) {
         if (item.status === 'dropped') continue;
+        leave?.dropped(item);
         const skill = item.kind === 'skill' ? fileFor(ws, item) : undefined;
         item.status = 'dropped';
         if (item.kind === 'task') {

@@ -96,6 +96,11 @@ export function tasks(ws: Workspace, project?: Scope): Item[] {
   return ws.items.filter((i) => i.kind === 'task' && (!spool || i.spool === spool));
 }
 
+/** The manager's run that is open in a project: its thread is still being worked, quiet or not. */
+export function openRun(ws: Workspace, spool: Spool): Item | undefined {
+  return tasks(ws, spool).find((t) => isRun(t) && t.status === 'active');
+}
+
 const EFFORT = { xs: 0, s: 1, m: 2, l: 3, xl: 4 } as const;
 
 /** How much work picking this up is. Writing a plan is quick whatever the size of the thing planned. */

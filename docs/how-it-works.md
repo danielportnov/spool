@@ -44,7 +44,8 @@ a drag, and ▶ on a sprint all run it.
 A project can also **lock** the gate: `spool init --lock`. Then the three commands that start work —
 `build`, `play`, `release` — run only for a person: from a real terminal, or from the page on a
 click. An agent that tries is refused and told to hand you the thread's link. Unlocked, an agent
-passes your word on when you say "build that" in a chat.
+passes your word on when you say "build that" in a chat. `spool leave`, which lets an agent move a
+counted few threads to Build for one night (see "The manager"), is locked the same way.
 
 Be clear about what the lock is. It stops an agent starting work by mistake, or on its own reading
 of what you meant. It is not a security boundary: a program running as you can do what you can.
@@ -356,6 +357,33 @@ each with its reason where one was given. The report is read on the thread's tic
 `spool revert <id>` takes the whole pass back. `spool manage` alone says whether a run is open.
 There is one run at a time in a project, and its thread is never handed to a worker.
 
+**A leave.** By itself the manager only tidies. How far it may go beyond that is yours to say,
+in your own words, for one night at a time:
+
+    spool leave "work through whatever still seems relevant, I'll check in the morning" --until 8am --build 5 --drop-shipped
+
+- `--build <n>`: an agent may move up to n threads to Build, with `spool build <t-id> --leave`.
+  Each one is counted, and logged on its thread as "moved to build under the leave: <your words>".
+  Once the count is used up, or the time has passed, it is refused, in your words.
+- `--drop-shipped`: an agent may drop a thread as shipped, with
+  `spool drop <t-id> --leave -m "Shipped in <sha>: …"`, and only when the reason names a commit
+  that exists.
+- `--proposals <n>`: a run may file up to n new ideas, where it would file five.
+
+With none of them it is a leave to tidy, on record. A leave lifts no hold and brings nothing back
+from the archive.
+
+It is kept in `.spool/leave.json`: your words, who gave it, when, until when, what it allows and
+how much of that is used. It ends at `--until`, which is 8 the next morning unless you say and
+never more than 24 hours away; sooner with `spool leave --end`; and when a run that ran under it
+is undone. One that has run out is removed by the first command that finds it, with a line on the
+open run's thread. Nothing renews a leave, and a second cannot be given while one is live: the
+next night needs a new one. `spool leave` alone says what is live. `spool manage --start` prints
+the live leave at the top of the worksheet, and the run's report names it.
+
+Giving a leave is yours, like `spool build`: where the gate is locked an agent is refused, and
+unlocked, a chat gives one on your plain word ("manage this until midnight").
+
 ## A run, undone in one step
 
 Some work is many small changes to the queue and none to the code: sizing a backlog, dropping what
@@ -397,6 +425,7 @@ AI-suggested thread. It matches words, not meaning.
   config.json    the project's name, a line on what it is, and the gate
   policy.md      what agents may decide alone; yours to edit
   goals.md       where the project is going, in a few lines; agents read it first
+  leave.json     the leave that is live, if you gave one: your words, until when, what it allows
   items/         one markdown file per thread, question, note, sprint and skill record
   reports/       what audits and plans handed in
   runs/          per thread: what its agent printed, and for a run, its journal and the copies an undo puts back; never in git
@@ -559,7 +588,8 @@ ones marked 🔒:
 
 | Command | What it does |
 | --- | --- |
-| `spool build <t-id…>` 🔒 | Move work to Build |
+| `spool build <t-id…> [--leave]` 🔒 | Move work to Build. `--leave` is how an agent moves it there itself under a leave you gave, up to the leave's count |
+| `spool leave "<your words>" [--until time] [--build n] [--drop-shipped] [--proposals n]` 🔒 | Say how far agents may go while you are away, and until when (8 the next morning unless said, 24 hours at most). `--end` ends it, and anyone may; with nothing after it, says what is live |
 | `spool play <sprint>` 🔒 | Start a sprint: everything in it moves to Build |
 | `spool release <t-id…>` 🔒 | Take work off hold |
 | `spool propose <t-id…>` | Take work out of Build, back to the backlog |
@@ -585,7 +615,7 @@ ones marked 🔒:
 | `spool ask` · `assume` | Put a call to the human; or make it and leave a receipt |
 | `spool done <t-id> -m <summary> [--steps <step>…]` | Finish: record the commits, or hand in a report. Work in a worktree of its own is landed first. `--steps` (once a step, or `-` for one a line from stdin) says how to see a change working; a change finished without them says so |
 | `spool edit <id>` | Change a title, priority, size, kind, model, effort, tags, version, sprint, or the steps to check it by (`--steps`, `none` clears them); a sprint's version stamps its finished threads too |
-| `spool hold <t-id> -m why` · `drop <id>` | Park work; abandon it |
+| `spool hold <t-id> -m why` · `drop <id> [--leave]` | Park work; abandon it. `drop --leave -m "Shipped in <sha>: …"` drops a thread as shipped under a leave that allows it, and the commit must exist |
 | `spool sprint <name> [--goal …] [--why …] [--done-when …] [--serves <goal>] [--vision - \| --from <n-id>] [--add <t-id…>]` | Make a sprint and fill it in one go, keeping the vision in your words and the goal it serves; on a sprint that exists, add to it |
 | `spool manage [--start \| --end -m headline [--report -]]` | Put the backlog in order as one run that can be undone: `--start` opens the run and prints the worksheet of facts to work from, `--end` writes the report of what it changed; with neither, says whether a run is open |
 | `spool skill add` | Write a procedure down as a skill |

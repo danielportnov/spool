@@ -25,6 +25,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { Call, Result } from './commands.ts';
 import { git, repoRoot } from './git.ts';
+import { type Leave, allowed, leaveLine, leaveOfRun, runUnder, settle } from './leave.ts';
 import { lessons } from './lessons.ts';
 import {
   type Item,
@@ -43,7 +44,7 @@ import {
 } from './model.ts';
 import { type Paint, age, itemJson, itemLine, paint } from './render.ts';
 import { type Entry, readJournal, startJournal } from './journal.ts';
-import { buildLine, effort, taskState, tasks } from './schedule.ts';
+import { buildLine, effort, openRun, taskState, tasks } from './schedule.ts';
 import { SIMILAR, alikeIn, compare, droppedBecause, wordsOf } from './similar.ts';
 import { SPOOL_DIR, type Workspace } from './store.ts';
 
@@ -107,6 +108,9 @@ export interface Worksheet {
   project: string;
   /** Open threads read: everything waiting, in the backlog or in Build. */
   open: number;
+  /** The leave the run is under: how far the human said it may go. Null: it tidies only. */
+  leave: Leave | null;
+  /** New ideas the run may file: five, or what the leave says; none while too many still wait. */
   proposals: { cap: number; unanswered: number };
   saidNo: {
     dropped: { id: string; title: string; why: string | null; by: string | null; when: string }[];
@@ -146,11 +150,6 @@ function logOf(item: Item): Note[] {
     if (m) out.push({ at: Date.parse(`${m[1]}T${m[2]}Z`), minute: `${m[1]}T${m[2]}`, actor: m[3]!, text: m[4]! });
   }
   return out;
-}
-
-/** The run that is open in a project: its thread is still being worked. */
-export function openRun(ws: Workspace, spool: Spool): Item | undefined {
-  return tasks(ws, spool).find((t) => isRun(t) && t.status === 'active');
 }
 
 /** How long ago, as a person says it. */
@@ -328,7 +327,7 @@ function outcome(ws: Workspace, item: Item | undefined): string {
 }
 
 /** Everything the worksheet says, as data. Reads the spool, the git log, the changelog and the tests; writes nothing. */
-export function gather(ws: Workspace, spool: Spool, run: Item): Worksheet {
+export function gather(ws: Workspace, spool: Spool, run: Item, leave?: Leave): Worksheet {
   const now = ws.now();
   const mine = tasks(ws, spool).filter((t) => !isRun(t));
   const state = (t: Item) => taskState(ws, t);
@@ -426,7 +425,9 @@ export function gather(ws: Workspace, spool: Spool, run: Item): Worksheet {
     run: run.id,
     project: spool.name,
     open: open.length,
-    proposals: { cap: unanswered >= MANAGE.waiting ? 0 : MANAGE.proposals, unanswered },
+    leave: leave ?? null,
+    // The human's own number for tonight stands, whatever is waiting.
+    proposals: { cap: leave?.allows.proposals ?? (unanswered >= MANAGE.waiting ? 0 : MANAGE.proposals), unanswered },
     saidNo: {
       dropped,
       archived,
@@ -486,14 +487,21 @@ export function worksheetText(ws: Workspace, w: Worksheet, p: Paint): string {
   const out: string[] = [];
 
   const ideas = w.proposals;
+  out.push(`SPOOL_RUN=${w.run}`, `Set it on every command of this run, so one undo takes back all of it:  export SPOOL_RUN=${w.run}`, '');
+  // How far this run may go: the human's leave, in their words, or none.
+  if (w.leave) {
+    const a = w.leave.allows;
+    out.push(`${p.bold('Under the leave')} ${leaveLine(w.leave, now)}`);
+    if (a.build) out.push(`  to move a thread to build under it   spool build <t-id> --leave${p.dim(`      ${w.leave.used.build} of ${a.build} used`)}`);
+    if (a.dropShipped) out.push('  to drop one that has shipped         spool drop <t-id> --leave -m "Shipped in <sha>: <what makes its Done-when true>"');
+    if (!a.build && !a.dropShipped) out.push('  It moves nothing to build and drops nothing: what you would build or drop goes in the report, for the human to answer.');
+  } else out.push('No leave is live: this run tidies only. What you would build or drop goes in the report, for the human to answer.');
   out.push(
-    `SPOOL_RUN=${w.run}`,
-    `Set it on every command of this run, so one undo takes back all of it:  export SPOOL_RUN=${w.run}`,
     '',
     `${p.bold(`The backlog of ${w.project}`)}${p.dim(`  ${plural(w.open, 'open thread')}`)}`,
     'What follows are facts, gathered the same way every time. The judgment is yours.',
     ideas.cap
-      ? `New ideas: ${ideas.cap} at most this run. ${ideas.unanswered ? `${plural(ideas.unanswered, 'earlier one')} still ${ideas.unanswered === 1 ? 'waits' : 'wait'} for an answer.` : 'No earlier one is waiting for an answer.'}`
+      ? `New ideas: ${ideas.cap} at most this run${w.leave?.allows.proposals ? ', by the leave' : ''}. ${ideas.unanswered ? `${plural(ideas.unanswered, 'earlier one')} still ${ideas.unanswered === 1 ? 'waits' : 'wait'} for an answer.` : 'No earlier one is waiting for an answer.'}`
       : `New ideas: none this run. ${ideas.unanswered} earlier ones still wait for an answer, and at ${MANAGE.waiting} the human has enough to read.`,
     '',
   );
@@ -706,8 +714,10 @@ function countsLine(c: Changes): string {
 /** The report on the run's ticket: the headline, what the agent has to say, then what the journal shows. */
 function reportText(run: Item, headline: string, said: string, entries: Entry[], left: string): { text: string; counts: Changes } {
   const { lines, counts } = changesOf(entries);
+  const leave = leaveOfRun(run);
   const text = [
     headline,
+    ...(leave ? [`Under the leave "${leave.words}" (${allowed(leave)}).`] : []),
     `Undo all of it: spool revert ${run.id} -m "<why>", or Undo this thread on its ticket.`,
     ...(said ? ['', said] : []),
     '',
@@ -748,7 +758,10 @@ export function manage(call: Call): Result {
     addLog(run, actor, 'started', ws.now());
     ws.save(run);
     startJournal(run);
-    const sheet = gather(ws, spool, run);
+    // A leave that is live is this run's from now on: its thread names it, and undoing the run ends it.
+    const { live } = settle(ws, spool);
+    if (live) runUnder(ws, run, live, actor);
+    const sheet = gather(ws, spool, run, live);
     return { text: worksheetText(ws, sheet, p), data: { env: { SPOOL_RUN: run.id }, ...sheet } };
   }
 
@@ -759,6 +772,8 @@ export function manage(call: Call): Result {
       throw new SpoolError(`SPOOL_RUN names "${named}", which is not an open run`, open ? `The run that is open is ${open.id}` : 'Start one: spool manage --start');
     }
     if (!run) throw new SpoolError('no run is open', 'Start one: spool manage --start');
+    // A leave that ran out while the run worked is cleared now, so the run's thread says when.
+    settle(ws, run.spool);
     const headline = (typeof opts.message === 'string' ? opts.message : call.args.join(' ')).replace(/\s+/g, ' ').trim();
     if (!headline) throw new SpoolError('the headline is missing', 'The human reads it first: spool manage --end -m "Tidied the backlog: 9 sized, 2 new ideas" --report -');
     let said = '';
@@ -796,11 +811,13 @@ export function manage(call: Call): Result {
     .sort((a, b) => b.created.localeCompare(a.created))[0];
   if (open) {
     const writes = readJournal(open).entries;
+    const { live } = settle(ws, spool);
     return {
       text: [
         `A run is open in ${spool.name}:`,
         `  ${itemLine(ws, open, p, false)}`,
         p.dim(`  ${plural(new Set(writes.map((e) => e.item)).size, 'item')} changed so far, in ${plural(writes.length, 'write')}`),
+        ...(live ? [p.dim(`  under the leave ${leaveLine(live, ws.now())}`)] : []),
         p.dim(`  carry on under it     export SPOOL_RUN=${open.id}`),
         p.dim(`  end it                spool manage --end -m "<the headline>" --report -`),
         p.dim(`  take it all back      spool revert ${open.id}`),

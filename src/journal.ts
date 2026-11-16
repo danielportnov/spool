@@ -22,6 +22,7 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { endLeaveOf } from './leave.ts';
 import { type Item, type Kind, SpoolError, addLog, deserialize, isClosed, splitBody, timestamp } from './model.ts';
 import { type Paint, itemJson, itemLine } from './render.ts';
 import type { Recorder, Workspace } from './store.ts';
@@ -301,7 +302,10 @@ export function undoRun(ws: Workspace, run: Item, actor: string, why: string, p:
   addLog(run, actor, `undone: ${outcome}${why ? `. Why: ${why}` : ''}`, ws.now());
   ws.save(run);
 
+  // The leave it ran under ends with it: what the run was let do is no longer wanted.
+  const leave = endLeaveOf(ws, run);
   const lines = [`${p.bold(run.id)} undone: ${outcome}. No code was touched.`];
+  if (leave) lines.push(`The leave it ran under is ended: "${leave.words}"`);
   if (left.length) {
     lines.push('Left as they are:');
     for (const l of left) {
@@ -315,7 +319,7 @@ export function undoRun(ws: Workspace, run: Item, actor: string, why: string, p:
   }
   return {
     lines,
-    data: { run: itemJson(ws, run), restored, removed, left, built: built.map((t) => ({ id: t.id, undo: undoOf(t) })) },
+    data: { run: itemJson(ws, run), restored, removed, left, built: built.map((t) => ({ id: t.id, undo: undoOf(t) })), leaveEnded: leave?.words ?? null },
   };
 }
 

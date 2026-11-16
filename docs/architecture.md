@@ -50,6 +50,10 @@ those comments are the detail.
   and no judgment; `worksheetText` prints them. `changesOf` folds a run's journal into the report
   `--end` writes. A run's own thread is told by `isRun` in `model.ts`, and `ready` never hands
   it out.
+- `leave.ts` is `spool leave`: how far agents may go while the human is away, and until when,
+  kept in `.spool/leave.json`. `settle` gives the live leave and removes one that has run out.
+  `buildUnderLeave` and `dropUnderLeave` are what `spool build --leave` and `spool drop --leave`
+  ask before they act, and count each use.
 - `worktree.ts` gives a thread a git worktree of its own, so several can be built at once.
   `openWorktree` makes it inside `.spool/worktrees/`, on the branch `spool/<id>`, and `workDir`
   says where a thread is worked. `land` rebases the branch onto the checkout, runs the check in

@@ -260,6 +260,13 @@ It reads `GEMINI.md` unless its settings name `AGENTS.md` too.
 - 🧾 A call it makes by itself leaves a receipt you can overrule.
 - ✅ Name your tests once (`spool checks "npm test"`) and no thread can be marked done unless they pass.
 - 🏷️ What ships gets a version: a bump, a changelog entry, and a tag that stays on your machine.
+- 🧹 The backlog can be put in order while you sleep. `spool manage` hands an agent the facts: what
+  may already have shipped, what looks alike, what has no size, what has gone cold. The agent
+  sizes, sorts and proposes, and its report is on one thread in the morning. How far it may go is
+  yours to say, in your words and until a time:
+  `spool leave "work through what still seems relevant" --until 8am --build 5` lets it move up to
+  five threads to Build and no more, and with no leave it only tidies. One undo takes the whole
+  night back.
 - 🌅 Back in the morning? Ask "catch me up", or run `spool brief`: one screen with what shipped,
   the few threads worth checking, why, and the two or three steps to see each one working, and
   what needs you. `spool approve --all` clears it.
