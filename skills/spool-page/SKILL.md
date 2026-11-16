@@ -66,6 +66,12 @@ agents share the project's folder until each run gets a worktree of its own,
 so one is the rule. Leave it off when you are the one building from this chat,
 or two agents will work in one folder. `spool page --run` starts with it on.
 
+**■ Stop**, on the card of a thread the page is building, ends that thread's
+agent at once and no other. The thread waits in Build, its card saying
+**Stopped**, and nothing builds it until they press **▶ Carry on** on it or
+drag it into Building. **↩ Abort** also undoes what the agent changed and
+sends the thread back to the backlog.
+
 **Headless | Chat**, to its left, is who builds. Headless is that runner.
 Chat is you: a chat running the loop. With Chat picked the page starts no
 agent at all, and the Agents button only reports: **building** while a thread

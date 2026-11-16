@@ -12,7 +12,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'node:test';
-import { type Browser, chromium } from 'playwright-core';
+import { type Browser, type Page, chromium } from 'playwright-core';
 import { CLI, Sandbox } from './helpers.ts';
 
 /** A stand-in agent that works on its thread until `go`, or `go-<thread>`, is in the sandbox; then it finishes it. */
@@ -26,6 +26,28 @@ function worker(s: Sandbox): string {
     'echo "working on $SPOOL_TASK"',
     `while [ ! -f "${path.join(s.root, 'go')}" ] && [ ! -f "${path.join(s.root, 'go')}-$SPOOL_TASK" ]; do sleep 0.1; done`,
     'spool done "$SPOOL_TASK" -m "finished" > /dev/null',
+  ];
+  fs.writeFileSync(file, `${script.join('\n')}\n`);
+  fs.chmodSync(file, 0o755);
+  return file;
+}
+
+/**
+ * A stand-in agent that never finishes: it starts a program of its own, says which thread it is
+ * on, and waits. Where `deaf-<thread>` is in the sandbox it does not listen when told to end.
+ * It leaves its own pid and its program's in `pids-<thread>`.
+ */
+function sleeper(s: Sandbox): string {
+  const file = path.join(s.root, 'sleeper.sh');
+  const script = [
+    '#!/bin/sh',
+    'cat > /dev/null',
+    `echo "$SPOOL_TASK" >> "${path.join(s.root, 'runs.txt')}"`,
+    `[ -f "${path.join(s.root, 'deaf')}-$SPOOL_TASK" ] && trap '' TERM`,
+    'sleep 300 &',
+    `echo "$$ $!" > "${path.join(s.root, 'pids')}-$SPOOL_TASK"`,
+    'echo "working on $SPOOL_TASK"',
+    'wait',
   ];
   fs.writeFileSync(file, `${script.join('\n')}\n`);
   fs.chmodSync(file, 0o755);
@@ -94,6 +116,15 @@ const pause = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 const gone = (child: ChildProcess): Promise<void> => new Promise((r) => (child.exitCode !== null || child.signalCode ? r() : child.once('exit', () => r())));
 /** Which threads the page's agents are on, in the order they were started. */
 const running = (b: Board): string[] => b.runner.running.map((run: { id: string }) => run.id);
+/** Whether a program is still there. */
+const alive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 /** The Chrome on this machine, where there is one: what a test checks on the open page is skipped without it. */
 async function chrome(): Promise<Browser | undefined> {
@@ -102,6 +133,14 @@ async function chrome(): Promise<Browser | undefined> {
   } catch {
     return undefined;
   }
+}
+
+/** With SPOOL_SHOTS set to a folder, a picture of the page as it is now is left there. */
+async function shot(tab: Page, name: string): Promise<void> {
+  const shots = process.env.SPOOL_SHOTS;
+  if (!shots) return;
+  fs.mkdirSync(shots, { recursive: true });
+  await tab.screenshot({ path: path.join(shots, `${name}.png`) });
 }
 
 test('with parallel 3, three threads moved to Build are built at once, each by an agent of its own, and each lands in Done', async () => {
@@ -234,5 +273,125 @@ test('the page does not restart onto new code until every one of its agents has 
     await gone(page.child);
     s.cleanup();
     fs.rmSync(copy, { recursive: true, force: true });
+  }
+});
+
+test('Stop on a thread ends its agent and no other: the thread waits in Build, stopped, until it is carried on', async () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop', '--gate');
+  const [jump, coins, score] = ['Tighten the jump arc', 'Make coins readable at sunset', 'Pause button under the score'].map((title) => s.id('task', title)) as [string, string, string];
+  const state = (id: string): string => s.json('show', id).item.state;
+  const pids = (id: string): number[] => s.read(`pids-${id}`).trim().split(' ').map(Number);
+  const runs = (id: string): number => s.read('runs.txt').trim().split('\n').filter((line) => line === id).length;
+  const everyPid = (): number[] => fs.readdirSync(s.root).filter((name) => name.startsWith('pids-')).flatMap((name) => s.read(name).trim().split(' ').map(Number));
+  settings(s, { parallel: 3 });
+  s.write(`deaf-${score}`, '');
+  s.sp('build', jump, coins, score);
+  const port = String(37500 + (process.pid % 1500));
+  const browser = await chrome();
+  let page = await startPage(CLI, s, '--run', '--agent', sleeper(s), '--port', port);
+  try {
+    await until('three agents are heard working', async () => (await page.board()).runner.running.filter((run: { lines: string[] }) => run.lines.length).length === 3);
+    const tab = browser ? await browser.newPage({ viewport: { width: 1440, height: 900 } }) : undefined;
+    const card = (column: string, title: string) => tab!.locator(`#board [data-column="${column}"] .card`, { hasText: title });
+    if (tab) {
+      await tab.goto(page.url);
+      await card('building', 'Pause button under the score').getByRole('button', { name: '■ Stop', exact: true }).waitFor();
+      await shot(tab, 'parallel-1-three-building');
+    }
+
+    // Stop on one thread: its agent is gone, with what it had started, and the thread is back in Build as stopped.
+    const stop = await page.post('stop', { id: coins });
+    assert.deepEqual([stop.status, stop.text], [200, 'Stopped. It waits in Build until you carry on.']);
+    const after = await until('the stopped thread is back in Build', async () => { const b = await page.board(); return state(coins) === 'ready' && !running(b).includes(coins) && b; });
+    assert.deepEqual(pids(coins).map(alive), [false, false], 'the agent and the program it started are gone');
+    assert.match(s.item(coins), /page: stopped from the page; back in build/);
+    assert.equal(after.runner.recent[0].outcome, 'stopped');
+    // The others go on being built, and agents stay on.
+    assert.deepEqual([running(after), after.runner.on, after.runner.stopped], [[jump, score], true, [coins]]);
+    assert.deepEqual([jump, score].map(state), ['active', 'active']);
+    assert.deepEqual([...pids(jump), ...pids(score)].map(alive), [true, true, true, true]);
+
+    // An agent that will not listen when told to end is killed.
+    assert.equal((await page.post('stop', { id: score })).status, 200);
+    await until('the agent that would not listen is gone', async () => state(score) === 'ready' && !pids(score).some(alive));
+    fs.rmSync(path.join(s.root, `deaf-${score}`));
+    const none = await page.post('stop', { id: score });
+    assert.deepEqual([none.status, none.text], [400, 'No agent of this page is building that thread.']);
+
+    // Stopped is not waiting its turn: nothing starts it again, not time, not a note on it, not a change to it.
+    assert.equal((await page.post('note', { id: coins, text: 'Try the outline first' })).status, 200);
+    assert.equal((await page.post('edit', { id: coins, priority: 0 })).status, 200);
+    await pause(2500);
+    const still = await page.board();
+    assert.deepEqual([running(still), still.runner.stopped.slice().sort(), runs(coins), runs(score)], [[jump], [coins, score].sort(), 1, 1]);
+    assert.deepEqual([coins, score].map(state), ['ready', 'ready']);
+
+    // On the open page, each card says so where its live line was.
+    if (tab) {
+      await card('build', 'Make coins readable at sunset').locator('.live', { hasText: '■ Stopped' }).waitFor();
+      assert.equal(await card('build', 'Pause button under the score').locator('.live').innerText(), '■ Stopped');
+      assert.equal(await tab.locator('#runner').innerText(), '● Agents: building');
+      await shot(tab, 'parallel-2-stopped');
+      // Its ticket says so too, with the same way on; the ticket of one being built has that agent's lines and its Stop.
+      await card('build', 'Pause button under the score').locator('.title').click();
+      await tab.locator('#thread .notice', { hasText: 'Stopped' }).waitFor();
+      await tab.locator('#thread').getByRole('button', { name: '▶ Carry on' }).waitFor();
+      await shot(tab, 'parallel-3-stopped-ticket');
+      await tab.keyboard.press('Escape');
+      await tab.locator('#thread').waitFor({ state: 'hidden' });
+      await card('building', 'Tighten the jump arc').locator('.title').click();
+      await tab.locator('#thread .livelog', { hasText: `working on ${jump}` }).waitFor();
+      await tab.locator('#thread').getByRole('button', { name: '■ Stop the agent' }).waitFor();
+      await shot(tab, 'parallel-4-live-ticket');
+      await tab.keyboard.press('Escape');
+      await tab.locator('#thread').waitFor({ state: 'hidden' });
+    }
+
+    // Carry on, pressed while every agent is busy: the thread is next, and no longer stopped, though it waits for room.
+    settings(s, { parallel: 1 });
+    if (tab) await card('build', 'Make coins readable at sunset').getByRole('button', { name: '▶ Carry on' }).click();
+    else assert.equal((await page.post('move', { id: coins, to: 'building' })).text, 'Next up, once an agent is free: Make coins readable at sunset');
+    await until('it is next, and not stopped', async () => (await page.board()).runner.stopped.join() === score);
+    assert.deepEqual([state(coins), running(await page.board())], ['ready', [jump]]);
+    if (tab) await card('build', 'Make coins readable at sunset').getByRole('button', { name: '▶ Carry on' }).waitFor({ state: 'detached' });
+    // Room is made, and it is built.
+    settings(s, { parallel: 3 });
+    await until('the thread carried on with is being built again', async () => running(await page.board()).join() === [jump, coins].join() && runs(coins) === 2);
+    assert.deepEqual((await page.board()).runner.stopped, [score]);
+
+    // Stop, on the card of a thread being built.
+    if (tab) {
+      await card('building', 'Tighten the jump arc').getByRole('button', { name: '■ Stop', exact: true }).click();
+      await card('build', 'Tighten the jump arc').locator('.live', { hasText: '■ Stopped' }).waitFor();
+      await card('building', 'Make coins readable at sunset').locator('.live .pulse').waitFor();
+    } else assert.equal((await page.post('stop', { id: jump })).status, 200);
+    await until('that thread is stopped and the other is still being built', async () => state(jump) === 'ready' && running(await page.board()).join() === coins);
+
+    // Moved out of Build and in again, a stopped thread is waiting its turn like any other.
+    assert.equal((await page.post('move', { id: score, to: 'proposed' })).status, 200);
+    assert.equal((await page.post('move', { id: score, to: 'build' })).status, 200);
+    await until('the thread moved to Build again is being built', async () => running(await page.board()).join() === [coins, score].join());
+
+    // A card dragged from Building back to Build is the same stop.
+    const dragged = await page.post('move', { id: coins, to: 'build' });
+    assert.deepEqual([dragged.status, dragged.text], [200, 'Stopped, with its work kept. It waits in build until you carry on: Make coins readable at sunset']);
+    await until('the dragged thread is stopped too', async () => { const b = await page.board(); return running(b).join() === score && b.runner.stopped.join() === [jump, coins].join(); });
+
+    // A page that starts afresh still knows which threads were stopped: it builds the rest and leaves those.
+    page.child.kill();
+    await gone(page.child);
+    assert.deepEqual([jump, coins, score].map(state), ['ready', 'ready', 'ready']);
+    page = await startPage(CLI, s, '--run', '--agent', sleeper(s), '--port', port);
+    await until('what the page had been building is being built again', async () => running(await page.board()).join() === score);
+    await pause(1500);
+    const fresh = await page.board();
+    assert.deepEqual([running(fresh), fresh.runner.stopped, runs(jump), runs(coins)], [[score], [jump, coins], 1, 2]);
+  } finally {
+    page.child.kill();
+    await gone(page.child);
+    await browser?.close();
+    for (const pid of everyPid()) if (alive(pid)) process.kill(pid, 'SIGKILL');
+    s.cleanup();
   }
 });

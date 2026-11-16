@@ -298,11 +298,19 @@ one.
 
 **No chat at all, from the page.** `spool page --run`, or the **Agents** switch on the page, has the
 page build what is in Build: it starts your agent command on a thread the moment it lands there,
-shows what the agent prints on the card and in the ticket, and has a Stop that ends the agent and
-puts the thread back. A thread the agent finishes is done; one it asks a question on waits for you;
-one it walks away from is put back and not tried again until something about it changes. The page
-says what the agent last said, which is usually why. Use the page's runner or a chat's loop, not
-both: they would be two agents in one folder.
+and shows what the agent prints on the card and in the ticket. A thread the agent finishes is done;
+one it asks a question on waits for you; one it walks away from is put back and not tried again
+until something about it changes. The page says what the agent last said, which is usually why. Use
+the page's runner or a chat's loop, not both: they would be two agents in one folder.
+
+**Stop.** A card being built has a **■ Stop**. It ends that thread's agent at once, with anything
+the agent started, and one that does not listen is killed two seconds later; agents on other
+threads work on, and the Agents switch stays on. The thread goes back to Build with its work kept,
+and its card says **Stopped**. Nothing builds a stopped thread: not a note on it, not a change to
+it, not the page restarting. **▶ Carry on**, on the card, builds it next, as dragging it into
+Building does; so does moving it out of Build and in again. Dragging a card from Building to Build
+is the same stop. **↩ Abort** goes further: back to the backlog, with what the agent changed
+undone.
 
 **How many at once.** One, unless you say more: every agent works in the project's own folder, and
 two there would trample each other's edits. `"parallel": 3` in `~/.config/spool/config.json` has the

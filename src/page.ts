@@ -265,6 +265,8 @@ interface Board {
     agent: string;
     parallel: number;
     running: { id: string; seconds: number; lines: string[] }[];
+    /** Threads the human stopped while they were being built: the runner leaves them in Build until they carry on. */
+    stopped: string[];
     recent: { id: string; title: string; outcome: string }[];
   };
   /** The sprints, oldest first: what is in each and how far along it is. */
@@ -555,6 +557,9 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
       agent: runner?.agent ?? '',
       parallel: runner?.parallel ?? 1,
       running: [...(runner?.runs.values() ?? [])].map((run) => ({ id: run.id, seconds: Math.round((Date.now() - run.began) / 1000), lines: run.lines })),
+      // One carried on with that waits for room is no longer stopped. With a chat building, nothing holds a
+      // stopped thread back: the chat takes whatever is in Build.
+      stopped: runner?.builder === 'chat' ? [] : all.filter((t) => stoppedInBuild(t) && !runner?.isNext(t.id)).map((t) => t.id),
       recent: runner?.recent ?? [],
     },
     sprints: ws.items
@@ -595,6 +600,24 @@ function handedByPage(task: Item): boolean {
   return / page: handed to /.test(claims.at(-1) ?? '');
 }
 
+/** A log line that says how a thread came to wait in Build, or that someone took it from there. */
+const STANDS = /^(moved to build|released from hold|reverted |started$|picked up after |handed to |agent .* without finishing|.*; back in build$)/;
+/** The human stopping a thread that was being built: Stop on the page, or the thread moved back to Build. */
+const STOP = /^stopped (from the page|while .* was building it); back in build$/;
+
+/**
+ * Whether the human stopped this thread while it was being built, and has not set it going
+ * since. The page's runner leaves such a thread in Build until they carry on with it. It is read
+ * from the thread's own log, so it holds on every page and across a restart: of the lines that
+ * say how the thread came to wait in Build, the last is a stop. A note or an edit since changes
+ * nothing; moving it, or an agent taking it, does.
+ */
+function stoppedInBuild(task: Item): boolean {
+  if (task.status !== 'open') return false;
+  const said = splitBody(task.body).log.map((line) => /^- \S+ \S+ .+?: (.*)$/.exec(line)?.[1] ?? '');
+  return STOP.test(said.filter((what) => STANDS.test(what)).at(-1) ?? '');
+}
+
 /** Whether a page on this machine, other than this one, has an agent on the thread right now. */
 function pageRunning(id: string): boolean {
   let names: string[] = [];
@@ -618,14 +641,17 @@ function pageRunning(id: string): boolean {
 }
 
 /** End a program started in a process group of its own, and everything it started. */
-function endGroup(child: ChildProcess): void {
+function endGroup(child: ChildProcess, signal: NodeJS.Signals = 'SIGTERM'): void {
   try {
-    if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, 'SIGTERM');
-    else child.kill('SIGTERM');
+    if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, signal);
+    else child.kill(signal);
   } catch {
-    child.kill('SIGTERM');
+    child.kill(signal);
   }
 }
+
+/** How long an agent told to end has to do so, before what is left of it is killed. */
+const END_GRACE_MS = 2000;
 
 /**
  * The folder a run's agent works in. Today that is the project's own folder for every run, which
@@ -789,27 +815,34 @@ export class Runner {
     for (const id of orphans) this.putBack(id, 'its page had stopped with nobody working it; back in build');
   }
 
-  /** Stop every agent that is working. Their threads go back to Build, and the runner is switched off so they are not picked straight up again. */
-  stop(): void {
-    if (!this.runs.size) return;
-    this.on = false;
-    for (const run of this.runs.values()) {
-      run.stopped = true;
-      this.end(run.child);
-    }
-  }
-
   /**
-   * The thread was aborted, taken back to the backlog: if an agent of this page's is
-   * on it, end that agent. The runner stays on, so it goes on to the next thread.
+   * Stop the agent on one thread, at once. Its thread goes back to Build as stopped, and is left
+   * there until the human carries on with it. The runner stays on, and its other agents work on.
+   * False if no agent of this page's is on the thread.
    */
-  abort(id: string, undo = false): boolean {
+  stop(id: string): boolean {
     const run = this.runs.get(id);
     if (!run) return false;
     run.stopped = true;
-    if (undo) run.undo = true;
     this.end(run.child);
     return true;
+  }
+
+  /** Stop every agent that is working, each as `stop` does, and switch the runner off. */
+  stopAll(): void {
+    if (!this.runs.size) return;
+    this.on = false;
+    for (const id of [...this.runs.keys()]) this.stop(id);
+  }
+
+  /**
+   * The thread was moved by the human while it was being built: if an agent of this page's is
+   * on it, end that agent. Moved back to the backlog, what the agent changed is undone once it has gone.
+   */
+  abort(id: string, undo = false): boolean {
+    const run = this.runs.get(id);
+    if (run && undo) run.undo = true;
+    return this.stop(id);
   }
 
   /**
@@ -820,6 +853,11 @@ export class Runner {
     if (!this.first.includes(id)) this.first.push(id);
     this.wake();
     return this.runs.has(id);
+  }
+
+  /** Whether the human has asked for this thread next, and it waits only for room. */
+  isNext(id: string): boolean {
+    return this.first.includes(id);
   }
 
   /** Something has just landed in Build: look now, without waiting for the next tick. */
@@ -868,9 +906,13 @@ export class Runner {
     return line;
   }
 
-  /** End the agent and whatever it started: it runs in a group of its own, so the whole group is told. */
+  /**
+   * End the agent and whatever it started: it runs in a group of its own, so the whole group is
+   * told. A stuck agent may not listen, so what is left of the group a moment later is killed.
+   */
   private end(child: ChildProcess): void {
     endGroup(child);
+    setTimeout(() => endGroup(child, 'SIGKILL'), END_GRACE_MS).unref();
   }
 
   private tick(): void {
@@ -902,7 +944,8 @@ export class Runner {
         const waiting = ready(ws, this.project).filter((t) => !this.runs.has(t.id));
         // What was dragged into Building and still waits comes first; the rest of Build follows, top first.
         this.first = this.first.filter((id) => waiting.some((t) => t.id === id));
-        task = waiting.find((t) => t.id === this.first[0]) ?? waiting.find((t) => this.gaveUp.get(t.id) !== t.updated);
+        // Left where they are: a thread whose agent walked away, until something about it changes, and one the human stopped.
+        task = waiting.find((t) => t.id === this.first[0]) ?? waiting.find((t) => this.gaveUp.get(t.id) !== t.updated && !stoppedInBuild(t));
         if (!task) return false;
         const taken = task.id;
         this.first = this.first.filter((id) => id !== taken);
@@ -1130,16 +1173,16 @@ export class Runner {
         if (now?.status === 'done') outcome = 'done';
         else if (now?.status === 'proposed') outcome = 'aborted: back in the backlog';
         else if (now?.status === 'active') {
-          // The agent left without finishing or asking. Put the thread back, and do not spin on it.
+          // The agent left without finishing or asking, or was stopped. Put the thread back, and do not spin on it:
+          // what the human stopped waits for them, as its log now says, and the rest waits for something to change.
           now.status = 'open';
           now.by = undefined;
           addLog(now, 'page', run.stopped ? 'stopped from the page; back in build' : `agent ${how} without finishing; back in build`, ws.now());
           ws.save(now);
-          this.gaveUp.set(now.id, now.updated);
+          if (!run.stopped) this.gaveUp.set(now.id, now.updated);
           outcome = run.stopped ? 'stopped' : `unfinished: the agent ${how}${run.lines.length ? ` — ${run.lines.at(-1)}` : ''}`;
         } else if (now?.status === 'open' && run.stopped && !now.needs.length) {
-          // Dragged back to Build while it was being built: it waits there, and is not picked straight up again.
-          this.gaveUp.set(now.id, now.updated);
+          // Dragged back to Build while it was being built: that is a stop too, and its log says so.
           outcome = 'stopped: waiting in build';
         } else if (now) outcome = `waiting${now.needs.length ? ' on you' : ''}`;
       } finally {
@@ -1499,7 +1542,7 @@ const text = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
  *
  *   - Backlog: off whoever is building it, and its work undone. An agent this
  *     page runs is ended first, then the files it changed and its commits are put back.
- *   - Build: it waits there. One being built is stopped with its work kept; one done is reverted.
+ *   - Build: it waits there. One being built is stopped with its work kept, and stays stopped until carried on; one done is reverted.
  *   - Building: this page builds it next, with agents switched on: now, if there is room. Where a chat builds, it waits in Build for the chat.
  *   - Done: the human marking it done; an agent of this page's on it is ended.
  */
@@ -1545,7 +1588,7 @@ function moveThread(ctx: Ctx, runner: Runner, id: string, to: string): { ok: boo
     }
     const stopped = act(ctx, ['build', '--abort', id]);
     if (stopped.ok) runner.abort(id);
-    return stopped.ok ? { ...stopped, text: `Stopped, with its work kept. It waits in build: ${title}` } : stopped;
+    return stopped.ok ? { ...stopped, text: `Stopped, with its work kept. It waits in build until you carry on: ${title}` } : stopped;
   }
 
   if (to === 'building') {
@@ -1838,8 +1881,15 @@ export function startPage(
             return send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify({ ...result, text: words }));
           }
           if (action === 'stop') {
-            runner.stop();
-            return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: 'Stopped. What was being built is back in Build, and agents are off.' }));
+            // Stop on a thread ends that thread's agent and no other. With no thread named, every agent is stopped and agents are switched off.
+            const id = text(body.id);
+            if (!id) {
+              runner.stopAll();
+              return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: 'Stopped. What was being built is back in Build, and agents are off.' }));
+            }
+            const stopped = runner.stop(id);
+            const words = stopped ? 'Stopped. It waits in Build until you carry on.' : 'No agent of this page is building that thread.';
+            return send(res, stopped ? 200 : 400, 'application/json', JSON.stringify({ ok: stopped, text: words }));
           }
           const result = change(ctx, action, body, options.project);
           send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify(result));
@@ -2479,6 +2529,14 @@ function smallAvatar(who) {
 }
 // The run of this thread, if the page's own runner is building it right now.
 const liveOf = (c, b) => b.runner.running.find((run) => run.id === c.id) || null;
+// A thread the human stopped while it was being built: it waits in Build until they carry on.
+const stoppedOf = (c, b) => c.column === 'build' && b.runner.stopped.includes(c.id);
+// Stop the agent on one thread, and no other.
+const stopNode = (c, cls, label) => el('button', { class: cls, title: 'Stop the agent on this thread, now. The thread waits in Build until you carry on. Other threads go on being built.',
+  onclick: () => post('stop', { id: c.id }, 'Stopped') }, label);
+// Carry on with a stopped thread: it is built next, as one dragged into Building is.
+const carryOnNode = (c, cls) => el('button', { class: cls, title: 'Build this again. It is taken next, ahead of the rest of Build.',
+  onclick: () => post('move', { id: c.id, to: 'building' }, 'Building: ' + c.title) }, '▶ Carry on');
 // How long an agent has been at it, the way a person would say it.
 function took(since) {
   const s = Math.max(0, Math.round((Date.now() - Date.parse(since)) / 1000));
@@ -2489,6 +2547,7 @@ function took(since) {
 }
 // The line a Building card shows: what the agent is doing now, and for how long. The runner's own output is the freshest.
 function liveLine(c, b) {
+  if (b && stoppedOf(c, b)) return el('div', { class: 'live', title: 'You stopped the agent that was building this. Nothing builds it until you carry on.' }, el('span', { class: 'now' }, '■ Stopped'));
   if (!c.live) return null;
   const run = b && liveOf(c, b);
   const now = (run && run.lines.at(-1)) || c.live.note || 'starting…';
@@ -2517,7 +2576,8 @@ const abortNode = (c, cls) => el('button', { class: cls, title: 'Stop building t
   onclick: () => post('abort', { id: c.id }, 'Aborted. Back in the backlog: ' + c.title) }, '↩ Abort');
 function moves(c, b) {
   return [
-    b && liveOf(c, b) && el('button', { class: 'act', title: 'Stop the agent. The thread goes back to Build.', onclick: () => post('stop', {}, 'Stopped') }, '■ Stop'),
+    b && liveOf(c, b) && stopNode(c, 'act', '■ Stop'),
+    b && stoppedOf(c, b) && carryOnNode(c, 'act go'),
     c.column === 'building' && abortNode(c, 'act'),
     c.column === 'proposed' && el('button', { class: 'act go', title: 'Move to Build', onclick: () => post('move', { id: c.id, to: 'build' }, 'In build: ' + c.title) }, '▶ Build'),
     c.column === 'build' && el('button', { class: 'act', title: 'Back to the backlog', onclick: () => post('move', { id: c.id, to: 'proposed' }, 'Back in the backlog') }, 'Not yet'),
@@ -3034,7 +3094,7 @@ function livePost(c, b) {
     el('div', {},
       el('div', { class: 'byline' }, el('b', {}, s.name), s.model && el('span', { class: 'model' }, s.model), el('span', { class: 'sep' }, '·'),
         el('span', { class: 'at' }, 'working for ', el('span', { 'data-since': c.live.since }, took(c.live.since))),
-        run && el('button', { class: 'act stop', onclick: () => post('stop', {}, 'Stopped') }, '■ Stop the agent')),
+        run && stopNode(c, 'act stop', '■ Stop the agent')),
       el('div', { class: 'livenow' }, el('span', { class: 'nowtext' }, (run && run.lines.at(-1)) || c.live.note || 'starting…'), el('span', { class: 'caret' })),
       run && el('div', { class: 'livelog', 'data-keep': 'livelog', 'data-follow': 'true' }, run.lines.join('\n') || 'starting…')));
 }
@@ -3230,6 +3290,13 @@ function waitNode(c, b) {
   return el('div', { class: 'notice ' + w.kind, role: 'status' }, el('div', { class: 'head' }, parts[0]), parts[1]);
 }
 
+// At the top of the ticket of a thread the human stopped: that they did, and the way on.
+function stoppedNode(c, b) {
+  if (!stoppedOf(c, b)) return null;
+  return el('div', { class: 'notice', role: 'status' }, el('div', { class: 'head' }, 'Stopped'),
+    el('div', { class: 'what' }, 'You stopped the agent that was building this. Nothing builds it until you carry on.'), carryOnNode(c, 'go'));
+}
+
 // A ticket, the way a board has always shown one: the story on the left, its fields on the right.
 function threadNode(c, b) {
   const t = c.thread;
@@ -3259,6 +3326,7 @@ function threadNode(c, b) {
     el('div', { class: 'key' }, (c.n != null ? '#' + c.n + ' · ' : '') + c.id),
     title,
     waitNode(c, b),
+    stoppedNode(c, b),
     describeNode(c),
 
     // The thread itself: a conversation, oldest first. You said, Claude answered, and the moves in between.
