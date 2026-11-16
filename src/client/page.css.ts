@@ -24,7 +24,10 @@ export const CSS = String.raw`  :root {
   button { font: inherit; cursor: pointer; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 5px 10px; }
   button:hover { border-color: var(--soft); }
   button.go { background: var(--go); border-color: var(--go); color: #fff; font-weight: 600; }
-  [data-theme="dark"] button.go { color: #052e16; }
+  /* In the dark a filled green is the loudest thing on the page: there it is a tint, with the green
+     as its words and edge, so the eye goes to what the page says first. */
+  [data-theme="dark"] button.go { background: color-mix(in srgb, var(--go) 14%, var(--panel)); border-color: color-mix(in srgb, var(--go) 45%, var(--panel)); color: var(--go); }
+  [data-theme="dark"] button.go:hover { border-color: var(--go); }
   input, select, textarea { font: inherit; color: var(--ink); }
 
   /* the bar: the project, the two views, and a search */
