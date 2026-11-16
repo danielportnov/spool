@@ -16,6 +16,10 @@
  * it is named and left as it is. Git cannot do this, since in most projects `.spool/` is not in
  * git. Code is never touched: a thread built since has commits of its own, and its own undo.
  *
+ * The rule under all of it: nobody else's change is ever taken back with the run's. So where
+ * someone wrote an item between two of the run's writes, its copy is taken again from what they
+ * left, and an undo goes back that far and no further.
+ *
  * The run's own thread is not recorded. It is the record.
  */
 
@@ -49,6 +53,11 @@ export interface Entry {
   hash: string;
   /** The item's project, as a path from the run's own, where it is another. */
   project?: string;
+  /**
+   * Someone else had written the item since the run last did, so its copy was taken again at
+   * this write: an undo goes back to what they left, and no further.
+   */
+  since?: true;
 }
 
 /** The line an undo leaves, so a run is not undone twice and nothing more is done under it. */
@@ -138,6 +147,10 @@ class Journal implements Recorder {
   private readonly command: string;
   /** The file about to be overwritten, between `keep` and `wrote`. */
   private prev: Buffer | null = null;
+  /** Whether that file was someone else's doing since the run last wrote the item. */
+  private since = false;
+  /** What the run last left each item as, read from the journal when first needed. */
+  private left?: Map<string, string>;
 
   constructor(ws: Workspace, run: Item, command: string) {
     this.ws = ws;
@@ -145,14 +158,31 @@ class Journal implements Recorder {
     this.command = command;
   }
 
+  private lastLeft(): Map<string, string> {
+    this.left ??= new Map(readJournal(this.run).entries.map((e) => [e.item, e.hash]));
+    return this.left;
+  }
+
   keep(item: Item, file: string): void {
     if (item.id === this.run.id) return;
     this.prev = read(file);
+    this.since = false;
     const before = path.join(runDir(this.run.spool.dir, this.run.id), 'before');
     const copy = path.join(before, `${item.id}.md`);
     const none = path.join(before, `${item.id}.absent`);
-    // Only the first time: what an undo puts back is the item as it was before the run, not between two of its writes.
-    if (fs.existsSync(copy) || fs.existsSync(none)) return;
+    const kept = read(copy);
+    if (kept || fs.existsSync(none)) {
+      // Kept already, and the item is still as the run left it (or as it was kept): the copy stands.
+      // What an undo puts back is the item before the run, not between two of the run's writes.
+      const asLeft = !!this.prev && sha(this.prev) === this.lastLeft().get(item.id);
+      const asKept = kept && this.prev ? kept.equals(this.prev) : !kept && !this.prev;
+      if (asLeft || asKept) return;
+      // Someone else has written it since. What they left is theirs: the copy is taken again, so an
+      // undo goes back to that and never takes their change with it.
+      this.since = true;
+      fs.rmSync(copy, { force: true });
+      fs.rmSync(none, { force: true });
+    }
     fs.mkdirSync(before, { recursive: true });
     if (this.prev) fs.writeFileSync(copy, this.prev);
     else fs.writeFileSync(none, '');
@@ -178,7 +208,9 @@ class Journal implements Recorder {
       command: this.command,
       hash: sha(text),
       ...(project ? { project } : {}),
+      ...(this.since ? { since: true as const } : {}),
     };
+    this.lastLeft().set(item.id, entry.hash);
     this.prev = null;
     fs.appendFileSync(path.join(runDir(this.run.spool.dir, this.run.id), JOURNAL), `${JSON.stringify(entry)}\n`);
     // A run that is still writing has not gone quiet: its thread's claim is kept fresh, a minute at a time.
@@ -244,6 +276,8 @@ export function undoRun(ws: Workspace, run: Item, actor: string, why: string, p:
   const removed: string[] = [];
   const left: { id: string; title: string; why: string }[] = [];
   const built: Item[] = [];
+  /** Put back, but only to where someone else had changed them while the run was on. */
+  const partly: { id: string; title: string }[] = [];
   for (const [id, mine] of writes) {
     const last = mine.at(-1)!;
     const leave = (reason: string) => left.push({ id, title: last.title, why: reason });
@@ -279,6 +313,7 @@ export function undoRun(ws: Workspace, run: Item, actor: string, why: string, p:
       fs.writeFileSync(temp, copy);
       fs.renameSync(temp, file);
       restored.push(id);
+      if (mine.some((e) => e.since)) partly.push({ id, title: last.title });
     } else {
       fs.rmSync(file, { force: true });
       removed.push(id);
@@ -306,6 +341,10 @@ export function undoRun(ws: Workspace, run: Item, actor: string, why: string, p:
   const leave = endLeaveOf(ws, run);
   const lines = [`${p.bold(run.id)} undone: ${outcome}. No code was touched.`];
   if (leave) lines.push(`The leave it ran under is ended: "${leave.words}"`);
+  if (partly.length) {
+    lines.push('Put back only as far as what someone else did to them while the run was on, which is kept:');
+    for (const l of partly) lines.push(`  ${p.bold(l.id)}  ${l.title}`);
+  }
   if (left.length) {
     lines.push('Left as they are:');
     for (const l of left) {
@@ -324,7 +363,16 @@ export function undoRun(ws: Workspace, run: Item, actor: string, why: string, p:
   }
   return {
     lines,
-    data: { run: itemJson(ws, run), restored, removed, left, built: built.map((t) => ({ id: t.id, undo: undoOf(t) })), skills, leaveEnded: leave?.words ?? null },
+    data: {
+      run: itemJson(ws, run),
+      restored,
+      removed,
+      partly: partly.map((l) => l.id),
+      left,
+      built: built.map((t) => ({ id: t.id, undo: undoOf(t) })),
+      skills,
+      leaveEnded: leave?.words ?? null,
+    },
   };
 }
 

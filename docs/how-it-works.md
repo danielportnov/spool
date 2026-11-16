@@ -400,7 +400,9 @@ run's own thread is not recorded.
 
 `spool revert t-7k2m -m "why"` then puts every item back as it was, byte for byte, and removes the
 ones the run made. An item changed since the run last wrote it, by you or by anyone, is named and
-left as it is. No code is touched: a thread built since the run moved it to Build keeps its
+left as it is. One that someone else wrote between two of the run's writes goes back only as far
+as what they left, and is named too: nobody's change is taken back with the run's. No code is
+touched: a thread built since the run moved it to Build keeps its
 commits, and is listed with its own undo. Your reason is kept as a lesson, as with any undo, and
 the run's thread is dropped. None of this leans on git, since in most projects `.spool/` is not in
 git.

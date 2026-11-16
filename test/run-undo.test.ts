@@ -33,6 +33,7 @@ interface Line {
   command: string;
   hash: string;
   project?: string;
+  since?: boolean;
   undone?: boolean;
 }
 
@@ -134,6 +135,40 @@ test('an item changed by hand since the run is named and left as it is', () => {
   assert.equal(s.exists(`.spool/items/${music}.md`), false);
   assert.equal(s.item(coins), before[`${coins}.md`]);
   assert.equal(s.item(untouched), before[`${untouched}.md`]);
+  s.cleanup();
+});
+
+test('what someone else did to an item while the run was on is never taken back with the run', () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'demo', '--gate');
+  const jump = s.id('task', 'Tighten the jump arc');
+  const coins = s.id('task', 'Make coins readable at sunset', '-s', 'xs');
+  const run = s.id('audit', 'Tidy the backlog');
+  const as = under(s, run);
+  as('edit', jump, '--size', 's');
+  as('build', coins);
+
+  // Meanwhile, with no run set: the human replies on one, and an agent starts building the other.
+  const note = s.id('capture', 'and make it snappier on the way down');
+  s.sp('file', note, '--into', jump);
+  s.sp('start', coins, '--as', 'Claude');
+  const meanwhile = [s.item(jump), s.item(coins)];
+
+  // The run goes on to write both again. From here its copies are of what the others left.
+  as('edit', jump, '-p', '1');
+  as('log', coins, 'worth doing first');
+  assert.deepEqual(journal(s, run).map((l) => [l.item, !!l.since]), [[jump, false], [coins, false], [jump, true], [coins, true]]);
+
+  const out = s.sp('revert', run);
+  assert.equal(
+    out,
+    `${run} undone: 2 items put back as they were. No code was touched.\n` +
+      'Put back only as far as what someone else did to them while the run was on, which is kept:\n' +
+      `  ${jump}  Tighten the jump arc\n  ${coins}  Make coins readable at sunset`,
+  );
+  assert.deepEqual([s.item(jump), s.item(coins)], meanwhile, 'as the human and the builder left them');
+  assert.match(s.item(jump), /and make it snappier on the way down/);
+  assert.deepEqual([s.json('show', coins).item.state, s.json('show', coins).item.by], ['active', 'Claude'], 'the thread being built is not pulled from under its agent');
   s.cleanup();
 });
 
