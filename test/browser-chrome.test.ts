@@ -150,3 +150,56 @@ test('a page that loses its server says so, and is back by itself when the serve
     s.cleanup();
   }
 });
+
+test('light or dark by his pick, kept in the browser, or by the system', async (t) => {
+  const browser = await chrome(t);
+  if (!browser) return;
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop');
+  s.id('task', 'Tighten the jump arc', '-s', 's');
+
+  const { child, url } = await startPage(s, PORT + 2);
+  const page = await browser.newPage({ colorScheme: 'light' });
+  const problems: string[] = [];
+  page.on('pageerror', (error) => problems.push(String(error)));
+  const themer = page.locator('#themer');
+  const background = (): Promise<string> => page.evaluate('getComputedStyle(document.body).backgroundColor');
+  const LIGHT = 'rgb(247, 246, 243)';
+  const DARK = 'rgb(21, 20, 19)';
+  try {
+    await page.goto(url);
+    await page.locator('#board .card').first().waitFor();
+    // At first it follows the system, and goes with it.
+    assert.equal(await themer.getAttribute('title'), 'Theme: System. Click for Light.');
+    assert.equal(await background(), LIGHT);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await until('it follows the system to dark', async () => (await background()) === DARK);
+
+    // Light, picked, holds against a dark system; Dark against a light one.
+    await themer.click();
+    assert.equal(await themer.getAttribute('title'), 'Theme: Light. Click for Dark.');
+    assert.equal(await background(), LIGHT);
+    await page.emulateMedia({ colorScheme: 'light' });
+    await themer.click();
+    assert.equal(await themer.getAttribute('title'), 'Theme: Dark. Click for System.');
+    assert.equal(await background(), DARK);
+    assert.equal(await page.evaluate('getComputedStyle(document.querySelector("button.go, #themer")).colorScheme'), 'dark');
+    await shot(page, 'chrome-dark-picked');
+
+    // The pick outlives the page.
+    await page.reload();
+    await page.locator('#board .card').first().waitFor();
+    assert.equal(await background(), DARK);
+    assert.equal(await themer.getAttribute('aria-label'), 'Theme: Dark');
+
+    // And round to System again.
+    await themer.click();
+    assert.equal(await background(), LIGHT);
+    assert.equal(await themer.getAttribute('title'), 'Theme: System. Click for Light.');
+    assert.deepEqual(problems, []);
+  } finally {
+    await browser.close();
+    child.kill();
+    s.cleanup();
+  }
+});

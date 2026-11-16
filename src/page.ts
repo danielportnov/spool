@@ -2262,16 +2262,32 @@ const PAGE = String.raw`<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spool</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧶%3C/text%3E%3C/svg%3E" id="icon">
+<script>
+// Light or dark: his pick in this browser, or else the system's, set on the root before anything is
+// drawn so the page never shows the other one first. Every colour follows the one attribute.
+const SYSTEM_DARK = matchMedia('(prefers-color-scheme: dark)');
+function paintTheme() {
+  let pick = 'system';
+  try { pick = localStorage.getItem('spool-theme') || 'system'; } catch (e) {}
+  if (!['system', 'light', 'dark'].includes(pick)) pick = 'system';
+  document.documentElement.dataset.theme = pick === 'system' ? (SYSTEM_DARK.matches ? 'dark' : 'light') : pick;
+  return pick;
+}
+paintTheme();
+SYSTEM_DARK.addEventListener('change', paintTheme);
+</script>
 <style>
   :root {
+    color-scheme: light;
     --bg: #f7f6f3; --panel: #ffffff; --col: #efede8; --ink: #1d1c1a; --soft: #6b6861; --line: #dfdcd5;
     --accent: #c2410c; --go: #15803d; --blue: #1d4ed8; --warn: #b45309; --chip: #eeece6; --hot: #c9372c;
     --shadow: 0 1px 2px rgba(30, 25, 15, .14);
   }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #151413; --panel: #222120; --col: #1b1a19; --ink: #f1efea; --soft: #a19d95; --line: #353330;
-      --accent: #fb923c; --go: #4ade80; --blue: #93c5fd; --warn: #fbbf24; --chip: #2d2b28; --hot: #f87171;
-      --shadow: 0 1px 2px rgba(0, 0, 0, .5); }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #151413; --panel: #222120; --col: #1b1a19; --ink: #f1efea; --soft: #a19d95; --line: #353330;
+    --accent: #fb923c; --go: #4ade80; --blue: #93c5fd; --warn: #fbbf24; --chip: #2d2b28; --hot: #f87171;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5);
   }
   * { box-sizing: border-box; }
   /* Hidden means gone. Without this, a rule that sets display (the board's grid) keeps a hidden view on screen. */
@@ -2280,7 +2296,7 @@ const PAGE = String.raw`<!doctype html>
   button { font: inherit; cursor: pointer; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 5px 10px; }
   button:hover { border-color: var(--soft); }
   button.go { background: var(--go); border-color: var(--go); color: #fff; font-weight: 600; }
-  @media (prefers-color-scheme: dark) { button.go { color: #052e16; } }
+  [data-theme="dark"] button.go { color: #052e16; }
   input, select, textarea { font: inherit; color: var(--ink); }
 
   /* the bar: the project, the two views, and a search */
@@ -2298,6 +2314,9 @@ const PAGE = String.raw`<!doctype html>
   .builder button { color: var(--soft); border-radius: 0; }
   .builder button:first-child { border-radius: 7px 0 0 7px; }
   .builder button:last-child { border-radius: 0 7px 7px 0; margin-left: -1px; }
+  .themer { width: 30px; height: 30px; padding: 0; display: inline-grid; place-items: center; color: var(--soft); flex: none; }
+  .themer:hover { color: var(--ink); }
+  .themer svg { width: 16px; height: 16px; }
   .builder button.on { position: relative; color: var(--ink); background: var(--bg); border-color: var(--soft); font-weight: 600; }
   .live { margin-top: 6px; display: flex; align-items: center; gap: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--soft); }
   .live .now { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2557,6 +2576,7 @@ const PAGE = String.raw`<!doctype html>
   <input class="search" id="search" placeholder="Search threads   /" autocomplete="off">
   <div class="builder" id="builder" role="group" aria-label="Who builds" hidden><button data-builder="headless">Headless</button><button data-builder="chat">Chat</button></div>
   <button class="runner" id="runner" hidden></button>
+  <button class="themer" id="themer"></button>
 </div>
 <div id="away" role="status" hidden></div>
 <div class="rule" id="rule" hidden></div>
@@ -3901,6 +3921,27 @@ async function load(now) {
     connected(false);
   }
 }
+
+// The theme: one button in the bar, going round System, Light and Dark, drawn as the one in force.
+const THEMES = [
+  ['system', 'System', '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>'],
+  ['light', 'Light', '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1"/></svg>'],
+  ['dark', 'Dark', '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7z"/></svg>'],
+];
+function drawTheme() {
+  const at = THEMES.findIndex(([key]) => key === paintTheme());
+  const [, name, icon] = THEMES[at];
+  const button = document.getElementById('themer');
+  button.innerHTML = icon;
+  button.title = 'Theme: ' + name + '. Click for ' + THEMES[(at + 1) % THEMES.length][1] + '.';
+  button.setAttribute('aria-label', 'Theme: ' + name);
+}
+document.getElementById('themer').addEventListener('click', () => {
+  const at = THEMES.findIndex(([key]) => key === paintTheme());
+  try { localStorage.setItem('spool-theme', THEMES[(at + 1) % THEMES.length][0]); } catch (e) {}
+  drawTheme();
+});
+drawTheme();
 
 for (const tab of document.querySelectorAll('.tab')) {
   tab.addEventListener('click', () => {
