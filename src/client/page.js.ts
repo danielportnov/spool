@@ -327,10 +327,10 @@ function noteNode(c) {
 }
 
 function cardNode(c, b) {
-  // Any card can be dragged to any column, at any time.
+  // Any card can be dragged to any column, at any time, and opens its ticket from anywhere on it.
   const node = el('div', { class: 'card' + (c.complete ? ' past' : ''), draggable: 'true', 'data-id': c.id },
     waitMark(c, b),
-    el('div', { class: 'title', onclick: () => openThread(c.id) }, c.title),
+    el('div', { class: 'title' }, c.title),
     el('div', { class: 'chips' }, chipsOf(c, b)),
     c.why && !c.done && el('div', { class: 'why', title: c.why }, inline(c.why)),
     noteNode(c),
@@ -341,7 +341,7 @@ function cardNode(c, b) {
       el('span', { class: 'key', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id),
       el('span', { class: 'push' }), facts(c), archiveNode(c), moves(c, b)));
   dragOf(node, c, c.column);
-  return node;
+  return opensOn(node, c.id);
 }
 
 function rowNode(c, b) {
