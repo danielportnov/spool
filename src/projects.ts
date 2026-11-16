@@ -9,7 +9,7 @@
  */
 
 import { liveNow } from './board.ts';
-import { type Brief, morning } from './brief.ts';
+import { type Brief, morning, waitingOnYou } from './brief.ts';
 import { type Item, type Spool, oneLine } from './model.ts';
 import { review, sprintTasks, taskState, tasks } from './schedule.ts';
 import type { Workspace } from './store.ts';
@@ -19,6 +19,7 @@ export interface Project {
   name: string;
   /** Its folder from the top of the workspace: empty for the top itself. */
   folder: string;
+  /** `needs` is what waits on the human, as the brief counts it (`waitingOnYou`). */
   counts: { backlog: number; build: number; building: number; check: number; needs: number };
   /** Whether the runner of this page builds its threads. Where it does not, its own page or a chat does. */
   built: boolean;
@@ -64,7 +65,7 @@ export function projectsOf(ws: Workspace, builds: (spool: Spool) => boolean, hea
         build: count('ready', 'stale', 'blocked'),
         building: count('active'),
         check: mine.filter((t) => t.status === 'done' && !t.reviewed).length,
-        needs: needs.length,
+        needs: waitingOnYou(ws, spool),
       },
       built: builds(spool),
       building: mine.filter((t) => state.get(t.id) === 'active').map((t) => ({ id: t.id, title: oneLine(t.title, 110), said: lastSaid(t, heard(t.id)) })),

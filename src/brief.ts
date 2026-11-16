@@ -194,6 +194,24 @@ function stopped(ws: Workspace, t: Item): { why: string; at: number } | null {
   return { why: last.text.replace(/; back in build$/, ''), at: last.at };
 }
 
+/**
+ * How many things wait on the human: an open question, a plan waiting for a go-ahead, and a thread
+ * an agent stopped on or walked away from. Each thread is counted once, so a stopped thread with a
+ * question on it is one; a question on no thread counts by itself. This is the one number the
+ * brief, the list of projects and the board all say, so none of them works out its own.
+ */
+export function waitingOnYou(ws: Workspace, scope?: Scope): number {
+  const queue = review(ws, scope);
+  const seen = new Set<string>();
+  for (const d of queue.questions) {
+    const held = dependents(ws, d).filter((t) => t.status !== 'done' && t.status !== 'dropped');
+    for (const id of held.length ? held.map((t) => t.id) : [d.id]) seen.add(id);
+  }
+  for (const t of queue.plans) seen.add(t.id);
+  for (const t of tasks(ws, scope)) if (stopped(ws, t)) seen.add(t.id);
+  return seen.size;
+}
+
 function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }
@@ -251,7 +269,7 @@ export function morning(ws: Workspace, opts: { since?: string; project?: Scope }
   const starts = shipped.map((t) => Date.parse(t.started ?? t.created));
   const ends = shipped.map(finishedAt);
   const took = shipped.length ? Math.max(0, Math.max(...ends) - Math.min(...starts)) : 0;
-  const needs = questions.length + plans.length + stops.length;
+  const needs = waitingOnYou(ws, opts.project);
   // "8h" reads as a span, so it is said as one; "yesterday" and a date are a point to start from.
   const said = opts.since?.trim() ?? '';
   const when = !from ? 'since you last looked' : /^\d+\s*[a-z]+$/i.test(said) ? `in the last ${said}` : `since ${said}`;

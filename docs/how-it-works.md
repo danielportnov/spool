@@ -168,8 +168,9 @@ copies it, and a click on a thread's id, on a card, a row or a ticket, copies th
 `?view=backlog` opens the Backlog view, `?view=roadmap` the Roadmap, and `?review=<r-id>` a sprint's review.
 
 **In a background tab.** The tab's title and icon say what is going on: a count, `(2) skyhop`, of
-the threads waiting on you (a question, a plan wanting a go-ahead, finished work not yet marked
-complete, an agent that stopped and wants a word), and a dot, `● skyhop`, while agents build. With
+the threads waiting on you (a question, a plan wanting a go-ahead, an agent that stopped or left
+without finishing), each counted once, and a dot, `● skyhop`, while agents build. It is the same
+number the brief's "need you" says, and on All projects each project's row and the menu. With
 nothing going on, the title is the project's name.
 
 **Light or dark.** The page follows your system's setting. The round button at the right of the

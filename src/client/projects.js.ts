@@ -192,7 +192,7 @@ function homeRow(p) {
 
 function drawHome(b, box) {
   const w = b.workspace;
-  const waits = w.projects.reduce((k, p) => k + p.counts.needs + p.counts.check, 0);
+  const waits = w.projects.reduce((k, p) => k + p.counts.needs, 0);
   const building = w.projects.some((p) => p.counts.building > 0);
   document.title = (waits ? '(' + waits + ') ' : '') + (building ? '● ' : '') + 'All projects';
   document.getElementById('where').textContent = '';

@@ -58,11 +58,12 @@ test('the tab says what is happening: a dot while agents build, a count when som
     await until('the tab shows a build', async () => (await page.title()) === '● skyhop');
     assert.match(await icon(page), /<circle[^>]*#1d4ed8/);
 
-    // It finished, for him to check, and another thread asks him something: two wait on him.
+    // It finished, for him to check, and another thread asks him something: the question waits on him,
+    // counted as the brief and the list of projects count it.
     assert.equal(s.exec(['done', jump, '-m', 'Snappier']).code, 0);
     s.sp('ask', 'Outline the coins, or turn them teal?', '--option', 'Outline', '--option', 'Teal', '--for', coins);
-    await until('the tab counts what waits', async () => (await page.title()) === '(2) skyhop');
-    assert.match(await icon(page), /#b45309[\s\S]*>2</);
+    await until('the tab counts what waits', async () => (await page.title()) === '(1) skyhop');
+    assert.match(await icon(page), /#b45309[\s\S]*>1</);
 
     // Marked complete and answered, nothing waits, and the tab is quiet again.
     s.sp('approve', jump);

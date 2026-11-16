@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { suggestion } from './agent.ts';
-import { type Brief, morning } from './brief.ts';
+import { type Brief, morning, waitingOnYou } from './brief.ts';
 import type { Builder } from './context.ts';
 import { type Live as Running, type Picking, type Runner, stoppedInBuild } from './engine.ts';
 import { git, repoRoot } from './git.ts';
@@ -258,6 +258,8 @@ export interface Board {
   history: number;
   /** Everything waiting on the human that is not a thread to build. */
   needs: Needs;
+  /** How many things wait on the human in this project, as the brief and the list of projects count them: the tab shows it. */
+  waitsOnYou: number;
   /**
    * Who builds, and how it is going. `builder` is the human's pick: `headless`, the page's own
    * runner starting the agent command, or `chat`, a Claude Code chat running the loop, where the
@@ -585,6 +587,7 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
     versions: [...new Set(all.map((t) => t.version ?? '').filter(Boolean))].sort().reverse(),
     history: done.filter((t) => t.reviewed).length,
     needs: needsOf(ws, queue),
+    waitsOnYou: waitingOnYou(ws, spool),
     runner: {
       builder: builds,
       // Looked for only where it is shown: with a chat building.

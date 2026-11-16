@@ -127,6 +127,7 @@ export function fixture(): Board {
       skills: [],
       notes: [],
     },
+    waitsOnYou: 1,
     runner: {
       builder: 'headless',
       watching: false,

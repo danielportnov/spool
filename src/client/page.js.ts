@@ -1461,17 +1461,12 @@ function draw(b) {
 }
 
 // The board lives in a background tab, where its title and icon are all that shows. Both say what
-// waits on him, as a count: an open question, a plan wanting its go-ahead, a finished thread not yet
-// marked complete, an agent that stopped and wants a word. Failing that, a dot while agents build.
-// With nothing going on, the title is the project's name and the icon is the yarn alone.
+// waits on him, as a count: an open question, a plan wanting its go-ahead, an agent that stopped
+// and wants a word. The server counts it, so the tab, the brief and the list of projects agree.
+// Failing that, a dot while agents build. With nothing going on, the title is the project's name
+// and the icon is the yarn alone.
 function waitsOnYou(b) {
-  const seen = new Set();
-  for (const c of everyCard(b)) {
-    if (c.done ? !c.complete : c.waiting && (c.waiting.kind === 'you' || c.waiting.kind === 'stuck')) seen.add(c.id);
-  }
-  for (const q of b.needs.questions) for (const id of q.threads.length ? q.threads : [q.id]) seen.add(id);
-  for (const p of b.needs.plans) seen.add(p.id);
-  return seen.size;
+  return b.waitsOnYou || 0;
 }
 let drawnTab = '';
 function drawTab(b) {
