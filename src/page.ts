@@ -2468,8 +2468,7 @@ SYSTEM_DARK.addEventListener('change', paintTheme);
   .field label { display: block; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); margin-bottom: 5px; }
   .field select, .field input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
   .field .val { font-size: 14px; }
-  .field .pick { display: flex; gap: 6px; }
-  .field .pick select { flex: 1; min-width: 0; }
+  .field .hint { margin-top: 4px; font-size: 12px; color: var(--soft); }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
   .feed { margin-top: 18px; }
   .post { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; position: relative; padding-bottom: 18px; }
@@ -3747,13 +3746,19 @@ function threadNode(c, b) {
   const models = [...new Set([...MODELS, c.model].filter(Boolean))];
   const by = c.suggest.by;
   const leave = (what, suggested) => by ? cap(by) + ' decides' : suggested ? 'Suggested: ' + suggested : what;
-  const agentPick = c.done || c.column === 'building'
-    ? el('div', { class: 'val' }, [cap(c.model) || (by ? cap(by) + ' decides' : cap(c.suggest.model)) || 'Your agent', c.effort || (by ? '' : c.suggest.effort)].filter(Boolean).join(' · '))
-    : el('div', { class: 'pick' },
-        choose([['', leave('As your agent runs', cap(c.suggest.model))], ...models.map((m) => [m, cap(m)])], c.model,
-          (v) => save({ model: v }, v ? 'Model: ' + cap(v) : by ? cap(by) + ' decides the model' : 'Model as its size suggests')),
-        choose([['', leave('Default effort', c.suggest.effort)], ...EFFORTS.map((e) => [e, e])], c.effort,
-          (v) => save({ effort: v }, v ? 'Effort: ' + v : by ? cap(by) + ' decides the effort' : 'Effort as its size suggests')));
+  // Left to the chooser, a quiet line says what the size would give if it could not choose.
+  const sizeSays = (mine, suggested) => !mine && by && suggested && el('div', { class: 'hint' }, 'Its size suggests ' + suggested);
+  const fixed = c.done || c.column === 'building';
+  const modelPick = fixed
+    ? el('div', { class: 'val' }, cap(c.model) || (by ? cap(by) + ' decides' : cap(c.suggest.model)) || 'As your agent runs')
+    : [choose([['', leave('As your agent runs', cap(c.suggest.model))], ...models.map((m) => [m, cap(m)])], c.model,
+        (v) => save({ model: v }, v ? 'Model: ' + cap(v) : by ? cap(by) + ' decides the model' : 'Model as its size suggests')),
+      sizeSays(c.model, cap(c.suggest.model))];
+  const effortPick = fixed
+    ? el('div', { class: 'val' }, c.effort || (by ? cap(by) + ' decides' : c.suggest.effort) || 'Default effort')
+    : [choose([['', leave('Default effort', c.suggest.effort)], ...EFFORTS.map((e) => [e, e])], c.effort,
+        (v) => save({ effort: v }, v ? 'Effort: ' + v : by ? cap(by) + ' decides the effort' : 'Effort as its size suggests')),
+      sizeSays(c.effort, c.suggest.effort)];
   const movable = c.column === 'proposed' || c.column === 'build';
   const status = movable
     ? choose([['proposed', '🟠 Proposed'], ['build', '🟢 Build']], c.column, (to) => post('move', { id: c.id, to }, to === 'build' ? 'In build' : 'Back to proposed'))
@@ -3774,7 +3779,8 @@ function threadNode(c, b) {
     field('Status', status),
     field('Priority', c.done ? el('div', { class: 'val' }, c.priority) : choose(PRIORITIES.map((name, i) => [String(i), name]), String(c.p), (v) => save({ priority: Number(v) }, 'Priority: ' + PRIORITIES[Number(v)]))),
     field('Difficulty', c.done ? el('div', { class: 'val' }, c.difficulty || 'Not sized') : choose([['', 'Not sized'], ...SIZES], c.size, (v) => v && save({ size: v }, 'Difficulty changed'))),
-    field('Model', agentPick),
+    field('Model', modelPick),
+    field('Effort', effortPick),
     field('Tags',
       el('div', { class: 'chips', style: 'margin: 0 0 7px' }, c.tags.map((tag) => el('span', { class: 'chip tag' }, '#' + tag,
         el('b', { title: 'Remove', onclick: () => save({ tags: c.tags.filter((x) => x !== tag) }, 'Tag removed') }, '✕')))),
