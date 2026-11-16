@@ -21,6 +21,7 @@ import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } fr
 import { demo } from './demo.ts';
 import { dropLesson, learn, lessonLine, lessons } from './lessons.ts';
 import { runLoop } from './loop.ts';
+import { manage } from './manage.ts';
 import { markLine } from './mark.ts';
 import { servePage } from './page.ts';
 import { watch } from './watch.ts';
@@ -1881,6 +1882,17 @@ export const COMMANDS: Command[] = [
         data: { skill: itemJson(ws, ledger, true) },
       };
     },
+  },
+  {
+    name: 'manage',
+    group: 'agents',
+    usage: 'manage [--start | --end -m <headline> [--report <file>|-]] [-P <project>]',
+    summary:
+      'Put the backlog in order as one run that can be undone: --start opens the run and prints the worksheet of facts to work from, --end writes the report of what it changed; with neither, says whether a run is open',
+    write: true,
+    options: { start: { type: 'boolean' }, end: { type: 'boolean' }, report: { type: 'string' }, ...MESSAGE, ...PROJECT },
+    reads: 'report',
+    run: (call) => manage(call),
   },
 
   // ---- seeing --------------------------------------------------------------

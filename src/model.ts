@@ -345,6 +345,18 @@ export function isPlan(item: Item | undefined): item is Item {
   return !!item && item.kind === 'task' && item.type === 'plan';
 }
 
+/** The tag on the thread of a manager's run. */
+export const RUN_TAG = 'manage';
+
+/**
+ * The thread of a manager's run (manage.ts): an audit that is open while the backlog is being
+ * put in order, holds the report afterwards, and is the id the whole run is undone by. It is
+ * the manager's own, so it is never handed to a worker, and is no part of the backlog it tidies.
+ */
+export function isRun(item: Item): boolean {
+  return item.kind === 'task' && item.type === 'audit' && item.tags.includes(RUN_TAG);
+}
+
 /**
  * Settled items no longer hold anything up. A plan is the exception that makes
  * plans useful: work that `needs` one waits until the human has approved it.

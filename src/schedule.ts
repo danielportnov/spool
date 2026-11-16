@@ -5,7 +5,7 @@
  * Nothing is cached and nothing is stored, so there is no state to repair.
  */
 
-import { type Item, type Spool, isPlan, isSettled } from './model.ts';
+import { type Item, type Spool, isPlan, isRun, isSettled } from './model.ts';
 import type { Workspace } from './store.ts';
 
 export type TaskState = 'proposed' | 'ready' | 'held' | 'archived' | 'blocked' | 'active' | 'stale' | 'done' | 'dropped';
@@ -126,7 +126,8 @@ export function isLarge(ws: Workspace, task: Item): boolean {
  * sequence played forward, so what `status` shows is what `next` will do.
  */
 export function ready(ws: Workspace, project?: Scope): Item[] {
-  const scope = tasks(ws, project);
+  // The thread of a manager's run is the manager's: however long it has been quiet, no worker is handed it.
+  const scope = tasks(ws, project).filter((t) => !isRun(t));
   const every = Math.max(1, ws.home.config.largeEvery ?? 4);
   let quickRun = 0;
   for (const t of scope.filter((t) => t.started).sort((a, b) => b.started!.localeCompare(a.started!))) {

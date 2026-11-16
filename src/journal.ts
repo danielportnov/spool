@@ -132,12 +132,14 @@ function added(before: Item | null, after: Item): string[] {
 }
 
 class Journal implements Recorder {
+  private readonly ws: Workspace;
   private readonly run: Item;
   private readonly command: string;
   /** The file about to be overwritten, between `keep` and `wrote`. */
   private prev: Buffer | null = null;
 
-  constructor(run: Item, command: string) {
+  constructor(ws: Workspace, run: Item, command: string) {
+    this.ws = ws;
     this.run = run;
     this.command = command;
   }
@@ -178,7 +180,15 @@ class Journal implements Recorder {
     };
     this.prev = null;
     fs.appendFileSync(path.join(runDir(this.run.spool.dir, this.run.id), JOURNAL), `${JSON.stringify(entry)}\n`);
+    // A run that is still writing has not gone quiet: its thread's claim is kept fresh, a minute at a time.
+    if (this.run.status === 'active' && Date.parse(item.updated) - Date.parse(this.run.updated) >= 60_000) this.ws.save(this.run);
   }
+}
+
+/** Open a run's journal with nothing in it, so the thread is a run's from the start, whatever it goes on to write. */
+export function startJournal(run: Item): void {
+  const file = path.join(runDir(run.spool.dir, run.id), JOURNAL);
+  if (!fs.existsSync(file)) fs.writeFileSync(file, '');
 }
 
 /**
@@ -188,7 +198,8 @@ class Journal implements Recorder {
  */
 export function record(ws: Workspace, env: Record<string, string | undefined>, command: string): void {
   const id = env.SPOOL_RUN?.trim();
-  if (!id) return;
+  // `spool manage` opens and closes runs itself, and is never made under one.
+  if (!id || command === 'manage') return;
   const run = /^t-[a-z0-9]+$/.test(id) ? ws.find(id) : undefined;
   if (!run || run.kind !== 'task') {
     throw new SpoolError(`SPOOL_RUN names "${id}", which is not a thread here`, 'Unset it, or set it to the id of the thread this run belongs to');
@@ -197,9 +208,9 @@ export function record(ws: Workspace, env: Record<string, string | undefined>, c
   if (over) {
     // Undoing is the one thing still done once a run is over, often from the very shell it ran in.
     if (command === 'revert') return;
-    throw new SpoolError(`the run ${run.id} ${over}, so nothing more is done under it`, 'Unset SPOOL_RUN');
+    throw new SpoolError(`the run ${run.id} ${over}, so nothing more is done under it`, 'Unset SPOOL_RUN. For another run: spool manage --start');
   }
-  ws.recorder = new Journal(run, command);
+  ws.recorder = new Journal(ws, run, command);
 }
 
 function plural(n: number, one: string, many = `${one}s`): string {

@@ -44,14 +44,14 @@ export interface Similar {
 }
 
 /** A thread's own words: its title and the first line of what was said. The quoted note is left out, since threads cut from one note all carry it. */
-function wordsOf(item: Item): Set<string> {
+export function wordsOf(item: Item): Set<string> {
   const line = splitBody(item.body)
     .main.split('\n')
     .find((l) => l.trim() && !l.startsWith('>') && !l.startsWith('#'));
   return tokens(`${item.title} ${line ?? ''}`);
 }
 
-function droppedBecause(item: Item): string | undefined {
+export function droppedBecause(item: Item): string | undefined {
   for (const line of splitBody(item.body).log.reverse()) {
     const m = /^- \S+ \S+ .*?: dropped(?:: (.*))?$/.exec(line);
     if (m) return m[1]?.trim() || undefined;
@@ -60,7 +60,7 @@ function droppedBecause(item: Item): string | undefined {
 }
 
 /** How much two sets of words have in common: the words, and the share of all the words used (Dice). */
-function compare(a: Set<string>, b: Set<string>): { shared: number; score: number; words: string[] } {
+export function compare(a: Set<string>, b: Set<string>): { shared: number; score: number; words: string[] } {
   const words = [...a].filter((t) => b.has(t));
   return { shared: words.length, score: (2 * words.length) / (a.size + b.size || 1), words };
 }

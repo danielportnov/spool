@@ -318,6 +318,44 @@ and the two or three things it is heading towards. The agent asks you for it at 
 it true with you (`spool goals`). Every agent reads it before it works, the loop's list leads with
 it, and each sprint says which goal it serves, on its line; `spool check` names one that does not.
 
+## The manager
+
+A backlog goes out of order by itself: threads that shipped under another name, one wish filed
+twice, ideas nobody sized, an order nobody set. The manager is an agent that puts it back in order
+in one pass, with the commands agents always had. It builds nothing and starts no work, and one
+undo takes back everything it did.
+
+**Spool gathers the facts; the agent judges.** `spool manage --start` opens a run on a thread of
+its own ("Tidy the backlog, 2026-11-16": an audit tagged `manage`, signed by whoever runs it and
+being worked from the start, since it changes no code and so does not go through Build). It prints
+`SPOOL_RUN=<id>` for the agent to set on every command that follows, and then a worksheet, worked
+out in plain code, the same way every time:
+
+| Step | What it lists |
+| --- | --- |
+| 0 · Said no to before | Every dropped thread with its reason, the archive, the lessons, and what became of the ideas the last three runs filed |
+| 1 · May have shipped already | For each open thread, the evidence: commits that carry its id, commits since it was filed whose subject says what its title says, finished threads that look like it, changelog entries and test names that match. Evidence, never a verdict |
+| 2 · Look alike | Pairs of open threads that share most of their words, with the line that merges them |
+| 3 · Gone cold | Proposed, and untouched for 30 days. A run's own hand on a thread does not keep it warm |
+| 4 · No size, no Why | Open threads with no size, and with no `Why:` line |
+| 5 · Too big | Sized large or huge, and not a plan |
+| 6 · The order | The backlog as it ranks now, every priority you set yourself (read from the threads' logs), and Build's line |
+
+It also marks the threads to leave alone (in Build, on hold, or ones you had a hand on in the last
+7 days), and says how many new ideas the run may file: 5, or none while 10 earlier ones still wait
+for your answer. `--json` gives the same as data. Spool calls no model for any of this. Matching
+is by shared words, and words usual across the project's own titles are left out, so sharing
+"page" proves nothing.
+
+The agent then sizes, notes, re-orders, drafts sprints and proposes, each command recorded under
+the run. `spool manage --end -m "<headline>" --report -` finishes the run's thread with a report:
+the headline, whatever the agent has to say (what needs you, and why), then every change the
+journal holds, grouped (dropped, sized, re-ordered, marked as plans, sprints drafted, new ideas),
+each with its reason where one was given. The report is read on the thread's ticket and with
+`spool show <id> --report`, the thread is in `spool brief` like any finished audit, and
+`spool revert <id>` takes the whole pass back. `spool manage` alone says whether a run is open.
+There is one run at a time in a project, and its thread is never handed to a worker.
+
 ## A run, undone in one step
 
 Some work is many small changes to the queue and none to the code: sizing a backlog, dropping what
@@ -549,6 +587,7 @@ ones marked 🔒:
 | `spool edit <id>` | Change a title, priority, size, kind, model, effort, tags, version, sprint, or the steps to check it by (`--steps`, `none` clears them); a sprint's version stamps its finished threads too |
 | `spool hold <t-id> -m why` · `drop <id>` | Park work; abandon it |
 | `spool sprint <name> [--goal …] [--why …] [--done-when …] [--serves <goal>] [--vision - \| --from <n-id>] [--add <t-id…>]` | Make a sprint and fill it in one go, keeping the vision in your words and the goal it serves; on a sprint that exists, add to it |
+| `spool manage [--start \| --end -m headline [--report -]]` | Put the backlog in order as one run that can be undone: `--start` opens the run and prints the worksheet of facts to work from, `--end` writes the report of what it changed; with neither, says whether a run is open |
 | `spool skill add` | Write a procedure down as a skill |
 | `spool prime [worker\|recorder]` | A role's rules and this project now, for an agent with no skills |
 

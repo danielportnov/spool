@@ -45,6 +45,11 @@ those comments are the detail.
   `record` gives the workspace a recorder: `save` tells it of every item written, and it keeps
   the item's file as it was and a line in the run's journal under `.spool/runs/<id>/`. `undoRun`
   puts each item back, and leaves alone any that changed since.
+- `manage.ts` is `spool manage`, the manager's worksheet. `gather` reads the spool, the git log,
+  the changelog and the tests into the facts a pass over the backlog starts from, with no model
+  and no judgment; `worksheetText` prints them. `changesOf` folds a run's journal into the report
+  `--end` writes. A run's own thread is told by `isRun` in `model.ts`, and `ready` never hands
+  it out.
 - `worktree.ts` gives a thread a git worktree of its own, so several can be built at once.
   `openWorktree` makes it inside `.spool/worktrees/`, on the branch `spool/<id>`, and `workDir`
   says where a thread is worked. `land` rebases the branch onto the checkout, runs the check in
