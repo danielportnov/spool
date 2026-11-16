@@ -10,7 +10,7 @@ import { Sandbox } from './helpers.ts';
 test('the loop skill has one job: make this chat the builder', () => {
   const loop = shipped('spool-loop');
   const flat = loop.replace(/\s+/g, ' ');
-  assert.deepEqual([...loop.matchAll(/^## (.+)$/gm)].map((m) => m[1]), ['Start', 'Build what is in Build', 'Watch the spool', 'When Build is empty']);
+  assert.deepEqual([...loop.matchAll(/^## (.+)$/gm)].map((m) => m[1]), ['Start', 'Build what is in Build', 'Watch the spool', 'Ask them in the chat', 'When Build is empty']);
   assert.match(flat, /`\/spool-loop` makes this chat the one that builds\. \*\*They decide what is built, and you build it:\*\* what is in Build, top first, and nothing else\./);
 
   // It starts by telling the board a chat builds here, which is theirs to say: typing /spool-loop says it.
@@ -32,8 +32,8 @@ test('the loop skill has one job: make this chat the builder', () => {
   assert.match(flat, /\*\*The worker's rules are not in this skill\.\*\* `spool prime worker` prints them, and whoever builds a thread reads them first: you, or each subagent\./);
   // Up to their usage target: read before each thread, reported, and a stop is a stop.
   assert.match(flat, /\*\*Up to their usage target,\*\* where they set one on the board \(`spool target` says\)\. Before you claim each thread, read the plan's usage with your harness's tool \(`get_usage` in the Claude app\) and report it: `spool usage --weekly <n> --five-hour <n>`\. It says keep building, or stop: then claim nothing new, let what is building land, and notify them once\. No usage tool\? Say so once, and build as if no target were set\./);
-  // Short enough to be read every time: it was 553 lines, and grew six for the usage target.
-  assert.ok(loop.trimEnd().split('\n').length <= 131, `${loop.trimEnd().split('\n').length} lines`);
+  // Short enough to be read every time: it was 553 lines, and grew six for the usage target and 29 for questions asked in the chat.
+  assert.ok(loop.trimEnd().split('\n').length <= 160, `${loop.trimEnd().split('\n').length} lines`);
 });
 
 test('the loop watches the spool, and falls back to one scheduled job', () => {
@@ -46,6 +46,7 @@ test('the loop watches the spool, and falls back to one scheduled job', () => {
   assert.match(loop, /^\| `build: t-4kq7 Tighter jump` \| They moved it to Build, or an answer freed it\. Build it \|$/m);
   assert.match(loop, /^\| `reply: t-4kq7 Tighter jump`, and their words \| They wrote on a thread\. Being built\? It steers that work\. Otherwise leave it for whoever builds it \|$/m);
   assert.match(loop, /^\| `unfiled: n-9wxa "add a mute button"` \| A note nobody has filed\. File it, by the `spool-record` skill \|$/m);
+  assert.match(loop, /^\| `ask: d-3kq2 for t-4kq7 Tighter jump — "Outline, or teal\?"`, and its options \| An agent needs their call\. Ask them in the chat, below \|$/m);
   assert.match(flat, /start the `Monitor` tool with the command `spool watch` and the longest timeout it allows\. Then end your turn: each line wakes you\./);
   assert.match(flat, /\*\*The watch runs out\*\* after a while, and the harness tells you\. Look once \(`spool next`\), then start it again, until they say stop\./);
   // One watch. It stays up while subagents build, since the chat itself is then free to hear a thread moved to Build.
@@ -60,6 +61,28 @@ test('the loop watches the spool, and falls back to one scheduled job', () => {
   assert.doesNotMatch(loop, /spool-loop again|spool-loop go|one-shot|session|go-ahead for/);
   // Stop ends both.
   assert.match(flat, /`\/spool-loop stop` ends the watch and any schedule: say that nothing builds here until they start it again\./);
+});
+
+test("in a chat that builds, an agent's question comes to the human as a Claude notification and a question in the chat, and their pick is the answer", () => {
+  const loop = shipped('spool-loop');
+  const flat = loop.replace(/\s+/g, ' ');
+  // It hears of a question from the watch or the subagent's report, and asks it once.
+  assert.match(flat, /A subagent that needs a call runs `spool ask … --for <t-id>` and stops\. The watch prints `ask:`, and its report says so too: ask each question once, whichever tells you first\./);
+  // Building alone, its own questions go the same way; lazy dev decides for itself when to bring one up.
+  assert.match(flat, /Building alone\? Ask your own the same way\. Lazy dev on\? The `spool-lazy` skill says when\./);
+  // A notification first, then the question itself, very directly, with Claude's own tools.
+  assert.match(flat, /1\. \*\*Notify them,\*\* in one line: "Spool needs you: outline the coins, or teal\?" In Claude Code it is the `PushNotification` tool\./);
+  assert.match(flat, /2\. \*\*Ask it in the chat, very directly,\*\* with the `AskUserQuestion` tool: the question as asked, its options as the choices, the recommended one first, marked so and with the why\./);
+  // Mockups to compare when it is about how something looks: the subagent draws them, the chat shows them side by side.
+  assert.match(flat, /About how something looks\? Put a small mockup of each option, or its code, in its `preview`, so they compare them side by side\./);
+  assert.match(flat, /A question about how something looks gives each option in its report as a small mockup or its code\./);
+  // Asking holds the chat, so the free slots are filled before it.
+  assert.match(flat, /Fill the free slots first: the chat waits on their answer, and the subagents build on\./);
+  // Their pick is their word: answered as them, which frees the thread to be built again.
+  assert.match(flat, /3\. \*\*Their pick is their word:\*\* `spool answer <d-id> <n>`, the number it had in `spool ask`, or their own words when they wrote some\. Run it as them, with no `--as`\. It frees the thread, the watch prints `build:`, and you build it again: its brief carries the answer\./);
+  // Never answered twice, and with no such tools the board and the notifier are as they were.
+  assert.match(flat, /Before you answer, `spool show <d-id>`: answered on the board meanwhile\? Then leave it\. They wave it off\? It waits on the board\./);
+  assert.match(flat, /No such tools\? Nothing changes: it waits on the board, and `spool ask` ran their notifier\./);
 });
 
 test('when build is empty the loop versions what shipped, adds a few ideas of its own, shows the brief and notifies', () => {

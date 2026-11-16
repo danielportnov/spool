@@ -344,7 +344,7 @@ It reads `GEMINI.md` unless its settings name `AGENTS.md` too.
 
 - ⚡ The loop watches the spool. Press ▶ on the page and it starts within seconds; no timer, nobody typing.
 - 🔔 It notifies you when Build is empty, or when it needs a call that is yours.
-- ❓ A question stops one thread, never the loop. It asks with options and a recommendation, and moves on.
+- ❓ A question stops one thread, never the loop. It asks with options and a recommendation, and moves on. In Chat mode it comes to you in the chat, with a notification.
 - 🧾 A call it makes by itself leaves a receipt you can overrule.
 - ✅ Name your tests once (`spool checks "npm test"`) and no thread can be marked done unless they pass.
 - 🏷️ What ships gets a version: a bump, a changelog entry, and a tag that stays on your machine.

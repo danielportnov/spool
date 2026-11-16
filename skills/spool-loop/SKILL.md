@@ -1,6 +1,6 @@
 ---
 name: spool-loop
-description: Make this chat the builder of this project's Spool - it builds the threads the user has moved to build and nothing else, several at once with subagents in git worktrees where it can, says a line as each starts and lands, adds a few ideas of its own as AI suggested, notifies the user when build is empty or something needs them, then watches the spool and starts again the moment a thread is moved to build, with a timed check back (three hours unless told otherwise) only where the harness cannot watch. Use for /spool-loop [hours], /spool-loop stop, or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "build what is in build", "keep going", or asks you to work unattended. Not for questions about the spool or for steering it, which is /spool.
+description: Make this chat the builder of this project's Spool - it builds the threads the user has moved to build and nothing else, several at once with subagents in git worktrees where it can, says a line as each starts and lands, adds a few ideas of its own as AI suggested, notifies the user when build is empty or something needs them and asks an agent's question in the chat, then watches the spool and starts again the moment a thread is moved to build, with a timed check back (three hours unless told otherwise) only where the harness cannot watch. Use for /spool-loop [hours], /spool-loop stop, or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "build what is in build", "keep going", or asks you to work unattended. Not for questions about the spool or for steering it, which is /spool.
 ---
 
 # Spool loop
@@ -47,7 +47,9 @@ says, three unless they set it.
   work only in that folder; commit there, every commit ending with the
   `Spool: <t-id>` trailer; sign every `spool` command the same way; finish
   with `spool done`, which lands it, or `spool ask` if it needs a decision.
-  A landing that is refused is fixed there and tried again, never forced.
+  A question about how something looks gives each option in its report as
+  a small mockup or its code. A landing that is refused is fixed there and
+  tried again, never forced.
 - Meanwhile you build nothing yourself. Say one line as each thread starts
   ("🧵 Starting the jump: more gravity, less hang time") and one as each
   lands ("✅ The jump: it lands in half the time"), take the next from build
@@ -79,6 +81,7 @@ do, and nothing otherwise:
 | `build: t-4kq7 Tighter jump` | They moved it to Build, or an answer freed it. Build it |
 | `reply: t-4kq7 Tighter jump`, and their words | They wrote on a thread. Being built? It steers that work. Otherwise leave it for whoever builds it |
 | `unfiled: n-9wxa "add a mute button"` | A note nobody has filed. File it, by the `spool-record` skill |
+| `ask: d-3kq2 for t-4kq7 Tighter jump — "Outline, or teal?"`, and its options | An agent needs their call. Ask them in the chat, below |
 
 - **In Claude Code:** start the `Monitor` tool with the command `spool watch`
   and the longest timeout it allows. Then end your turn: each line wakes you.
@@ -102,6 +105,32 @@ other prompt. It is a check back in, never a deadline.
   Delete the job and set it again.
 - The last firing finds its job gone. That is the loop ending, not a reason
   to set another on your own: say that `/spool-loop` starts it again.
+
+## Ask them in the chat
+
+A subagent that needs a call runs `spool ask … --for <t-id>` and stops. The
+watch prints `ask:`, and its report says so too: ask each question once,
+whichever tells you first. Building alone? Ask your own the same way. Lazy
+dev on? The `spool-lazy` skill says when.
+
+1. **Notify them,** in one line: "Spool needs you: outline the coins, or
+   teal?" In Claude Code it is the `PushNotification` tool.
+2. **Ask it in the chat, very directly,** with the `AskUserQuestion` tool:
+   the question as asked, its options as the choices, the recommended one
+   first, marked so and with the why. About how something looks? Put a
+   small mockup of each option, or its code, in its `preview`, so they
+   compare them side by side. Several waiting? Ask them together, four at
+   most. Fewer than two options, or more than four? Ask it in a line.
+   Fill the free slots first: the chat waits on their answer, and the
+   subagents build on.
+3. **Their pick is their word:** `spool answer <d-id> <n>`, the number it
+   had in `spool ask`, or their own words when they wrote some. Run it as
+   them, with no `--as`. It frees the thread, the watch prints `build:`, and
+   you build it again: its brief carries the answer.
+
+Before you answer, `spool show <d-id>`: answered on the board meanwhile? Then
+leave it. They wave it off? It waits on the board. No such tools? Nothing
+changes: it waits on the board, and `spool ask` ran their notifier.
 
 ## When Build is empty
 

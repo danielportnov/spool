@@ -77,8 +77,9 @@ those comments are the detail.
 - `loop.ts` is `spool loop`: `runLoop` claims the next ready task, starts the agent command with
   `PREAMBLE`, the worker's rules and the brief on stdin, and looks again when it exits.
 - `watch.ts` is `spool watch`. Once a second it reads the spool and prints a line for each change
-  the loop should wake for (`changes`): work that can be built, a reply, an unfiled note. While it
-  runs it leaves a file in the temp folder, which the page reads to say a chat is watching.
+  the loop should wake for (`changes`): work that can be built, a reply, a question an agent just
+  asked (`ask:`, with its thread and options, which the chat puts to the human), an unfiled note.
+  While it runs it leaves a file in the temp folder, which the page reads to say a chat is watching.
 - `server.ts` is `spool page`: the command (`servePage`) and a server on `127.0.0.1`
   (`startPage`) that sends the page and the board, and takes each click as a POST. `moveThread`
   is a drag: a command, and a word to the runner the server holds.

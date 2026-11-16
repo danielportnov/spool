@@ -284,7 +284,7 @@ reports it with `spool usage`, which says keep building or stop. Stopped, it cla
 lets what is being built land. With no target it builds what is in Build, whatever the usage.
 
 **It reacts; it does not wait on a clock.** `spool watch` stays up and prints a line when a thread
-can be built, when you reply on one, or when a note stays unfiled for a few seconds. In Claude Code the loop listens to that
+can be built, when you reply on one, when an agent asks you something, or when a note stays unfiled for a few seconds. In Claude Code the loop listens to that
 with the Monitor tool, so pressing ▶ starts the build within seconds. Where a harness cannot listen,
 it sets one recurring check instead, every three hours, or `/spool-loop <hours>`.
 
@@ -374,6 +374,11 @@ It does one of two things, and the policy decides which.
   You see every receipt, and can overrule one in a sentence: the rework is filed for you.
 - **It asks**: `spool ask`, with real options, a recommendation and the reason. That thread waits;
   the agent takes the next. On the page, a question is answered with one button.
+- **In Chat mode the chat asks you.** The chat that builds hears of the question at once, sends you
+  a Claude notification that something needs you, and asks it in the chat: its options as buttons,
+  the recommended one first, or mockups side by side when it is about how something looks. Your
+  pick is the answer, kept on the thread, and the thread is built again. Where the chat has no such
+  tools, the question waits on the board as before.
 
 `.spool/policy.md` is the line between the two, in plain words, and it is yours to edit: what
 agents may decide alone, what they must ask about, and what they never do (answer their own
