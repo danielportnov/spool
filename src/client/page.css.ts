@@ -50,6 +50,38 @@ export const CSS = String.raw`  :root {
   .themer:hover { color: var(--ink); }
   .themer svg { width: 16px; height: 16px; }
   .builder button.on { position: relative; color: var(--ink); background: var(--bg); border-color: var(--soft); font-weight: 600; }
+  /* The usage target, in Chat mode: a small meter of the plan's usage, with a tick where the chat stops. */
+  .target { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--soft); margin-left: -8px; }
+  .target.set { color: var(--ink); }
+  .target .meter { position: relative; flex: none; width: 56px; height: 6px; border-radius: 3px; background: var(--line); }
+  .target .meter .used { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; background: var(--blue); }
+  .target .meter .mark { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--ink); }
+  .target .num { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .target.reached { color: var(--warn); border-color: var(--warn); }
+  .target.reached .meter .used { background: var(--warn); }
+  .target[aria-expanded="true"] { border-color: var(--soft); background: var(--bg); }
+  #targets { position: absolute; z-index: 3; top: calc(100% + 6px); right: 20px; width: 360px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); padding: 12px 16px 14px; }
+  #targets .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  #targets h3 { margin: 0; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); }
+  #targets .shut { border: 0; background: none; color: var(--soft); padding: 2px 6px; font-size: 16px; line-height: 1; }
+  #targets .what { margin: 6px 0 4px; font-size: 13px; color: var(--soft); }
+  #targets .limit { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 10px 0 8px; border-top: 1px solid var(--line); }
+  #targets .name { display: flex; align-items: center; gap: 7px; font-weight: 600; cursor: pointer; }
+  #targets .name input { margin: 0; accent-color: var(--accent); }
+  #targets .box { display: inline-flex; align-items: center; gap: 3px; color: var(--soft); }
+  #targets .box input { width: 54px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); font-variant-numeric: tabular-nums; text-align: right; }
+  #targets .now { grid-column: 2 / 4; font-size: 12px; color: var(--soft); }
+  #targets .now.reached { color: var(--warn); font-weight: 600; }
+  #targets .off input[type="range"], #targets .off .box { opacity: .45; }
+  /* The slider's track is the meter: the plan's usage shaded in, and the thumb is the target. */
+  #targets input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; margin: 0; border-radius: 3px; cursor: pointer;
+    background: linear-gradient(to right, color-mix(in srgb, var(--blue) 55%, var(--line)) var(--used, 0%), var(--line) var(--used, 0%)); }
+  #targets .limit.reached input[type="range"] { background: linear-gradient(to right, color-mix(in srgb, var(--warn) 60%, var(--line)) var(--used, 0%), var(--line) var(--used, 0%)); }
+  #targets input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--accent); }
+  #targets input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--accent); }
+  #targets input[type="range"]:disabled { cursor: default; }
+  #targets .foot { margin: 6px 0 0; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; color: var(--soft); }
+  @media (max-width: 1100px) { .target .label { display: none; } }
   .live { margin-top: 6px; display: flex; align-items: center; gap: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--soft); }
   .live .now { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .live .for { color: var(--blue); white-space: nowrap; }
@@ -370,6 +402,11 @@ export const CSS = String.raw`  :root {
     .builder { order: 6; margin: 0 0 8px; }
     .runner { order: 7; margin-bottom: 8px; }
     .themer { order: 8; margin: 0 0 8px auto; width: 36px; height: 36px; }
+    /* In Chat mode the usage target is a row of its own: the meter runs the width of the phone. */
+    .target { order: 9; flex: 1 0 100%; margin: 0 0 8px; justify-content: flex-start; }
+    .target .label { display: inline; }
+    .target .meter { flex: 1 1 auto; width: auto; }
+    #targets { left: 16px; right: 16px; width: auto; }
     .rule, #away { padding-left: 16px; padding-right: 16px; }
     #quick { padding: 8px 16px 0; }
     .jump { display: flex; gap: 6px; padding: 8px 16px 0; }

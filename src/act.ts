@@ -201,6 +201,17 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
     return act(ctx, ['approve', id]);
   }
+  if (action === 'target') {
+    // The usage target, from the header: a whole percent for each limit given, or null to take that one off.
+    const argv = ['target'];
+    for (const [key, flag] of [['weekly', 'weekly'], ['fiveHour', 'five-hour']] as const) {
+      const value = body[key];
+      if (value === null) argv.push(`--${flag}=none`);
+      else if (typeof value === 'number') argv.push(`--${flag}=${value}`);
+      else if (value !== undefined) return { ok: false, text: 'a target is a percent, or none' };
+    }
+    return argv.length > 1 ? act(ctx, argv) : { ok: false, text: 'which target?' };
+  }
   if (action === 'answer') {
     const choice = text(body.choice);
     if (!/^d-[a-z0-9]+$/.test(id) || !choice) return { ok: false, text: 'which question, and what is the answer?' };

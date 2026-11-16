@@ -1481,6 +1481,7 @@ function draw(b) {
       + ' It runs: ' + b.runner.agent + (b.runner.parallel > 1 ? ', on up to ' + b.runner.parallel + ' threads at once' : '') + '.' + lately;
     runner.onclick = () => post('runner', { on: !b.runner.on }, '');
   }
+  drawTarget(b);
   drawElsewhere(b);
   document.getElementById('board').hidden = view !== 'board';
   document.getElementById('backlog').hidden = view !== 'backlog';
@@ -1493,6 +1494,129 @@ function draw(b) {
   drawThread(b);
   markFocus();
 }
+
+// ---- the usage target: in Chat mode, how much of the Claude plan the chat that builds may use
+
+// The plan's limits a target can be set on: the key the board and the command use, and its name.
+const LIMITS = [['weekly', 'Weekly'], ['fiveHour', '5-hour']];
+let targetsOpen = false;
+// What the slider of a limit with no target starts at, once it is switched on.
+const TARGET_START = 80;
+const usedOf = (u, key) => (u.read && u.read.used[key] != null ? u.read.used[key] : null);
+const pct = (n) => (Math.round(n * 10) / 10) + '%';
+
+// The limit the header shows: the one nearest its target, or the first that has one.
+function shownLimit(u) {
+  const set = LIMITS.filter(([key]) => u.target[key] != null);
+  const near = (key) => (usedOf(u, key) == null ? -1 : usedOf(u, key) / u.target[key]);
+  return set.sort((a, z) => near(z[0]) - near(a[0]))[0] || null;
+}
+
+// In the header, Chat mode only: the limit's name, a meter of what is used with a tick at the
+// target, and the two numbers. With no target it is a button that says what it is for.
+function drawTarget(b) {
+  const chip = document.getElementById('target');
+  const chat = b.runner.builder === 'chat';
+  chip.hidden = !chat;
+  if (!chat) return closeTargets();
+  const u = b.usage;
+  const shown = shownLimit(u);
+  chip.className = 'target' + (shown ? ' set' : '') + (u.reached.length ? ' reached' : '');
+  chip.onclick = () => (targetsOpen ? closeTargets() : openTargets());
+  const change = ' Click to change it.';
+  if (!shown) {
+    chip.replaceChildren(el('span', { class: 'label' }, 'Usage target'));
+    chip.title = 'No usage target: the chat that builds takes what is in Build, whatever the usage. Set how much of your Claude plan it may use, and it works up to that, then takes no new thread.';
+  } else {
+    const [key, name] = shown;
+    const used = usedOf(u, key);
+    const goal = u.target[key];
+    chip.replaceChildren(
+      el('span', { class: 'label' }, name),
+      el('span', { class: 'meter', 'aria-hidden': 'true' },
+        el('i', { class: 'used', style: 'width: ' + Math.min(100, used || 0) + '%' }),
+        el('i', { class: 'mark', style: 'left: ' + goal + '%' })),
+      el('span', { class: 'num' }, (used == null ? 'to ' : Math.round(used) + ' / ') + goal + '%'));
+    chip.title = u.reached.length
+      ? 'Usage target reached: ' + u.reached.map((k) => LIMITS.find(([x]) => x === k)[1].toLowerCase() + ' ' + pct(usedOf(u, k)) + ' of ' + u.target[k] + '%').join(', ') + '. The chat that builds takes no new thread until it is under again, or you raise it.' + change
+      : used == null ? name + ' target: ' + goal + '% of your Claude plan. No usage read yet: the chat that builds reads it before each thread.' + change
+      : name + ' usage ' + pct(used) + ' of your ' + goal + '% target, read ' + ago(u.read.at, true) + ' by ' + u.read.by + '. The chat that builds works up to it, then takes no new thread.' + change;
+  }
+  chip.setAttribute('aria-label', chip.textContent.replace(/\s+/g, ' ').trim() + (shown ? ', usage target' : ''));
+  chip.setAttribute('aria-expanded', String(targetsOpen));
+  if (targetsOpen) fillTargets(u);
+}
+
+// The box under it: for each limit, a switch, a slider and a box to type the number in. The slider
+// shows what is used, shaded in, so the target is set against it. Each change is spool target.
+function openTargets() {
+  const box = document.getElementById('targets');
+  targetsOpen = true;
+  const shut = el('button', { class: 'shut', title: 'Close', 'aria-label': 'Close', onclick: closeTargets }, '×');
+  box.replaceChildren(
+    el('div', { class: 'head' }, el('h3', {}, 'Usage target'), shut),
+    el('p', { class: 'what' }, 'The chat that builds here works until your Claude plan’s usage reaches this, then takes no new thread.'),
+    ...LIMITS.map(([key, name]) => limitNode(key, name)),
+    el('p', { class: 'foot' }));
+  box.hidden = false;
+  document.getElementById('target').setAttribute('aria-expanded', 'true');
+  if (current) fillTargets(current.usage);
+}
+function closeTargets() {
+  if (!targetsOpen) return;
+  targetsOpen = false;
+  document.getElementById('targets').hidden = true;
+  document.getElementById('targets').replaceChildren();
+  document.getElementById('target').setAttribute('aria-expanded', 'false');
+}
+function limitNode(key, name) {
+  const on = el('input', { type: 'checkbox' });
+  const slide = el('input', { type: 'range', min: '1', max: '100', step: '1', 'aria-label': name + ' target, in percent' });
+  const num = el('input', { type: 'number', min: '1', max: '100', step: '1', inputmode: 'numeric', 'aria-label': name + ' target, in percent, typed' });
+  const row = el('div', { class: 'limit', 'data-limit': key }, el('label', { class: 'name' }, on, name), slide, el('span', { class: 'box' }, num, '%'), el('div', { class: 'now' }));
+  const whole = (v) => Math.min(100, Math.max(1, Math.round(Number(v)) || TARGET_START));
+  // Set: the number the slider or the box says, sent once it is let go of, or typed and left.
+  const set = (value) => {
+    const had = current ? current.usage.target[key] : undefined;
+    if ((had == null ? null : had) === value) return;
+    post('target', { [key]: value }, value == null ? 'No ' + name.toLowerCase() + ' target.' : name + ' target: ' + value + '%. The chat works up to it.');
+  };
+  on.addEventListener('change', () => { row.classList.toggle('off', !on.checked); slide.disabled = num.disabled = !on.checked; set(on.checked ? whole(num.value) : null); });
+  slide.addEventListener('input', () => { num.value = slide.value; });
+  slide.addEventListener('change', () => set(whole(slide.value)));
+  num.addEventListener('input', () => { if (Number(num.value) >= 1 && Number(num.value) <= 100) slide.value = String(Math.round(Number(num.value))); });
+  num.addEventListener('change', () => { num.value = slide.value = String(whole(num.value)); set(Number(num.value)); });
+  num.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); num.blur(); } });
+  return row;
+}
+// What the box shows, from the board: each control left alone while it is being used.
+function fillTargets(u) {
+  const box = document.getElementById('targets');
+  const at = document.activeElement;
+  for (const row of box.querySelectorAll('.limit')) {
+    const key = row.dataset.limit;
+    const [on, slide, num] = row.querySelectorAll('input');
+    const goal = u.target[key];
+    const used = usedOf(u, key);
+    const reached = u.reached.includes(key);
+    if (at !== on) on.checked = goal != null;
+    row.classList.toggle('off', goal == null);
+    row.classList.toggle('reached', reached);
+    slide.disabled = num.disabled = goal == null;
+    if (at !== slide && at !== num) slide.value = num.value = String(goal != null ? goal : (Number(num.value) || TARGET_START));
+    slide.style.setProperty('--used', Math.min(100, used || 0) + '%');
+    row.querySelector('.now').className = 'now' + (reached ? ' reached' : '');
+    row.querySelector('.now').textContent = used == null ? 'Not read yet.' : 'Used ' + pct(used) + (reached ? ': reached, so the chat takes no new thread.' : goal != null ? ', ' + pct(Math.max(0, goal - used)) + ' to go.' : '.');
+  }
+  box.querySelector('.foot').textContent = u.read
+    ? 'Read ' + ago(u.read.at, true) + ' by ' + u.read.by + '. The chat reads it again before each thread.'
+    : 'Nothing read yet. The chat that builds reads your usage before each thread, and this fills in.';
+}
+// A click anywhere else puts the box away. Where the click was is read from its path as it was sent:
+// the palette's own row is gone by now, having opened this box.
+document.addEventListener('click', (e) => {
+  if (targetsOpen && !e.composedPath().some((node) => ['targets', 'target', 'layer'].includes(node.id))) closeTargets();
+});
 
 // The board lives in a background tab, where its title and icon are all that shows. Both say what
 // waits on him, as a count: an open question, a plan wanting its go-ahead, an agent that stopped
@@ -1802,6 +1926,7 @@ function actionsOf(b) {
     { name: 'Go to the Roadmap', hint: 'g r', run: () => goTo('roadmap') },
     { name: 'Switch who builds to ' + (chat ? 'Headless' : 'Chat'), run: () => post('builder', { builder: chat ? 'headless' : 'chat' }, '') },
     !chat && { name: b.runner.on ? 'Switch agents off' : 'Switch agents on', run: () => post('runner', { on: !b.runner.on }, '') },
+    chat && { name: 'Set the usage target', run: () => openTargets() },
     ...b.sprints.filter((x) => x.waiting > 0).map((x) => ({ name: 'Play sprint: ' + x.name, run: () => post('play', { id: x.id }, x.name + ' is running') })),
     { name: 'Add a thread', hint: 'c', run: () => openLayer('add') },
     { name: 'Show the keys', hint: '?', run: () => openLayer('keys') },
@@ -1909,6 +2034,7 @@ function quickAddNode() {
 // Esc closes the nearest thing: a box over the page, then the search, then the ticket, then lets go of the thread.
 function escape(at, typing) {
   if (layer) return closeLayer();
+  if (targetsOpen) { closeTargets(); document.getElementById('target').focus(); return; }
   if (at && at.id === 'search') { at.value = ''; query = ''; at.blur(); redraw(); return; }
   if (openId && !adding && !(at && at.isContentEditable)) return closeThread();
   if (!typing && focusId) { focusId = null; markFocus(); }
