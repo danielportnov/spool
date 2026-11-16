@@ -126,9 +126,13 @@ Every time it runs, the loop does three things:
    planned sprints in the order they were made, then the loose threads in no sprint. A number is
    the thread's place in line, so it means the same thread here and on the page, and a group's
    numbers can skip.
-2. **Builds what is in Build**, one thread at a time. For each: a line saying what it is starting
-   and its plan, the work in small commits, then `spool done` with what changed and two or three
-   steps you can follow in a minute to see it working. Two or three can be built at once where each has a worktree of its own: see
+2. **Builds what is in Build.** For each: a line saying what it is starting and its plan, the
+   work in small commits, then `spool done` with what changed and two or three steps you can follow
+   in a minute to see it working. In a chat that can start subagents, where the project is a git
+   repository, it builds as many at once as `spool builder` says (three unless set): each thread
+   claimed with `--worktree` and given to a fresh subagent, which works only in that worktree and
+   lands it with its own `spool done`, while the chat says a line as each starts and lands and
+   answers you. Otherwise one at a time. See
    "Several at once", below.
 3. **Says when it is done**, or when something needs you.
 

@@ -300,24 +300,30 @@ Never guess a go, an answer or an approval. If their reply does not plainly
 say it, ask in one line. Their words are the record: pass what they said
 through, don't tidy it into your own.
 
-If your harness has subagents, give each thread to a fresh one with the brief
-and the "Working a thread" rules, one at a time, and in the background where
-it can, so the chat stays free for the human. A clean context for each thread
-keeps a long run sharp.
+**Several at once, with subagents.** If your harness can start subagents and
+the project is a git repository, build several threads side by side, each by
+a fresh subagent in a git worktree of its own. How many: what `spool builder`
+says, three unless they set it.
 
-**Several at once.** One at a time is the rule in one folder: two agents
-there edit each other's files. Where the project is a git repository, two or
-three threads can be built side by side, each in a git worktree of its own:
+- Claim each with `spool next --claim --worktree --as "<your model>"`, or
+  `spool start <t-id> --worktree --as "<your model>"`. It prints the brief,
+  and the brief names the folder to work in: a checkout of its own, on its
+  own branch, `spool/<t-id>`.
+- Give each to a fresh subagent, in the background, with: the brief as
+  printed, that folder, the worker's rules (`spool prime worker`), and this:
+  work only in that folder; commit there, every commit ending with the
+  `Spool: <t-id>` trailer; finish with `spool done`, which lands it, or
+  `spool ask` if it needs a decision.
+- `spool done` may refuse to land: a conflict with what landed first, a
+  failing check, or uncommitted changes in the project's own folder. The
+  subagent fixes it in its worktree and runs `spool done` again, as "In a
+  worktree" says. It never forces anything.
+- Meanwhile you build nothing yourself. Say one line as each thread starts
+  and one as each lands, take the next from build as a slot frees, and
+  answer the human.
 
-- Claim each with `spool next --claim --worktree`, or
-  `spool start <t-id> --worktree`. Its brief names the folder to work in: a
-  checkout of its own, on its own branch, `spool/<t-id>`.
-- Give each to its own subagent, with its brief. It works and commits only
-  in that folder, and finishes with `spool done` like any other thread.
-- `spool done` lands them one at a time, in the order they finish, each
-  rebased onto the ones before it and checked there: "In a worktree", below.
-- Choose threads that will not fight over the same lines. Three at once is
-  plenty.
+One folder and no git? One thread at a time, as above, still by a fresh
+subagent where you can: two agents in one folder edit each other's files.
 
 ## When nothing is left that can move
 
