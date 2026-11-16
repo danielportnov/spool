@@ -55,7 +55,8 @@ says, three unless they set it.
 
 One folder and no git? One thread at a time, still by a fresh subagent where
 you can: two agents in one folder edit each other's files. No subagents?
-Build each yourself: `spool next --claim`, then the worker's rules.
+Build each yourself: `spool next --claim --as "<your model>"`, then by the
+worker's rules.
 
 **They can steer at any time.** Their words on a thread being built change
 it at once: pass them on, and say what changed in a line. Everything else

@@ -18,7 +18,7 @@ test('in a chat that can start subagents, the loop builds several threads at onc
   assert.match(loop, /A landing that is refused is fixed there and tried again, never forced\./);
   assert.match(section('Working a thread').replace(/\s+/g, ' '), /It refuses, and lands nothing, when:[\s\S]*your work conflicts with what landed before it\.[\s\S]*resolve each file, `git rebase --continue`, and run `spool done` again\./);
   assert.match(loop, /Meanwhile you build nothing yourself\. Say one line as each thread starts \("[^"]+"\) and one as each lands \("[^"]+"\), take the next from build as a slot frees, and answer the human\./);
-  assert.match(loop, /One folder and no git\? One thread at a time, still by a fresh subagent where you can: two agents in one folder edit each other's files\. No subagents\? Build each yourself: `spool next --claim`, then the worker's rules\./);
+  assert.match(loop, /One folder and no git\? One thread at a time, still by a fresh subagent where you can: two agents in one folder edit each other's files\. No subagents\? Build each yourself: `spool next --claim --as "<your model>"`, then by the worker's rules\./);
   // The old rule, one subagent at a time whatever the project, is gone.
   assert.doesNotMatch(loop, /one at a time, and in the background/);
 });
