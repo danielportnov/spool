@@ -343,7 +343,8 @@ test('a Building card says what the agent is doing now, and since when', async (
   s.sp('init', '--name', 'skyhop');
   const jump = s.id('task', 'Tighten the jump arc', '-s', 's');
   s.sp('build', jump);
-  const live = () => board(Workspace.open(s.root)).columns.building.find((c) => c.id === jump)?.live;
+  // Read on the sandbox's own day, so the claim is fresh and not gone quiet.
+  const live = () => board(Workspace.open(s.root, () => new Date('2026-01-01T00:30:00Z'))).columns.building.find((c) => c.id === jump)?.live;
   assert.equal(live(), undefined, 'not yet building, so no live line');
 
   s.sp('start', jump);
