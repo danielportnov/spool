@@ -3102,7 +3102,9 @@ function addAllNode(where, cards) {
 // ---- the board: four columns
 
 function drawBoard(b) {
-  document.getElementById('board').replaceChildren(...COLUMNS.map(([key, name, hint]) => {
+  const board = document.getElementById('board');
+  const before = placesOf(board);
+  board.replaceChildren(...COLUMNS.map(([key, name, hint]) => {
     const whole = b.columns[key].filter(shows);
     const tools = toolsNode(key, whole, b);
     const filter = tools.lastChild.value;
@@ -3152,6 +3154,49 @@ function drawBoard(b) {
       drop && addNode(key, key === 'build' ? 'What should be built?' : 'What do you want added?'),
       key === 'proposed' && cards.length > 0 && el('div', { style: 'margin-top: 8px' }, addAllNode('board', cards)));
   }));
+  slide(board, before);
+}
+
+// Cards move, they do not jump. Where each card was before the board was drawn again is measured,
+// and a card that is somewhere else now slides there from its old place; one never seen before
+// fades in. Not while a card is being dragged, not on the first draw, and not where the system
+// asks for less motion. Places are taken from the board's own corner, so what changes above it
+// does not set every card moving.
+const SLIDE_MS = 200;
+const known = new Set();
+let boardSeen = false;
+function placesOf(board) {
+  const at = new Map();
+  if (board.hidden) return at;
+  const corner = board.getBoundingClientRect();
+  for (const node of board.querySelectorAll('.card[data-id]')) {
+    const r = node.getBoundingClientRect();
+    if (r.width) at.set(node.dataset.id, { x: r.left - corner.left, y: r.top - corner.top });
+  }
+  return at;
+}
+function slide(board, before) {
+  const first = !boardSeen;
+  boardSeen = true;
+  const still = first || !!document.querySelector('.dragging') || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const corner = board.getBoundingClientRect();
+  for (const node of board.querySelectorAll('.card[data-id]')) {
+    const id = node.dataset.id;
+    const fresh = !known.has(id);
+    known.add(id);
+    if (still || !node.animate) continue;
+    const was = before.get(id);
+    if (was) {
+      const r = node.getBoundingClientRect();
+      const dx = was.x - (r.left - corner.left);
+      const dy = was.y - (r.top - corner.top);
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+        node.animate([{ transform: 'translate(' + dx + 'px, ' + dy + 'px)' }, { transform: 'none' }], { duration: SLIDE_MS, easing: 'ease-out' });
+      }
+    } else if (fresh) {
+      node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: SLIDE_MS, easing: 'ease-out' });
+    }
+  }
 }
 
 // ---- while you were away: the morning brief, above the board's columns

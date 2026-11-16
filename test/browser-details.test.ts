@@ -1,6 +1,7 @@
 /**
  * The small details of a ticket and a card, in a real browser: what the model boxes say, and who
- * is building a thread, with what; times that read the way people say them; Markdown; and Undo on a toast.
+ * is building a thread, with what; times that read the way people say them; Markdown; Undo on a
+ * toast; and cards that slide when they move.
  *
  * It uses the Chrome already on the machine, like test/browser.test.ts, and is skipped where
  * there is none. Set SPOOL_SHOTS to a folder for pictures, light and dark.
@@ -110,7 +111,16 @@ test('the details of a ticket and a card', async (t) => {
 
   const { child, url } = await startPage(s, 19500 + (process.pid % 1500), '--run', '--agent', `${claude(s)} -p`);
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'], timezoneId: 'UTC' });
+  // Every animation the page starts is noted, to see what slides and what fades.
+  await context.addInitScript({ content: `
+    window.slides = [];
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (frames, options) {
+      if (this.dataset && this.dataset.id) window.slides.push(this.dataset.id + ' ' + Object.keys(frames[0]).join());
+      return animate.call(this, frames, options);
+    };` });
   const page = await context.newPage();
+  const slides = async (): Promise<string[]> => (await page.evaluate('window.slides')) as string[];
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(String(error)));
   page.on('console', (message) => {
@@ -130,6 +140,7 @@ test('the details of a ticket and a card', async (t) => {
   try {
     await page.goto(url);
     await page.locator(`#board .card[data-id="${jump}"]`).waitFor();
+    assert.deepEqual(await slides(), [], 'the first draw does not set the whole board moving');
 
     // Which model, and how hard it thinks: two boxes, each with its own label. Left alone, Fable
     // decides, and a quiet line says what the size would give.
@@ -212,8 +223,11 @@ test('the details of a ticket and a card', async (t) => {
     const toast = page.locator('#said');
     const coinsCard = page.locator(`#board .card[data-id="${coins}"]`);
     const state = (id: string): string => s.json('show', id).item.state;
+    await page.evaluate('window.slides = []');
     await coinsCard.getByRole('button', { name: '▶ Build' }).click();
     await until('the coins are in build', () => state(coins) === 'ready');
+    // A card that changes column slides from where it was to where it is.
+    await until('the card slides into Build', async () => (await slides()).includes(`${coins} transform`));
     await toast.getByRole('button', { name: 'Undo' }).waitFor();
     assert.match(await toast.innerText(), /^In build: Make coins readable at sunset/);
     await shot(page, 'details-undo');
@@ -231,10 +245,33 @@ test('the details of a ticket and a card', async (t) => {
     await page.mouse.move(0, 0);
     await until('the toast goes', async () => !(await toast.evaluate((n) => n.classList.contains('on'))));
 
+    // Where the system asks for less motion, cards only move.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.evaluate('window.slides = []');
+    await coinsCard.getByRole('button', { name: '▶ Build' }).click();
+    await page.locator(`#board [data-column="build"] .card[data-id="${coins}"]`).waitFor();
+    await coinsCard.getByRole('button', { name: 'Not yet' }).click();
+    await page.locator(`#board [data-column="proposed"] .card[data-id="${coins}"]`).waitFor();
+    assert.deepEqual(await slides(), []);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    // A thread the board has not shown before fades in.
+    const wind = s.id('task', 'Wind in the menu', '-s', 'xs');
+    await until('the new card fades in', async () => (await slides()).includes(`${wind} opacity`));
+
     // An archived thread says when, the same way.
     await page.getByRole('button', { name: 'Backlog', exact: true }).click();
     await page.getByRole('button', { name: '▸ Archived · 1' }).click();
     assert.match(await page.locator(`#archived .row[data-id="${grand}"] .right`).innerText(), /^Archived Jan 1(, 2026)?\s/);
+
+    if (SHOTS) {
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await page.getByRole('button', { name: 'Board', exact: true }).click();
+      await open(coins);
+      await shot(page, 'dark-details-markdown');
+      await open(jump);
+      await shot(page, 'dark-details-building');
+      await page.emulateMedia({ colorScheme: 'light' });
+    }
 
     assert.deepEqual(problems, [], 'the page logged no errors');
   } finally {
