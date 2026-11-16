@@ -2,7 +2,7 @@
 
 What shipped in each version of Spool, newest first.
 
-## Unreleased
+## 0.19.0 · 2026-11-16
 
 - Spool can be off: `spool disable` switches it off in a project, so it is one tool you reach for
   and not the way every chat has to work. The Spool block comes out of `AGENTS.md` and

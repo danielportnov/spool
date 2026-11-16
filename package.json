@@ -1,6 +1,6 @@
 {
   "name": "@danielportnov/spool",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "description": "Agent skills, and the small CLI under them, that keep coding agents working on their own: you talk, they turn it into tasks, work them around the clock, and come back only for the calls that are yours.",
   "keywords": [
     "ai-agents",
