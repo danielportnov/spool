@@ -185,7 +185,8 @@ Much feedback is about how something looks, so a picture can go with it: paste a
 drop an image file, into the reply box, **+ Add** or `c`, and it waits under the box until you send.
 It shows under your words in the conversation, a click opens it full size, and the agent that builds
 the thread finds its path in its brief. Agents attach pictures too, with `spool attach`: a before and
-an after of anything that changes what is on screen. Pictures stay on your machine, in
+an after of anything that changes what is on screen, shown side by side under the result when the
+thread is done, and marked in the brief's **Worth a look**. Pictures stay on your machine, in
 `.spool/runs/`, out of git.
 
 Keep several projects in one folder, each with its own spool? Start `spool page` in that folder and

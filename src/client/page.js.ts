@@ -615,7 +615,7 @@ function drawBrief(b) {
         el('div', { class: 'title', onclick: open(t.id) }, t.title),
         t.summary && el('div', { class: 'note' }, inline(t.summary)),
         t.steps.length > 0 && el('div', { class: 'note' }, 'To check', stepsNode(t.steps)),
-        el('div', { class: 'why' }, t.reasons.join(' · '))))],
+        el('div', { class: 'why' }, t.reasons.join(' · '), pictureMark(t.pictures))))],
     rest > 0 && el('button', { class: 'history', 'aria-expanded': String(briefRest), onclick: () => { briefRest = !briefRest; redraw(); } },
       (briefRest ? '▾ ' : '▸ ') + (r.worthALook.length ? 'Also shipped' : 'Shipped') + ' · ' + rest),
     rest > 0 && briefRest && r.alsoShipped.map((g) => [
@@ -1217,6 +1217,7 @@ function threadNode(c, b) {
             p.kind === 'asked' && el('span', { class: 'badge ask' }, '❓ Needs a call from you'),
             (p.text || !p.pictures) && el('pre', {}, rich(p.text)),
             picturesNode(c, p),
+            p === shipped && proofNode(c),
             p === shipped && c.steps.length > 0 && [el('div', { class: 'note' }, 'To check'), stepsNode(c.steps)],
             p === shipped && t.checked && el('div', { class: 'badge', style: 'display: block' }, '✓ Check passed: ' + t.checked),
             p === shipped && t.commits.length > 0 && el('div', { class: 'mono', style: 'margin-top: 6px; color: var(--soft)' }, (t.commits.length === 1 ? 'commit ' : 'commits ') + t.commits.join(' · ')),

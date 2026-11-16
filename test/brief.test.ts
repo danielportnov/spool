@@ -130,7 +130,7 @@ test('--json gives the same brief as data, for a page to draw', () => {
   assert.deepEqual(b.needsYou.questions, [{ id: d, title: 'Fade over one second, or two?', options: ['One', 'Two'], recommend: null, blocks: 1, project: 'demo' }]);
   assert.deepEqual(b.needsYou.plans, []);
   assert.deepEqual(b.needsYou.stopped, []);
-  assert.deepEqual(b.worthALook, [{ id: big, title: 'Rebuild the level editor', summary: 'The editor saves as you go', steps: [], size: 'l', files: 2, reasons: ['large'], project: 'demo' }]);
+  assert.deepEqual(b.worthALook, [{ id: big, title: 'Rebuild the level editor', summary: 'The editor saves as you go', steps: [], size: 'l', files: 2, reasons: ['large'], project: 'demo', pictures: 0 }]);
   assert.deepEqual(b.alsoShipped, [{ sprint: null, threads: [{ id: small, title: 'Fix the typo on the title screen', summary: 'The title is spelled right', project: 'demo' }] }]);
   assert.deepEqual(b.calls, []);
   assert.equal(b.approve, 'spool approve --all');

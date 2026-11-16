@@ -212,6 +212,11 @@ function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['
   });
   // Stable: things said in the same minute keep the order they were written in, words first.
   const story = [...words, ...rest].map((p, i) => ({ p, i })).sort((a, b) => a.p.at.localeCompare(b.p.at) || a.i - b.i).map((x) => x.p);
+  // Once it is finished, its before and after are shown together under the result, and not again where they were attached.
+  if (story.some((p) => p.kind === 'shipped')) {
+    for (const p of story) if (p.pictures) p.pictures = p.pictures.filter((name) => !/-(before|after)\./.test(name));
+    return withPictures(story.filter((p) => p.kind !== 'picture' || p.pictures?.length));
+  }
   return withPictures(story);
 }
 

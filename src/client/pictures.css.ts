@@ -19,8 +19,15 @@ export const PICTURES_CSS = String.raw`
   button.picture:hover { border-color: var(--soft); }
   button.picture img { display: block; max-width: min(100%, 360px); max-height: 240px; object-fit: contain; }
 
-  .pictures figure { margin: 0; min-width: 0; }
-  .pictures figcaption { margin-top: 4px; font-size: 12px; color: var(--soft); }
+  /* a finished thread's proof: before and after side by side, stacked on a narrow screen */
+  .proof { display: grid; gap: 10px; margin-top: 10px; }
+  .proof.pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 760px) { .proof.pair { grid-template-columns: 1fr; } }
+  .pictures figure, .proof figure { margin: 0; min-width: 0; }
+  .proof button.picture { display: block; width: 100%; }
+  .proof button.picture img { max-width: 100%; max-height: 320px; margin: 0 auto; }
+  .pictures figcaption, .proof figcaption { margin-top: 4px; font-size: 12px; color: var(--soft); }
+  .picmark { margin-left: 6px; white-space: nowrap; }
 
   /* full size, over everything */
   #picture { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .35); }

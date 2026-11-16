@@ -15,6 +15,7 @@ import { git, repoRoot } from './git.ts';
 import { type Item, SpoolError, oneLine, splitBody } from './model.ts';
 import { type Paint, age } from './render.ts';
 import { JOURNAL } from './journal.ts';
+import { picturesOf } from './pictures.ts';
 import { type Scope, children, dependents, review, sprintOf, taskState, tasks } from './schedule.ts';
 import { hearLine } from './stream.ts';
 import type { Workspace } from './store.ts';
@@ -39,7 +40,7 @@ export interface Brief {
     stopped: { id: string; title: string; why: string; when: string; lastSaid: string | null; project: string }[];
   };
   /** `steps`: how to see each one working, as the agent that finished it wrote them. */
-  worthALook: { id: string; title: string; summary: string | null; steps: string[]; size: string | null; files: number; reasons: string[]; project: string }[];
+  worthALook: { id: string; title: string; summary: string | null; steps: string[]; size: string | null; files: number; reasons: string[]; project: string; pictures: number }[];
   /** The rest of what shipped, by sprint: threads in no sprint come first, under a null sprint. */
   alsoShipped: { sprint: { id: string; title: string } | null; threads: { id: string; title: string; summary: string | null; project: string }[] }[];
   calls: { id: string; question: string; chose: string; for: string[]; project: string }[];
@@ -275,6 +276,8 @@ export function morning(ws: Workspace, opts: { since?: string; project?: Scope }
       files,
       reasons,
       project: project(t),
+      // Pictures kept with it, its before and after among them: the quickest look there is.
+      pictures: picturesOf(t).length,
     })),
     alsoShipped,
     calls,

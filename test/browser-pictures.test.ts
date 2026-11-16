@@ -1,6 +1,7 @@
 /**
  * Pictures in a real browser: pasted into the reply box, quick add and + Add, shown under the box
- * and taken off again, sent, drawn in the conversation, opened full size and closed.
+ * and taken off again, sent, drawn in the conversation, opened full size and closed; and a finished
+ * thread's before and after side by side under its result.
  *
  * It uses the Chrome already on the machine, like test/browser.test.ts, and is skipped where there
  * is none. Set SPOOL_SHOTS to a folder for pictures of it, light and dark.
@@ -34,7 +35,7 @@ async function paste(box: Locator, bytes: Buffer, name = 'shot.png'): Promise<vo
   }, [bytes.toString('base64'), name]);
 }
 
-test('a picture pasted into a reply shows under the words and opens full size; quick add and + Add take one too', async (t) => {
+test('a picture pasted into a reply shows under the words, opens full size, and the finished thread shows its before and after', async (t) => {
   let browser: Browser;
   try {
     browser = await openChrome();
@@ -47,6 +48,15 @@ test('a picture pasted into a reply shows under the words and opens full size; q
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop');
   const coins = s.id('task', 'Make coins readable at sunset', '-s', 'xs');
+  // A finished thread with its proof: the agent took a before and an after.
+  const pause = s.id('task', 'Pause button under the score', '-s', 'l');
+  fs.writeFileSync(path.join(s.root, 'before.png'), png(320, 200, [200, 80, 60]));
+  fs.writeFileSync(path.join(s.root, 'after.png'), png(320, 200, [60, 160, 90]));
+  s.sp('build', pause);
+  s.sp('start', pause, '--as', 'Claude Fable 5.2');
+  s.exec(['attach', pause, 'before.png', '--as', 'before', '-m', 'no way to pause'], { env: { SPOOL_ACTOR: 'Claude Fable 5.2' } });
+  s.exec(['attach', pause, 'after.png', '--as', 'after', '-m', 'the button, under the score'], { env: { SPOOL_ACTOR: 'Claude Fable 5.2' } });
+  s.sp('done', pause, '-m', 'A pause button under the score; it pauses the music too.', '--as', 'Claude Fable 5.2');
 
   const { url, stop } = await startPage(s);
   const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
@@ -58,6 +68,8 @@ test('a picture pasted into a reply shows under the words and opens full size; q
   const ticket = page.locator('#thread');
   try {
     await page.goto(url);
+    // The brief marks a finished thread worth a look that has pictures.
+    await page.locator('#brief .card', { hasText: 'Pause button under the score' }).locator('.picmark', { hasText: 'has pictures' }).waitFor();
 
     await page.locator(`#board .card[data-id="${coins}"] .title`).click();
     await ticket.locator('.key', { hasText: coins }).waitFor();
@@ -100,9 +112,38 @@ test('a picture pasted into a reply shows under the words and opens full size; q
     await page.keyboard.press('Escape');
     await big.waitFor({ state: 'detached' });
     assert.ok(await ticket.isVisible(), 'Esc closed the picture, not the ticket');
+
+    // The finished thread: its before and after side by side under the result.
     await page.keyboard.press('Escape');
     await ticket.waitFor({ state: 'hidden' });
-
+    await page.locator(`#board .card[data-id="${pause}"] .title`).click();
+    await ticket.locator('.key', { hasText: pause }).waitFor();
+    const proof = ticket.locator('.post', { hasText: '✓ Shipped' }).locator('.proof.pair figure');
+    await until('both are shown', async () => (await proof.count()) === 2);
+    assert.deepEqual(await proof.locator('figcaption').allInnerTexts(), ['Before · no way to pause', 'After · the button, under the score']);
+    assert.equal(await ticket.locator('.feed .pictures').count(), 0, 'and not again where they were attached');
+    const [left, right] = [await proof.nth(0).boundingBox(), await proof.nth(1).boundingBox()];
+    assert.ok(left && right && Math.abs(left.y - right.y) < 2 && right.x > left.x + left.width, 'side by side');
+    await shot(page, 'pictures-before-after');
+    if (SHOTS) {
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await shot(page, 'dark-pictures-before-after');
+      await proof.nth(1).locator('button.picture').click();
+      await page.locator('#picture img').waitFor();
+      await shot(page, 'dark-pictures-full-size');
+      await page.keyboard.press('Escape');
+      await page.emulateMedia({ colorScheme: 'light' });
+    }
+    // On a narrow screen, one above the other.
+    await page.setViewportSize({ width: 420, height: 860 });
+    await until('stacked', async () => {
+      const [a, b] = [await proof.nth(0).boundingBox(), await proof.nth(1).boundingBox()];
+      return !!a && !!b && b.y >= a.y + a.height;
+    });
+    await shot(page, 'pictures-before-after-narrow');
+    await page.setViewportSize({ width: 1280, height: 860 });
+    await page.keyboard.press('Escape');
+    await ticket.waitFor({ state: 'hidden' });
 
     // Quick add: pasted into its box, attached to the thread once it exists.
     await page.keyboard.press('c');

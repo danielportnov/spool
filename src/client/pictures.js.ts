@@ -5,7 +5,7 @@
  * thumbnail, and goes with what is typed: it is sent to `/api/attach` once the reply is posted or the
  * thread exists, as its raw bytes, and the server runs `spool attach` on it. In a thread's
  * conversation a picture shows under the words it came with, and a click opens it full size, over
- * the ticket. Inside the
+ * the ticket. A finished thread's before and after are shown together under its result. Inside the
  * string: no backticks and no `${`.
  */
 
@@ -121,11 +121,25 @@ function pictureNode(c, pic, cls) {
 // A before or an after says which it is under it.
 const sideNode = (c, pic) => el('figure', {}, pictureNode(c, pic), el('figcaption', {}, SIDE[pic.as], pic.caption && [' · ', pic.caption]));
 
-// Under a post's words: the pictures it came with.
+// Under a post's words: the pictures it came with. (A finished thread's before and after are under its result instead: the board leaves them out of the posts.)
 function picturesNode(c, p) {
   const pics = (p.pictures || []).map((name) => c.thread.pictures.find((x) => x.name === name)).filter(Boolean);
   return pics.length > 0 && el('div', { class: 'pictures' }, pics.map((pic) => (pic.as ? sideNode(c, pic) : pictureNode(c, pic))));
 }
+
+// The proof under a finished thread's result: its last before and its last after side by side, or whichever it has.
+function proofNode(c) {
+  const sides = c.thread.pictures.filter((x) => x.as);
+  if (!sides.length) return null;
+  const before = sides.filter((x) => x.as === 'before').at(-1);
+  const after = sides.filter((x) => x.as === 'after').at(-1);
+  const shown = [before, after].filter(Boolean);
+  const rest = sides.filter((x) => !shown.includes(x));
+  return el('div', { class: 'proof' + (before && after ? ' pair' : '') }, [...shown, ...rest].map((pic) => sideNode(c, pic)));
+}
+
+// The small mark on a finished thread in the brief that has pictures to look at.
+const pictureMark = (n) => n > 0 && el('span', { class: 'chip picmark', title: n === 1 ? 'It has a picture' : 'It has ' + n + ' pictures' }, 'has pictures');
 
 // A picture full size, over everything, framed as the ticket is: under it, who attached it, when,
 // and what they said with it. Esc, the ✕ or a click outside closes it.
