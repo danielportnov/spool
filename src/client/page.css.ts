@@ -61,8 +61,12 @@ export const CSS = String.raw`  :root {
   .livelog { max-height: 220px; overflow: auto; margin-top: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; color: var(--soft); white-space: pre-wrap; overflow-wrap: anywhere; }
   .rule { padding: 8px 20px 0; color: var(--warn); font-size: 13px; }
   /* A page that lost its server says so under the bar, and what it shows is dimmed: it may be old. */
-  #away { padding: 7px 20px; font-size: 13px; color: var(--soft); background: var(--chip); border-bottom: 1px solid var(--line); }
-  body.away #quick, body.away main { opacity: .6; }
+  #away { display: flex; align-items: center; gap: 8px; padding: 7px 20px; font-size: 13px; font-weight: 600; color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, var(--panel)); border-bottom: 1px solid color-mix(in srgb, var(--warn) 35%, var(--line)); white-space: nowrap; }
+  #away .icon { flex: none; display: inline-grid; }
+  #away .icon svg { width: 15px; height: 15px; }
+  #away .words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .runner.unknown, .builder .unknown { color: var(--soft); opacity: .6; cursor: default; }
+  body.away #quick, body.away #brief, body.away main { opacity: .6; }
   #quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 20px 0; font-size: 13px; min-height: 12px; }
   .pill { border-radius: 999px; padding: 2px 11px; background: var(--panel); border: 1px solid var(--line); color: var(--soft); }
   .pill.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }

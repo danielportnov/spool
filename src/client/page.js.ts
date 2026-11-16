@@ -1571,15 +1571,35 @@ function connected(yes) {
     if (banner.hidden) return;
     banner.hidden = true;
     document.body.classList.remove('away');
+    // Draw the board again even if it is just as it was, so the agents' switch says what it is.
+    last = '';
     // A server that came back may be a new one, with a new token: get it before the next click needs it.
     freshToken().catch(() => {});
     return;
   }
   if (++misses < 3 || !banner.hidden) return;
-  banner.replaceChildren('Not connected to the Spool server. Last heard from it ',
-    el('span', { 'data-since': new Date(heard).toISOString() }, took(new Date(heard).toISOString())), ' ago. Trying again…');
+  const icon = el('span', { class: 'icon', 'aria-hidden': 'true' });
+  icon.innerHTML = AWAY_ICON;
+  banner.replaceChildren(icon, el('span', { class: 'words' }, 'Not connected to the Spool server. Last heard from it ',
+    el('span', { 'data-since': new Date(heard).toISOString() }, took(new Date(heard).toISOString())), ' ago. Trying again…'));
   banner.hidden = false;
   document.body.classList.add('away');
+  unknown();
+}
+const AWAY_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.75 14.75 13.5H1.25z"/><path d="M8 6.25v3.25M8 11.5v.01"/></svg>';
+// With no server, nobody can say whether agents are on or who builds: the switch and the picks say
+// so, greyed, until the server answers and the board is drawn again.
+function unknown() {
+  const runner = document.getElementById('runner');
+  runner.className = 'runner unknown';
+  runner.textContent = 'Agents: ?';
+  runner.title = 'Not connected to the Spool server, so whether agents are on is not known.';
+  runner.onclick = () => say(runner.title);
+  for (const pick of document.getElementById('builder').children) {
+    pick.className = 'unknown';
+    pick.setAttribute('aria-pressed', 'false');
+    pick.onclick = () => say('Not connected to the Spool server. Trying again…');
+  }
 }
 async function load(now) {
   // Never redraw under someone's typing or choosing; a redraw that was asked for goes ahead.
