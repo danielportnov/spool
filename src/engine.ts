@@ -744,9 +744,9 @@ export class Runner {
   /** Start an agent on each waiting thread there is room for. */
   private fill(): void {
     if (this.held || !this.on) return;
-    // The number the board shows (`parallel`): the user's, or one where the threads would share the project's folder.
+    // The user's number is for the whole page, across every project it builds; handOut keeps each project to its own share.
     // A thread that could not be started is not tried again until it changes, so each try here either starts one or moves on.
-    let room = this.parallel - this.runs.size;
+    let room = parallelOf(this.ctx) - this.runs.size;
     for (let tries = 0; room > 0 && tries < 100; tries++) {
       const out = this.handOut();
       if (out === 'none') return;
@@ -796,8 +796,11 @@ export class Runner {
           if (!why.has(t.spool.root)) why.set(t.spool.root, sharedFolderWhy(t.spool.root));
           return why.get(t.spool.root)!;
         };
-        const inOwnFolder = new Set([...this.runs.values()].filter((r) => !r.worktree).map((r) => r.folder));
-        const free = waiting.filter((t) => !inOwnFolder.has(t.spool.root) || !shares(t));
+        // Each project gets what atOnceIn gives it, the number its board shows, counting its threads out now.
+        const most = new Map<string, number>();
+        const atOnce = (root: string): number => most.get(root) ?? most.set(root, atOnceIn(this.ctx, root)).get(root)!;
+        const out = (root: string): number => [...this.runs.values()].filter((r) => ws.find(r.id)?.spool.root === root).length;
+        const free = waiting.filter((t) => out(t.spool.root) < atOnce(t.spool.root));
         // Left where they are: a thread whose agent walked away, until something about it changes, and one the human stopped.
         task =
           this.first.map((id) => free.find((t) => t.id === id)).find(Boolean) ??

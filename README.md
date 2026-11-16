@@ -195,8 +195,9 @@ said, what needs you, what is done for you to check and how far its sprint has g
 the brief across every one. Click a row, or pick a project from the menu on its name in the bar,
 for that project's board; the address names it (`?project=apps/tidy_up`), so a link opens the right
 one. What you do on one project's board is done to that project and no other. The page's agents
-build every project under it, each in its own folder and worktrees, three at a time across all of
-them; Headless or Chat is picked per project.
+build every project under it: three threads at a time for the whole page, each in a worktree of its
+own, and one at a time in a project that is not a git repository, which takes one of the three while
+it builds. Each board says how many at once its project gets. Headless or Chat is picked per project.
 
 ![The Backlog view: sprints to fill and play, and the backlog under them](docs/spool-backlog.png)
 
@@ -283,7 +284,8 @@ where it was: the agent picks its own session up again. So does one that was cut
 page is killed or the machine goes down, the next time the page starts. Three threads at a time, each
 in a git worktree of its own so that no two agents edit one folder, and each lands on your branch
 when its agent finishes; `spool builder --at-once <n>` sets how many. A project that is not a git
-repository is built one thread at a time, in its own folder. Close every chat; press ▶; come back
+repository is built one thread at a time, in its own folder. On a page over a folder of projects,
+the number is for the whole page, shared across them. Close every chat; press ▶; come back
 to Done. From a terminal or a chat, `spool agents on` and `spool agents off` press the same switch,
 and `spool agents` says where it is.
 

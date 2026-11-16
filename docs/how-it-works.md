@@ -640,7 +640,11 @@ card shows its own agent and the Agents switch says how many; the rest of Build 
 finish, and a thread dragged into Building goes to the front. It is read fresh, so no restart is
 needed. A project that cannot have worktrees, because it is not a git repository or nothing of it
 is committed yet, is built in its own folder, one thread at a time whatever the number says, and
-each thread's log says so once. A thread whose worktree cannot be made says why on its log and
+each thread's log says so once. A page started at a folder of projects builds them all, and the
+number is for the whole page: three at a time across every project, where a project with no git
+has one at most, which counts as one of the three. The board of each project, and `spool builder`
+in it, says how many at once that project really gets: the number, or 1 where it cannot have
+worktrees. A thread whose worktree cannot be made says why on its log and
 waits in Build until something about it changes.
 
 What becomes of the worktree: **Stop** keeps it, with everything in it, and **Carry on** starts the

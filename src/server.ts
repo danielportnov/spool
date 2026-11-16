@@ -34,6 +34,7 @@ import { type Spool, SpoolError } from './model.ts';
 import { MAX_BYTES, pictureFile } from './pictures.ts';
 import { sprintReview } from './review.ts';
 import { taskState } from './schedule.ts';
+import { atOnceIn } from './slots.ts';
 import { briefAcross, named, projectsOf } from './projects.ts';
 import { Workspace } from './store.ts';
 import { CODE_DIR, CODE_EXT, Upkeep } from './upkeep.ts';
@@ -207,7 +208,7 @@ export function startPage(
         try {
           // The project asked for, by its name on the workspace's own list; any other is the page's own.
           const spool = named(ws, url.searchParams.get('project')) ?? own(ws);
-          const shown = board(ws, spool === ws.home ? undefined : spool.name, runner, upkeep, builderOf(ctx, spool.root));
+          const shown = board(ws, spool === ws.home ? undefined : spool.name, runner, upkeep, builderOf(ctx, spool.root), atOnceIn(ctx, spool.root));
           const several = ws.spools.length > 1;
           const workspace = {
             projects: projectsOf(ws, (p) => builds(ws, p), (id) => runner.runs.get(id)?.lines),

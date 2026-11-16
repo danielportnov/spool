@@ -548,9 +548,10 @@ export function identicon(seed: string): string {
 /**
  * The whole board for one project, read fresh from disk. `builder` is who builds this project,
  * where the page knows it better than the runner does: a page showing several projects keeps
- * the human's pick for each one, by its folder.
+ * the human's pick for each one, by its folder. `atOnce` is how many of this project's threads the
+ * runner builds at once (slots.ts `atOnceIn`), as the page works it out from the user's settings.
  */
-export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?: Upkeep, builder?: Builder): Board {
+export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?: Upkeep, builder?: Builder, atOnce?: number): Board {
   const spool = project ? ws.project(project) : ws.home;
   const builds = builder ?? runner?.builder ?? 'headless';
   const d = docket(ws, spool);
@@ -590,7 +591,7 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
       watching: builds === 'chat' && watched(spool.root),
       on: !!runner?.on,
       agent: runner?.agent ?? '',
-      parallel: runner?.parallel ?? 1,
+      parallel: atOnce ?? runner?.parallel ?? 1,
       // Only this project's: a page started over several projects builds all of them.
       running: (runner?.live() ?? []).filter((run) => ours.has(run.id)),
       // One carried on with that waits for room is no longer stopped. With a chat building, nothing holds a
