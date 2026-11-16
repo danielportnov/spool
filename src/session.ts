@@ -8,6 +8,10 @@
  * kept whole as the thread's transcript; its session id and each tool call it was refused are
  * handed back as notes for the thread's log. And it ends an agent, with everything it started.
  *
+ * A `claude -p` agent is run in a session Spool chose (`inSession` in `stream.ts`), so that a
+ * thread left unfinished is picked up again where it was. What Spool remembers of that session
+ * from one run to the next (`recall`, `remember`) is kept beside the thread's transcripts.
+ *
  * It knows nothing of the queue: which thread is next, what a run's ending means for its thread,
  * and what is written on it are the engine's (`engine.ts`).
  */
@@ -19,7 +23,7 @@ import * as path from 'node:path';
 import { ROUTE_TIMEOUT_MS, routerPrompt } from './agent.ts';
 import type { Ctx } from './context.ts';
 import type { Item } from './model.ts';
-import { hearLine, transcriptFile } from './stream.ts';
+import { hearLine, runDir, sessionOf, transcriptFile } from './stream.ts';
 
 /** How many of the lines an agent has printed are kept to show: the newest. */
 const LIVE_LINES = 60;
@@ -120,6 +124,49 @@ export function askRouter(
 }
 
 /**
+ * What Spool remembers of a thread's session from one run to the next: which session it is, and
+ * which of the human's notes on the thread it has been given, so that each is given to it once.
+ * It is kept beside the thread's transcripts, on this machine only, as the session itself is.
+ */
+export interface Kept {
+  session: string;
+  told: string[];
+}
+
+const keptFile = (task: Item): string => path.join(task.spool.dir, 'runs', task.id, 'session.json');
+
+export function recall(task: Item): Kept | undefined {
+  try {
+    const kept = JSON.parse(fs.readFileSync(keptFile(task), 'utf8')) as Partial<Kept> | null;
+    if (!kept || typeof kept.session !== 'string' || !Array.isArray(kept.told)) return undefined;
+    return { session: kept.session, told: kept.told.filter((id): id is string => typeof id === 'string') };
+  } catch {
+    return undefined; // Nothing kept, or not what Spool writes: the session is told again.
+  }
+}
+
+export function remember(task: Item, kept: Kept): void {
+  try {
+    runDir(task.spool.dir, task.id);
+    fs.writeFileSync(keptFile(task), `${JSON.stringify(kept)}\n`);
+  } catch {
+    // Nowhere to keep it: at worst the session hears a note twice.
+  }
+}
+
+/** One agent at work on one thread. */
+export interface Session {
+  child: ChildProcess;
+  /** The newest of the lines it has printed, as a person reads them. */
+  lines: string[];
+  began: number;
+  /** The Claude session Spool put it in, where it did. */
+  id?: string;
+  /** It was to pick that session up again, and Claude has no such session: nothing was carried on. */
+  lost: boolean;
+}
+
+/**
  * Start the agent on a thread: its command, in the thread's folder, with the prompt on stdin and
  * in a file it can be pointed at. What it prints is heard a line at a time into `lines`, the
  * newest of them, and kept whole in the thread's transcript. `on.note` is given what belongs on
@@ -132,7 +179,7 @@ export function startSession(
   command: string,
   at: { folder: string; env: Ctx['env']; actor: string },
   on: { note: (notes: string[]) => void; end: (how: string) => void },
-): { child: ChildProcess; lines: string[]; began: number } {
+): Session {
   const file = promptFile(task.id, process.pid);
   fs.writeFileSync(file, prompt);
   const child = spawn(command.replaceAll('{prompt_file}', file), {
@@ -143,8 +190,9 @@ export function startSession(
     detached: process.platform !== 'win32',
     env: { ...at.env, SPOOL_ACTOR: at.actor, SPOOL_TASK: task.id, SPOOL_PROMPT_FILE: file },
   });
-  const lines: string[] = [];
   const began = Date.now();
+  const live: Session = { child, lines: [], began, id: sessionOf(command)?.id, lost: false };
+  const { lines } = live;
   // Everything the agent prints is kept with the thread as it came, stderr as events of its own.
   let transcript: string | undefined;
   let keep: number | undefined;
@@ -171,8 +219,10 @@ export function startSession(
     const heard = hearLine(line.replace(/\x1b\[[0-9;]*[A-Za-z]/g, ''));
     for (const l of heard.lines) lines.push(l.slice(0, 400));
     if (lines.length > LIVE_LINES) lines.splice(0, lines.length - LIVE_LINES);
+    if (heard.lost) live.lost = true;
     let tell = false;
-    if (heard.session && !session) {
+    // The id on the line that says there is no such session is not a session.
+    if (heard.session && !session && !heard.lost) {
       session = heard.session;
       notes.push(`session ${session}${shown ? ` · transcript ${shown}` : ''} · open it with \`claude --resume ${session}\``);
       tell = true;
@@ -224,5 +274,5 @@ export function startSession(
   };
   child.on('error', (error) => end(`could not start (${error.message})`));
   child.on('exit', (code, signal) => end(`exited ${code ?? signal}`));
-  return { child, lines, began };
+  return live;
 }

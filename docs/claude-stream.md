@@ -74,3 +74,14 @@ Also printed, and of no use to Spool yet: `system` events with the subtypes `pos
 - Permission questions from a sub-agent's tool calls.
 - Linux and Windows, and any version but 2.1.325.
 - Claude's own background sessions (`claude --bg`, `claude attach`).
+
+## What Spool does with it
+
+- **A session of its own choosing.** A `claude -p` agent command that names no session is started
+  with `--session-id <a new uuid>`, and the id is on the thread's log from the hand-off on.
+- **Carry on.** A thread whose run ended unfinished (you stopped it, the agent gave up, or the page
+  was stopped) is started the next time with `--resume <that id>`, in the same folder, and told only
+  what changed since. If Claude has no such session, the thread is started afresh at once, in a new
+  one, and its log says so.
+
+Any other agent command is run exactly as before: Spool does not know its flags.

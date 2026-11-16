@@ -7,26 +7,32 @@
  * back in Build. It stops an agent, undoes what one changed, and puts back what a page that died
  * left handed out. As many threads at once as the user's config says.
  *
+ * A thread a run left unfinished (stopped, given up, or cut off with its page) is not started from
+ * nothing the next time: where its agent is `claude -p`, the run was in a session Spool chose, and
+ * the next run picks that session up, told only what has changed since (`leftOff`, `carryOn`).
+ *
  * There is no HTTP here, and nothing about requests: the page's server (`server.ts`) holds a
  * Runner and reads its fields, and anything else that builds can hold one the same way.
  */
 
 import type { ChildProcess } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { act } from './act.ts';
-import { ROUTER, type Routing, commandFor, parseRoute, pickFor, routeNote, routerCommand } from './agent.ts';
+import { type Pick as Picked, ROUTER, type Routing, commandFor, parseRoute, pickFor, routeNote, routerCommand } from './agent.ts';
 import { type Builder, type Ctx, builderOf, parallelOf, saveBuilder, userConfig } from './context.ts';
 import { dirtyPaths, discardPaths, repoRoot } from './git.ts';
 import { DEFAULT_AGENT, PREAMBLE } from './loop.ts';
 import { type Item, type SpoolError, addLog, splitBody, timestamp } from './model.ts';
 import { prime } from './prime.ts';
 import { brief, paint } from './render.ts';
+import { runOf } from './run.ts';
 import { ready, tasks } from './schedule.ts';
-import { askRouter, endAgent, pageRunning, promptFile, startSession } from './session.ts';
+import { type Session, askRouter, endAgent, pageRunning, promptFile, recall, remember, startSession } from './session.ts';
 import { atOnceIn, sharedFolderWhy } from './slots.ts';
 import { Workspace } from './store.ts';
-import { streaming } from './stream.ts';
+import { SESSION_ID, inSession, sessionOf, streaming } from './stream.ts';
 import { closeWorktree, openWorktree, workDir } from './worktree.ts';
 
 /** Whether the last claim on a thread was a page handing it to an agent, not someone starting it. */
@@ -51,6 +57,57 @@ export function stoppedInBuild(task: Item): boolean {
   if (task.status !== 'open') return false;
   const said = splitBody(task.body).log.map((line) => /^- \S+ \S+ .+?: (.*)$/.exec(line)?.[1] ?? '');
   return STOP.test(said.filter((what) => STANDS.test(what)).at(-1) ?? '');
+}
+
+/** How a page's run of a thread ended with the thread put back in Build: by the line that put it back. */
+type Left = 'stopped' | 'unfinished' | 'cut off';
+const LEFT: [RegExp, Left][] = [
+  [STOP, 'stopped'],
+  [/^agent .* without finishing; back in build$/, 'unfinished'],
+  [/^(the page was stopped|its page had stopped with nobody working it); back in build$/, 'cut off'],
+];
+
+/**
+ * The session to carry a thread on in, and how the run in it ended. There is one where the last
+ * thing to happen to the thread was a page's run of it ending unfinished, and that run was in a
+ * Claude session. A thread moved, undone or taken by someone else since starts afresh: what that
+ * session remembers of it may no longer be so.
+ */
+export function leftOff(task: Item): { session: string; how: Left } | undefined {
+  const { log } = splitBody(task.body);
+  const said = log.map((line) => /^- \S+ \S+ .+?: (.*)$/.exec(line)?.[1] ?? '');
+  const last = said.filter((what) => STANDS.test(what)).at(-1) ?? '';
+  const how = LEFT.find(([ended]) => ended.test(last))?.[1];
+  const session = runOf(log)?.session ?? '';
+  return how && SESSION_ID.test(session) ? { session, how } : undefined;
+}
+
+/**
+ * What a session picked up again is told. It has the rules and the brief already, so it is given
+ * only what has changed since it left off: how it came to stop, and what the human has written
+ * on the thread that it has not been given.
+ */
+function carryOn(task: Item, how: Left, notes: Item[]): string {
+  const why = {
+    stopped: 'The human stopped you, and has now set you going again.',
+    unfinished: 'Your last run ended with the thread neither finished nor waiting on a question.',
+    'cut off': 'Spool was stopped while you were working, and is back.',
+  }[how];
+  const said = notes.map((note) => splitBody(note.body).main.split('\n').map((line) => `> ${line}`.trimEnd()).join('\n'));
+  return `${[
+    `You were working this thread of a Spool queue earlier in this session, and it is yours again: ${task.id} ${task.title}`,
+    why,
+    said.length ? `Since you were last given the thread, the human has written on it:\n\n${said.join('\n\n')}` : '',
+    `Carry on from where you were. \`spool show ${task.id}\` gives the thread as it stands now. The rules have not changed: finish it with \`spool done\`, or leave it waiting on a question with \`spool ask\`, then stop.`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')}\n`;
+}
+
+/** What an agent is started with: the words it is given, and the command that is run. */
+interface Start {
+  prompt: string;
+  command: string;
 }
 
 /**
@@ -84,10 +141,16 @@ interface Run {
   shared?: boolean;
   /** Its worktree, by its folder from the project, and the branch it is on: none where it works in the project's own folder. */
   worktree?: { folder: string; branch: string };
+  /** The human's notes on the thread that its agent has been given, by id. */
+  told: string[];
+  /** Its agent, once one is started: while a model is still being chosen for it there is none. */
+  session?: Session;
+  /** It picks a session up again: how to start the thread afresh instead, if that session turns out to be gone. */
+  afresh?: Start;
 }
 
 /** What is settled about a run when its thread is handed out, before any program is started for it. */
-type Handed = Pick<Run, 'id' | 'title' | 'folder' | 'before' | 'worktree'>;
+type Handed = Pick<Run, 'id' | 'title' | 'folder' | 'before' | 'worktree' | 'told'>;
 
 /** What one try at handing out a thread came to: an agent started, nothing there to hand out, or a thread that could not be started. */
 type HandOut = 'started' | 'none' | 'skipped';
@@ -409,8 +472,8 @@ export class Runner {
   private handOut(): HandOut {
     let task: Item | undefined;
     let handed: Handed;
-    let prompt = '';
-    let command = this.agent;
+    let fresh: Start = { prompt: '', command: this.agent };
+    let again: Start | undefined;
     let asker: string | undefined;
     let briefText = '';
     const { models, router } = userConfig(this.ctx);
@@ -464,22 +527,36 @@ export class Runner {
         // In a worktree of its own, nothing there is anyone else's: it is the run's to keep or lose whole.
         const root = task.worktree ? null : repoRoot(folder);
         const dirty = root ? dirtyPaths(root, task.spool.dir) : null;
+        // What the human has said on the thread: the brief gives all of it, and a session picked up again is given what is new to it.
+        const notes = task.from.map((id) => ws.find(id)).filter((n): n is Item => n?.kind === 'note');
         handed = {
           id: task.id,
           title: task.title,
           folder,
           before: dirty ? new Set(dirty) : null,
           worktree: task.worktree ? { folder: task.worktree, branch: task.branch ?? '' } : undefined,
+          told: notes.map((n) => n.id),
         };
-        command = streaming(commandFor(this.agent, pickFor(task, models)));
-        asker = routerCommand(this.agent, task, models, router);
+        // Left unfinished by a run in a session of Claude's, it is carried on there, as it ran: nobody chooses its model a second time.
+        const left = leftOff(task);
+        const ran = left ? runOf(splitBody(task.body).log) : null;
+        const resumed = left && inSession(this.command(task, models, { model: ran?.model, effort: ran?.effort as Picked['effort'] }), left.session, true);
+        if (left && resumed) {
+          const given = recall(task);
+          const told = new Set(given?.session === left.session ? given.told : []);
+          again = { command: resumed, prompt: carryOn(task, left.how, notes.filter((n) => !told.has(n.id))) };
+        } else {
+          asker = routerCommand(this.agent, task, models, router);
+          if (left) addLog(task, 'page', `session ${left.session} cannot be picked up by \`${this.agent}\`; starting afresh`, ws.now());
+        }
         task.status = 'active';
         task.by = this.name();
         task.started = timestamp(ws.now());
-        if (!asker) addLog(task, 'page', `handed to \`${command}\``, ws.now());
+        fresh.command = this.afresh(this.command(task, models, again ? { model: ran?.model, effort: ran?.effort as Picked['effort'] } : undefined));
+        if (!asker) addLog(task, 'page', `handed to \`${(again ?? fresh).command}\``, ws.now());
         ws.save(task);
         briefText = brief(ws, task, paint(false));
-        prompt = `${PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${briefText}\n`;
+        fresh.prompt = `${PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${briefText}\n`;
       } finally {
         ws.close();
       }
@@ -487,9 +564,20 @@ export class Runner {
       return 'none'; // The store was busy for an instant; the next tick looks again.
     }
     this.handedOut++;
-    if (asker) this.route(task, handed, prompt, briefText, asker);
-    else this.start(task, handed, prompt, command);
+    if (asker) this.route(task, handed, fresh.prompt, briefText, asker);
+    else if (again) this.start(task, handed, again, fresh);
+    else this.start(task, handed, fresh);
     return 'started';
+  }
+
+  /** The agent command for a thread, with the model and effort it gets put in it, and the stream on where it is `claude -p`. */
+  private command(task: Item, models: Routing, routed?: Picked): string {
+    return streaming(commandFor(this.agent, pickFor(task, models, routed)));
+  }
+
+  /** A command that starts a thread from nothing: where it is `claude -p`, in a new session of Spool's choosing. */
+  private afresh(command: string): string {
+    return inSession(command, randomUUID()) ?? command;
   }
 
   /**
@@ -505,7 +593,7 @@ export class Runner {
       }
       const routed = code === 0 ? parseRoute(out) : undefined;
       const note = routeNote(routed, routed ? undefined : code === 0 ? 'no answer it could read' : how);
-      const command = streaming(commandFor(this.agent, pickFor(task, userConfig(this.ctx).models, routed)));
+      const command = this.afresh(this.command(task, userConfig(this.ctx).models, routed));
       let still = true;
       try {
         const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
@@ -524,7 +612,7 @@ export class Runner {
         // The notes are only notes; the run goes ahead without them.
       }
       // Someone took the thread back while Fable read it; there is nothing to start.
-      if (still) this.start(task, handed, prompt, command);
+      if (still) this.start(task, handed, { prompt, command });
       else this.settle(run, how);
     });
     const run: Run = { ...handed, child, lines: [`${ROUTER} is choosing the model…`], began: Date.now(), stopped: false };
@@ -546,18 +634,26 @@ export class Runner {
     return this.ctx.env.SPOOL_ACTOR ?? path.basename(this.agent.trim().split(/\s+/)[0] ?? 'agent');
   }
 
-  private start(task: Item, handed: Handed, prompt: string, command: string): void {
-    let session: ReturnType<typeof startSession>;
+  /**
+   * Start a thread's agent. Where it picks a session up again, `afresh` is how to start the thread
+   * from nothing instead: used at once if Claude turns out to have no such session.
+   */
+  private start(task: Item, handed: Handed, how: Start, afresh?: Start): void {
+    let session: Session;
     try {
-      session = startSession(task, prompt, command, { folder: handed.folder, env: this.ctx.env, actor: this.name() }, {
+      session = startSession(task, how.prompt, how.command, { folder: handed.folder, env: this.ctx.env, actor: this.name() }, {
         note: (notes) => this.note(task.id, notes),
-        end: (how) => this.settle(run, how),
+        end: (ended) => {
+          if (!afresh || !this.startAfresh(task, run, afresh)) this.settle(run, ended);
+        },
       });
     } catch (error) {
       this.couldNotStart(task.id, (error as Error).message);
       return;
     }
-    const run: Run = { ...handed, ...session, stopped: false };
+    const run: Run = { ...handed, child: session.child, lines: session.lines, began: session.began, session, afresh, stopped: false };
+    // Which session it is, and what of the human's words it has now been given: kept for the run after this one.
+    if (session.id) remember(task, { session: session.id, told: handed.told });
     this.keep(run);
   }
 
@@ -576,6 +672,32 @@ export class Runner {
     } catch {
       // Busy for an instant; it is tried again, and fails again into the same line.
     }
+  }
+
+  /**
+   * A run that was to pick a session up again has ended, and Claude had no such session (it was
+   * cleared away, or made on another machine): start the thread from nothing, and say so on it.
+   * False where that is not what happened, or the thread is no longer this run's to start.
+   */
+  private startAfresh(task: Item, run: Run, afresh: Start): boolean {
+    if (!run.session?.lost || run.stopped || this.runs.get(run.id) !== run) return false;
+    try {
+      const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
+      try {
+        const now = ws.find(task.id);
+        if (now?.status !== 'active') return false;
+        addLog(now, 'page', `session ${run.session.id} could not be picked up again; starting afresh`, ws.now());
+        addLog(now, 'page', `handed to \`${afresh.command}\``, ws.now());
+        ws.save(now);
+      } finally {
+        ws.close();
+      }
+    } catch {
+      return false; // The store could not be written: the run is settled as one that gave up.
+    }
+    const { id, title, folder, before, worktree, told } = run;
+    this.start(task, { id, title, folder, before, worktree, told }, afresh);
+    return true;
   }
 
   /** Write a run's notes on its thread and empty the list; if the store is busy they wait for the next try. */

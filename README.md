@@ -277,7 +277,8 @@ spool page --run
 
 With `--run`, or the **Agents** switch at the top of the page, the page builds what is in Build by
 itself: it starts your agent on each thread the moment it lands there, shows what it prints on the
-card, and puts a Stop on the card that ends that agent and no other. Three threads at a time, each
+card, and puts a Stop on the card that ends that agent and no other. A stopped thread carries on
+where it was: a `claude -p` agent picks its own session up again. Three threads at a time, each
 in a git worktree of its own so that no two agents edit one folder, and each lands on your branch
 when its agent finishes; `spool builder --at-once <n>` sets how many. A project that is not a git
 repository is built one thread at a time, in its own folder. Close every chat; press ▶; come back

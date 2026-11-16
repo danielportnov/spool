@@ -584,6 +584,18 @@ Building does; so does moving it out of Build and in again. Dragging a card from
 is the same stop. **↩ Abort** goes further: back to the backlog, with what the agent changed
 undone.
 
+**Carry on is the same session.** A `claude -p` agent is started in a Claude session the page
+chose (`--session-id`), unless your agent command names one itself. When a thread's run ends
+unfinished, because you stopped it, the agent walked away, or the page was stopped, the next run
+of it picks that session up (`--resume`), in the same folder. The agent is not given the rules and
+the brief a second time: it is told how it came to stop, and what you have written on the thread
+since. It runs with the model it had, and nobody chooses one again. A thread you moved out of
+Build and back, or undid, starts afresh, since what the session remembers may no longer be so. So
+does one whose session cannot be picked up, because the agent command is not `claude -p` or Claude
+no longer has the session; its log says which. What the page remembers of a session is beside the
+thread's transcripts, in `.spool/runs/<id>/session.json`. [docs/claude-stream.md](claude-stream.md)
+has what was tried against Claude Code, and on which version.
+
 **How many at once.** Three, unless you say otherwise: the page gives each thread it builds a git
 worktree of its own, as `spool start --worktree` does (see "Several at once"), so no two agents
 edit one folder. Its agent is started there, its card and ticket say which folder, and its own

@@ -15,16 +15,49 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+/** Whether a command is `claude -p`: the one agent whose flags Spool knows. */
+function claudePrint(command: string): boolean {
+  const program = path.basename(command.trim().split(/\s+/)[0] ?? '');
+  return program === 'claude' && /(^|\s)(-p|--print)(\s|$)/.test(command);
+}
+
+/** Whether a command names one of these flags itself. */
+const names = (command: string, ...flags: string[]): boolean => flags.some((flag) => new RegExp(`(^|\\s)${flag}(\\s|=|$)`).test(command));
+
 /** Add the stream flags to a `claude -p` command that does not choose an output of its own. */
 export function streaming(command: string): string {
-  const program = path.basename(command.trim().split(/\s+/)[0] ?? '');
-  if (program !== 'claude') return command;
-  if (!/(^|\s)(-p|--print)(\s|$)/.test(command)) return command;
+  if (!claudePrint(command)) return command;
   if (/(^|\s)--output-format(\s|=)/.test(command)) return command;
   let out = `${command.trim()} --output-format stream-json`;
   if (!/(^|\s)--verbose(\s|$)/.test(command)) out += ' --verbose';
   return out;
 }
+
+/**
+ * A session id as Claude takes one: a UUID. One to pick up again is read from a thread's log,
+ * which anyone can write to, so it is checked here before it goes near a shell.
+ */
+export const SESSION_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+/**
+ * Put a `claude -p` command in a session of Spool's choosing: a new one, by the id given, or one
+ * it ran before, picked up where it was. Nothing comes back where Spool does not choose: another
+ * agent, whose flags it does not know, or a command that says which session it wants itself.
+ */
+export function inSession(command: string, id: string, resume = false): string | undefined {
+  if (!claudePrint(command) || !SESSION_ID.test(id)) return undefined;
+  if (names(command, '--session-id', '--resume', '-r', '--continue', '-c', '--fork-session', '--no-session-persistence', '--from-pr', '--teleport')) return undefined;
+  return `${command.trim()} ${resume ? '--resume' : '--session-id'} ${id}`;
+}
+
+/** The session a command was put in, and whether it picks one up: read back from the flags `inSession` adds. */
+export function sessionOf(command: string): { id: string; resumed: boolean } | undefined {
+  const found = /(?:^|\s)(--session-id|--resume)[ =](\S+)/.exec(command);
+  return found && claudePrint(command) && SESSION_ID.test(found[2]!) ? { id: found[2]!, resumed: found[1] === '--resume' } : undefined;
+}
+
+/** How Claude says there is no session by the id it was told to pick up. */
+const NO_SESSION = /No conversation found with session ID/i;
 
 /** What one line of the stream says. */
 export interface Heard {
@@ -34,6 +67,8 @@ export interface Heard {
   session?: string;
   /** Tool calls the agent was not allowed to make, read from its last event. */
   denials?: string[];
+  /** The session it was told to pick up is not there: nothing was carried on. */
+  lost?: true;
 }
 
 const short = (s: string, n = 200): string => {
@@ -60,7 +95,7 @@ function textOf(content: unknown): string {
 export function hearLine(line: string): Heard {
   const raw = line.trim();
   if (!raw) return { lines: [] };
-  if (!raw.startsWith('{')) return { lines: [raw.slice(0, 400)] };
+  if (!raw.startsWith('{')) return { lines: [raw.slice(0, 400)], ...(NO_SESSION.test(raw) ? { lost: true as const } : {}) };
   let e: Record<string, any>;
   try {
     e = JSON.parse(raw);
@@ -91,7 +126,8 @@ export function hearLine(line: string): Heard {
     const how = e.is_error || (typeof e.subtype === 'string' && e.subtype !== 'success') ? `ended: ${e.subtype ?? 'error'}` : 'finished';
     const turns = typeof e.num_turns === 'number' ? ` · ${e.num_turns} turns` : '';
     lines.push(`${how}${turns}${typeof e.result === 'string' && e.result.trim() ? ` — ${short(e.result)}` : ''}`);
-    return { lines, session, denials };
+    const lost = Array.isArray(e.errors) && e.errors.some((x: unknown) => NO_SESSION.test(String(x)));
+    return { lines, session, denials, ...(lost ? { lost: true as const } : {}) };
   }
   return { lines, session };
 }

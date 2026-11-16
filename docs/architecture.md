@@ -83,10 +83,12 @@ those comments are the detail.
 - `act.ts` runs one command in-process as the human (`act`). `change` turns each click into one.
 - `engine.ts` is the `Runner`: it builds what is in Build when agents are on, the same way
   `runLoop` does. It picks the next thread, gives it a worktree, and settles the thread when its
-  agent has gone. There is no HTTP in it.
+  agent has gone. A thread a run left unfinished is carried on in the Claude session it was in
+  (`leftOff`, `carryOn`). There is no HTTP in it.
 - `session.ts` is one agent on one thread, and the only file that knows how one is started and
   heard: `startSession` runs the command and reads what it prints, `askRouter` asks Fable first
-  where it chooses the model, and `endAgent` ends an agent and everything it started.
+  where it chooses the model, and `endAgent` ends an agent and everything it started. `recall`
+  and `remember` keep what a session has been told, from one run to the next.
 - `upkeep.ts` is `Upkeep`: it restarts the page when the code on disk changes, and, where the
   page runs from a checkout of Spool that is also the project it shows, runs `npm run build` there
   once Build and Building are empty.
@@ -114,7 +116,9 @@ those comments are the detail.
   screen over and gives it back on every way out.
 - `stream.ts` reads what a `claude -p` agent prints with `--output-format stream-json`
   (`streaming` adds the flags, `hearLine` reads a line) into the short lines a card shows, and
-  says where each run's stream is kept (`transcriptFile`).
+  says where each run's stream is kept (`transcriptFile`). `inSession` puts the command in a
+  session Spool chose, new or picked up again. `docs/claude-stream.md` says what of Claude's
+  stream was tried, and on which version.
 - `pictures.ts` keeps pictures with a thread, in `.spool/runs/<id>/files/` beside its transcripts:
   `attach` takes them in by their first bytes and within the limits, `picturesOf` lists them with
   who attached each and the caption from the thread's log, and `pictureFile` is the only way the
