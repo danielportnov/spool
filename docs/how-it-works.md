@@ -117,7 +117,8 @@ Every time it runs, the loop does three things:
    numbers can skip.
 2. **Builds what is in Build**, one thread at a time. For each: a line saying what it is starting
    and its plan, the work in small commits, then `spool done` with what changed and how you can
-   see it.
+   see it. Two or three can be built at once where each has a worktree of its own: see
+   "Several at once", below.
 3. **Says when it is done**, or when something needs you.
 
 **It reacts; it does not wait on a clock.** `spool watch` stays up and prints a line when a thread
@@ -151,6 +152,43 @@ and shows the agent what broke. The thread records the check that passed, and it
 The command is kept on your machine (`~/.config/spool/config.json`), never in the project, because
 it is run: a repository must not be able to name a program for Spool to start. An agent may set a
 check where there is none, on your word; changing or removing one takes you, at your own terminal.
+
+## Several at once: a worktree per thread
+
+One checkout is one agent's desk. Two agents in it edit each other's files, and each one's check
+runs on the other's half-made change. So a thread can be built in a
+[git worktree](https://git-scm.com/docs/git-worktree) of its own:
+
+    spool start t-4kq7 --worktree        # or: spool next --claim --worktree
+
+The thread is claimed as ever, and it gets a checkout of the repository at
+`.spool/worktrees/t-4kq7`, on a new branch `spool/t-4kq7` cut from where your checkout is. Its brief
+tells the agent to work there and nowhere else. A project that is one folder of a larger repository
+is worked in the same folder of the worktree. A `node_modules` that git ignores is linked in from
+your checkout, not copied, so the check has what it needs; the link is named in
+`.git/info/exclude`, so `git add -A` leaves it alone. Started again, a thread goes back into the
+worktree it has. Where the project is not a git repository, `--worktree` is refused, and the
+thread is not claimed.
+
+`spool done` lands it, in five steps:
+
+1. Work in the worktree that is not committed refuses the finish, file by file: it would be lost.
+2. The thread's branch is rebased onto wherever your checkout has got to. A conflict refuses the
+   finish, names the files, and leaves the worktree as it was, for the agent to rebase and resolve.
+3. The project's check runs in the worktree, on the rebased work.
+4. Your checkout's branch is fast-forwarded to it. If your own uncommitted changes to the same
+   files are in the way, it refuses and says so: they are never run over.
+5. The thread is done as ever, and its worktree and branch are removed.
+
+Threads land one at a time, each checked on top of the ones before it. Three built at once arrive
+as three sets of commits in a straight line, with no merge commits, and each can still be undone by
+itself. One that finishes while another is landing waits its turn; after five minutes it says it is
+still waiting, and `spool done` is run again.
+
+`spool` run inside a worktree acts on the project's one queue. Where `.spool/` is kept in git, a
+worktree carries a copy of it, and that copy is never read or written.
+
+Without `--worktree` nothing changes: a thread is built in your checkout, one at a time.
 
 ## When an agent reaches a choice
 
@@ -212,6 +250,7 @@ AI-suggested thread. It matches words, not meaning.
   policy.md      what agents may decide alone; yours to edit
   items/         one markdown file per thread, question, note, sprint and skill record
   reports/       what audits and plans handed in
+  worktrees/     a git worktree for each thread being built in one of its own; never in git
 ```
 
 A thread is a file a person can read:
@@ -358,10 +397,10 @@ ones marked 🔒:
 | --- | --- |
 | `spool task` · `audit` · `plan` | File a change, a look-and-report, or something big; `--suggested why` marks an agent's own idea |
 | `spool file <n-id> --into <id>` | Attach a note to a thread, or set it aside |
-| `spool next [--claim]` · `start <t-id>` | The next thread in Build with its brief; claim it |
+| `spool next [--claim]` · `start <t-id>` | The next thread in Build with its brief; claim it. `--worktree` gives it a git worktree of its own |
 | `spool log <id> <fact>` | Leave a note for whoever comes next |
 | `spool ask` · `assume` | Put a call to the human; or make it and leave a receipt |
-| `spool done <t-id> -m <summary>` | Finish: record the commits, or hand in a report |
+| `spool done <t-id> -m <summary>` | Finish: record the commits, or hand in a report. Work in a worktree of its own is landed first |
 | `spool edit <id>` | Change a title, priority, size, kind, model, effort, tags, version, sprint |
 | `spool hold <t-id> -m why` · `drop <id>` | Park work; abandon it |
 | `spool sprint <name>` | Make a sprint |

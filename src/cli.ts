@@ -115,11 +115,16 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
 
   // Anything slow a command has to do first is done here, before the store is locked for it.
   const before = command.before?.(base);
-  const ws = Workspace.open(scoped.cwd, scoped.now, !!command.write);
   try {
-    return { result: command.run!({ ...base, ws, before }), json };
+    const ws = Workspace.open(scoped.cwd, scoped.now, !!command.write);
+    try {
+      return { result: command.run!({ ...base, ws, before }), json };
+    } finally {
+      ws.close();
+    }
   } finally {
-    ws.close();
+    // Whatever `before` took to do its work is let go of here, however the command ended.
+    command.after?.(before);
   }
 }
 

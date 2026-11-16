@@ -121,6 +121,13 @@ export interface Item {
   started?: string;
   /** Who holds it: the claimer of a task, the chooser of a decision, the author of a skill. */
   by?: string;
+  /**
+   * Tasks: the folder it is built in, relative to the project, where it has a git worktree of its
+   * own: the project's folder inside `.spool/worktrees/<id>`. See worktree.ts.
+   */
+  worktree?: string;
+  /** Tasks: the branch that worktree is on, `spool/<id>`, until its work lands. */
+  branch?: string;
   /** Tasks: why this is parked. A task on hold is never handed out; only the human releases it. */
   hold?: string;
   /**
@@ -190,6 +197,8 @@ const FIELDS: readonly (readonly [string, FieldType])[] = [
   ['updated', 'string'],
   ['started', 'string'],
   ['by', 'string'],
+  ['worktree', 'string'],
+  ['branch', 'string'],
   ['hold', 'string'],
   ['archived', 'string'],
   ['suggested', 'string'],

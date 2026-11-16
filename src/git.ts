@@ -49,7 +49,7 @@ export function repoRoot(dir: string): string | null {
 }
 
 /** Git reports real paths; resolve ours the same way so the two can be compared. */
-function real(file: string): string {
+export function real(file: string): string {
   try {
     return fs.realpathSync(file);
   } catch {

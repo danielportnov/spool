@@ -82,6 +82,7 @@ import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, wr
 import { SPOOL_DIR, Workspace, findFolder, findHome, readConfig, skillsDir, worktreeOwner } from './store.ts';
 import { alikeIn, alikeLines, similarLines, similarTo } from './similar.ts';
 import { SUGGEST, suggestSkills } from './suggest.ts';
+import { type Landing, type Opened, closeWorktree, land, openWorktree } from './worktree.ts';
 
 export type Options = NonNullable<ParseArgsConfig['options']>;
 export type Values = Record<string, string | boolean | (string | boolean)[] | undefined>;
@@ -128,6 +129,8 @@ export interface Command {
    * It may refuse the command by throwing.
    */
   before?: (call: Bare) => unknown;
+  /** Runs last, whatever happened, with what `before` gave back: to let go of anything it took. */
+  after?: (before: unknown) => void;
 }
 
 // ------------------------------------------------------------------ helpers
@@ -217,24 +220,13 @@ function versionOf(v: unknown): string | undefined {
  * nothing locked, since tests take as long as they take and the page must stay usable meanwhile.
  */
 const CHECK_MINUTES = 30;
-function runCheck({ ctx, args }: Bare): { command: string; seconds: number } | undefined {
-  if (!args[0]) return undefined;
-  const ws = Workspace.open(ctx.cwd, ctx.now);
-  let root: string;
-  try {
-    const task = ws.find(args[0]) ?? ws.get(args[0], 'task');
-    // Only a change is checked: an audit or a plan hands in words, and its parts are checked as they are built.
-    if (task.kind !== 'task' || task.type || task.status === 'done') return undefined;
-    root = task.spool.root;
-  } catch {
-    return undefined; // Not something that can be finished: the command itself says why.
-  } finally {
-    ws.close();
-  }
-  const command = userConfig(ctx).checks?.[root];
-  if (!command) return undefined;
+interface Checked {
+  command: string;
+  seconds: number;
+}
+function runCheck(ctx: Ctx, command: string, cwd: string): Checked {
   const began = Date.now();
-  const ran = spawnSync(command, { shell: true, cwd: root, encoding: 'utf8', timeout: CHECK_MINUTES * 60_000, maxBuffer: 64 * 1024 * 1024, env: ctx.env });
+  const ran = spawnSync(command, { shell: true, cwd, encoding: 'utf8', timeout: CHECK_MINUTES * 60_000, maxBuffer: 64 * 1024 * 1024, env: ctx.env });
   const seconds = Math.round((Date.now() - began) / 1000);
   if (ran.status === 0) return { command, seconds };
   const tail = `${ran.stdout ?? ''}\n${ran.stderr ?? ''}`.trim().split('\n').slice(-15).join('\n  ');
@@ -243,6 +235,46 @@ function runCheck({ ctx, args }: Bare): { command: string; seconds: number } | u
     `the check ${how}: ${command}`,
     `It has to pass before this can be finished. Fix what it found and run spool done again.\n  If the check itself is wrong, that is the human's to change: put it to them with spool ask.${tail ? `\n\n  ${tail}` : ''}`,
   );
+}
+
+/** What `spool done` found out before the store was locked: the check that passed, and the landing it still holds. */
+interface Finishing {
+  checked?: Checked;
+  landing?: Landing<Checked | undefined>;
+}
+
+/** The summary `spool done` was given, as it is kept. */
+function summaryOf({ args, opts }: Bare): string {
+  return (str(opts.message) ?? args.slice(1).join(' ')).replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * What `spool done` does first, with nothing locked: run the check where the thread was worked.
+ * For a thread in the project's own checkout that is all. A thread with a worktree of its own is
+ * landed here too: rebased onto the checkout, checked there, and the checkout fast-forwarded to it.
+ */
+function beforeDone(call: Bare): Finishing | undefined {
+  const { ctx, args } = call;
+  if (!args[0]) return undefined;
+  const ws = Workspace.open(ctx.cwd, ctx.now);
+  let task: Item;
+  try {
+    task = ws.find(args[0]) ?? ws.get(args[0], 'task');
+  } catch {
+    return undefined; // Not something that can be finished: the command itself says why.
+  } finally {
+    ws.close();
+  }
+  if (task.kind !== 'task' || task.status === 'done') return undefined;
+  // Only a change is checked: an audit or a plan hands in words, and its parts are checked as they are built.
+  const command = task.type ? undefined : userConfig(ctx).checks?.[task.spool.root];
+  if (task.worktree) {
+    // What the command is about to refuse is left for it to refuse, before anything is landed.
+    if (isClosed(task) || task.status === 'proposed' || !summaryOf(call)) return undefined;
+    const landing = land(task, (cwd) => (command ? runCheck(ctx, command, cwd) : undefined));
+    return { checked: landing.checked, landing };
+  }
+  return command ? { checked: runCheck(ctx, command, task.spool.root) } : undefined;
 }
 
 /**
@@ -460,7 +492,11 @@ function likelyProjects(ws: Workspace, text: string): Spool[] {
     .map((m) => m.spool);
 }
 
-function claim(call: Call, task: Item, force: boolean): void {
+/**
+ * Claim a thread for whoever is calling. With `worktree`, or where the thread has one from an
+ * earlier start, it is given a git worktree of its own to be built in, and that is returned.
+ */
+function claim(call: Call, task: Item, force: boolean, worktree = false): Opened | undefined {
   const { ws, actor } = call;
   const state = taskState(ws, task);
   if (state === 'done' || state === 'dropped') throw new SpoolError(`${task.id} is already ${state}`);
@@ -482,13 +518,32 @@ function claim(call: Call, task: Item, force: boolean): void {
   if (state === 'active' && task.by !== actor && !force) {
     throw new SpoolError(`${task.id} is being worked by ${task.by ?? 'someone'}`, 'Take it anyway with --force, or: spool next');
   }
+  // Before anything is written: where there can be no worktree, the thread is not claimed either.
+  const opened = worktree || task.worktree ? openWorktree(task) : undefined;
   task.status = 'active';
   task.by = actor;
   task.started = timestamp(ws.now());
   // Taken, it has left Build, and its place in line with it.
   task.place = undefined;
-  addLog(task, actor, state === 'stale' ? 'picked up after the last claim went quiet' : 'started', ws.now());
+  const how = state === 'stale' ? 'picked up after the last claim went quiet' : 'started';
+  addLog(task, actor, opened ? `${how}, in its own worktree on ${opened.branch}` : how, ws.now());
   ws.save(task);
+  return opened;
+}
+
+/** What a start says about the worktree it made or found, under the brief. */
+function worktreeNote(task: Item, opened: Opened, p: Paint): string {
+  const where = path.relative(task.spool.root, opened.dir);
+  const links = opened.linked.length ? ` · ${opened.linked.join(', ')} linked from the checkout, not copied` : '';
+  return p.dim(opened.made ? `worktree        made at ${where}, on the branch ${opened.branch}${links}` : `worktree        its own from before, at ${where}, on ${opened.branch}${links}`);
+}
+
+/** Take a thread's worktree and branch away, and say what went with them, for its log and for the screen. */
+function removeWorktree(task: Item): string {
+  const gone = closeWorktree(task);
+  if (!gone) return '';
+  const lost = gone.lost ? `, with ${gone.lost.commits} commit(s) that never landed (it was at ${gone.lost.tip.slice(0, 7)})` : '';
+  return `worktree and branch ${gone.branch} removed${lost}${gone.problem ? `; ${gone.problem}` : ''}`;
 }
 
 // ----------------------------------------------------------------- commands
@@ -1096,18 +1151,20 @@ export const COMMANDS: Command[] = [
   {
     name: 'next',
     group: 'agents',
-    usage: 'next [--claim] [-P <project>]',
-    summary: 'The most important ready task, with all its context',
+    usage: 'next [--claim [--worktree]] [-P <project>]',
+    summary: 'The most important ready task, with all its context; --claim --worktree gives it a git worktree of its own to be built in',
     write: true,
-    options: { claim: { type: 'boolean', short: 'c' }, ...PROJECT },
+    options: { claim: { type: 'boolean', short: 'c' }, worktree: { type: 'boolean' }, ...PROJECT },
     run(call) {
       const { ws, p } = call;
+      if (call.opts.worktree && !call.opts.claim) throw new SpoolError('--worktree goes with --claim', 'spool next --claim --worktree');
       const project = str(call.opts.project);
       const list = ready(ws, project);
       const task = list[0];
       if (!task) return { text: nothingReady(ws, project), data: { task: null, ready: 0 } };
-      if (call.opts.claim) claim(call, task, true);
+      const opened = call.opts.claim ? claim(call, task, true, !!call.opts.worktree) : undefined;
       const out = [brief(ws, task, p)];
+      if (opened) out.push(worktreeNote(task, opened, p));
       if (!call.opts.claim) out.push(p.dim(`claim it        spool start ${task.id}`));
       if (list.length > 1) out.push(p.dim(`${list.length - 1} more ready behind it`));
       return { text: out.join('\n'), data: { task: itemJson(ws, task, true), brief: brief(ws, task, p), ready: list.length } };
@@ -1116,14 +1173,16 @@ export const COMMANDS: Command[] = [
   {
     name: 'start',
     group: 'agents',
-    usage: 'start <t-id> [--force]',
-    summary: 'Claim a specific task',
+    usage: 'start <t-id> [--worktree] [--force]',
+    summary: 'Claim a specific task; --worktree gives it a git worktree of its own, so several can be built at once',
     write: true,
-    options: { force: { type: 'boolean' } },
+    options: { force: { type: 'boolean' }, worktree: { type: 'boolean' } },
     run(call) {
       const t = first(call, 'which task', 'task');
-      claim(call, t, !!call.opts.force);
-      return { text: brief(call.ws, t, call.p), data: { task: itemJson(call.ws, t, true) } };
+      const opened = claim(call, t, !!call.opts.force, !!call.opts.worktree);
+      const out = [brief(call.ws, t, call.p)];
+      if (opened) out.push(worktreeNote(t, opened, call.p));
+      return { text: out.join('\n'), data: { task: itemJson(call.ws, t, true) } };
     },
   },
   {
@@ -1224,7 +1283,7 @@ export const COMMANDS: Command[] = [
     name: 'done',
     group: 'agents',
     usage: 'done <t-id> -m <what changed> [--report <file>|-] [--commit <ref>…] [--skill <name>…]',
-    summary: 'Finish a task: record how to undo a change, or hand in the report of an audit or plan',
+    summary: 'Finish a task: record how to undo a change, or hand in the report of an audit or plan; work in a worktree of its own is landed on the checkout first',
     write: true,
     options: {
       ...MESSAGE,
@@ -1233,22 +1292,25 @@ export const COMMANDS: Command[] = [
       report: { type: 'string' },
     },
     reads: 'report',
-    before: runCheck,
+    before: beforeDone,
+    after: (before) => (before as Finishing | undefined)?.landing?.release(),
     run(call) {
       const { ws, p, actor } = call;
-      const checked = call.before as { command: string; seconds: number } | undefined;
+      const { checked, landing } = (call.before as Finishing | undefined) ?? {};
       const t = first(call, 'which task', 'task');
       if (isClosed(t)) throw new SpoolError(`${t.id} is already ${t.status}`);
       // Taken back to the backlog while it was being built: the human said stop, so it is not finished by whoever was on it.
       if (t.status === 'proposed') throw new SpoolError(`${t.id} was moved back to the backlog`, 'Leave it: nothing builds it until the human moves it to build again');
       const type = t.type ?? 'change';
-      const summary = (str(call.opts.message) ?? call.args.slice(1).join(' ')).replace(/\s+/g, ' ').trim();
+      const summary = summaryOf(call);
       if (!summary) {
         throw new SpoolError(
           'the summary is missing',
           `The human reads it in their review: spool done ${t.id} -m "<what changed, and how to see it>"`,
         );
       }
+      // Its work is in a worktree, and was not landed a moment ago: finishing now would throw it away.
+      if (t.worktree && !landing) throw new SpoolError(`${t.id} changed while it was being finished`, 'Run spool done again');
 
       // An audit or a plan is finished by what it found, written down where the human can read it.
       const reportPath = reportFile(t);
@@ -1277,6 +1339,8 @@ export const COMMANDS: Command[] = [
         commits.add(sha);
       }
       if (root) for (const sha of trailerCommits(root, t.id)) if (!isReverted(root, sha)) commits.add(sha);
+      // What came off its own branch is its work, trailer or no trailer.
+      for (const sha of landing?.commits ?? []) commits.add(sha);
 
       const usable = applicable(ws, t.spool);
       const used = many(call.opts.skill);
@@ -1313,13 +1377,24 @@ export const COMMANDS: Command[] = [
       t.skills = uniq([...t.skills, ...used]);
       addLog(t, actor, `done: ${summary}`, ws.now());
       ws.save(t);
+      // Landed and on record, so the worktree holds nothing the checkout lacks: it goes, and its branch with it.
+      const gone = landing ? removeWorktree(t) : '';
+      if (gone) ws.save(t);
       const finished = settleSprint(ws, t, actor);
 
       const kids = children(ws, t).filter((k) => k.status !== 'dropped');
       const gated = kids.filter((k) => k.needs.includes(t.id) && k.status === 'open');
       const ready = uniq([...dependents(ws, t), ...kids]).filter((r) => taskState(ws, r) === 'ready');
       const out = [`${p.bold(t.id)} done.`];
-      if (checked) out.push(p.green(`  check passed: ${checked.command} (${checked.seconds}s)`));
+      if (checked) out.push(p.green(`  check passed: ${checked.command} (${checked.seconds}s)${landing ? ', in its worktree' : ''}`));
+      if (landing) {
+        out.push(
+          landing.commits.length
+            ? p.green(`  landed ${landing.commits.length} commit(s) on ${landing.onto}`)
+            : p.dim(`  nothing to land: its worktree had no commits ${landing.onto} lacks`),
+          p.dim(`  ${gone}: work from ${t.spool.root} now`),
+        );
+      }
       if (fs.existsSync(reportPath)) out.push(p.dim(`  ${type === 'plan' ? 'plan' : 'report'}  ${path.relative(t.spool.root, reportPath)}`));
       if (type === 'audit') out.push(p.dim(`  ${kids.length} finding(s) filed from it`));
       let told = false;
@@ -1344,7 +1419,15 @@ export const COMMANDS: Command[] = [
       else out.push(p.dim('  A procedure worth keeping? spool skill add <name> -d "<when to use it>" --from ' + t.id + ' -b -'));
       return {
         text: out.join('\n'),
-        data: { task: itemJson(ws, t), unblocked: ready.map((r) => r.id), children: kids.map((k) => k.id), notified: told, repeats: before, sprintFinished: finished?.id ?? null },
+        data: {
+          task: itemJson(ws, t),
+          unblocked: ready.map((r) => r.id),
+          children: kids.map((k) => k.id),
+          notified: told,
+          repeats: before,
+          sprintFinished: finished?.id ?? null,
+          ...(landing ? { landed: landing.commits, onto: landing.onto } : {}),
+        },
       };
     },
   },

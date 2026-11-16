@@ -230,6 +230,7 @@ only do what you allow it. To let it edit files and commit, say so once in
 
 - **Plain files.** One markdown file per thread in `.spool/`, ignored by git unless you choose to share it.
 - **A small CLI.** `spool` holds the queue, the lock, the order and the undo. The skills run it; you rarely type it.
+- **Several at once.** A thread can be built in a git worktree of its own (`spool start <id> --worktree`), and lands on your branch when its check passes there. Two or three agents work side by side without touching each other's files.
 - **Any agent.** The skills are plain [Agent Skills](https://agentskills.io). `spool mcp` serves the same commands as tools to an agent with no shell, and `spool loop` runs with no chat at all.
 - **Your machine.** A repo's config is data and is never executed. The page listens on `127.0.0.1` only.
 

@@ -12,6 +12,7 @@ import { lessonLine, lessonsFor } from './lessons.ts';
 import { BUILT_IN, fileFor, ledgerFor, matchSkills } from './skills.ts';
 import { type Candidate, SUGGEST, addLine, offerLine } from './suggest.ts';
 import type { Workspace } from './store.ts';
+import { workDir } from './worktree.ts';
 
 export interface Paint {
   bold: (s: string) => string;
@@ -131,8 +132,12 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
   const type = task.type ?? 'change';
   const out = [
     `${p.bold(task.id)}  ${tag(task)}  ${p.bold(`${task.type ? `${task.type}: ` : ''}${task.title}`)}`,
-    p.dim(`${task.spool.name} · work in ${task.spool.root}`),
+    p.dim(`${task.spool.name} · work in ${workDir(task)}`),
   ];
+  // The agent is told where its desk is: a worktree looks like the project, and so does the project.
+  if (task.worktree) {
+    out.push(`WORKTREE — this thread has a checkout of its own there, on the branch ${task.branch}. Work and commit only in it; spool done lands it on the project's branch.`);
+  }
   if (task.status === 'proposed') out.push(p.yellow('PROPOSED — not in build. Do not start it; only the human moves it to build.'));
   if (task.hold) out.push(p.yellow(`ON HOLD — ${task.hold}. Do not start it; only the human releases it.`));
   if (main) out.push('', main);
@@ -621,6 +626,7 @@ export function showText(ws: Workspace, item: Item, p: Paint): string {
   const out = [itemLine(ws, item, p)];
   const facts: string[] = [`created ${item.created}`];
   if (item.by) facts.push(`by ${item.by}`);
+  if (item.worktree) facts.push(`worktree ${item.worktree}`, `branch ${item.branch}`);
   if (item.from.length) facts.push(`from ${item.from.join(', ')}`);
   if (item.needs.length) facts.push(`needs ${item.needs.join(', ')}`);
   if (item.commits.length) facts.push(`commits ${item.commits.map((c) => c.slice(0, 7)).join(', ')}`);
@@ -719,6 +725,8 @@ export function itemJson(ws: Workspace, item: Item, full = false): Record<string
           type: item.type ?? 'change',
           blockedBy: blockers(ws, item).map((b) => b.id),
           report: reportOf(item),
+          // Where to work it, in full, for a thread with a worktree of its own.
+          ...(item.worktree ? { workdir: workDir(item) } : {}),
           ...(progress(ws, item) ? { progress: { done: progress(ws, item)!.done, total: progress(ws, item)!.total } } : {}),
         }
       : {}),

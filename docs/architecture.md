@@ -36,11 +36,17 @@ those comments are the detail.
 - `commands.ts` is the `COMMANDS` table: every verb, its options, its help line, and the rules
   about what may follow what. A command with `write` runs under the lock; one with `human` acts as
   the human unless told otherwise; `before` does slow work, such as running a check, before the
-  lock is taken.
+  lock is taken, and `after` lets go of whatever `before` took.
 - `context.ts` is `Ctx`, the outside world passed in, and the user's own settings in
   `~/.config/spool/config.json`. It also runs the notifier.
 - `git.ts` is the undo. It finds a thread's commits by their `Spool:` trailer, and
   `revertCommits` takes them back in one new commit, never touching `.spool/`, all or nothing.
+- `worktree.ts` gives a thread a git worktree of its own, so several can be built at once.
+  `openWorktree` makes it inside `.spool/worktrees/`, on the branch `spool/<id>`, and `workDir`
+  says where a thread is worked. `land` rebases the branch onto the checkout, runs the check in
+  the worktree and fast-forwards the checkout to it, one thread at a time under `landingLock`.
+  `closeWorktree` removes it. `findHome` in `store.ts` sends a command run inside a worktree to
+  the project's own queue, never to the copy the worktree carries.
 
 **Rendering**
 
@@ -110,12 +116,15 @@ those comments are the detail.
    command: `change` calls `act`, which calls `run` with `human: true`.
 4. **It is picked up.** `ready` in `schedule.ts` puts it in line, and `spool watch` prints
    `build: t-…` for a chat's loop. An agent runs `spool start t-…` (or `spool next --claim`):
-   `claim` marks it `active` and signs it, and `brief` prints what to do. With no chat, `runLoop`
+   `claim` marks it `active` and signs it, and `brief` prints what to do. With `--worktree`,
+   `openWorktree` gives it a checkout of its own first, and the brief names that. With no chat, `runLoop`
    or the page's `Runner` claims it instead, picks the model through `agent.ts`, and starts the
    agent with `prime(ws, 'worker')` and the brief on stdin.
 5. **The work.** The agent commits, and each commit message ends with `Spool: t-…`.
-6. **`spool done t-… -m "what changed"`.** First, before the lock, `runCheck` runs the project's
-   check if the user named one; a failure stops the finish. Then `done` collects the commits with
+6. **`spool done t-… -m "what changed"`.** First, before the lock, `beforeDone` runs the project's
+   check (`runCheck`) if the user named one; a failure stops the finish. A thread with a worktree
+   is landed there as well: `land` rebases it onto the checkout, runs the check in the worktree,
+   and fast-forwards the checkout to it. Then `done` collects the commits with
    `trailerCommits`, skipping any `isReverted`, marks the task `done` with its summary, ends its
    sprint if it was the last (`settleSprint`), and says what is now ready.
 7. **`spool revert t-… -m "why"`.** `undoWork` gathers the task's commits and calls

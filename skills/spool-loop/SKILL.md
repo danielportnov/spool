@@ -305,6 +305,20 @@ and the "Working a thread" rules, one at a time, and in the background where
 it can, so the chat stays free for the human. A clean context for each thread
 keeps a long run sharp.
 
+**Several at once.** One at a time is the rule in one folder: two agents
+there edit each other's files. Where the project is a git repository, two or
+three threads can be built side by side, each in a git worktree of its own:
+
+- Claim each with `spool next --claim --worktree`, or
+  `spool start <t-id> --worktree`. Its brief names the folder to work in: a
+  checkout of its own, on its own branch, `spool/<t-id>`.
+- Give each to its own subagent, with its brief. It works and commits only
+  in that folder, and finishes with `spool done` like any other thread.
+- `spool done` lands them one at a time, in the order they finish, each
+  rebased onto the ones before it and checked there: "In a worktree", below.
+- Choose threads that will not fight over the same lines. Three at once is
+  plenty.
+
 ## When nothing is left that can move
 
 1. Give what shipped a version: see "A version for what shipped".
@@ -396,6 +410,23 @@ so the work can be found, and undone, by thread. Check the result the way a user
 would meet it. Then:
 
     spool done <id> -m "<what changed, and how the human can see it>"
+
+**In a worktree.** A brief that says `WORKTREE` gives the thread a checkout
+of its own, so others can be built beside it. Work and commit only in the
+folder the brief names: never in the project's own folder, never on another
+branch. `spool` works from inside it as it does anywhere. `spool done` then
+lands the work: it rebases your branch onto the project's, runs the check
+there on the result, moves the project's branch up to it, and removes the
+worktree, so step back to the project's folder afterwards. It refuses, and
+lands nothing, when:
+
+- something is not committed. Commit it, or throw it away.
+- your work conflicts with what landed before it. In your worktree,
+  `git rebase` onto the branch it names, resolve each file,
+  `git rebase --continue`, and run `spool done` again.
+- the check fails on the rebased work. Fix it there, and run it again.
+- the project's own folder has uncommitted changes to files you changed.
+  Those are not yours: leave them, and `spool ask`.
 
 **An audit.** Look, think, report. Do not fix things here. File each finding:
 
