@@ -260,6 +260,11 @@ sprint: your words kept on it as its vision, a goal, a reason and a done-when wr
 and the threads that get there put in it in the order they should be built. It shows you the
 sprint in a few lines. You press play, or say "play it"; it never plays one for you.
 
+Above the sprints are the **goals**: one short page, `.spool/goals.md`, on what the project is for
+and the two or three things it is heading towards. The agent asks you for it at set-up and keeps
+it true with you (`spool goals`). Every agent reads it before it works, the loop's list leads with
+it, and each sprint says which goal it serves, on its line; `spool check` names one that does not.
+
 ## Skills that compound
 
 When an agent works out a multi-step procedure it will need again — shipping a beta, regenerating
@@ -276,6 +281,7 @@ AI-suggested thread. It matches words, not meaning.
 .spool/
   config.json    the project's name, a line on what it is, and the gate
   policy.md      what agents may decide alone; yours to edit
+  goals.md       where the project is going, in a few lines; agents read it first
   items/         one markdown file per thread, question, note, sprint and skill record
   reports/       what audits and plans handed in
   worktrees/     a git worktree for each thread being built in one of its own; never in git
@@ -443,6 +449,7 @@ ones marked 🔒:
 | `spool answer <d-id> <choice>` | Answer a question, or overrule a call an agent made |
 | `spool approve <id…>` | Accept a call, finished work or a new skill; give a plan its go-ahead |
 | `spool revert <t-id> [-m why]` | Undo a thread's commits and reopen it with your reason. The reason is kept as a lesson every agent reads first |
+| `spool goals [--edit -]` | Where the project is going: what it is for and the two or three things it is heading towards, as every agent reads it first (kept in `.spool/goals.md`); `--edit` replaces it |
 | `spool lessons [--drop <n>]` | What you undid and why, newest first, as agents read it (kept in `.spool/policy.md`, yours to edit); `--drop` forgets one |
 | `spool review` | Everything waiting on you, most blocking first |
 | `spool brief [--since 8h]` | The morning brief: what shipped, what is worth a look and why, what needs you |
@@ -459,7 +466,7 @@ ones marked 🔒:
 | `spool done <t-id> -m <summary> [--steps <step>…]` | Finish: record the commits, or hand in a report. Work in a worktree of its own is landed first. `--steps` (once a step, or `-` for one a line from stdin) says how to see a change working; a change finished without them says so |
 | `spool edit <id>` | Change a title, priority, size, kind, model, effort, tags, version, sprint, or the steps to check it by (`--steps`, `none` clears them) |
 | `spool hold <t-id> -m why` · `drop <id>` | Park work; abandon it |
-| `spool sprint <name> [--goal …] [--why …] [--done-when …] [--vision - \| --from <n-id>] [--add <t-id…>]` | Make a sprint and fill it in one go, keeping the vision in your words; on a sprint that exists, add to it |
+| `spool sprint <name> [--goal …] [--why …] [--done-when …] [--serves <goal>] [--vision - \| --from <n-id>] [--add <t-id…>]` | Make a sprint and fill it in one go, keeping the vision in your words and the goal it serves; on a sprint that exists, add to it |
 | `spool skill add` | Write a procedure down as a skill |
 | `spool prime [worker\|recorder]` | A role's rules and this project now, for an agent with no skills |
 
@@ -472,7 +479,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool overview [--brief \| --table]` | The whole spool under its colours; `--brief` is a few lines for a chat, `--table` the loop's numbered list. Each thread says why it exists, from the `Why:` line of its spec |
 | `spool status` · `list [--archived | --alike]` · `show <id> [--report]` · `inbox` | One screen, with where the board is, who builds, and why Build is not moving when it is not · find items, only the archived threads, or open threads that look like each other (changes nothing) · one item, or the text of its report (over MCP too, for an agent with no shell) · unfiled notes |
 | `spool skills [--suggest]` | Every skill; or procedures that keep recurring with no skill |
-| `spool graph` · `check` | The items and their links as a diagram; validate the store, and name every open thread with no `Why:` line |
+| `spool graph` · `check` | The items and their links as a diagram; validate the store, and name every open thread with no `Why:` line, and every sprint that serves no goal |
 
 **Set up, and staying up**:
 

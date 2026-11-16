@@ -58,18 +58,24 @@ Get this project from nothing to agents working it, in one short conversation.
    ask about. Ask if they want it looser or tighter, and edit the file to match
    their words. It is theirs: this is the one file under `.spool/` you edit by hand.
 
-6. **Offer a check.** Find the command that proves a change is sound here:
+6. **Agree the goals.** Ask in one question what this project is for and the
+   two or three things it is heading towards. Write their answer in plain
+   words, a `For:` line and a line for each, with `spool goals --edit -`.
+   Every agent reads it first, and the loop keeps it true with them. No
+   answer yet? Leave the starter `.spool/goals.md` for another day.
+
+7. **Offer a check.** Find the command that proves a change is sound here:
    the project's tests, a build, a lint (`npm test`, `cargo test`, `pytest`).
    Tell them which you found and offer it in a line: with it set, no thread can
    be marked done unless it passes. On their yes: `spool checks "<command>"`.
    It is kept on their machine, not in the project. None to be found? Skip this.
 
-7. **Offer a ping.** Agents stop for the human's calls, so it helps if the
+8. **Offer a ping.** Agents stop for the human's calls, so it helps if the
    human hears about them. Offer once to set a notifier: a shell command under
    `notify` in `~/.config/spool/config.json`, run whenever an agent asks them
    something. Skip it if they are not interested.
 
-8. **Take the first work.** If they have already given an idea, a wish or a
+9. **Take the first work.** If they have already given an idea, a wish or a
    bug for this project in this chat, capture and file it now by the
    `spool-record` rules; what they asked of you about the setup is not one.
    Otherwise ask what is on their mind for this project.

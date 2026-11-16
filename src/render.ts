@@ -11,6 +11,7 @@ import { type Docket, type Review, blockers, children, dependents, docket, ready
 import { lessonLine, lessonsFor } from './lessons.ts';
 import { BUILT_IN, fileFor, ledgerFor, matchSkills } from './skills.ts';
 import { visionOf } from './sprints.ts';
+import { goalsOf } from './goals.ts';
 import { type Candidate, SUGGEST, addLine, offerLine } from './suggest.ts';
 import type { Workspace } from './store.ts';
 import { workDir } from './worktree.ts';
@@ -118,6 +119,8 @@ export function itemLine(ws: Workspace, item: Item, p: Paint, showProject = true
   } else if (item.kind === 'sprint') {
     const inIt = sprintTasks(ws, item);
     notes.push(item.status, `${inIt.filter((t) => t.status === 'done').length} of ${inIt.length} done`);
+    const serves = sprintAbout(item).serves;
+    if (serves) notes.push(`serves ${oneLine(serves, 60)}`);
   } else if (item.kind === 'decision') {
     notes.push(item.choice ? `${item.status}: ${oneLine(item.choice, 48)}` : item.status);
   } else if (item.status !== 'new' && item.status !== 'active') {
@@ -406,17 +409,18 @@ export function tableRows(ws: Workspace, d: Docket): TableRow[] {
 }
 
 /**
- * A sprint's goal, reason and done-when, read from the three lines of its body, and the vision
+ * A sprint's goal, reason and done-when, read from the three lines of its body, the project goal
+ * it serves, and the vision
  * it was made from, in the human's words. Whatever else is there, and not quoted, is the goal.
  */
-export function sprintAbout(sprint: Item): { goal: string; why: string; doneWhen: string; vision: string } {
+export function sprintAbout(sprint: Item): { goal: string; why: string; doneWhen: string; serves: string; vision: string } {
   const lines = splitBody(sprint.body).main.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('>'));
   const take = (label: string) => {
     const at = lines.findIndex((l) => l.toLowerCase().startsWith(`${label}:`));
     return at < 0 ? '' : lines.splice(at, 1)[0]!.slice(label.length + 1).trim();
   };
-  const [why, doneWhen, goal] = [take('why'), take('done when'), take('goal')];
-  return { goal: goal || lines.join(' '), why, doneWhen, vision: visionOf(sprint) };
+  const [why, doneWhen, serves, goal] = [take('why'), take('done when'), take('serves'), take('goal')];
+  return { goal: goal || lines.join(' '), why, doneWhen, serves, vision: visionOf(sprint) };
 }
 
 /**
@@ -473,10 +477,11 @@ function openSprints(ws: Workspace, spool: Spool): Item[] {
 /** A sprint in one line: its name, where it stands, how far along it is, and what it is for. */
 function sprintLine(ws: Workspace, s: Item): string {
   const inIt = sprintTasks(ws, s);
-  const { goal, vision } = sprintAbout(s);
+  const { goal, vision, serves } = sprintAbout(s);
   // With no goal written yet, the human's own words say what it is for.
   const what = goal ? oneLine(goal, 140) : vision ? `“${oneLine(vision, 140)}”` : '';
-  return `🏁 **${s.title}** · ${s.status} · ${inIt.filter((t) => t.status === 'done').length} of ${inIt.length} done${what ? ` — ${what}` : ''}`;
+  const facts = [s.status, `${inIt.filter((t) => t.status === 'done').length} of ${inIt.length} done`, ...(serves ? [`serves ${oneLine(serves, 60)}`] : [])];
+  return `🏁 **${s.title}** · ${facts.join(' · ')}${what ? ` — ${what}` : ''}`;
 }
 
 export interface ListGroup {
@@ -500,10 +505,21 @@ export function listGroups(ws: Workspace, d: Docket, rows: TableRow[] = tableRow
   return [...groups, ...(loose.length ? [{ rows: loose }] : [])];
 }
 
+/** Where the project is going, in two lines at most: what it is for, and what it is heading towards. */
+function goalLines(spool: Spool): string[] {
+  const goals = goalsOf(spool);
+  if (!goals) return [];
+  return [
+    `🎯 ${goals.for ? `**${oneLine(goals.for, 120)}**` : '**Goals**'}`,
+    ...(goals.towards.length ? [`Heading towards: ${goals.towards.map((g) => oneLine(g, 60)).join(' · ')}`] : []),
+  ];
+}
+
 function tableText(ws: Workspace, d: Docket): string {
   const rows = tableRows(ws, d);
   const cell = (text: string) => text.replace(/\|/g, '\\|');
-  const out = [standing(d, rows), ''];
+  const lead = goalLines(d.spool);
+  const out = [...lead, ...(lead.length ? [''] : []), standing(d, rows), ''];
   const groups = listGroups(ws, d, rows);
   if (!rows.length) {
     // Nothing open, and the plan is still worth a line: what each unfinished sprint is for.

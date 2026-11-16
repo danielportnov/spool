@@ -16,6 +16,7 @@ import { HARNESSES, describe, harness, installFor, installedAnywhere, others } f
 import { spawnSync } from 'node:child_process';
 import { type Ctx, notify, saveUserConfig, userConfig } from './context.ts';
 import { doctor } from './doctor.ts';
+import { GOALS_STARTER, goalsFile, goalsOf, goalsText } from './goals.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
 import { demo } from './demo.ts';
 import { dropLesson, keepLesson, lessonLine, lessons } from './lessons.ts';
@@ -836,6 +837,33 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: 'goals',
+    group: 'you',
+    usage: 'goals [--edit <text>|-] [-P <project>]',
+    summary: 'Where the project is going, as every agent reads it; --edit replaces it',
+    human: true,
+    write: true,
+    options: { edit: { type: 'string' }, ...PROJECT },
+    run(call) {
+      const { ws, p, opts } = call;
+      const spool = ws.project(str(opts.project));
+      const file = goalsFile(spool);
+      const where = path.relative(spool.root, file);
+      if (typeof opts.edit === 'string') {
+        const text = (opts.edit === '-' ? call.ctx.stdin() : opts.edit).trim();
+        if (!text) throw new SpoolError('the goals are missing', 'spool goals --edit - with the page on stdin');
+        fs.writeFileSync(file, `${text}\n`);
+      }
+      const goals = goalsOf(spool);
+      const text = goalsText(spool);
+      const data = { project: spool.name, file, text, set: !!goals, for: goals?.for ?? '', towards: goals?.towards ?? [] };
+      if (!goals) {
+        return { text: `No goals yet in ${spool.name}. Ask what it is for and where it is heading, then: spool goals --edit -`, data };
+      }
+      return { text: `${typeof opts.edit === 'string' ? `Goals kept in ${where}:\n\n` : ''}${text}\n${p.dim(`\n${where} · agents read it first · spool goals --edit - replaces it`)}`, data };
+    },
+  },
+  {
     name: 'release',
     group: 'you',
     usage: 'release <t-id…>',
@@ -936,13 +964,14 @@ export const COMMANDS: Command[] = [
     name: 'sprint',
     group: 'agents',
     usage:
-      'sprint <name…> [--goal <what it is for>] [--why <why now>] [--done-when <what will be true>] [--vision <their words>|- | --from <n-id>] [--add <t-id…>] [-P <project>]',
+      'sprint <name…> [--goal <what it is for>] [--why <why now>] [--done-when <what will be true>] [--serves <a goal, in a few words>] [--vision <their words>|- | --from <n-id>] [--add <t-id…>] [-P <project>]',
     summary: 'Make a sprint, a named set of work to build together with a goal and no dates; or fill one that exists',
     write: true,
     options: {
       goal: { type: 'string' },
       why: { type: 'string' },
       'done-when': { type: 'string' },
+      serves: { type: 'string' },
       vision: { type: 'string' },
       from: { type: 'string' },
       add: { type: 'string', multiple: true },
@@ -982,7 +1011,8 @@ export const COMMANDS: Command[] = [
         changed.push('vision');
       }
       // What the sprint is for is its body, in the same three lines a thread's spec has.
-      for (const [opt, label] of [['goal', 'Goal'], ['why', 'Why'], ['done-when', 'Done when']] as const) {
+      // And which of the project's goals it serves, in a few words.
+      for (const [opt, label] of [['goal', 'Goal'], ['why', 'Why'], ['done-when', 'Done when'], ['serves', 'Serves']] as const) {
         if (!str(call.opts[opt])) continue;
         setLine(sprint, label, oneLine(str(call.opts[opt])!, 300));
         changed.push(label.toLowerCase());
@@ -2103,6 +2133,10 @@ export const COMMANDS: Command[] = [
           if (taskState(ws, item) === 'stale') warnings.push(`${item.id} was claimed by ${item.by ?? 'someone'} and has gone quiet`);
           if (item.priority !== undefined && (item.priority < 0 || item.priority > 3)) errors.push(`${item.id} has priority ${item.priority}`);
         }
+        // Once a project has goals, each sprint says which one it is for, so the work stays on them.
+        if (item.kind === 'sprint' && (item.status === 'planned' || item.status === 'running') && goalsOf(item.spool) && !sprintAbout(item).serves) {
+          warnings.push(`${item.id} (${item.title}) names no goal it serves: spool sprint "${item.title}" --serves "<a goal, in a few words>"`);
+        }
         if (item.kind === 'skill' && item.status === 'active' && !fileFor(ws, item)) warnings.push(`${item.id} tracks skill "${item.title}" but ${item.path}/SKILL.md is gone`);
       }
       const cycle = findCycle(ws);
@@ -2169,6 +2203,7 @@ export const COMMANDS: Command[] = [
         write(path.join(dir, 'config.json'), `${JSON.stringify({ ...readConfig(root), gate: opts.lock ? 'locked' : true }, null, 2)}\n`, true);
       }
       write(path.join(dir, 'policy.md'), DEFAULT_POLICY);
+      write(path.join(dir, 'goals.md'), GOALS_STARTER);
       // An existing .gitignore is someone's choice and is kept; --share is the one thing that rewrites it.
       write(path.join(dir, '.gitignore'), opts.share ? QUEUE_SHARED : QUEUE_LOCAL, !!opts.share);
       fs.mkdirSync(path.join(dir, 'items'), { recursive: true });
@@ -2216,6 +2251,7 @@ export const COMMANDS: Command[] = [
           '  /spool-loop       the loop: it builds what is in build, thread after thread, and tells you when it needs you',
           '  /spool-record     put it in front of anything you type or say, and that message is filed as threads',
           `  ${path.join(SPOOL_DIR, 'policy.md')} says what agents may decide without you — worth two minutes.`,
+          `  ${path.join(SPOOL_DIR, 'goals.md')} says where the project is heading: your agent asks you, in one question.`,
         );
       }
       return { text: out.join('\n'), data: { root, created: fresh, wrote, skills, shared: !local } };

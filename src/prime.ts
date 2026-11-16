@@ -17,6 +17,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { rules, section } from './builtin.ts';
+import { goalsFile, goalsOf, goalsText } from './goals.ts';
 import { lessonsSection, withoutLessons } from './lessons.ts';
 import { type Spool, oneLine } from './model.ts';
 import { ready, review, tasks, taskState } from './schedule.ts';
@@ -151,6 +152,8 @@ export function prime(ws: Workspace, role: Role, contextOnly = false): string {
     return parts.join('\n');
   }
   if (!contextOnly) parts.push(WORKER, `${section('spool-loop', 'Working a thread')}\n`);
+  // Where the project is going comes first: the policy says how to work, the goals say what for.
+  if (goalsOf(ws.home)) parts.push(`GOALS (${path.relative(ws.home.root, goalsFile(ws.home))})\n\n${goalsText(ws.home)}\n`);
   const policy = path.join(ws.home.dir, 'policy.md');
   const text = fs.existsSync(policy) ? fs.readFileSync(policy, 'utf8').trim() : DEFAULT_POLICY.trim();
   parts.push(`POLICY (${path.relative(ws.home.root, policy) || policy})\n\n${withoutLessons(text)}\n`);
