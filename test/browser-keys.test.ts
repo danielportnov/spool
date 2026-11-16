@@ -228,3 +228,53 @@ test('? opens a sheet of every key, and Esc closes it', async (t) => {
     await page.context().close();
   }
 });
+
+test('c opens quick add from anywhere: Enter files it to the backlog, with its #tags and !priority', async (t) => {
+  if (!browser) return t.skip('no Chrome on this machine to drive');
+  const { page, problems } = await open('backlog');
+  const box = page.getByRole('dialog', { name: 'Quick add' });
+  try {
+    await page.keyboard.press('c');
+    await box.waitFor();
+    await page.keyboard.type('Wall jump off #movement tiles !1');
+    // What it read out of the words, shown under the box as he types.
+    assert.deepEqual(await box.locator('.chip').allInnerTexts(), ['↑ High', '#movement']);
+    await page.keyboard.press('Shift+Enter');
+    await page.keyboard.type('like the old games did');
+    assert.equal(await box.locator('textarea').inputValue(), 'Wall jump off #movement tiles !1\nlike the old games did', 'Shift+Enter is a new line');
+    await shot(page, 'keys-4-quick-add');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await shot(page, 'keys-4-quick-add-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+
+    // Esc closes it, and what was typed is there when it opens again.
+    await page.keyboard.press('Escape');
+    await box.waitFor({ state: 'hidden' });
+    await page.keyboard.press('c');
+    assert.equal(await box.locator('textarea').inputValue(), 'Wall jump off #movement tiles !1\nlike the old games did');
+    await page.keyboard.press('Enter');
+    await box.waitFor({ state: 'hidden' });
+    const row = page.locator('#backlog .row', { hasText: 'Wall jump off tiles' });
+    await row.waitFor();
+    const id = (await row.getAttribute('data-id'))!;
+    const item = s.json('show', id).item;
+    assert.equal(item.title, 'Wall jump off tiles', 'the tag and the priority are out of its name');
+    assert.deepEqual(item.tags, ['movement']);
+    assert.equal(item.priority, 1);
+    assert.equal(item.state, 'proposed', 'in the backlog');
+    assert.match(s.sp('show', id), /like the old games did/, 'and every word he typed is kept on it');
+
+    // Plain words are a plain thread; and c in a box is only a letter.
+    await page.keyboard.press('/');
+    await page.keyboard.type('c');
+    assert.equal(await box.isHidden(), true, 'c typed in the search opened nothing');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('c');
+    await page.keyboard.type('Rain on the second world');
+    await page.keyboard.press('Enter');
+    await page.locator('#backlog .row', { hasText: 'Rain on the second world' }).waitFor();
+    assert.deepEqual(problems, [], 'the page logged no errors');
+  } finally {
+    await page.context().close();
+  }
+});

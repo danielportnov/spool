@@ -97,6 +97,9 @@ finishes. With nothing shipped and nothing needing you, the panel is not there.
 - The keyboard: `j` and `k` move down and up a column (or the Backlog view's rows), `h` and `l`
   between columns, `Enter` opens the thread, `b` moves it to Build and `x` archives it (both from
   the backlog only), `Esc` closes or lets go, `g b` and `g l` switch views, `?` lists the keys.
+- `c`, from anywhere on the page, opens one box: type, press `Enter`, and it is in the backlog.
+  A `#word` in it is a tag and `!0` to `!3` its priority (`spool task -p`, `--tag`), left out of
+  its name; every word is kept on the thread.
 
 **Backlog.** For planning: sprints stacked above the backlog. Create a sprint, drag threads into it,
 press **▶ Play sprint**. Notes nobody filed sit in a strip at the top (**Make it a thread**, or

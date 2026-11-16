@@ -1821,11 +1821,17 @@ function change(ctx: Ctx, action: string, body: Body, project?: string): { ok: b
     const to = text(body.to);
     if (!words) return { ok: false, text: 'say what to add' };
     if (to !== 'proposed' && to !== 'build') return { ok: false, text: 'a thread can be added to proposed, or to build' };
-    // Their words are kept whole as the note; the thread's name is the first line of them.
+    // Their words are kept whole as the note; the thread's name is the first line of them. Quick add
+    // names it itself, with the #tags and !priority it read out of the words, and passes those on.
+    const name = text(body.title) || words.split('\n')[0]!;
+    const extra = [
+      ...(typeof body.priority === 'number' ? ['-p', String(body.priority)] : []),
+      ...(Array.isArray(body.tags) ? body.tags.map((t) => `--tag=${String(t)}`) : []),
+    ];
     const captured = act(ctx, ['capture', '--', words]);
     const note = (captured.data as { note?: { id?: string } } | null)?.note?.id;
     if (!captured.ok || !note) return { ok: false, text: captured.text || 'it could not be saved' };
-    const filed = act(ctx, ['task', '--from', note, '--', oneLine(words.split('\n')[0]!, 110)]);
+    const filed = act(ctx, ['task', '--from', note, ...extra, '--', oneLine(name, 110)]);
     const task = (filed.data as { task?: { id?: string; status?: string } } | null)?.task;
     if (!filed.ok || !task?.id) return { ok: false, text: filed.text || 'it could not be filed' };
     // Adding it under Build is the human putting it in build; under Proposed it waits, gate or no gate.
@@ -2575,6 +2581,8 @@ SYSTEM_DARK.addEventListener('change', paintTheme);
   #layer h3 { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); margin: 4px 0 10px; }
   #layer .keyrow { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; padding: 3px 0; font-size: 13px; }
   #layer kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: var(--chip); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+  #layer textarea, #layer input { display: block; width: 100%; min-height: 0; border: 0; border-radius: 0; background: transparent; padding: 4px 2px; font-size: 15px; outline: none; resize: none; }
+  #layer .chips:empty { display: none; }
   #layer .foot { margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; color: var(--soft); }
   /* On a phone: the bar in two rows, one column of the board at a time, and nothing to tap under 36px. */
   .jump { display: none; }
@@ -4111,7 +4119,7 @@ function openLayer(kind) {
   const box = document.getElementById('layer');
   layer = kind;
   box.replaceChildren(...LAYERS[kind]().flat(3).filter(Boolean));
-  box.setAttribute('aria-label', { keys: 'Keys' }[kind]);
+  box.setAttribute('aria-label', { keys: 'Keys', add: 'Quick add' }[kind]);
   box.hidden = document.getElementById('layerveil').hidden = false;
   const input = box.querySelector('textarea, input');
   if (input) input.focus();
@@ -4132,6 +4140,7 @@ const KEYS = [
   { key: 'g b', label: 'g then b', says: 'Go to the Board', run: () => goTo('board'), board: true },
   { key: 'g l', label: 'g then l', says: 'Go to the Backlog', run: () => goTo('backlog'), board: true },
   { key: '/', label: '/', says: 'Search', run: () => document.getElementById('search').focus(), board: true },
+  { key: 'c', label: 'c', says: 'Add a thread to the backlog, from anywhere', run: () => openLayer('add') },
   { key: 'Escape', label: 'Esc', says: 'Close what is open, or let go of the thread' },
   { key: '?', label: '?', says: 'This list', run: () => (layer === 'keys' ? closeLayer() : openLayer('keys')) },
 ];
@@ -4143,7 +4152,47 @@ const LAYERS = {
       el('span', {}, k.label.split(' ').filter(Boolean).map((part) => [part === 'then' ? part : el('kbd', {}, part), ' '])), el('span', {}, k.says))),
     el('div', { class: 'foot' }, 'Keys wait while you type in a box. Esc closes this.'),
   ],
+  add: quickAddNode,
 };
+
+// Quick add: one box over the page, filed to the backlog as + Add files it. A #word in it is a tag
+// and !0 to !3 its priority, shown under the box and left out of the name; the words are kept whole.
+let quickDraft = '';
+function quickParse(words) {
+  const tags = [];
+  let priority = null;
+  const rest = words.replace(/(^|\s)(?:#([a-z][a-z0-9-]*)|!([0-3]))(?=\s|$)/gi, (all, before, tag, p) => {
+    if (tag && !tags.includes(tag.toLowerCase())) tags.push(tag.toLowerCase());
+    if (p) priority = Number(p);
+    return before;
+  });
+  return { tags, priority, title: rest.split('\n')[0].replace(/\s+/g, ' ').trim() };
+}
+function quickAddNode() {
+  const chips = el('div', { class: 'chips' });
+  const show = () => {
+    const { tags, priority } = quickParse(box.value);
+    chips.replaceChildren(...[priority != null && el('span', { class: 'chip' }, ARROWS[priority] + ' ' + PRIORITIES[priority]), ...tags.map((t) => el('span', { class: 'chip' }, '#' + t))].filter(Boolean));
+  };
+  const save = async () => {
+    const words = box.value.trim();
+    const { tags, priority, title } = quickParse(words);
+    if (!title) return;
+    quickDraft = '';
+    closeLayer();
+    // If it could not be saved, the box comes back with their words in it.
+    if (!(await post('add', { text: words, to: 'proposed', title, tags, ...(priority != null ? { priority } : {}) }, 'Added to the backlog: ' + title))) {
+      quickDraft = words;
+      openLayer('add');
+    }
+  };
+  const box = el('textarea', { rows: 2, placeholder: 'What do you want added?   #tag  !0 to !3 for priority',
+    oninput: () => { quickDraft = box.value; show(); },
+    onkeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); save(); } } });
+  box.value = quickDraft;
+  show();
+  return [box, chips, el('div', { class: 'foot' }, 'Enter adds it to the backlog. Shift+Enter is a new line. Esc closes, and keeps what you typed.')];
+}
 
 // Esc closes the nearest thing: a box over the page, then the search, then the ticket, then lets go of the thread.
 function escape(at, typing) {
