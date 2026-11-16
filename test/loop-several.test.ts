@@ -1,19 +1,24 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { shipped } from '../src/builtin.ts';
+import { section, shipped } from '../src/builtin.ts';
 
 // Every command it names is pinned by "every command a skill tells an agent to run exists", in test/init.test.ts.
 test('in a chat that can start subagents, the loop builds several threads at once, each by a subagent in a worktree of its own', () => {
-  const loop = shipped('spool-loop');
+  const loop = shipped('spool-loop').replace(/\s+/g, ' ');
   assert.match(
     loop,
-    /\*\*Several at once, with subagents\.\*\* If your harness can start subagents and\nthe project is a git repository[\s\S]*How many: what `spool builder`\nsays, three unless they set it\./,
+    /\*\*Several at once, with subagents\.\*\* If your harness can start subagents and the project is a git repository, build several threads side by side, each by a fresh subagent in a git worktree of its own\. How many: what `spool builder` says, three unless they set it\./,
   );
-  assert.match(loop, /`spool next --claim --worktree --as "<your model>"`, or\n {2}`spool start <t-id> --worktree --as "<your model>"`/);
-  assert.match(loop, /the brief as\n {2}printed, that folder, the worker's rules \(`spool prime worker`\), and this:\n {2}work only in that folder; commit there, every commit ending with the\n {2}`Spool: <t-id>` trailer; finish with `spool done`, which lands it, or\n {2}`spool ask` if it needs a decision\./);
-  assert.match(loop, /`spool done` may refuse to land[\s\S]*The\n {2}subagent fixes it in its worktree and runs `spool done` again[\s\S]*It never forces anything\./);
-  assert.match(loop, /Meanwhile you build nothing yourself\. Say one line as each thread starts\n {2}and one as each lands, take the next from build as a slot frees, and\n {2}answer the human\./);
-  assert.match(loop, /One folder and no git\? One thread at a time/);
+  assert.match(loop, /`spool next --claim --worktree --as "<your model>"`, or `spool start <t-id> --worktree --as "<your model>"`\. It prints the brief, and the brief names the folder to work in\./);
+  assert.match(
+    loop,
+    /the brief as printed, that folder, the worker's rules \(`spool prime worker`\), and this: work only in that folder; commit there, every commit ending with the `Spool: <t-id>` trailer; sign every `spool` command the same way; finish with `spool done`, which lands it, or `spool ask` if it needs a decision\./,
+  );
+  // A landing that is refused is the subagent's to fix: the lead is told so in a line, and the worker's rules say how.
+  assert.match(loop, /A landing that is refused is fixed there and tried again, never forced\./);
+  assert.match(section('Working a thread').replace(/\s+/g, ' '), /It refuses, and lands nothing, when:[\s\S]*your work conflicts with what landed before it\.[\s\S]*resolve each file, `git rebase --continue`, and run `spool done` again\./);
+  assert.match(loop, /Meanwhile you build nothing yourself\. Say one line as each thread starts \("[^"]+"\) and one as each lands \("[^"]+"\), take the next from build as a slot frees, and answer the human\./);
+  assert.match(loop, /One folder and no git\? One thread at a time, still by a fresh subagent where you can: two agents in one folder edit each other's files\. No subagents\? Build each yourself: `spool next --claim`, then the worker's rules\./);
   // The old rule, one subagent at a time whatever the project, is gone.
   assert.doesNotMatch(loop, /one at a time, and in the background/);
 });

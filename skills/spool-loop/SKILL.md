@@ -1,286 +1,37 @@
 ---
 name: spool-loop
-description: Run the Spool loop, the main way a project gets worked - show every open thread in the spool, add your own ideas as AI suggested, build the threads the user has moved to build (on the Spool page, or by saying so) one by one and nothing else, notify the user when build is empty or something needs them, then watch the spool and start again the moment a thread is moved to build, with a timed check back (three hours unless told otherwise) only where the harness cannot watch. Use for /spool-loop [hours], or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "keep going", "what's next - do it" or asks you to work unattended. Questions about the spool, and steering it, are /spool.
+description: Make this chat the builder of this project's Spool - it builds the threads the user has moved to build and nothing else, several at once with subagents in git worktrees where it can, says a line as each starts and lands, adds a few ideas of its own as AI suggested, notifies the user when build is empty or something needs them, then watches the spool and starts again the moment a thread is moved to build, with a timed check back (three hours unless told otherwise) only where the harness cannot watch. Use for /spool-loop [hours], /spool-loop stop, or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "build what is in build", "keep going", or asks you to work unattended. Not for questions about the spool or for steering it, which is /spool.
 ---
 
 # Spool loop
 
-The loop is simple on purpose. The human should be able to know nothing about
-the project and still run it well: **you hold the context, you propose, they
-decide what is built, you build it.** Every time it runs, it does the same
-three things:
-
-1. **Show the spool:** every open thread, what is in build and what is only
-   proposed, with your own ideas added as "AI suggested".
-2. **Build what is in build:** the threads the human has moved there, one by
-   one, in order. Nothing else. They move threads on the Spool page
-   (`spool page`) or by telling you.
-3. **Say when it is done:** notify the human when build is empty, or when
-   something needs them.
-
-Be brief in the chat. The page holds the detail.
-
+`/spool-loop` makes this chat the one that builds. **They decide what is
+built, and you build it:** what is in Build, top first, and nothing else.
 The loop does not run on a clock. It watches the spool, and wakes the moment
-the human moves a thread to build or writes on one. There is no budget to
-fill and no deadline to hit: build is the plan, and you work it until it is
-empty, then listen for more. The schedule is only a check back in.
-
-**A spool 🧶 holds threads 🧵.** A project's queue of work is its spool, and
-each piece of work in it is a thread. Say it that way to the human, with the
-emojis. The commands call a thread a task (`spool task`, `<t-id>`), and that
-is the only place the word belongs.
-
-`spool` is your tool for the spool. The human never types it, and you never
-edit `.spool/` by hand.
-
-## How it was called
-
-| Called as | Means |
-| --- | --- |
-| `/spool-loop` | Show the spool, build what is in build, then watch the spool for more. Where the harness cannot watch, check back every 3 hours. Already running in this chat? Show the spool and carry on. |
-| `/spool-loop <hours>` | The same, with a timed check back every `<hours>` hours: for a harness that cannot watch, or as a second line of defence. Already scheduled? Change it to that. |
-| `/spool-loop stop` | Stop the watch, cancel any schedule, say so, and end. |
-
-That is all of it. A schedule calls the plain `/spool-loop` too.
+they move a thread to Build. There is no budget to fill and no deadline to
+hit. Already running in this chat? Carry on. `/spool-loop <hours>` adds a
+timed check back. `/spool-loop stop` ends the watch and any schedule: say
+that nothing builds here until they start it again.
 
 ## Start
 
-1. `spool prime worker --context` prints this project's autonomy policy and
-   what is ready. Read the policy: it decides what you may settle yourself.
-   No `.spool/` here? Tell them in a line, set it up now by the `spool-init`
-   skill, then carry on from here.
-2. Put the spool in order, show it, and build what is in build.
-3. When build is empty, watch the spool. See "Watch the spool". Only where
-   you cannot, or a number of hours was given, set the schedule: "The schedule".
+1. `spool builder chat`. Typing `/spool-loop` is their word for it. The board
+   then starts no agents, so no two builders take one thread, and the reply
+   says how many threads to build at once. Refused, because the gate is
+   locked? Ask them to pick **Chat** on the board, and wait.
+2. `spool prime worker --context`: the goals, the policy, what was undone
+   and why, what is ready. No `.spool/` here? Use the `spool-init` skill.
+   Notes unfiled (`spool inbox`)? File them, by the `spool-record` skill.
+3. Say in one line what you are starting, and where the board is
+   (`spool page -d` starts it, or finds the one that is up). Then build.
 
-**The worker's rules are not in this skill.** How a thread is built, sized,
-finished and versioned is written once, and `spool prime worker` prints it:
-read it before you build your first thread, and give it to every subagent.
+**The worker's rules are not in this skill.** `spool prime worker` prints
+them, and whoever builds a thread reads them first: you, or each subagent.
 
-## Watch the spool
+## Build what is in Build
 
-`spool watch` stays up and prints a line the moment the human gives you
-something to do, and nothing otherwise:
-
-    build: t-4kq7 Tighter jump                          it can be built now
-    reply: t-4kq7 Tighter jump — "snappy, not heavy"    they wrote on a thread
-    unfiled: n-9wxa "add a mute button to settings"     a note nobody has filed
-
-- **In Claude Code:** when build is empty, start the `Monitor` tool with the
-  command `spool watch`, the longest timeout it allows, and a description
-  like "Spool: work for the loop". Then end your turn. Each line wakes you.
-- **`build:`** They moved it to build, on the page or by an answer that freed
-  it. Build it, by "Build what is in build".
-- **`reply:`** Their words are on the thread. Building it? It steers you:
-  adjust, and say what changed. Otherwise leave it for whoever builds it.
-- **`unfiled:`** File it, by the `spool-record` skill's rules.
-- **The watch runs out** after a while, and the harness tells you. That is
-  the check back in: look once (`spool next`), then start it again. Keep
-  doing so until they say stop.
-- **One watch, and only while build is empty.** While you are building you
-  need none: `spool next --claim` reads the order fresh after every thread.
-- They said stop? End the watch (`TaskStop` in Claude Code), and say so.
-- No way to listen to a command in your harness? Use the schedule.
-
-## The schedule
-
-The fallback, for a harness that cannot watch, and the second line of defence
-where a number of hours was given. The loop is then one recurring job in this
-chat, set with your harness's scheduler.
-**One job, and nothing else:** no timers, no second job, no other prompt. It
-is a check back in, never a deadline.
-
-- **In Claude Code:** `CronList` shows whether a job for `/spool-loop` is
-  already set. One is, and no number was given, or the same number? Leave it:
-  this is how a check back in finds things. None? `CronCreate` one, recurring,
-  every `<hours>` hours, with the prompt `/spool-loop`. A different number was
-  given? `CronDelete` it and create the new one.
-- **The first return is a full interval away.** A cron's hours usually include
-  the one you are in, so pick a minute this hour has already passed, and not
-  :00 or :30: at 4:12, `7 1-23/3 * * *` first comes back after 7:07, where
-  minute 13 would come back at once. Read the next run in the tool's result.
-  Sooner than half an interval? Delete the job and set it again.
-- The `loop` skill sets the same job: `/loop <hours>h /spool-loop`.
-  If it runs the first firing at once, that is this run; do not run two.
-- Tell them once, in a line: when you will check back, by the time the
-  scheduler gave and not the one you asked for; that the loop lives in this
-  chat, so the chat stays open and the machine awake; and how long the
-  schedule lasts (Claude Code ends one after 7 days). `/spool-loop` starts it again.
-- The schedule's last firing finds its job gone. That is the loop ending, not
-  a reason to set another on your own: run as usual, and say that it was the
-  last check back in and that `/spool-loop` starts the loop again.
-- No scheduler in your harness? Say so, work the spool once, and offer
-  `spool loop --watch 300`, which works the spool from a terminal with no chat at all.
-
-## Put the spool in order
-
-`spool overview` shows the whole spool 🧶, and `spool review` what is waiting
-on the human. Before showing anything:
-
-- **Unfiled feedback** (`spool inbox`): file each note by what doing it would
-  produce: `spool task`, `spool audit` or `spool plan`, each with
-  `--from <note-id>`; `spool file <note-id> --into <id>` when it adds to
-  a thread already there. Can't tell what they meant? Leave it, and say so in the list.
-- **No size:** read the thread and size it: `spool edit <id> --size <size>`.
-- **Too big to build in one sitting:** `spool edit <id> --type plan`. Planning
-  it is then a thread like any other.
-- **The order.** Suggesting it is your job. Priority decides what is picked
-  first: p0 it's broken · p1 it's bothering them · p2 default · p3 someday.
-  Where their words, or something you can see (a bug that bites now, a thread
-  others wait on), put a thread in the wrong place, move it:
-  `spool edit <id> -p <0-3>`. Never move something against what they said.
-  A place they gave a thread in Build (dragged on the page, or `spool order`)
-  comes before any priority; it is theirs, so leave it.
-
-`spool loop --dry-run` then lists every thread that can be worked, in the
-exact order `spool next --claim` will hand them out. That is your ranking.
-
-### Add your own ideas
-
-You know this project better than anyone who is not looking at it, so say what
-you would add. A gap a user will hit, the follow-up a finished thread makes
-obvious, something that will break, a quick win nobody asked for:
-
-    spool task "<the idea>" --suggested "<why, in a line they would agree with>" --size <size> -b "<its spec>"
-
-- It is filed as proposed and marked **AI suggested**: nobody starts it, you
-  included, until the human moves it to build.
-- Things the product should have, in their terms. Not chores for yourself.
-- A few good ones: three a run at most, and none that is already there
-  (`spool list --search "<words>"`).
-- Their yes: `spool build <t-id>`. Their no:
-  `spool drop <t-id> -m "<their words>"`.
-
-**A procedure agents keep working out again is an idea too.**
-`spool skills --suggest` lists steps that recur across finished threads with
-no skill for them: the threads each was seen in, the words they share, and
-the line that offers it, a thread named "Write down how we <the procedure> as
-a skill".
-
-- It matches words, not meaning, so read the threads first. One procedure,
-  done over and over? Offer it, named as they would say it, with the steps as
-  its spec. It counts as one of your three.
-- Only the same subject, or `spool skills` already has it? Offer it and
-  `spool drop <t-id> -m "<why>"` it yourself, so it is not raised again.
-- Their yes makes writing it down a thread like any other. Their no is
-  remembered: that procedure is never offered again.
-
-## Show the spool
-
-**Be brief. The page holds the detail; the chat holds what they need to know
-now.** They are usually reading on a phone, between other things.
-
-- **Lead with what you need from them**, or with the result. Never make them
-  read down to find the question.
-- **A few lines, not a document.** No tables, no plans, no lists of reasons in
-  the chat. Anything long is on the page: point at it.
-- **Their terms.** A thread's name is the feature or the fix as they would say
-  it. No ids.
-- **Cute, lightly:** the 🧶 and 🧵, a warm word. Never a joke that costs them a
-  second line.
-
-`spool overview --brief` prints the spool in a few lines. Show that, in this
-shape, leaving out a line that is empty:
-
-```
-<what you need from them, or what just happened: one line>
-
-**🧶 <project>** · <N> in build · <N> proposed · <N> need you
-Building: <thread> (<why it exists>)
-Next in build: <thread> (<why>) · <thread> (<why>)
-❓ <a question> **a** <option> · **b** <option>. I'd pick **a**.
-
-The board: <the page's address>
-```
-
-- **The page is where the rest is.** If it is not up, start it with
-  `spool page -d`, which runs it in the background and opens no browser, and
-  give its address. One up already? The same command gives you its address.
-  A thread has its own place there: the address, then `#<t-id>`.
-- **They ask for the whole list** ("show me everything", "what's in the
-  spool")? Then, and only then, `spool overview --table`, exactly as it
-  comes: every open thread, numbered, so they can say "build 4" or "drop 9".
-  It is grouped by sprint: the one being played first, under its goal and how
-  far along it is, then planned sprints, then loose threads. A number is a
-  thread's place in line, so numbers in a group can skip; use them as printed.
-- **Every thread says why it exists**, beside its name: the `Why:` line of its
-  spec. That is what they agree to, so a thread with none is worth fixing:
-  `spool check` names them.
-- **A plan, an audit, a long answer?** It is the thread's report, read on its
-  ticket. In the chat: its headline in a line, and the link.
-
-## Build what is in build
-
-**Nothing is built unless the human has moved it to build.** They do that on
-the Spool page, or by telling you: "build 3", "go on the jump", "do the first
-two". Their word in chat is `spool build <t-id>`; "not yet" is
-`spool propose <t-id>`. You never move a thread to build yourself, whatever
-it is and whoever thought of it.
-
-**Where the gate is locked,** `spool build`, `spool play` and `spool release`
-refuse you outright: only a person can run them, on the page or at their own
-terminal. Told "build that" in the chat? Say you cannot, give them the
-thread's place on the page (the page's address, then `#<t-id>`), and they
-press ▶. Do not look for a way round it: that refusal is the point.
-
-Repeat until `spool next --claim` says nothing is ready:
-
-1. `spool next --claim` hands you the next thread in build, and its brief. It
-   never hands out a proposed one. Add `-P <project>` if they asked for one
-   project only.
-
-   **Sign your work.** Add `--as "<your model's name>"`, as in
-   `--as "Claude Fable 5.2"`, to every command you run on a thread: `next
-   --claim`, `start`, `log`, `ask`, `assume`, `done`. The page shows the
-   human who built each thread, and "an agent" tells them nothing.
-2. Say what you are starting, in one line: "🧵 Starting thread 2 — <name>:
-   <your plan, in a line>."
-3. Build it, by the worker's rules. They can steer while you work.
-4. Hand it in with `spool done`, or leave it waiting on a question with
-   `spool ask`. Tick it off in a line: "✅ Thread 2 — <name>: <what they can
-   see now>."
-
-**Sprints.** They may group threads into a sprint on the page and press play
-on it: every thread in it lands in build at once, and you build them like any
-others. `spool next` hands them out ahead of other work of the same urgency. A sprint has no dates; it is over when its last thread is done, and
-`spool done` says so. Say it too, in a line, and cut its version then, by
-"A version for what shipped" in the worker's rules.
-
-When they describe what a stretch of work should achieve, rather than one
-change, make it a sprint: capture their words; write its goal, why and
-done-when from them; split it into the threads that get there, each with
-What, Why, Done when and a size (one too big for one sitting is a plan, with
-parts); then make it and fill it in one go, the threads in the order they
-should be built (`--needs` where one waits on another):
-
-    spool sprint "<name>" --goal "<what it is for>" --why "<why now>" --done-when "<what will be true>" --from <note-id> --add <t-id…>
-
-Show them the sprint in a few lines: its goal, and its threads a line each.
-You may draft one from the backlog the same way; `spool sprint "<name>" --add
-<t-id…>` adds to one that exists. They press play on the page, or say "play
-it". Only they play it (`spool play`). Never play it for them. Agreeing to a
-sprint with a goal is agreeing to a plan: that is what lets you build the
-whole of it without stopping.
-
-Then take the next one. The order is read again every time, so a thread they
-moved to build while you worked comes up in its turn. A question about one
-thread is never a reason to stop: put it through `spool ask` and take the next.
-
-**Nothing in build?** Do not build. Say which one or two proposed threads you
-would build first, a line each, for someone who knows nothing about the
-project; give the page's address; notify them, by "Reaching them"; and end
-the turn.
-
-**You hold the context, so put it where it lasts.** What they tell you about
-a thread goes on it in their words (`spool capture`, then
-`spool file <note-id> --into <t-id>`), and anything the next agent could not
-learn from the code goes there too (`spool log`). The chat is not the
-record: the spool is.
-
-**They can steer at any time,** and a comment on the thread in hand changes
-it at once: adjust the plan, say what changed in a line, carry on. Everything
-else they say is for the `spool` skill: it has the one table of what they
-say and what you run, and the rules for a go, an answer and an approval.
+**Nothing is built unless the human has moved it to build.** You never move a
+thread to build yourself, whatever it is and whoever thought of it.
 
 **Several at once, with subagents.** If your harness can start subagents and
 the project is a git repository, build several threads side by side, each by
@@ -289,61 +40,83 @@ says, three unless they set it.
 
 - Claim each with `spool next --claim --worktree --as "<your model>"`, or
   `spool start <t-id> --worktree --as "<your model>"`. It prints the brief,
-  and the brief names the folder to work in: a checkout of its own, on its
-  own branch, `spool/<t-id>`.
+  and the brief names the folder to work in. `--as` signs the work, as in
+  `--as "Claude Fable 5.2"`: the board shows who built each thread.
 - Give each to a fresh subagent, in the background, with: the brief as
   printed, that folder, the worker's rules (`spool prime worker`), and this:
   work only in that folder; commit there, every commit ending with the
-  `Spool: <t-id>` trailer; finish with `spool done`, which lands it, or
-  `spool ask` if it needs a decision.
-- `spool done` may refuse to land: a conflict with what landed first, a
-  failing check, or uncommitted changes in the project's own folder. The
-  subagent fixes it in its worktree and runs `spool done` again, as "In a
-  worktree" in the worker's rules says. It never forces anything.
+  `Spool: <t-id>` trailer; sign every `spool` command the same way; finish
+  with `spool done`, which lands it, or `spool ask` if it needs a decision.
+  A landing that is refused is fixed there and tried again, never forced.
 - Meanwhile you build nothing yourself. Say one line as each thread starts
-  and one as each lands, take the next from build as a slot frees, and
-  answer the human.
+  ("🧵 Starting the jump: more gravity, less hang time") and one as each
+  lands ("✅ The jump: it lands in half the time"), take the next from build
+  as a slot frees, and answer the human.
 
-One folder and no git? One thread at a time, as above, still by a fresh
-subagent where you can: two agents in one folder edit each other's files.
+One folder and no git? One thread at a time, still by a fresh subagent where
+you can: two agents in one folder edit each other's files. No subagents?
+Build each yourself: `spool next --claim`, then the worker's rules.
 
-## When nothing is left that can move
+**They can steer at any time.** Their words on a thread being built change
+it at once: pass them on, and say what changed in a line. Everything else
+they say is for the `spool` skill, which has the one table.
 
-1. Give what shipped in no sprint a version, by "A version for what shipped"
-   in the worker's rules.
-2. Notify them, by "Reaching them".
-3. `spool brief` prints the morning brief: a headline, what needs them, the
-   few finished threads worth a look and why, the rest a line each, and the
-   calls agents made. Show it as it comes, then the new version in a line. It
-   is short on purpose; the page has the rest.
+## Watch the spool
 
-They come back and ask "catch me up", "what did the agents do", "what
-happened overnight"? That is `spool brief` too; `--since 8h` or
-`--since yesterday` when they name a time.
+`spool watch` stays up and prints a line the moment there is something to
+do, and nothing otherwise:
 
-Then end the turn, and keep the schedule: answers and new threads arrive in
-between, and the next check back in picks them up.
+| It prints | Do |
+| --- | --- |
+| `build: t-4kq7 Tighter jump` | They moved it to Build, or an answer freed it. Build it |
+| `reply: t-4kq7 Tighter jump`, and their words | They wrote on a thread. Being built? It steers that work. Otherwise leave it for whoever builds it |
+| `unfiled: n-9wxa "add a mute button"` | A note nobody has filed. File it, by the `spool-record` skill |
 
-## Reaching them
+- **In Claude Code:** start the `Monitor` tool with the command `spool watch`
+  and the longest timeout it allows. Then end your turn: each line wakes you.
+- **The watch runs out** after a while, and the harness tells you. Look once
+  (`spool next`), then start it again, until they say stop.
+- **One watch, never two.** Keep it up while Build is empty and while
+  subagents build. Building a thread yourself, you need none: `spool next
+  --claim` reads the order fresh after every thread.
 
-The human is usually somewhere else, and a notification is how the loop gets
-them back. Each one costs them their attention, so send only what they would
-act on, at these moments:
+**The schedule** is the fallback: for a harness that cannot watch, every 3
+hours, or every `<hours>` they gave. It is one recurring job in this chat
+with the prompt `/spool-loop`, set by your harness's scheduler (`CronCreate`
+in Claude Code). **One job, and nothing else:** no timers, no second job, no
+other prompt. It is a check back in, never a deadline.
 
-- **Build is empty** and threads are proposed: "Spool: nothing in build.
-  I'd build the jump next. Move it to build on the page."
-- **It is done:** the list is finished. "Spool is done: 4 threads shipped,
-  v0.5.0. Nothing left to do."
-- **Nothing can move without them:** "Spool is waiting on you: 2 questions.
-  Nothing else can move."
-- **A question stops a thread** while others carry on: once, when you ask it,
-  in the words of the question: "Spool needs you: outline the coins, or teal?"
+- A job is already set? Leave it, unless they gave another number. Tell them
+  once when you will check back, and that this chat must stay open.
+- **The first return is a full interval away.** Pick a minute this hour has
+  already passed, and not :00 or :30: at 4:12, `7 1-23/3 * * *` comes back
+  after 7:07. Sooner than half an interval, by the scheduler's own answer?
+  Delete the job and set it again.
+- The last firing finds its job gone. That is the loop ending, not a reason
+  to set another on your own: say that `/spool-loop` starts it again.
 
-Never for one finished thread among many, or for progress.
+## When Build is empty
 
-- **In Claude Code:** the `PushNotification` tool: a desktop notification, and
-  their phone when Remote Control is connected. One line, under 200
-  characters, leading with what they would act on. "Not sent" means they are
-  already here; carry on.
-- No notification tool? `spool ask` already runs their notifier command, if
-  they set one. Do nothing more.
+**Nothing in build?** Do not build. Then, once:
+
+1. **Version what shipped** in no sprint, by the worker's rules.
+2. **Add your own ideas,** three at most: a gap a user will hit, the
+   follow-up a finished thread makes obvious, something that will break.
+   `spool task "<the idea>" --suggested "<why, in a line they would agree with>" --size <size> -b "<its spec>"`
+   files one as proposed and marked **AI suggested**: nobody starts it, you
+   included, until the human moves it to build. None that is already there,
+   and no chores for yourself. A step agents keep working out again is an
+   idea too: `spool skills --suggest` lists them by the words they share, so
+   read the threads first.
+3. **Show `spool brief`,** as it comes, and the new version in a line.
+4. **Notify them,** in one line, only when they would act on it. Then watch.
+
+| When | Notify |
+| --- | --- |
+| Build is empty, and threads are proposed | "Spool: nothing in build. I'd build the jump next. Move it to build on the board." |
+| Everything is done | "Spool is done: 4 threads shipped, v0.5.0. Nothing left to do." |
+| Nothing can move without them | "Spool is waiting on you: 2 questions. Nothing else can move." |
+| A question stops one thread: once, as you ask it | "Spool needs you: outline the coins, or teal?" |
+
+Never for one finished thread, or for progress. In Claude Code it is the
+`PushNotification` tool. No such tool? `spool ask` runs their notifier.

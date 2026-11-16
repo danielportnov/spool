@@ -12,7 +12,7 @@ flowchart LR
   rec -- "threads, in your words" --> back[("Backlog")]
   agent(["Agent"]) -- "✨ its own ideas" --> back
   back -- "you press ▶" --> build[("Build")]
-  build -- "the loop takes the next" --> doing["Building"]
+  build -- "the builder takes the next" --> doing["Building"]
   doing -- "commits" --> done[("Done")]
   done -- "you mark complete, or undo" --> you
 ```
@@ -22,7 +22,7 @@ flowchart LR
 | Where it is | What it means | Who moves it on |
 | --- | --- | --- |
 | 🟠 **Backlog** (proposed) | Filed, sized, explained. Not being built. | **You**: ▶, a drag, a sprint played, or "build that". |
-| 🟢 **Build** | You picked it. It is built in its turn. | The loop claims the next one. |
+| 🟢 **Build** | You picked it. It is built in its turn. | The builder claims the next one: the page's agents, or a chat running the loop. |
 | 🔵 **Building** | An agent has it. | The agent, when it finishes or needs you. |
 | ✅ **Done** | Shipped, in commits that carry its id. | **You**: mark it complete, reply, or undo it. |
 | ✓ **Complete** | You looked and approved. Kept as history. | Nobody. |
@@ -72,8 +72,9 @@ passes on your answers and approvals, catches you up ("what happened overnight")
 is building, tidies the backlog, and changes who builds ("switch to chat mode", "turn the agents
 off"). It answers in a few lines and leaves the detail on the board. It builds nothing itself.
 
-**`/spool-loop`** is the loop without the board: it shows the spool as a table in the chat, builds
-what is in Build, and watches for more.
+**`/spool-loop [hours]`** makes that chat the builder. It tells the board that a chat builds here
+(`spool builder chat`), builds what is in Build, and then watches for more. `/spool-loop stop` ends
+it. See "The loop", below.
 
 **`/spool-record <what you want, and where>`** files one message. Your words are captured exactly,
 split into threads, each given a size and a short spec (what, why, done when), and put in the
@@ -176,27 +177,30 @@ Everything the page does is an ordinary command run as you: `build`, `propose`, 
 
 ## The loop
 
-Every time it runs, the loop does three things:
+`/spool-loop` makes a chat the builder: the one that builds what you moved to Build. It does three
+things, and nothing else. Questions about the spool, and steering it, are `/spool`.
 
-1. **Shows the spool**: `spool overview --table` prints every open thread, numbered, under the
-   plan it serves: the sprint being played first, with its goal and how far along it is, then the
-   planned sprints in the order they were made, then the loose threads in no sprint. A number is
-   the thread's place in line, so it means the same thread here and on the page, and a group's
-   numbers can skip.
-2. **Builds what is in Build.** For each: a line saying what it is starting and its plan, the
-   work in small commits, then `spool done` with what changed and two or three steps you can follow
-   in a minute to see it working. In a chat that can start subagents, where the project is a git
-   repository, it builds as many at once as `spool builder` says (three unless set): each thread
-   claimed with `--worktree` and given to a fresh subagent, which works only in that worktree and
-   lands it with its own `spool done`, while the chat says a line as each starts and lands and
-   answers you. Otherwise one at a time. See
-   "Several at once", below.
-3. **Says when it is done**, or when something needs you.
+1. **Builds what is in Build.** For each: a line saying what it is starting, the work in small
+   commits, then `spool done` with what changed and two or three steps you can follow in a minute
+   to see it working. In a chat that can start subagents, where the project is a git repository,
+   it builds as many at once as `spool builder` says (three unless set): each thread claimed with
+   `--worktree` and given to a fresh subagent, which works only in that worktree and lands it with
+   its own `spool done`, while the chat says a line as each starts and lands and answers you.
+   Otherwise one at a time. See "Several at once", below.
+2. **Watches the spool** for more, when Build is empty and while its subagents build.
+3. **Says when Build is empty**, or when something needs you. First it gives what shipped a
+   version, adds up to three ideas of its own, marked AI suggested, and shows the morning brief.
 
 **It reacts; it does not wait on a clock.** `spool watch` stays up and prints a line when a thread
 can be built, when you reply on one, or when a note stays unfiled for a few seconds. In Claude Code the loop listens to that
 with the Monitor tool, so pressing ▶ starts the build within seconds. Where a harness cannot listen,
-`/spool-loop <hours>` sets one recurring check instead.
+it sets one recurring check instead, every three hours, or `/spool-loop <hours>`.
+
+**The whole list** is `spool overview --table`, which `/spool` shows when you ask for everything:
+every open thread, numbered, under the plan it serves. The sprint being played comes first, with
+its goal and how far along it is, then the planned sprints in the order they were made, then the
+loose threads in no sprint. A number is the thread's place in line, so it means the same thread
+there and on the page, and a group's numbers can skip.
 
 **Commits carry the thread.** Every commit message ends with a trailer:
 
@@ -324,7 +328,7 @@ stays loose, and the recorder says where each thread went.
 
 Above the sprints are the **goals**: one short page, `.spool/goals.md`, on what the project is for
 and the two or three things it is heading towards. The agent asks you for it at set-up and keeps
-it true with you (`spool goals`). Every agent reads it before it works, the loop's list leads with
+it true with you (`spool goals`). Every agent reads it before it works, the whole list leads with
 it, and each sprint says which goal it serves, on its line; `spool check` names one that does not.
 
 ## The manager
@@ -651,7 +655,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 
 | Command | What it does |
 | --- | --- |
-| `spool overview [--brief \| --table]` | The whole spool under its colours; `--brief` is a few lines for a chat, `--table` the loop's numbered list. Each thread says why it exists, from the `Why:` line of its spec |
+| `spool overview [--brief \| --table]` | The whole spool under its colours; `--brief` is a few lines for a chat, `--table` the numbered list. Each thread says why it exists, from the `Why:` line of its spec |
 | `spool status` · `list [--archived | --alike]` · `show <id> [--report]` · `inbox` | One screen, with where the board is, who builds, and why Build is not moving when it is not · find items, only the archived threads, or open threads that look like each other (changes nothing) · one item, or the text of its report (over MCP too, for an agent with no shell) · unfiled notes |
 | `spool skills [--suggest]` | Every skill; or procedures that keep recurring with no skill |
 | `spool graph` · `check` | The items and their links as a diagram; validate the store, and name every open thread with no `Why:` line, and every sprint that serves no goal |

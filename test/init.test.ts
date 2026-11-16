@@ -20,7 +20,7 @@ test('init lays down the store, the policy and a pointer for agents', () => {
 
   // What comes next is said to an agent, not typed here. The skills are per machine, not per project.
   assert.match(out, /skills are not installed for your agent yet[\s\S]*spool install/);
-  assert.match(out, /Next, in your agent[\s\S]*\/spool {12}say what you want: "open the board"[\s\S]*\/spool-loop {7}the loop: it builds what is in build[\s\S]*\/spool-record {5}put it in front of/);
+  assert.match(out, /Next, in your agent[\s\S]*\/spool {12}say what you want: "open the board"[\s\S]*\/spool-loop {7}makes that chat the builder: it builds what is in build[\s\S]*\/spool-record {5}put it in front of/);
   assert.equal(s.exists('.claude'), false);
   s.cleanup();
 });
@@ -153,77 +153,23 @@ test('every command a skill tells an agent to run exists', () => {
   }
 });
 
-test('the loop skill is simple: show the spool, build what is in build, say when it is done', () => {
-  const loop = shipped('spool-loop');
-  const headings = [...loop.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
-  assert.deepEqual(headings, [
-    'How it was called', 'Start', 'Watch the spool', 'The schedule', 'Put the spool in order', 'Show the spool', 'Build what is in build',
-    'When nothing is left that can move', 'Reaching them',
-  ]);
-  // How a thread is built is not in it: that is written once, in the worker's rules.
+// What the loop skill says is pinned in test/loop-skill.test.ts, /spool in test/spool-skill.test.ts,
+// and the worker's rules in test/worker-rules.test.ts.
+test('the skills agree on the gate, the check and the spec', () => {
   const worker = workerRules();
-  assert.match(loop, /\*\*The worker's rules are not in this skill\.\*\*[\s\S]*`spool prime worker` prints it/);
-  assert.match(loop, /\*\*you hold the context, you propose, they\ndecide what is built, you build it\.\*\*/);
-  assert.match(loop, /1\. \*\*Show the spool:\*\*[\s\S]*2\. \*\*Build what is in build:\*\*[\s\S]*3\. \*\*Say when it is done:\*\*/);
-  assert.match(loop, /Be brief in the chat\. The page holds the detail\./);
-
-  // The schedule is one job that checks back in: no budget, no deadline, no timers.
-  assert.match(loop, /The loop does not run on a clock\. It watches the spool[\s\S]*There is no budget to\nfill and no deadline to hit[\s\S]*The schedule is only a check back in\./);
-  assert.match(loop, /\| `\/spool-loop` \| Show the spool, build what is in build, then watch the spool for more\. Where the harness cannot watch, check back every 3 hours\./);
-
-  // It reacts to the page: one watch while build is empty, and each line is something to do.
-  assert.match(loop, /## Watch the spool[\s\S]*build: t-4kq7 Tighter jump[\s\S]*start the `Monitor` tool with the\n {2}command `spool watch`[\s\S]*\*\*The watch runs out\*\*[\s\S]*\*\*One watch, and only while build is empty\.\*\*/);
-  assert.match(loop, /## The schedule\n\nThe fallback, for a harness that cannot watch/);
-  assert.match(loop, /\*\*One job, and nothing else:\*\* no timers, no second job, no other prompt\./);
-  assert.match(loop, /recurring,\n {2}every `<hours>` hours, with the prompt `\/spool-loop`\./);
-  assert.doesNotMatch(loop, /spool-loop again|spool-loop go|one-shot|session|go-ahead for/);
-  assert.match(loop, /The first return is a full interval away[\s\S]*a minute this hour has already passed[\s\S]*Sooner than half an interval\? Delete the job/);
-  assert.match(loop, /last firing finds its job gone[\s\S]*not\n {2}a reason to set another on your own/);
-
-  // The same list every time: every open thread, numbered, printed by the engine.
-  assert.match(loop, /\*\*A spool 🧶 holds threads 🧵\.\*\*/);
-  // Brief in the chat: the ask first, a few lines from the engine, and the page for everything else.
-  assert.match(loop, /\*\*Be brief\. The page holds the detail; the chat holds what they need to know\nnow\.\*\*/);
-  assert.match(loop, /\*\*Lead with what you need from them\*\*, or with the result\./);
-  assert.match(loop, /No tables, no plans, no lists of reasons in\n {2}the chat/);
-  assert.match(loop, /`spool overview --brief` prints the spool in a few lines[\s\S]*\*\*🧶 <project>\*\*[\s\S]*The board: <the page's address>/);
-  assert.match(loop, /\*\*They ask for the whole list\*\*[\s\S]*Then, and only then, `spool overview --table`/);
-  assert.match(loop, /`spool loop --dry-run` then lists every thread that can be worked, in the\nexact order `spool next --claim` will hand them out/);
-
-  // The gate: only the human moves a thread to build, and nothing else is ever built.
-  assert.match(loop, /\*\*Nothing is built unless the human has moved it to build\.\*\*/);
-  assert.match(loop, /You never move a thread to build yourself, whatever\nit is and whoever thought of it\./);
-  assert.match(loop, /\*\*Nothing in build\?\*\* Do not build\./);
-  assert.match(loop, /\*\*Where the gate is locked,\*\* `spool build`, `spool play` and `spool release`\nrefuse you outright[\s\S]*Do not look for a way round it: that refusal is the point\./);
-  assert.match(worker, /`spool done` runs it first and refuses if it fails[\s\S]*never switch it off or work round it\./);
+  // A check is the human's: offered at set-up, run by spool done, never worked round.
   assert.match(shipped('spool-init'), /\*\*Offer a check\.\*\*[\s\S]*On their yes: `spool checks "<command>"`/);
+  assert.match(worker, /`spool done` runs it first and refuses if it fails[\s\S]*never switch it off or work round it\./);
+  // The gate is turned on at set-up, and the lock is theirs to choose.
   assert.match(shipped('spool-init'), /Offer the lock once[\s\S]*Their choice; do not pick for them\./);
-  // What they say and what to run is one table, in /spool: test/spool-skill.test.ts. The loop points there.
-  assert.match(loop, /Everything\nelse they say is for the `spool` skill: it has the one table/);
-  assert.doesNotMatch(loop, /\| They say \| Run \|/);
-  // A procedure that keeps recurring is one of those ideas: offered, never written unasked, and a no is kept.
-  assert.match(loop, /### Add your own ideas[\s\S]*\*\*A procedure agents keep working out again is an idea too\.\*\*\n`spool skills --suggest` lists steps that recur across finished threads[\s\S]*It matches words, not meaning, so read the threads first[\s\S]*Their no is\n {2}remembered/);
-  assert.match(worker, /### Skills[\s\S]*`spool done` says when the steps\nyou just took match earlier finished threads with no skill for them[\s\S]*is the human's call:\n`spool skills --suggest` prints the line that offers it/);
-  assert.match(loop, /\*\*They can steer at any time,\*\*/);
-  assert.match(loop, /The chat is not the\nrecord: the spool is\./);
-
-  // Its own ideas go in the spool as AI suggested, and wait like everything else.
-  assert.match(loop, /### Add your own ideas[\s\S]*spool task "<the idea>" --suggested "<why[^"]*>" --size <size>[\s\S]*nobody starts it, you\n {2}included, until the human moves it to build/);
-
-  // What shipped gets a version: bumped, written up and tagged, and never pushed.
-  assert.match(worker, /## A version for what shipped[\s\S]*Once per run[\s\S]*minor, 0\.3\.2 → 0\.4\.0[\s\S]*A major, or the first 1\.0,\n {3}is the human's call[\s\S]*`CHANGELOG\.md`[\s\S]*`git tag -a v<x\.y\.z>[\s\S]*The tag stays on this machine/);
-
-  // It reaches the human through the harness's own notifications, and only when they would act.
-  assert.match(loop, /## Reaching them[\s\S]*\*\*Build is empty\*\*[\s\S]*\*\*It is done:\*\*[\s\S]*\*\*Nothing can move without them:\*\*[\s\S]*\*\*A question stops a thread\*\*[\s\S]*`PushNotification`/);
-
-  // Every way in is covered by the description an agent matches on, and the other skills agree.
-  assert.match(String(parseFrontmatter(loop).data.get('description')), /AI suggested[\s\S]*moved to build[\s\S]*and nothing else[\s\S]*watch the spool[\s\S]*three hours unless told otherwise[\s\S]*\/spool-loop \[hours\]/);
   assert.match(shipped('spool-init'), /--gate[\s\S]*`\/spool-loop` to start the loop: it builds what they have moved to build/);
+  // Every thread is filed with its spec, and as proposed.
   assert.match(shipped('spool-record'), /\*\*Give each thread its spec\*\*[\s\S]*What: [^\n]*\n {7}Why: [^\n]*\n {7}Done when: /);
   assert.match(shipped('spool-record'), /A new thread is proposed, not started\./);
-  assert.match(loop, /\*\*Sprints\.\*\*[\s\S]*A sprint has no dates; it is over when its last thread is done[\s\S]*spool sprint "<name>" --goal "<what it is for>" --why "<why now>"[\s\S]*--add <t-id…>[\s\S]*Only they play it \(`spool play`\)\. Never play it for them\./);
+  // A procedure that keeps recurring is offered by whoever just did it, and what shipped gets a version.
+  assert.match(worker, /### Skills[\s\S]*`spool done` says when the steps\nyou just took match earlier finished threads with no skill for them[\s\S]*is the human's call:\n`spool skills --suggest` prints the line that offers it/);
+  assert.match(worker, /## A version for what shipped[\s\S]*Once per run[\s\S]*minor, 0\.3\.2 → 0\.4\.0[\s\S]*A major, or the first 1\.0,\n {3}is the human's call[\s\S]*`CHANGELOG\.md`[\s\S]*`git tag -a v<x\.y\.z>[\s\S]*The tag stays on this machine/);
   assert.match(worker, /5\. \*\*Stamp the threads\.\*\* `spool edit <t-id> --version <x\.y\.z>`/);
-  assert.match(loop, /\*\*Sign your work\.\*\* Add `--as "<your model's name>"`/);
 });
 
 test('the recorder records one message, and decides the split and the size itself', () => {

@@ -98,7 +98,7 @@ test("/spool's description says when to load it, and when not to", () => {
   // The loop no longer loads for a question about the spool.
   const loop = String(parseFrontmatter(shipped('spool-loop')).data.get('description'));
   assert.doesNotMatch(loop, /where do things stand|catch me up|what needs me/);
-  assert.match(loop, /steering it, are \/spool\.$/);
+  assert.match(loop, /Not for questions about the spool or for steering it, which is \/spool\.$/);
 });
 
 test('the page skill is retired into /spool: install takes an untouched copy away and says where its job went', () => {

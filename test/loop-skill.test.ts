@@ -1,0 +1,110 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { shipped } from '../src/builtin.ts';
+import { parseFrontmatter } from '../src/frontmatter.ts';
+import { Sandbox } from './helpers.ts';
+
+// Every command it names is pinned by "every command a skill tells an agent to run exists", in test/init.test.ts.
+// Building several at once is in test/loop-several.test.ts.
+
+test('the loop skill has one job: make this chat the builder', () => {
+  const loop = shipped('spool-loop');
+  const flat = loop.replace(/\s+/g, ' ');
+  assert.deepEqual([...loop.matchAll(/^## (.+)$/gm)].map((m) => m[1]), ['Start', 'Build what is in Build', 'Watch the spool', 'When Build is empty']);
+  assert.match(flat, /`\/spool-loop` makes this chat the one that builds\. \*\*They decide what is built, and you build it:\*\* what is in Build, top first, and nothing else\./);
+
+  // It starts by telling the board a chat builds here, which is theirs to say: typing /spool-loop says it.
+  assert.match(flat, /1\. `spool builder chat`\. Typing `\/spool-loop` is their word for it\. The board then starts no agents, so no two builders take one thread, and the reply says how many threads to build at once\./);
+  assert.match(flat, /Refused, because the gate is locked\? Ask them to pick \*\*Chat\*\* on the board, and wait\./);
+  assert.match(flat, /2\. `spool prime worker --context`: the goals, the policy, what was undone and why, what is ready\. No `\.spool\/` here\? Use the `spool-init` skill\./);
+
+  // The gate: only the human moves a thread to build, and nothing else is ever built.
+  assert.match(flat, /\*\*Nothing is built unless the human has moved it to build\.\*\* You never move a thread to build yourself, whatever it is and whoever thought of it\./);
+  assert.match(flat, /\*\*Nothing in build\?\*\* Do not build\./);
+  // Agents sign their work, the lead and each subagent.
+  assert.match(flat, /`--as` signs the work, as in `--as "Claude Fable 5\.2"`: the board shows who built each thread\./);
+  assert.match(flat, /sign every `spool` command the same way/);
+  // They can steer while it builds; everything else they say is /spool's.
+  assert.match(flat, /\*\*They can steer at any time\.\*\* Their words on a thread being built change it at once: pass them on, and say what changed in a line\. Everything else they say is for the `spool` skill, which has the one table\./);
+
+  // What it no longer holds: the table of what they say, the reply's shape, the worker's rules.
+  assert.doesNotMatch(loop, /\| They say \| Run \||## Show the spool|## Put the spool in order|spool overview/);
+  assert.match(flat, /\*\*The worker's rules are not in this skill\.\*\* `spool prime worker` prints them, and whoever builds a thread reads them first: you, or each subagent\./);
+  // Short enough to be read every time: it was 553 lines.
+  assert.ok(loop.trimEnd().split('\n').length <= 125, `${loop.trimEnd().split('\n').length} lines`);
+});
+
+test('the loop watches the spool, and falls back to one scheduled job', () => {
+  const loop = shipped('spool-loop');
+  const flat = loop.replace(/\s+/g, ' ');
+  // It reacts, it does not run on a clock: no budget, no deadline, no timers.
+  assert.match(flat, /The loop does not run on a clock\. It watches the spool, and wakes the moment they move a thread to Build\. There is no budget to fill and no deadline to hit\./);
+
+  // Each line of the watch is something to do.
+  assert.match(loop, /^\| `build: t-4kq7 Tighter jump` \| They moved it to Build, or an answer freed it\. Build it \|$/m);
+  assert.match(loop, /^\| `reply: t-4kq7 Tighter jump`, and their words \| They wrote on a thread\. Being built\? It steers that work\. Otherwise leave it for whoever builds it \|$/m);
+  assert.match(loop, /^\| `unfiled: n-9wxa "add a mute button"` \| A note nobody has filed\. File it, by the `spool-record` skill \|$/m);
+  assert.match(flat, /start the `Monitor` tool with the command `spool watch` and the longest timeout it allows\. Then end your turn: each line wakes you\./);
+  assert.match(flat, /\*\*The watch runs out\*\* after a while, and the harness tells you\. Look once \(`spool next`\), then start it again, until they say stop\./);
+  // One watch. It stays up while subagents build, since the chat itself is then free to hear a thread moved to Build.
+  assert.match(flat, /\*\*One watch, never two\.\*\* Keep it up while Build is empty and while subagents build\. Building a thread yourself, you need none: `spool next --claim` reads the order fresh after every thread\./);
+
+  // The schedule is one job that checks back in.
+  assert.match(flat, /\*\*The schedule\*\* is the fallback: for a harness that cannot watch, every 3 hours, or every `<hours>` they gave\. It is one recurring job in this chat with the prompt `\/spool-loop`/);
+  assert.match(flat, /\*\*One job, and nothing else:\*\* no timers, no second job, no other prompt\. It is a check back in, never a deadline\./);
+  assert.match(flat, /A job is already set\? Leave it, unless they gave another number\./);
+  assert.match(flat, /\*\*The first return is a full interval away\.\*\* Pick a minute this hour has already passed, and not :00 or :30[^?]*Sooner than half an interval, by the scheduler's own answer\? Delete the job and set it again\./);
+  assert.match(flat, /The last firing finds its job gone\. That is the loop ending, not a reason to set another on your own: say that `\/spool-loop` starts it again\./);
+  assert.doesNotMatch(loop, /spool-loop again|spool-loop go|one-shot|session|go-ahead for/);
+  // Stop ends both.
+  assert.match(flat, /`\/spool-loop stop` ends the watch and any schedule: say that nothing builds here until they start it again\./);
+});
+
+test('when build is empty the loop versions what shipped, adds a few ideas of its own, shows the brief and notifies', () => {
+  const loop = shipped('spool-loop');
+  const flat = loop.replace(/\s+/g, ' ');
+  assert.match(flat, /1\. \*\*Version what shipped\*\* in no sprint, by the worker's rules\./);
+  // Its own ideas go in the spool as AI suggested, capped, and wait like everything else.
+  assert.match(flat, /2\. \*\*Add your own ideas,\*\* three at most: a gap a user will hit/);
+  assert.match(flat, /`spool task "<the idea>" --suggested "<why, in a line they would agree with>" --size <size> -b "<its spec>"` files one as proposed and marked \*\*AI suggested\*\*: nobody starts it, you included, until the human moves it to build\./);
+  assert.match(flat, /None that is already there, and no chores for yourself\./);
+  // A procedure that keeps recurring is one of those ideas, offered and never written unasked.
+  assert.match(flat, /A step agents keep working out again is an idea too: `spool skills --suggest` lists them by the words they share, so read the threads first\./);
+  assert.match(flat, /3\. \*\*Show `spool brief`,\*\* as it comes, and the new version in a line\./);
+
+  // It reaches the human through the harness's own notifications, and only when they would act.
+  assert.match(flat, /4\. \*\*Notify them,\*\* in one line, only when they would act on it\. Then watch\./);
+  const when = loop.split('\n').filter((l) => l.startsWith('| ') && l.includes('"Spool')).map((l) => l.slice(2).split(' | ')[0]);
+  assert.deepEqual(when, ['Build is empty, and threads are proposed', 'Everything is done', 'Nothing can move without them', 'A question stops one thread: once, as you ask it']);
+  assert.match(flat, /Never for one finished thread, or for progress\. In Claude Code it is the `PushNotification` tool\./);
+});
+
+test("the loop's description says it builds, and leaves questions and steering to /spool", () => {
+  const description = String(parseFrontmatter(shipped('spool-loop')).data.get('description'));
+  assert.match(
+    description,
+    /^Make this chat the builder[\s\S]*moved to build and nothing else[\s\S]*several at once with subagents[\s\S]*AI suggested[\s\S]*watches the spool[\s\S]*three hours unless told otherwise[\s\S]*\/spool-loop \[hours\], \/spool-loop stop[\s\S]*which is \/spool\.$/,
+  );
+});
+
+test('spool builder chat tells the loop how many to build at once, and is not refused where a chat already builds', () => {
+  const s = new Sandbox();
+  try {
+    s.sp('init', '--name', 'skyhop', '--lock');
+    // Not a git repository: one thread at a time, and it says why.
+    assert.match(s.exec(['builder', 'chat'], { tty: true }).out, /^A chat builds skyhop: say \/spool-loop in a Claude Code chat there\. The page starts no agents\. The chat builds 1 thread at once: it is not a git repository, so its threads cannot have a worktree each\.$/);
+    s.gitInit();
+    s.write('.gitignore', '.home/\n');
+    s.commitAll('start');
+    // The human picked Chat. An agent starting the loop says the same again: nothing changes, so the lock has nothing to refuse.
+    assert.match(s.sp('builder', 'chat'), /The page starts no agents\. The chat builds 3 threads at once, each in a worktree of its own\.$/);
+    assert.match(s.sp('builder', '--at-once', '3'), /The chat builds 3 threads at once/);
+    // A change is still theirs alone.
+    assert.match(s.fails('builder', 'headless'), /human's alone.*locked/s);
+    assert.match(s.fails('builder', 'chat', '--at-once', '2'), /human's alone/);
+    assert.equal(s.json('builder').builder, 'chat');
+    assert.match(s.exec(['builder', '--at-once', '1'], { tty: true }).out, /The chat builds 1 thread at once\.$/);
+  } finally {
+    s.cleanup();
+  }
+});

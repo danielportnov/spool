@@ -19,9 +19,11 @@ function threads(n: number): string {
 
 /** The line the page and the command say, in the page's own words. `shared` is why its threads would share one folder. */
 function sayWho(name: string, builder: Builder, n: number, shared: string): string {
-  if (builder === 'chat') return `A chat builds ${name}: say /spool-loop in a Claude Code chat there. The page starts no agents.`;
   const why = shared ? `: ${shared}, so its threads cannot have a worktree each` : ', each in a worktree of its own';
-  return `The page builds ${name}, headless, ${threads(n)} at once${n > 1 || shared ? why : ''}. Switch its Agents on to start.`;
+  const atOnce = `${threads(n)} at once${n > 1 || shared ? why : ''}`;
+  // The loop reads its number here: a chat builds as many at once as the page would.
+  if (builder === 'chat') return `A chat builds ${name}: say /spool-loop in a Claude Code chat there. The page starts no agents. The chat builds ${atOnce}.`;
+  return `The page builds ${name}, headless, ${atOnce}. Switch its Agents on to start.`;
 }
 
 /**
@@ -43,7 +45,10 @@ export function builderCommand(
     n = /^\d+$/.test(atOnce) ? Number(atOnce) : 0;
     if (!Number.isSafeInteger(n) || n < 1) throw new SpoolError(`"${atOnce}" is not a number of threads`, 'Give a whole number, 1 or more: spool builder --at-once 3');
   }
-  if (word !== undefined || n !== undefined) {
+  // Saying what is already so changes nothing, and is nobody's to refuse: a chat starting the loop
+  // where Chat is already picked gets its answer, whatever the gate.
+  const changes = (word !== undefined && word !== builderOf(ctx, project.root)) || (n !== undefined && n !== parallelOf(ctx));
+  if (changes) {
     guard();
     if (word !== undefined) saveBuilder(ctx, project.root, word);
     if (n !== undefined) {
