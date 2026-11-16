@@ -126,17 +126,34 @@ export const CSS = String.raw`  :root {
   .history { background: none; border: 0; padding: 6px; color: var(--soft); font-size: 13px; width: 100%; text-align: left; }
   .history:hover { color: var(--ink); }
 
-  /* while you were away: the morning brief, above the columns, one column that wraps */
-  #brief { margin: 12px 20px 0; max-width: 760px; background: var(--col); border-radius: 10px; padding: 8px; }
-  #brief .bhead { display: flex; gap: 8px; width: 100%; text-align: left; background: none; border: 0; padding: 4px 6px; font-weight: 600; overflow-wrap: anywhere; }
+  /* while you were away: the morning brief, above the columns. Its headline, then rows of cards
+     across the width; a third of the screen at most, and what is more scrolls inside it. */
+  #brief { margin: 12px 20px 0; background: var(--col); border-radius: 10px; padding: 6px 8px; }
+  #brief .bline { display: flex; align-items: center; gap: 10px; }
+  #brief .bline > .go { flex: none; padding: 4px 12px; }
+  #brief .bhead { display: flex; gap: 8px; flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 4px 6px; font-weight: 600; overflow-wrap: anywhere; }
   #brief .bhead .fold { color: var(--soft); flex: none; }
-  #brief h2 { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; margin: 12px 6px 8px; display: flex; gap: 8px; color: var(--soft); font-weight: 600; }
+  #brief .bbody { max-height: calc(33vh - 44px); overflow-y: auto; margin: 4px -4px 0; padding: 0 4px 2px; }
+  #brief h2 { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; margin: 6px 6px 6px; display: flex; gap: 8px; color: var(--soft); font-weight: 600; }
   #brief h2 .count { background: var(--chip); border-radius: 999px; padding: 0 8px; }
-  #brief .card { margin-bottom: 7px; }
+  #brief .brow { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 7px; }
+  /* What needs him spreads across the row: a question alone gets the width to answer it in one line. */
+  #brief .brow.needs { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
+  #brief .card { margin-bottom: 0; cursor: pointer; min-width: 0; }
+  #brief .card .note { margin-top: 3px; }
+  #brief .note.one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #brief .why { white-space: normal; }
+  #brief .card > .fold { display: block; margin-top: 5px; font-size: 12px; }
+  #brief .card pre { margin: 4px 0 0; font-size: 13px; }
   #brief .sprint { margin: 8px 6px 6px; font-size: 13px; color: var(--soft); }
   #brief .history { margin-top: 2px; }
-  #brief .foot { margin: 10px 0 0; }
+  @media (max-width: 700px) {
+    #brief { margin: 8px 16px 0; }
+    #brief .bline { flex-wrap: wrap; }
+    #brief .bline > .go { flex: 1 1 100%; margin: 2px 0 4px; }
+    #brief .bbody { max-height: 70vh; }
+    #brief .brow, #brief .brow.needs { grid-template-columns: minmax(0, 1fr); }
+  }
 
   /* the backlog: sprints to fill and play, and everything not in one */
   #backlog { padding: 12px 20px 32px; max-width: 1100px; }

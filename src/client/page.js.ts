@@ -568,8 +568,25 @@ function slide(board, before) {
 
 // ---- while you were away: the morning brief, above the board's columns
 
-// The rest of what shipped stays folded shut until asked for.
+// The rest of what shipped stays folded shut until asked for, and so do the steps of each thread worth a look.
 let briefRest = false;
+const briefOpen = new Set();
+// Where there is room for one line of what an agent wrote: its first, without a list's mark.
+const firstLine = (text) => (String(text).split('\n').find((l) => l.trim()) || '').replace(/^\s*(?:[-*+]|\d{1,3}[.)])\s+/, '').trim();
+// Whether it said more than that one line.
+const moreLines = (text) => !!text && String(text).split('\n').filter((l) => l.trim()).length > 1;
+// What an agent wrote, whole, read as a post on its thread is: lists and code shown as what they are.
+const richNote = (text) => el('pre', { class: 'note said' }, rich(text));
+// A card opens its thread from anywhere on it. Its buttons, links, id, tags and boxes do their own
+// thing, and so does a drag or a selection of its words.
+function opensOn(node, id) {
+  node.addEventListener('click', (e) => {
+    if (!id || e.target.closest('button, a, input, select, textarea, label, summary, .key, .tag, [contenteditable]')) return;
+    if (String(window.getSelection ? getSelection() : '').trim()) return;
+    openThread(id);
+  });
+  return node;
+}
 // Folded, the panel is its headline alone, until the set of finished threads in it changes.
 const briefSet = (r) => [...r.worthALook, ...r.alsoShipped.flatMap((g) => g.threads)].map((t) => t.id).sort().join(' ');
 function briefFolded(r) {
@@ -592,52 +609,63 @@ function drawBrief(b) {
   box.hidden = view !== 'board' || !r;
   if (box.hidden) { box.replaceChildren(); return; }
   const folded = briefFolded(r);
-  const head = el('button', { class: 'bhead', 'aria-expanded': String(!folded), title: folded ? 'Show the brief' : 'Fold it to this line',
-    onclick: () => foldBrief(r, !folded) }, el('span', { class: 'fold' }, folded ? '▸' : '▾'), el('span', {}, r.headline));
-  if (folded) { box.replaceChildren(head); return; }
-  const n = r.needsYou;
-  const open = (id) => () => { if (id) openThread(id); };
-  const plural = (k, one) => k + ' ' + one + (k === 1 ? '' : 's');
-  // What an agent wrote (a summary, its last words) is read as it is on a thread: code and bold shown, not typed out.
-  const needs = [
-    ...n.questions.map((q) => {
-      const asked = b.needs.questions.find((x) => x.id === q.id);
-      return el('div', { class: 'card', 'data-id': q.id },
-        el('div', { class: 'title', onclick: open(asked && asked.threads[0]) }, '❓ ' + q.title),
-        q.blocks > 0 && el('div', { class: 'note' }, 'Holds up ' + plural(q.blocks, 'thread')),
-        answersNode(q));
-    }),
-    ...n.plans.map((t) => el('div', { class: 'card', 'data-id': t.id },
-      el('div', { class: 'title', onclick: open(t.id) }, '📋 Plan: ' + t.title),
-      t.summary && el('div', { class: 'note' }, inline(t.summary)),
-      el('div', { class: 'why' }, plural(t.parts, 'part') + (t.parts === 1 ? ' waits' : ' wait') + ' for your go-ahead'))),
-    ...n.stopped.map((t) => el('div', { class: 'card', 'data-id': t.id },
-      el('div', { class: 'title', onclick: open(t.id) }, '↺ ' + t.title),
-      el('div', { class: 'why' }, t.why + briefWhen(t.when)),
-      t.lastSaid && el('div', { class: 'note' }, 'Last said: “', inline(t.lastSaid), '”'))),
-  ];
-  const rest = r.alsoShipped.reduce((k, g) => k + g.threads.length, 0);
-  // Approving everything is what the brief's last line says: the finished threads, and the calls agents made.
+  // Approving everything is what the brief's headline offers: the finished threads, and the calls agents made.
   const approve = async () => {
     const ok = !r.shipped || await post('complete-all', {}, 'All marked as complete');
     if (ok && r.calls.length) await post('approve-calls', {}, 'All approved');
   };
-  box.replaceChildren(...[head,
-    needs.length > 0 && [el('h2', {}, 'Needs you', el('span', { class: 'count' }, String(needs.length))), needs],
+  const head = el('div', { class: 'bline' },
+    el('button', { class: 'bhead', 'aria-expanded': String(!folded), title: folded ? 'Show the brief' : 'Fold it to this line',
+      onclick: () => foldBrief(r, !folded) }, el('span', { class: 'fold' }, folded ? '▸' : '▾'), el('span', {}, r.headline)),
+    !folded && r.approve && (r.shipped > 0 || r.calls.length > 0) && el('button', { class: 'go', onclick: approve }, 'All good: approve everything'));
+  if (folded) { box.replaceChildren(head); return; }
+  const n = r.needsYou;
+  const plural = (k, one) => k + ' ' + one + (k === 1 ? '' : 's');
+  // Each card opens its thread from anywhere on it. What an agent wrote is read as it is on a thread:
+  // code and bold shown, not typed out. A card has room for the first line of a result; the rest is a click away.
+  const needs = [
+    ...n.questions.map((q) => {
+      const asked = b.needs.questions.find((x) => x.id === q.id);
+      return opensOn(el('div', { class: 'card', 'data-id': q.id },
+        el('div', { class: 'title' }, '❓ ' + q.title),
+        q.blocks > 0 && el('div', { class: 'note' }, 'Holds up ' + plural(q.blocks, 'thread')),
+        answersNode(q)), asked && asked.threads[0]);
+    }),
+    ...n.plans.map((t) => opensOn(el('div', { class: 'card', 'data-id': t.id },
+      el('div', { class: 'title' }, '📋 Plan: ' + t.title),
+      t.summary && el('div', { class: 'note one', title: t.summary }, inline(firstLine(t.summary))),
+      el('div', { class: 'why' }, plural(t.parts, 'part') + (t.parts === 1 ? ' waits' : ' wait') + ' for your go-ahead')), t.id)),
+    ...n.stopped.map((t) => opensOn(el('div', { class: 'card', 'data-id': t.id },
+      el('div', { class: 'title' }, '↺ ' + t.title),
+      el('div', { class: 'why' }, t.why + briefWhen(t.when)),
+      t.lastSaid && el('div', { class: 'note' }, 'Last said: “', inline(t.lastSaid), '”')), t.id)),
+  ];
+  const worth = (t) => {
+    const more = moreLines(t.summary);
+    const open = briefOpen.has(t.id);
+    const toggle = () => { if (open) briefOpen.delete(t.id); else briefOpen.add(t.id); redraw(); };
+    return opensOn(el('div', { class: 'card', 'data-id': t.id },
+      el('div', { class: 'title' }, t.title),
+      t.summary && el('div', { class: 'note one', title: t.summary }, inline(firstLine(t.summary))),
+      el('div', { class: 'why' }, t.reasons.join(' · '), pictureMark(t.pictures)),
+      (t.steps.length > 0 || more) && el('button', { class: 'fold', 'aria-expanded': String(open), onclick: toggle },
+        (open ? '▾ ' : '▸ ') + (t.steps.length ? 'To check · ' + t.steps.length : 'All it said')),
+      open && more && richNote(t.summary),
+      open && t.steps.length > 0 && stepsNode(t.steps)), t.id);
+  };
+  const rest = r.alsoShipped.reduce((k, g) => k + g.threads.length, 0);
+  box.replaceChildren(...[head, el('div', { class: 'bbody' }, ...[
+    needs.length > 0 && [el('h2', {}, 'Needs you', el('span', { class: 'count' }, String(needs.length))), el('div', { class: 'brow needs' }, needs)],
     r.worthALook.length > 0 && [el('h2', {}, 'Worth a look', el('span', { class: 'count' }, String(r.worthALook.length))),
-      r.worthALook.map((t) => el('div', { class: 'card', 'data-id': t.id },
-        el('div', { class: 'title', onclick: open(t.id) }, t.title),
-        t.summary && el('div', { class: 'note' }, inline(t.summary)),
-        t.steps.length > 0 && el('div', { class: 'note' }, 'To check', stepsNode(t.steps)),
-        el('div', { class: 'why' }, t.reasons.join(' · '), pictureMark(t.pictures))))],
+      el('div', { class: 'brow worth' }, r.worthALook.map(worth))],
     rest > 0 && el('button', { class: 'history', 'aria-expanded': String(briefRest), onclick: () => { briefRest = !briefRest; redraw(); } },
       (briefRest ? '▾ ' : '▸ ') + (r.worthALook.length ? 'Also shipped' : 'Shipped') + ' · ' + rest),
     rest > 0 && briefRest && r.alsoShipped.map((g) => [
       g.sprint && el('div', { class: 'sprint' }, '🏁 ' + g.sprint.title),
-      g.threads.map((t) => el('div', { class: 'card', 'data-id': t.id },
-        el('div', { class: 'title', onclick: open(t.id) }, t.title),
-        t.summary && el('div', { class: 'note' }, inline(t.summary))))]),
-    r.approve && (r.shipped > 0 || r.calls.length > 0) && el('button', { class: 'foot go', onclick: approve }, 'All good: approve everything')].flat(3).filter(Boolean));
+      el('div', { class: 'brow' }, g.threads.map((t) => opensOn(el('div', { class: 'card', 'data-id': t.id },
+        el('div', { class: 'title' }, t.title),
+        t.summary && el('div', { class: 'note one', title: t.summary }, inline(firstLine(t.summary)))), t.id)))]),
+  ].flat(3).filter(Boolean))]);
 }
 
 // ---- the backlog: sprints to fill and play, then everything that is in none
