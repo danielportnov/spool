@@ -67,6 +67,8 @@ export interface UserConfig {
    * not named here is built headless, by the page starting the agent command. Set on the page.
    */
   builder?: Record<string, string>;
+  /** How many agents the page runs at once, for every project: 1 unless set. */
+  parallel?: number;
 }
 
 /** Who builds a project's threads: the page, starting the agent command itself, or a chat running the loop. */

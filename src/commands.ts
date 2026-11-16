@@ -8,6 +8,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ParseArgsConfig } from 'node:util';
+import { builderCommand } from './builder.ts';
 import { effortOf, modelOf } from './agent.ts';
 import { morning, morningText } from './brief.ts';
 import { RETIRED, installSkills, installedIn, userSkillsDir } from './builtin.ts';
@@ -915,6 +916,20 @@ export const COMMANDS: Command[] = [
           : `${spool.name} has no check any more.`,
         data: { project: spool.name, check: command || null },
       };
+    },
+  },
+  {
+    name: 'builder',
+    group: 'setup',
+    usage: 'builder [headless | chat] [--at-once <n>] [-P <project>]',
+    summary: 'Say who builds here: the page, starting agents (headless), or a Claude Code chat running the loop; --at-once sets how many threads at the same time. With nothing after it, says what is set',
+    human: true,
+    options: { 'at-once': { type: 'string' }, ...PROJECT },
+    run(call) {
+      const { ws, ctx, args, opts } = call;
+      if (args.length > 1) throw new SpoolError('too many words', 'spool builder [headless | chat] [--at-once <n>]');
+      const spool = str(opts.project) ? ws.project(str(opts.project)) : ws.home;
+      return builderCommand(ctx, spool, args[0], str(opts['at-once']), () => byTheHuman(call, [spool], 'builder'));
     },
   },
   {

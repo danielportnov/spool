@@ -264,7 +264,11 @@ the Agents switch is not a switch but a reading: **building** while a thread is 
 **watching** while a `spool watch` is up for the project (it leaves a file named with its pid in
 the temp folder for as long as it runs), and **off** when nobody is listening, so nothing in Build
 would be built. The pick is kept on your machine, by the project's folder, under `builder` in
-`~/.config/spool/config.json`, so it outlives the page.
+`~/.config/spool/config.json`, so it outlives the page. It can be set from a chat too, on the human's
+word: `spool builder chat` or `spool builder headless` (and `--at-once <n>`, how many threads are
+built at the same time, kept as `parallel`). It writes what the page reads, so the page's selector
+follows within a second. With nothing after it, `spool builder` says what is set. Setting it is the
+human's, refused to an agent where the gate is locked, as `spool build` is.
 
 **In the background.** `spool page -d` starts the page as a process of its own and returns once it
 is listening, with its address. It opens no browser and outlives the terminal or chat that started
@@ -377,6 +381,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool demo [folder] [--open]` | A throwaway sample project with threads in its spool, to try the page and the loop on |
 | `spool install [--here \| --dir path]` | Put the skills where your agent finds them |
 | `spool checks [command \| --none]` | Name the command that must pass before a change is done here |
+| `spool builder [headless \| chat] [--at-once n]` | Say who builds here, and how many threads at once; with nothing after it, says what is set. The human's, like `spool build` |
 | `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it; changes nothing |
 | `spool page [--run] [--agent cmd] [--port n] [--no-open]` | The board; `--run` has it build what is in Build too |
 | `spool page -d \| --status \| --stop` | The board in the background, with no browser opened; whether it is up, and where; end it |

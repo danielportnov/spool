@@ -68,8 +68,11 @@ Chat is you: a chat running the loop. With Chat picked the page starts no
 agent at all, and the Agents button only reports: **building** while a thread
 is being built, **watching** while your `spool watch` is up, **off** when no
 chat is listening. They want to see the work as it happens, or said the
-headless runs are hard to follow? Chat is the pick for that; they set it on
-the page, and it is kept for the project.
+headless runs are hard to follow? Chat is the pick for that; it is kept for
+the project. They set it on the page, or say so to you: "switch to chat mode"
+is `spool builder chat`, "let the page build" is `spool builder headless`
+(`spool builder` alone says what is set; `--at-once <n>` is how many threads
+are built at the same time). Only on their word, never on your own.
 
 The page keeps itself current. When Spool is upgraded or rebuilt, the page
 restarts onto the new code once no agent of its own is running, at the same

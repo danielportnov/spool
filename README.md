@@ -195,7 +195,8 @@ thread at a time. Close every chat; press ▶; come back to Done.
 Next to that switch you pick who builds. **Headless** is the above: the page starts the agent
 itself. **Chat** hands building to a Claude Code chat running `/spool-loop`, where you can watch
 the work and step in; the page then starts nothing, and the switch says whether a chat is building,
-watching, or not there. The pick is kept for the project.
+watching, or not there. The pick is kept for the project. Say "switch to chat mode" to a chat and it
+runs `spool builder chat`; "let the page build" is `spool builder headless`.
 
 The agent it starts is a command on your machine, `claude -p` unless you say otherwise, and it can
 only do what you allow it. To let it edit files and commit, say so once in
