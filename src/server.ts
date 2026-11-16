@@ -192,12 +192,16 @@ export function startPage(
         if (req.headers['x-spool-token'] !== token) return send(res, 403, 'application/json', JSON.stringify({ ok: false, text: 'reload the page' }));
         const chunks: Buffer[] = [];
         let size = 0;
+        let tooLong = false;
         req.on('data', (chunk: Buffer) => {
           size += chunk.length;
-          if (size > 64_000) req.destroy();
-          else chunks.push(chunk);
+          if (size <= 64_000) return void chunks.push(chunk);
+          // Answer in words, once, and let the rest of the body drain unread.
+          if (!tooLong) send(res, 413, 'application/json', JSON.stringify({ ok: false, text: 'That is too long to send: keep it under 60,000 characters.' }));
+          tooLong = true;
         });
         req.on('end', () => {
+          if (tooLong) return;
           let body: Body = {};
           try {
             body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') as Body;
