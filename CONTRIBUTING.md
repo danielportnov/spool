@@ -115,6 +115,28 @@ test('capture points at work that looks related', () => {
 Tests are named for what they show, in a sentence. Where a test needs an agent, it writes a small
 shell script that stands in for one and drives the real CLI: see `agent()` in `test/loop.test.ts`.
 
+**A test that needs the page running.** Several suites may run on one machine at once, so a test
+never names a port and never sleeps to wait for something. The helpers do both:
+
+```ts
+const page = await startPage(s, '--run', '--agent', worker); // a free port, picked for you
+try {
+  await until('the thread is built', () => s.json('show', jump).item.status === 'done');
+} finally {
+  await page.stop(); // ends the page as Ctrl-C would, and its agents with it
+  s.cleanup();
+}
+```
+
+- `startPage(s, ...args)` starts `spool page` on a port the system says is free, tries once more
+  if something took it first, and gives back `url`, `port`, `token`, `child`, `out()` and `stop()`.
+  Pass `--port String(page.port)` to start a page again where the last one was.
+- `until(what, look)` looks every 50ms and returns as soon as `look` gives something truthy, for up
+  to 30 seconds. A fixed `pause(ms)` is only for showing that something does not happen.
+- `freePort()` and `freePorts(n)` are for a test about ports themselves.
+- `openChrome()` launches the Chrome on the machine for a browser test (it throws where there is
+  none: skip then), with Playwright's waits raised to suit a busy machine.
+
 ## Proposing a change
 
 Open a pull request with the tests passing. CI (`.github/workflows/ci.yml`) runs on every pull
