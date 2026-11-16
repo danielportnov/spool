@@ -34,6 +34,13 @@ for someone who has not seen the code, each something they do or see ("Open
 the board", "Drag a card up in Build", "The top card is built first"), never
 "run the tests". Forgot them? `spool edit <id> --steps "<a step>"` adds them.
 
+For anything that changes what is on screen, take a screenshot before you
+change it and another once it works, and attach them:
+`spool attach <id> before.png --as before` and
+`spool attach <id> after.png --as after`, with `-m` saying what to look at.
+They are shown side by side on the finished ticket, so frame the part that
+changed.
+
 **In a worktree.** A brief that says `WORKTREE` gives the thread a checkout
 of its own, so others can be built beside it. Work and commit only in the
 folder the brief names: never in the project's own folder, never on another
