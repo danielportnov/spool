@@ -742,6 +742,8 @@ export const COMMANDS: Command[] = [
       const why = str(call.opts.message) ?? call.args.slice(1).join(' ').trim();
       const root = repoRoot(t.spool.root);
       const { reverted, skipped, voided } = undoWork(ws, t, actor, why);
+      // A worktree it still has holds nothing that landed, so it goes too.
+      const gone = removeWorktree(t);
 
       // A plan or an audit that is sent back takes its unstarted parts and findings with it.
       const orphans = t.type ? children(ws, t).filter((k) => k.status === 'open') : [];
@@ -758,7 +760,7 @@ export const COMMANDS: Command[] = [
       t.commits = [];
       if (!call.opts.drop) t.priority = Math.min(t.priority ?? 2, 1);
       if (why) appendMain(t, `> ${why}\n> — on reverting the first attempt, ${timestamp(ws.now()).slice(0, 10)}`);
-      addLog(t, actor, `reverted ${reverted.length} commit(s)${why ? `: ${why}` : ''}`, ws.now());
+      addLog(t, actor, `reverted ${reverted.length} commit(s)${why ? `: ${why}` : ''}${gone ? `; ${gone}` : ''}`, ws.now());
       ws.save(t);
 
       const out: string[] = [];
@@ -768,6 +770,7 @@ export const COMMANDS: Command[] = [
         out.push(`${p.bold(t.id)} ${call.opts.drop ? 'dropped' : 'reopened'}. ${root ? 'No commits were tied to it' : 'This is not a git repository'}, so no code was changed.`);
       }
       for (const s of skipped) out.push(p.dim(`  left ${s.sha.slice(0, 7)} alone: ${s.why}`));
+      if (gone) out.push(p.dim(`  ${gone}`));
       for (const d of voided) out.push(p.dim(`  dropped the assumption behind it: ${d.id} ${oneLine(d.choice ?? d.title, 60)}`));
       if (orphans.length) out.push(p.dim(`  dropped ${orphans.length} unstarted ${t.type === 'plan' ? 'part(s)' : 'finding(s)'} that came from it`));
       if (!call.opts.drop) out.push(`It is back in the queue at p${t.priority}${why ? ' with your reason attached' : ''}.`);
@@ -887,7 +890,7 @@ export const COMMANDS: Command[] = [
       }
       for (const t of tasks) {
         if (t.status === 'active') {
-          // Stopped, the work so far kept: it waits in build for its turn again.
+          // Stopped, the work so far kept, its worktree with it: it waits in build for its turn again.
           addLog(t, actor, `stopped while ${t.by ?? 'someone'} was building it; back in build`, ws.now());
           t.status = 'open';
           t.by = undefined;
@@ -1033,7 +1036,7 @@ export const COMMANDS: Command[] = [
     group: 'you',
     usage: 'propose <t-id…> [--abort] [--undo]',
     summary:
-      'Take work back to proposed: nothing builds it until you say. --abort takes it off whoever is building it; --undo also undoes its commits, even once it is done',
+      'Take work back to proposed: nothing builds it until you say. --abort takes it off whoever is building it, and removes its worktree; --undo also undoes its commits, even once it is done',
     human: true,
     write: true,
     options: { abort: { type: 'boolean' }, undo: { type: 'boolean' } },
@@ -1050,12 +1053,16 @@ export const COMMANDS: Command[] = [
         }
       }
       const undone: Record<string, string[]> = {};
+      const removed: string[] = [];
       for (const t of tasks) {
         // The commits come off first: if they will not, the thread is left where it was.
         const reverted = opts.undo ? undoWork(ws, t, actor, 'moved back to the backlog').reverted : [];
         if (opts.undo) undone[t.id] = reverted;
+        // Work in a worktree of its own never landed: taken off its builder, it goes with the worktree.
+        const gone = abort ? removeWorktree(t) : '';
+        if (gone) removed.push(p.dim(`  ${t.id}: ${gone}`));
         const was = t.status;
-        if (was === 'proposed' && !reverted.length) {
+        if (was === 'proposed' && !reverted.length && !gone) {
           if (opts.undo) ws.save(t);
           continue;
         }
@@ -1069,14 +1076,14 @@ export const COMMANDS: Command[] = [
           t.reviewed = undefined;
         }
         const how = by ? `aborted while ${by} was building it; moved back to proposed` : was === 'proposed' ? 'still proposed' : 'moved back to proposed';
-        addLog(t, actor, reverted.length ? `${how}; reverted ${reverted.length} commit(s)` : how, ws.now());
+        addLog(t, actor, [reverted.length ? `${how}; reverted ${reverted.length} commit(s)` : how, gone].filter(Boolean).join('; '), ws.now());
         ws.save(t);
       }
       const notes = Object.entries(undone)
         .filter(([, shas]) => shas.length)
         .map(([id, shas]) => p.dim(`  ${id}: ${shas.length} commit(s) undone in one new commit`));
       return {
-        text: [`Proposed:`, ...tasks.map((t) => `  ${itemLine(ws, t, p)}`), ...notes].join('\n'),
+        text: [`Proposed:`, ...tasks.map((t) => `  ${itemLine(ws, t, p)}`), ...notes, ...removed].join('\n'),
         data: { proposed: tasks.map((t) => itemJson(ws, t)), reverted: undone },
       };
     },
@@ -1621,8 +1628,11 @@ export const COMMANDS: Command[] = [
           item.by = undefined;
           item.place = undefined;
         }
-        addLog(item, actor, `dropped${why ? `: ${why}` : ''}`, ws.now());
+        // Abandoned, so the work in a worktree of its own is abandoned with it.
+        const gone = item.kind === 'task' ? removeWorktree(item) : '';
+        addLog(item, actor, `dropped${why ? `: ${why}` : ''}${gone ? `; ${gone}` : ''}`, ws.now());
         ws.save(item);
+        if (gone) out.push(`  ${item.id}: ${gone}`);
         if (skill && skill.dir.startsWith(skill.spool.root + path.sep) && path.basename(skill.dir) === item.title) {
           fs.rmSync(skill.dir, { recursive: true, force: true });
           out.push(`  removed ${skill.rel}/`);

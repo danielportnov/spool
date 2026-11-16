@@ -251,6 +251,51 @@ test('a failing check lands nothing, loose work is not left behind, and the chec
   s.cleanup();
 });
 
+test('taking a thread back removes its worktree and branch; stopping it keeps them for the next start', () => {
+  const s = repo();
+  const base = s.git('rev-parse', 'HEAD');
+  const id = s.id('task', 'Tighten the jump');
+  const w = open(s, id);
+  w.write('jump.txt', 'snappy\n');
+  const tip = w.commitAll(`Tighten the jump\n\nSpool: ${id}`);
+  const gone = () => assert.deepEqual([w.exists('.'), s.git('branch', '--list', 'spool/*'), s.git('worktree', 'list').split('\n').length], [false, '', 1]);
+
+  // Stopped, its work kept: the worktree stays, and whoever starts it next is sent back into it.
+  s.sp('build', '--abort', id);
+  const stopped = s.json('show', id).item;
+  assert.deepEqual([stopped.state, stopped.worktree, w.git('rev-parse', 'HEAD')], ['ready', `.spool/worktrees/${id}`, tip]);
+  const again = s.sp('start', id);
+  assert.ok(again.includes(`work in ${w.dir}\nWORKTREE — `));
+  assert.match(again, /worktree {8}its own from before, at \.spool\/worktrees\/t-\w+, on spool\/t-\w+$/);
+  assert.equal(w.read('jump.txt'), 'snappy\n');
+
+  // Aborted: the thread goes back to the backlog, and work that never landed goes with its worktree.
+  const aborted = s.sp('propose', '--abort', id);
+  assert.match(aborted, new RegExp(`${id}: worktree and branch spool/${id} removed, with 1 commit\\(s\\) that never landed \\(it was at ${tip.slice(0, 7)}\\)`));
+  gone();
+  const back = s.json('show', id).item;
+  assert.deepEqual([back.state, back.worktree, back.branch], ['proposed', undefined, undefined]);
+  assert.match(s.item(id), /human: aborted while agent was building it; moved back to proposed; worktree and branch spool\/t-\w+ removed, with 1 commit\(s\)/);
+  assert.deepEqual([s.git('rev-parse', 'HEAD'), s.git('status', '--porcelain')], [base, ''], 'the checkout never saw any of it');
+
+  // Started again it gets a new worktree, cut from the checkout as it is now. Dropped, that goes too.
+  s.sp('build', id);
+  const fresh = open(s, id);
+  assert.deepEqual([fresh.exists('jump.txt'), fresh.git('rev-parse', 'HEAD')], [false, base]);
+  assert.match(s.sp('drop', id, '-m', 'not wanted'), new RegExp(`${id}: worktree and branch spool/${id} removed$`, 'm'));
+  gone();
+
+  // Undone from the backlog: nothing of it had landed, so there is nothing to revert, only the worktree to remove.
+  const other = s.id('task', 'Outline the coins');
+  const o = open(s, other);
+  o.write('coins.txt', 'outlined\n');
+  o.commitAll(`Outline the coins\n\nSpool: ${other}`);
+  const undone = s.json('propose', '--undo', other);
+  assert.deepEqual([undone.reverted[other], undone.proposed[0].worktree, o.exists('.')], [[], undefined, false]);
+  assert.deepEqual([s.git('rev-parse', 'HEAD'), s.git('branch', '--list', 'spool/*')], [base, '']);
+  s.cleanup();
+});
+
 test('without --worktree nothing changes, and where there can be no worktree it is refused in words', () => {
   const s = repo();
   const id = s.id('task', 'Tighten the jump');

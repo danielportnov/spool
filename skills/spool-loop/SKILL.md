@@ -428,6 +428,10 @@ lands nothing, when:
 - the project's own folder has uncommitted changes to files you changed.
   Those are not yours: leave them, and `spool ask`.
 
+A thread taken back to the backlog or dropped loses its worktree, and with it
+any work that had not landed. One that is only stopped keeps it, and the next
+start goes back into it.
+
 **An audit.** Look, think, report. Do not fix things here. File each finding:
 
     spool task "<the finding>" --from <id> --size <size> [-p 0-3]

@@ -185,6 +185,10 @@ as three sets of commits in a straight line, with no merge commits, and each can
 itself. One that finishes while another is landing waits its turn; after five minutes it says it is
 still waiting, and `spool done` is run again.
 
+Taking a thread back takes its worktree too: `spool propose --abort`, `spool propose --undo` and
+`spool drop` remove the worktree and the branch, with any commits that had not landed. Stopping one
+(`spool build --abort`) keeps both, and the next start picks up where it was.
+
 `spool` run inside a worktree acts on the project's one queue. Where `.spool/` is kept in git, a
 worktree carries a copy of it, and that copy is never read or written.
 
