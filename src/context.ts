@@ -35,6 +35,8 @@ export interface Ctx {
   inherit: boolean;
   /** A person is at the keyboard: the command was typed into a real terminal, not run by a program. */
   tty?: boolean;
+  /** How many columns wide the terminal is, where that is known. */
+  columns?: number;
   /** The command comes from the Spool page, on a click the human made there. */
   human?: boolean;
 }

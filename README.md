@@ -1,5 +1,14 @@
 # 🧶 Spool
 
+```text
+  ▄▟▀▄██▙▖
+▗██▘▟██▀▄▟█▖                    ╷
+██▘▟█▛▗█████    ╭───┬─╮ ╭─╮ ╭─╮ │
+█▌▐█▛▗█▄▀███    ╰─╮ │ ├─┤ ├─┤ ├─┤
+▝▌▐█ ████▖▜───────╯ ├─╯ ╰─╯ ╰─╯ ╰─╴
+  ▀▜ ███▛▀          ╵
+```
+
 **Tell your agents what you want. Go outside. Come back to it built.**
 
 A spool holds threads. Every idea, bug and feature in your repo is a thread 🧵. Agents propose

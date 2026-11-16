@@ -17,6 +17,7 @@ import * as path from 'node:path';
 import { run } from './cli.ts';
 import type { Bare, Result } from './commands.ts';
 import type { Ctx } from './context.ts';
+import { markLine } from './mark.ts';
 import { SpoolError } from './model.ts';
 import { servePage } from './page.ts';
 import { findHome } from './store.ts';
@@ -265,6 +266,7 @@ The second needs the first. Neither needs anything installed.
     `A demo project is ready: ${p.bold(dir)}`,
     p.dim(`  tip.js splits a bill, with a test (npm test). Its spool has ${threads} threads, a sprint and a question for you.`),
     '',
+    ...[markLine(ctx)].filter(Boolean),
     opts.open ? 'The board opens in your browser, at the address below.' : `Open the board:  spool page -C ${shown}`,
     'Then try:',
     '  move a thread from Backlog to Build: drag it, or press ▶ on it',

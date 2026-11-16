@@ -21,6 +21,7 @@ import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } fr
 import { demo } from './demo.ts';
 import { dropLesson, keepLesson, lessonLine, lessons } from './lessons.ts';
 import { runLoop } from './loop.ts';
+import { markLine } from './mark.ts';
 import { servePage } from './page.ts';
 import { watch } from './watch.ts';
 import { serve } from './mcp.ts';
@@ -2261,6 +2262,7 @@ export const COMMANDS: Command[] = [
       if (fresh) {
         out.push(
           '',
+          ...[markLine(ctx)].filter(Boolean),
           'Next, in your agent. You should not need this command line again.',
           '  /spool-page       the board: every thread, and where you move the ones you want built into build',
           '  /spool-loop       the loop: it builds what is in build, thread after thread, and tells you when it needs you',

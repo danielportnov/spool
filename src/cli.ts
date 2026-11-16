@@ -14,6 +14,7 @@ import { parseArgs } from 'node:util';
 import { COMMANDS, type Command, type Options, type Result, type Values } from './commands.ts';
 import { version } from './builtin.ts';
 import type { Ctx } from './context.ts';
+import { inColor, mark } from './mark.ts';
 import { SpoolError } from './model.ts';
 import { paint } from './render.ts';
 import { Workspace, findHome } from './store.ts';
@@ -50,6 +51,11 @@ function help(): string {
   return lines.join('\n');
 }
 
+/** What was asked for, under the yarn mark when a person is at the terminal: for anyone else `head` is empty and nothing is added. */
+function under(head: string, text: string): string {
+  return head ? `${head}\n\n${text}` : text;
+}
+
 function commandHelp(c: Command): string {
   const lines = [`spool ${c.usage}`, '', `  ${c.summary}`];
   if (c.aliases?.length) lines.push(`  Also: ${c.aliases.map((a) => `spool ${a}`).join(', ')}`);
@@ -69,24 +75,30 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
   let wantHelp = false;
   let actor: string | undefined;
   let cwd: string | undefined;
+  // The mark is for a person reading: asked for --json anywhere, none is drawn. `mark` itself draws none for a program.
+  const art = !argv.includes('--json');
+  const beside = paint(inColor(ctx));
+  const versioned = (): string[] => [beside.bold(`v${version()}`)];
   let i = 0;
   for (; i < argv.length && argv[i]!.startsWith('-'); i++) {
     const arg = argv[i]!;
     if (arg === '--json') json = true;
     else if (arg === '-h' || arg === '--help') wantHelp = true;
-    else if (arg === '-V' || arg === '--version') return { result: { text: version(), data: { version: version() } }, json };
+    else if (arg === '-V' || arg === '--version') return { result: { text: (art && mark(ctx, { lines: versioned() })) || version(), data: { version: version() } }, json };
     else if (arg === '--as') actor = argv[++i];
     else if (arg === '-C' || arg === '--cwd') cwd = argv[++i];
     else throw new SpoolError(`unknown option ${arg}`, 'See: spool help');
   }
   let name = argv[i];
   let rest = argv.slice(i + 1);
+  const greeted = (): string => under(art ? mark(ctx, { lines: versioned() }) : '', help());
   if (name === 'help') {
-    if (!rest[0]) return { result: { text: help() }, json };
+    if (!rest[0]) return { result: { text: greeted() }, json };
     return { result: { text: commandHelp(find(rest[0])) }, json };
   }
+  const bare = !name;
   if (!name) {
-    if (wantHelp || !findHome(path.resolve(ctx.cwd, cwd ?? '.'))) return { result: { text: help() }, json };
+    if (wantHelp || !findHome(path.resolve(ctx.cwd, cwd ?? '.'))) return { result: { text: greeted() }, json };
     name = 'status';
     rest = [];
   }
@@ -118,7 +130,11 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
   try {
     const ws = Workspace.open(scoped.cwd, scoped.now, !!command.write);
     try {
-      return { result: command.run!({ ...base, ws, before }), json };
+      const result = command.run!({ ...base, ws, before });
+      if (!bare || !art) return { result, json };
+      // Typed with nothing after it, the status opens under the mark, with the version and the project beside it.
+      const head = mark(scoped, { lines: [...versioned(), ws.home.name, beside.dim('spool help lists the commands')] });
+      return { result: { ...result, text: under(head, result.text) }, json };
     } finally {
       ws.close();
     }
@@ -167,5 +183,6 @@ if (isMain()) {
     color: !!process.stdout.isTTY && !process.env.NO_COLOR,
     inherit: true,
     tty: !!process.stdin.isTTY && !!process.stdout.isTTY,
+    columns: process.stdout.columns,
   });
 }
