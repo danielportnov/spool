@@ -216,9 +216,9 @@ test('the page shows the spool as a board, and what is done on it is saved to th
       http.get(`${url}api/board`, { headers: { host: 'evil.example' } }, (res) => resolve(res.statusCode ?? 0)).on('error', reject);
     });
     assert.equal(asOtherSite, 403);
-    const refused = await post('move', { id: jump, to: 'done' });
+    const refused = await post('move', { id: jump, to: 'nowhere' });
     assert.equal(refused.status, 400);
-    assert.match(((await refused.json()) as { text: string }).text, /moved to build, or back to proposed/);
+    assert.match(((await refused.json()) as { text: string }).text, /moved to the backlog, build, building or done/);
     assert.equal((await post('note', { id: coins, text: '   ' })).status, 400);
     assert.equal((await fetch(`${url}nope`)).status, 404);
   } finally {

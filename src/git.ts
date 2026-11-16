@@ -73,6 +73,38 @@ export function isReverted(root: string, sha: string): boolean {
   return !!git(root, ['log', '-1', '--format=%H', '-F', `--grep=This reverts commit ${sha}`]).out;
 }
 
+/** The pathspec for everything in the repository but the spool directory. */
+function outside(root: string, spoolDir: string): string[] {
+  const keep = path.relative(real(root), real(spoolDir)).split(path.sep).join('/');
+  return ['--', ':(top)', ...(keep && !keep.startsWith('..') ? [`:(top,exclude)${keep}`] : [])];
+}
+
+/** Files with uncommitted changes, tracked or new, outside the spool directory. */
+export function dirtyPaths(root: string, spoolDir: string): string[] | null {
+  const result = git(root, ['status', '--porcelain', '-z', '--untracked-files=all', '--no-renames', ...outside(root, spoolDir)]);
+  if (!result.ok) return null;
+  return result.out
+    .split('\0')
+    .filter(Boolean)
+    .map((entry) => entry.slice(3));
+}
+
+/**
+ * Throw away the uncommitted changes to `paths`: a file HEAD has goes back to
+ * how HEAD has it, a file HEAD does not have is deleted.
+ */
+export function discardPaths(root: string, paths: string[]): void {
+  if (!paths.length) return;
+  const literal = ['--', ...paths.map((p) => `:(top,literal)${p}`)];
+  const probe = git(root, ['cat-file', '--batch-check'], Buffer.from(paths.map((p) => `HEAD:${p}\n`).join('')));
+  const inHead = probe.out.split('\n').map((line) => !line.endsWith(' missing'));
+  const existed = paths.filter((_, i) => inHead[i]);
+  const created = paths.filter((_, i) => !inHead[i]);
+  git(root, ['reset', '-q', ...literal]);
+  if (existed.length) git(root, ['checkout', 'HEAD', '--', ...existed.map((p) => `:(top,literal)${p}`)]);
+  for (const p of created) fs.rmSync(path.join(root, p), { force: true });
+}
+
 export interface RevertResult {
   ok: boolean;
   /** Commits undone by the new revert commit, newest first. */

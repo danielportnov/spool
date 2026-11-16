@@ -264,6 +264,46 @@ function settleSprint(ws: Workspace, task: Item, actor: string): Item | undefine
   return sprint;
 }
 
+/**
+ * Take back what a thread did: its commits undone in one new commit, and the calls an
+ * agent made for it alone dropped with them. Shared by revert, and by moving a thread
+ * back to the backlog with --undo. Throws, changing nothing, if the commits will not come off.
+ */
+function undoWork(ws: Workspace, t: Item, actor: string, why: string): { reverted: string[]; skipped: { sha: string; why: string }[]; voided: Item[] } {
+  const root = repoRoot(t.spool.root);
+  let reverted: string[] = [];
+  let skipped: { sha: string; why: string }[] = [];
+  if (root) {
+    const shas = uniq([...t.commits, ...trailerCommits(root, t.id)]);
+    if (shas.length) {
+      const result = revertCommits(root, shas, t.spool.dir, (undone) =>
+        [
+          `Revert "${t.title}"`,
+          ...(why ? [why] : []),
+          undone.map((sha) => `This reverts commit ${sha}.`).join('\n'),
+          `Spool-Revert: ${t.id}`,
+        ].join('\n\n'),
+      );
+      if (!result.ok) throw new SpoolError(`could not revert ${t.id}: ${result.error}`);
+      ({ reverted, skipped } = result);
+    }
+  }
+
+  // Calls an agent made for this task alone, never confirmed by the human, go with the work
+  // they produced — otherwise the next attempt would be briefed to repeat the mistake.
+  const voided = t.needs
+    .map((id) => ws.find(id))
+    .filter((d): d is Item => !!d && d.kind === 'decision' && d.status === 'assumed' && dependents(ws, d).every((x) => x === t));
+  for (const d of voided) {
+    d.status = 'dropped';
+    addLog(d, actor, `dropped: ${t.id}, the work built on it, was reverted`, ws.now());
+    ws.save(d);
+  }
+  t.needs = t.needs.filter((id) => !voided.some((d) => d.id === id));
+  t.commits = [];
+  return { reverted, skipped, voided };
+}
+
 const SIZE_GUIDE = 'xs a line or a value · s one function or screen · m several files · l cuts across the project · xl a project in itself';
 
 function sizeOf(v: unknown): Size | undefined {
@@ -607,35 +647,7 @@ export const COMMANDS: Command[] = [
       }
       const why = str(call.opts.message) ?? call.args.slice(1).join(' ').trim();
       const root = repoRoot(t.spool.root);
-      let reverted: string[] = [];
-      let skipped: { sha: string; why: string }[] = [];
-      if (root) {
-        const shas = uniq([...t.commits, ...trailerCommits(root, t.id)]);
-        if (shas.length) {
-          const result = revertCommits(root, shas, t.spool.dir, (undone) =>
-            [
-              `Revert "${t.title}"`,
-              ...(why ? [why] : []),
-              undone.map((sha) => `This reverts commit ${sha}.`).join('\n'),
-              `Spool-Revert: ${t.id}`,
-            ].join('\n\n'),
-          );
-          if (!result.ok) throw new SpoolError(`could not revert ${t.id}: ${result.error}`);
-          ({ reverted, skipped } = result);
-        }
-      }
-
-      // Calls an agent made for this task alone, never confirmed by the human, go with the work
-      // they produced — otherwise the next attempt would be briefed to repeat the mistake.
-      const voided = t.needs
-        .map((id) => ws.find(id))
-        .filter((d): d is Item => !!d && d.kind === 'decision' && d.status === 'assumed' && dependents(ws, d).every((x) => x === t));
-      for (const d of voided) {
-        d.status = 'dropped';
-        addLog(d, actor, `dropped: ${t.id}, the work built on it, was reverted`, ws.now());
-        ws.save(d);
-      }
-      t.needs = t.needs.filter((id) => !voided.some((d) => d.id === id));
+      const { reverted, skipped, voided } = undoWork(ws, t, actor, why);
 
       // A plan or an audit that is sent back takes its unstarted parts and findings with it.
       const orphans = t.type ? children(ws, t).filter((k) => k.status === 'open') : [];
@@ -694,10 +706,11 @@ export const COMMANDS: Command[] = [
   {
     name: 'build',
     group: 'you',
-    usage: 'build <t-id…>',
-    summary: 'Move proposed work to build: it may be built now, in its turn',
+    usage: 'build <t-id…> [--abort]',
+    summary: 'Move proposed work to build: it may be built now, in its turn. --abort takes it off whoever is building it, back to waiting in build',
     human: true,
     write: true,
+    options: { abort: { type: 'boolean' } },
     run(call) {
       const { ws, args, actor, p } = call;
       if (!args.length) throw new SpoolError('what to build is missing', 'spool build <t-id>');
@@ -706,9 +719,17 @@ export const COMMANDS: Command[] = [
       for (const t of tasks) {
         const state = taskState(ws, t);
         if (state === 'done' || state === 'dropped') throw new SpoolError(`${t.id} is already ${state}`);
-        if (state === 'active') throw new SpoolError(`${t.id} is being built already`);
+        if (state === 'active' && !call.opts.abort) throw new SpoolError(`${t.id} is being built already`, `Take it off whoever has it: spool build --abort ${t.id}`);
       }
       for (const t of tasks) {
+        if (t.status === 'active') {
+          // Stopped, the work so far kept: it waits in build for its turn again.
+          addLog(t, actor, `stopped while ${t.by ?? 'someone'} was building it; back in build`, ws.now());
+          t.status = 'open';
+          t.by = undefined;
+          ws.save(t);
+          continue;
+        }
         // Moving something to build is the human saying start: it clears a hold as well.
         if (t.status !== 'proposed' && !t.hold) continue;
         addLog(t, actor, t.hold ? `moved to build (was on hold: ${t.hold})` : 'moved to build', ws.now());
@@ -824,30 +845,53 @@ export const COMMANDS: Command[] = [
   {
     name: 'propose',
     group: 'you',
-    usage: 'propose <t-id…> [--abort]',
-    summary: 'Take work out of build, back to proposed: nothing builds it until you say. --abort takes it off whoever is building it',
+    usage: 'propose <t-id…> [--abort] [--undo]',
+    summary:
+      'Take work back to proposed: nothing builds it until you say. --abort takes it off whoever is building it; --undo also undoes its commits, even once it is done',
     human: true,
     write: true,
-    options: { abort: { type: 'boolean' } },
+    options: { abort: { type: 'boolean' }, undo: { type: 'boolean' } },
     run({ ws, args, actor, p, opts }) {
       if (!args.length) throw new SpoolError('what to move back is missing', 'spool propose <t-id>');
       const tasks = args.map((ref) => ws.get(ref, 'task'));
+      // Undoing a thread's work takes it off whoever has it, as aborting does.
+      const abort = opts.abort || opts.undo;
       for (const t of tasks) {
-        if (t.status === 'done' || t.status === 'dropped') throw new SpoolError(`${t.id} is already ${t.status}`);
-        if (t.status === 'active' && !opts.abort) {
+        if (t.status === 'dropped') throw new SpoolError(`${t.id} is already dropped`);
+        if (t.status === 'done' && !opts.undo) throw new SpoolError(`${t.id} is already done`, `Undo it and move it back: spool propose --undo ${t.id}`);
+        if (t.status === 'active' && !abort) {
           throw new SpoolError(`${t.id} is being built by ${t.by ?? 'someone'}`, `Let it finish, or abort it: spool propose --abort ${t.id}`);
         }
       }
+      const undone: Record<string, string[]> = {};
       for (const t of tasks) {
-        if (t.status === 'proposed') continue;
+        // The commits come off first: if they will not, the thread is left where it was.
+        const reverted = opts.undo ? undoWork(ws, t, actor, 'moved back to the backlog').reverted : [];
+        if (opts.undo) undone[t.id] = reverted;
+        const was = t.status;
+        if (was === 'proposed' && !reverted.length) {
+          if (opts.undo) ws.save(t);
+          continue;
+        }
         // Aborting: whoever was building it is off it, and it waits in the backlog for a yes.
-        const was = t.status === 'active' ? (t.by ?? 'someone') : undefined;
+        const by = was === 'active' ? (t.by ?? 'someone') : undefined;
         t.status = 'proposed';
         t.by = undefined;
-        addLog(t, actor, was ? `aborted while ${was} was building it; moved back to proposed` : 'moved back to proposed', ws.now());
+        if (was === 'done') {
+          t.summary = undefined;
+          t.reviewed = undefined;
+        }
+        const how = by ? `aborted while ${by} was building it; moved back to proposed` : was === 'proposed' ? 'still proposed' : 'moved back to proposed';
+        addLog(t, actor, reverted.length ? `${how}; reverted ${reverted.length} commit(s)` : how, ws.now());
         ws.save(t);
       }
-      return { text: `Proposed:\n${tasks.map((t) => `  ${itemLine(ws, t, p)}`).join('\n')}`, data: { proposed: tasks.map((t) => itemJson(ws, t)) } };
+      const notes = Object.entries(undone)
+        .filter(([, shas]) => shas.length)
+        .map(([id, shas]) => p.dim(`  ${id}: ${shas.length} commit(s) undone in one new commit`));
+      return {
+        text: [`Proposed:`, ...tasks.map((t) => `  ${itemLine(ws, t, p)}`), ...notes].join('\n'),
+        data: { proposed: tasks.map((t) => itemJson(ws, t)), reverted: undone },
+      };
     },
   },
 

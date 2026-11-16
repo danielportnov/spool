@@ -49,7 +49,7 @@ import {
   routerPrompt,
   suggestion,
 } from './agent.ts';
-import { git, repoRoot } from './git.ts';
+import { dirtyPaths, discardPaths, git, repoRoot } from './git.ts';
 import { type Item, SpoolError, addLog, oneLine, reportFile, splitBody, timestamp } from './model.ts';
 import { prime } from './prime.ts';
 import { age, brief, paint, sprintAbout, tableRows } from './render.ts';
@@ -527,7 +527,12 @@ function pageRunning(id: string): boolean {
 export class Runner {
   on: boolean;
   readonly agent: string;
-  current: { id: string; title: string; child: ChildProcess; lines: string[]; began: number; stopped: boolean } | null = null;
+  /** `undo`: the thread was moved back to the backlog, so once the agent is gone, what it changed is undone. */
+  current: { id: string; title: string; child: ChildProcess; lines: string[]; began: number; stopped: boolean; undo?: boolean } | null = null;
+  /** The thread dragged into Building: it is the next one taken, ahead of the rest of Build. */
+  next: string | undefined;
+  /** Files already changed, and not committed, when each thread was handed out: undoing its edits leaves those alone. */
+  private before = new Map<string, Set<string> | null>();
   /** How the last few threads it ran turned out, newest first. */
   recent: { id: string; title: string; outcome: string }[] = [];
   private gaveUp = new Map<string, string>();
@@ -614,10 +619,54 @@ export class Runner {
    * The thread was aborted, taken back to the backlog: if this page's agent is
    * on it, end that agent. The runner stays on, so it goes on to the next thread.
    */
-  abort(id: string): void {
-    if (this.current?.id !== id) return;
+  abort(id: string, undo = false): boolean {
+    if (this.current?.id !== id) return false;
     this.current.stopped = true;
+    if (undo) this.current.undo = true;
     this.end(this.current.child);
+    return true;
+  }
+
+  /**
+   * Undo what an agent this page ran changed on a thread moved back to the
+   * backlog, once the agent is gone: files it changed and did not commit go
+   * back to how they were, then the commits with its trailer are reverted.
+   * Files that were already changed when it began are left alone: they may be the human's.
+   */
+  private undoEdits(id: string): string {
+    const said: string[] = [];
+    try {
+      const ws = Workspace.open(this.ctx.cwd, this.ctx.now);
+      let root: string | null = null;
+      let dir = '';
+      try {
+        const task = ws.find(id);
+        if (task) {
+          root = repoRoot(task.spool.root);
+          dir = task.spool.dir;
+        }
+      } finally {
+        ws.close();
+      }
+      const before = this.before.get(id);
+      this.before.delete(id);
+      if (root && before !== null) {
+        const now = dirtyPaths(root, dir) ?? [];
+        // Without a record of how things were, nothing uncommitted is touched: it could be anyone's.
+        const its = before ? now.filter((p) => !before.has(p)) : [];
+        discardPaths(root, its);
+        if (its.length) said.push(`${its.length} uncommitted file(s) put back`);
+      }
+    } catch (error) {
+      said.push(`its uncommitted edits could not be put back (${(error as Error).message})`);
+    }
+    const undone = act(this.ctx, ['propose', '--undo', id]);
+    const shas = ((undone.data as { reverted?: Record<string, string[]> } | null)?.reverted ?? {})[id] ?? [];
+    if (!undone.ok) said.push(`its commits could not be undone: ${undone.text}`);
+    else if (shas.length) said.push(`${shas.length} commit(s) reverted`);
+    const line = said.length ? `edits undone: ${said.join('; ')}` : 'edits undone: it had changed nothing';
+    this.note(id, [line]);
+    return line;
   }
 
   /** End the agent and whatever it started: it runs in a group of its own, so the whole group is told. */
@@ -641,8 +690,13 @@ export class Runner {
     try {
       const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
       try {
-        task = ready(ws, this.project).find((t) => this.gaveUp.get(t.id) !== t.updated);
+        const waiting = ready(ws, this.project);
+        task = waiting.find((t) => t.id === this.next) ?? waiting.find((t) => this.gaveUp.get(t.id) !== t.updated);
+        this.next = undefined;
         if (!task) return;
+        const root = repoRoot(task.spool.root);
+        const dirty = root ? dirtyPaths(root, task.spool.dir) : null;
+        this.before.set(task.id, dirty ? new Set(dirty) : null);
         command = streaming(commandFor(this.agent, pickFor(task, models)));
         asker = routerCommand(this.agent, task, models, router);
         task.status = 'active';
@@ -867,6 +921,10 @@ export class Runner {
           ws.save(now);
           this.gaveUp.set(now.id, now.updated);
           outcome = run.stopped ? 'stopped' : `unfinished: the agent ${how}${run.lines.length ? ` — ${run.lines.at(-1)}` : ''}`;
+        } else if (now?.status === 'open' && run.stopped && !now.needs.length) {
+          // Dragged back to Build while it was being built: it waits there, and is not picked straight up again.
+          this.gaveUp.set(now.id, now.updated);
+          outcome = 'stopped: waiting in build';
         } else if (now) outcome = `waiting${now.needs.length ? ' on you' : ''}`;
       } finally {
         ws.close();
@@ -874,6 +932,8 @@ export class Runner {
     } catch {
       outcome = 'unknown: the spool could not be read';
     }
+    if (run.undo) outcome = `back in the backlog; ${this.undoEdits(run.id)}`;
+    else this.before.delete(run.id);
     this.recent.unshift({ id: run.id, title: run.title, outcome });
     this.recent.splice(5);
     if (this.current === run) this.current = null;
@@ -959,6 +1019,93 @@ function act(ctx: Ctx, argv: string[]): { ok: boolean; text: string; data: unkno
 type Body = Record<string, unknown>;
 const text = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
+/**
+ * A thread dragged to any column, from any column, at any time. Each move is the
+ * commands a person would have typed for it:
+ *
+ *   - Backlog: off whoever is building it, and its work undone. An agent this
+ *     page runs is ended first, then the files it changed and its commits are put back.
+ *   - Build: it waits there. One being built is stopped with its work kept; one done is reverted.
+ *   - Building: this page builds it next, with agents switched on.
+ *   - Done: the human marking it done; an agent of this page's on it is ended.
+ */
+function moveThread(ctx: Ctx, runner: Runner, id: string, to: string): { ok: boolean; text: string; data?: unknown } {
+  if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
+  if (!['proposed', 'build', 'building', 'done'].includes(to)) return { ok: false, text: 'a thread can be moved to the backlog, build, building or done' };
+  let from: Column | null;
+  let title = '';
+  const ws = Workspace.open(ctx.cwd, ctx.now);
+  try {
+    const task = ws.get(id, 'task');
+    from = columnOf(taskState(ws, task));
+    title = task.title;
+  } finally {
+    ws.close();
+  }
+  if (!from) return { ok: false, text: `${id} was dropped` };
+  if (from === to) return { ok: true, text: '' };
+  const ours = runner.current?.id === id;
+
+  if (to === 'proposed') {
+    if (from === 'build') return act(ctx, ['propose', id]);
+    if (from === 'building' && ours) {
+      // Moved now, so the agent cannot finish it; its edits come off once it has gone.
+      const moved = act(ctx, ['propose', '--abort', id]);
+      if (moved.ok) runner.abort(id, true);
+      return moved.ok ? { ...moved, text: 'Stopped, and back in the backlog. What the agent changed is being undone.' } : moved;
+    }
+    const undone = act(ctx, ['propose', '--undo', id]);
+    return undone.ok ? { ...undone, text: `Back in the backlog, its commits undone: ${title}` } : undone;
+  }
+
+  if (to === 'build') {
+    if (from === 'proposed') return act(ctx, ['build', id]);
+    if (from === 'done') {
+      const reverted = act(ctx, ['revert', id, '--message=moved back to build on the page']);
+      return reverted.ok ? { ...reverted, text: `Undone, and back in build: ${title}` } : reverted;
+    }
+    const stopped = act(ctx, ['build', '--abort', id]);
+    if (stopped.ok) runner.abort(id);
+    return stopped.ok ? { ...stopped, text: `Stopped, with its work kept. It waits in build: ${title}` } : stopped;
+  }
+
+  if (to === 'building') {
+    if (from === 'done') {
+      const reverted = act(ctx, ['revert', id, '--message=moved back to building on the page']);
+      if (!reverted.ok) return reverted;
+    }
+    if (from === 'proposed') {
+      const built = act(ctx, ['build', id]);
+      if (!built.ok) return built;
+    }
+    const check = Workspace.open(ctx.cwd, ctx.now);
+    let state = '';
+    try {
+      state = taskState(check, check.get(id, 'task'));
+    } finally {
+      check.close();
+    }
+    if (state !== 'ready') return { ok: true, text: `In build, but it cannot start yet: it is ${state}.` };
+    runner.next = id;
+    runner.on = true;
+    const busy = runner.current && runner.current.id !== id;
+    return { ok: true, text: busy ? `Next up, once the agent finishes ${runner.current!.title}` : `Building now: ${title}` };
+  }
+
+  // Done: the human saying it is finished. A thread still in the backlog goes through build, as any start does.
+  if (from === 'proposed') {
+    const built = act(ctx, ['build', id]);
+    if (!built.ok) return built;
+  }
+  const done = act(ctx, ['done', id, '--message=Marked done on the page']);
+  if (!done.ok) {
+    if (from === 'proposed') act(ctx, ['propose', id]);
+    return done;
+  }
+  if (ours) runner.abort(id);
+  return { ...done, text: `Done: ${title}` };
+}
+
 /** What the page can do. Each is the command a person would have typed. */
 function change(ctx: Ctx, action: string, body: Body, project?: string): { ok: boolean; text: string } {
   const id = text(body.id);
@@ -978,13 +1125,6 @@ function change(ctx: Ctx, action: string, body: Body, project?: string): { ok: b
     const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
     if (!ids.length || ids.length > 500 || !ids.every((x) => /^t-[a-z0-9]+$/.test(x))) return { ok: false, text: 'which threads?' };
     return act(ctx, ['build', ...ids]);
-  }
-  if (action === 'move') {
-    const to = text(body.to);
-    if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
-    if (to === 'build') return act(ctx, ['build', id]);
-    if (to === 'proposed') return act(ctx, ['propose', id]);
-    return { ok: false, text: 'a thread can be moved to build, or back to proposed' };
   }
   if (action === 'add') {
     const words = text(body.text);
@@ -1164,12 +1304,9 @@ export function startPage(
             runner.on = body.on === true;
             return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: runner.on ? 'Agents are on: this page builds what is in Build.' : 'Agents are off.' }));
           }
-          if (action === 'abort') {
-            // Out of Building, straight to the backlog: taken off whoever has it, then this page's agent, if it was that, is ended.
-            const id = text(body.id);
-            if (!/^t-[a-z0-9]+$/.test(id)) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which thread?' }));
-            const result = act(ctx, ['propose', '--abort', id]);
-            if (result.ok) runner.abort(id);
+          if (action === 'move' || action === 'abort') {
+            // A thread moved to any column, from any column. Abort is the move straight back to the backlog.
+            const result = moveThread(ctx, runner, text(body.id), action === 'abort' ? 'proposed' : text(body.to));
             return send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify(result));
           }
           if (action === 'stop') {
@@ -1613,7 +1750,7 @@ function liveLine(c, b) {
     el('span', { class: 'pulse' }), el('span', { class: 'now' }, now), el('span', { class: 'for' }, took(c.live.since)));
 }
 // Abort a thread being built: the agent on it stops, and the thread goes straight back to the backlog.
-const abortNode = (c, cls) => el('button', { class: cls, title: 'Stop building this and move it back to the backlog. Nothing builds it until you move it to Build again.',
+const abortNode = (c, cls) => el('button', { class: cls, title: 'Stop building this, undo what it changed, and move it back to the backlog. Nothing builds it until you move it to Build again.',
   onclick: () => post('abort', { id: c.id }, 'Aborted. Back in the backlog: ' + c.title) }, '↩ Abort');
 function moves(c, b) {
   return [
@@ -1630,8 +1767,8 @@ function dragOf(node, c, from) {
 }
 
 function cardNode(c, b) {
-  const movable = c.column === 'proposed' || c.column === 'build';
-  const node = el('div', { class: 'card' + (c.complete ? ' past' : ''), draggable: movable && 'true', 'data-id': c.id },
+  // Any card can be dragged to any column, at any time.
+  const node = el('div', { class: 'card' + (c.complete ? ' past' : ''), draggable: 'true', 'data-id': c.id },
     el('div', { class: 'title', onclick: () => openThread(c.id) }, c.title),
     el('div', { class: 'chips' }, chipsOf(c, b)),
     c.note && !c.done && el('div', { class: 'note' }, c.note),
@@ -1642,7 +1779,7 @@ function cardNode(c, b) {
     el('div', { class: 'meta' },
       el('span', { class: 'key', title: 'Open the thread', onclick: () => openThread(c.id) }, c.id),
       el('span', { class: 'push' }), facts(c), moves(c, b)));
-  if (movable) dragOf(node, c, c.column);
+  dragOf(node, c, c.column);
   return node;
 }
 
@@ -1774,16 +1911,18 @@ function drawBoard(b) {
     // Done shows what is still for them to check. What they marked complete is history, a click away.
     const past = key === 'done' ? every.filter((c) => c.complete) : [];
     const cards = key === 'done' ? every.filter((c) => !c.complete) : every;
+    // Every column takes a card dropped on it; only the backlog and Build take a new thread typed in.
     const drop = key === 'proposed' || key === 'build';
     return el('section', { class: 'col', 'data-column': key,
-      ondragover: (e) => { if (drop) { e.preventDefault(); e.currentTarget.classList.add('over'); } },
+      ondragover: (e) => { e.preventDefault(); e.currentTarget.classList.add('over'); },
       ondragleave: (e) => e.currentTarget.classList.remove('over'),
       ondrop: (e) => {
         e.currentTarget.classList.remove('over');
         const [id, from] = e.dataTransfer.getData('text/plain').split(' ');
-        if (!drop || !id || from === key) return;
+        if (!id || from === key) return;
         e.preventDefault();
-        post('move', { id, to: key }, key === 'build' ? 'In build' : 'Back in the backlog');
+        // The server says what the move did: stopped an agent, undid its work, or queued it to build next.
+        post('move', { id, to: key }, '');
       } },
       el('h2', {}, DOT[key] + ' ' + name, el('span', { class: 'count' }, filter ? every.length + ' of ' + whole.length : String(cards.length))),
       whole.length > 1 && tools,

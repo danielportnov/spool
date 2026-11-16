@@ -138,7 +138,8 @@ test('a thread being built can be aborted straight to the backlog, from the page
     const post = (body: unknown) => fetch(`${page.url}api/abort`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': page.token }, body: JSON.stringify(body) });
     assert.equal((await post({ id: hard })).status, 200);
     const after = await until('the agent is ended', async () => { const b = await board(); return !b.runner.current && b.runner.recent[0] && b; });
-    assert.deepEqual([after.runner.on, after.runner.recent[0].outcome], [true, 'aborted: back in the backlog'], 'the runner stays on for the next thread');
+    assert.equal(after.runner.on, true, 'the runner stays on for the next thread');
+    assert.match(after.runner.recent[0].outcome, /^back in the backlog; edits undone/);
     const back = s.json('show', hard).item;
     assert.deepEqual([back.state, back.by], ['proposed', undefined]);
     assert.match(s.item(hard), /aborted while sleeper\.sh was building it; moved back to proposed/);
@@ -155,6 +156,85 @@ test('a thread being built can be aborted straight to the backlog, from the page
   s.sp('propose', '--abort', hard);
   assert.equal(s.json('show', hard).item.state, 'proposed');
   assert.match(s.fails('done', hard, '-m', 'finished anyway'), /moved back to the backlog/);
+  s.cleanup();
+});
+
+test('a card dragged to any column: to the backlog, the agent is ended and everything it changed is undone', async () => {
+  const s = new Sandbox();
+  s.gitInit();
+  fs.writeFileSync(path.join(s.root, '.git', 'info', 'exclude'), '.home/\n');
+  s.sp('init', '--name', 'skyhop', '--gate');
+  fs.writeFileSync(path.join(s.root, 'physics.txt'), 'gravity 9\n');
+  fs.writeFileSync(path.join(s.root, 'sound.txt'), 'quiet\n');
+  fs.writeFileSync(path.join(s.root, 'mine.txt'), 'the human\'s\n');
+  const hard = s.id('task', 'Tighten the jump arc');
+  const easy = s.id('task', 'Make coins shine');
+  const worker = agent(
+    s,
+    'worker.sh',
+    [
+      'echo "gravity 20" > physics.txt',
+      `git add physics.txt && git commit -q -m "Raise gravity" -m "Spool: $SPOOL_TASK"`,
+      'echo loud > sound.txt',
+      'echo new > new.txt',
+      'echo "changing things"',
+      'sleep 30',
+    ].join('\n'),
+  );
+  s.commitAll('start');
+  // The human was already in the middle of something: it is not the agent's to undo.
+  fs.writeFileSync(path.join(s.root, 'mine.txt'), 'the human, half way\n');
+  s.sp('build', hard);
+
+  const page = await startPage(s, '--run', '--agent', worker, '--port', String(54000 + (process.pid % 1500)));
+  const board = async () => (await (await fetch(`${page.url}api/board`)).json()) as Record<string, any>;
+  const move = async (id: string, to: string) => {
+    const res = await fetch(`${page.url}api/move`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': page.token }, body: JSON.stringify({ id, to }) });
+    return { status: res.status, ...((await res.json()) as { ok: boolean; text: string }) };
+  };
+  try {
+    await until('the agent has made its changes', async () => { const b = await board(); return b.runner.current?.lines.includes('changing things') && b; });
+    assert.equal(s.read('physics.txt'), 'gravity 20\n');
+
+    // Building, dragged to the backlog.
+    const back = await move(hard, 'proposed');
+    assert.equal(back.status, 200, back.text);
+    const after = await until('the agent is ended and its work undone', async () => { const b = await board(); return !b.runner.current && b.runner.recent[0] && b; });
+    assert.match(after.runner.recent[0].outcome, /^back in the backlog; edits undone: \d+ uncommitted file\(s\) put back; 1 commit\(s\) reverted$/);
+    assert.equal(s.json('show', hard).item.state, 'proposed');
+    assert.deepEqual([s.read('physics.txt'), s.read('sound.txt'), s.exists('new.txt')], ['gravity 9\n', 'quiet\n', false]);
+    assert.equal(s.read('mine.txt'), 'the human, half way\n', 'what was changed before the agent began is left alone');
+    assert.match(s.git('log', '-1', '--format=%B'), /Spool-Revert: /);
+
+    // The backlog, dragged straight to Building: it is built next.
+    s.git('checkout', '-q', '--', 'mine.txt');
+    const now = await move(easy, 'building');
+    assert.equal(now.status, 200, now.text);
+    await until('it is picked up and at work', async () => { const c = (await board()).runner.current; return c?.id === easy && c.lines.includes('changing things'); });
+    // Building, dragged to Done: the human says it is finished, and the agent is ended.
+    const done = await move(easy, 'done');
+    assert.equal(done.status, 200, done.text);
+    assert.equal(s.json('show', easy).item.status, 'done');
+    await until('the agent is ended', async () => !(await board()).runner.current);
+    // Done, dragged back to Build: undone, and waiting there.
+    assert.equal((await move(easy, 'build')).status, 200);
+    assert.equal(s.json('show', easy).item.state, 'ready');
+    assert.equal((await move(easy, 'nowhere')).status, 400);
+  } finally {
+    page.child.kill();
+  }
+
+  // The same from the command line: a done thread, undone and back in the backlog; one being built, stopped and back in build.
+  s.sp('build', hard);
+  s.sp('start', hard);
+  assert.match(s.fails('build', hard), /being built already[\s\S]*spool build --abort/);
+  s.sp('build', '--abort', hard);
+  assert.equal(s.json('show', hard).item.state, 'ready');
+  s.sp('start', hard);
+  s.sp('done', hard, '-m', 'finished');
+  assert.match(s.fails('propose', hard), /already done[\s\S]*spool propose --undo/);
+  s.sp('propose', '--undo', hard);
+  assert.equal(s.json('show', hard).item.state, 'proposed');
   s.cleanup();
 });
 
