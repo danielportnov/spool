@@ -343,6 +343,8 @@ ones marked 🔒:
 | `spool skill add` | Write a procedure down as a skill |
 | `spool prime [worker\|recorder]` | A role's rules and this project now, for an agent with no skills |
 
+When a new thread's words are close to an open thread, one finished in the last four weeks, or one dropped in the last three months, `spool task` says so after its usual lines and in `--json` as `similar`. It is a nudge: nothing is blocked or merged. Matching is by shared words, so it stays quiet unless most of the words agree.
+
 **Seeing**:
 
 | Command | What it does |

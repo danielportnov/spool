@@ -60,6 +60,7 @@ import {
 import { blockers, children, dependents, docket, findCycle, ready, review, sprintOf, sprintTasks, stateOf, taskState } from './schedule.ts';
 import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, writeSkill } from './skills.ts';
 import { SPOOL_DIR, Workspace, findFolder, findHome, readConfig, skillsDir } from './store.ts';
+import { similarLines, similarTo } from './similar.ts';
 import { SUGGEST, suggestSkills } from './suggest.ts';
 
 export type Options = NonNullable<ParseArgsConfig['options']>;
@@ -365,7 +366,9 @@ function fileWork(call: Call, preset?: WorkType): Result {
   const out = [`${spool.config.gate ? 'Proposed' : 'Queued'} in ${spool.name}:`, `  ${itemLine(ws, task, p, false)}`];
   if (spool.config.gate) out.push(p.dim(`  It is built only once the human moves it to build: spool build ${task.id}`));
   if (promoted) out.push('Extra-large work starts as a plan, so this was queued as one: it gets split into parts, and the parts get built.');
-  return { text: out.join('\n'), data: { task: itemJson(ws, task, true) } };
+  const similar = similarTo(ws, task);
+  out.push(...similarLines(ws, task, similar, p));
+  return { text: out.join('\n'), data: { task: itemJson(ws, task, true), similar: similar.map((m) => ({ ...itemJson(ws, m.item), how: m.how, why: m.why })) } };
 }
 
 const WORK: Options = {

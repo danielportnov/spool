@@ -93,6 +93,12 @@ Decide it yourself, every time, and never ask them how to split.
   `spool plan`. Don't guess at its threads; planning it is the work.
 - **More about a thread that exists?** `spool file <note-id> --into <id>`. The
   capture reply shows what looks related.
+- **Spool says the new thread looks like one already there?** Read that thread.
+  If it is the same wish, add the words to it and set the new one aside:
+  `spool file <note-id> --into <id>`, then `spool drop <new-id> -m "same as <id>"`.
+  If it only shares a subject, leave it as filed. A finished one is a check
+  that it is not already done; a dropped one tells you why it was dropped, so
+  mention that to the human instead of quietly filing it again.
 
 Ask them only when you cannot tell which project they mean, or what they
 meant at all. Then one short question, and leave the note in the inbox until
