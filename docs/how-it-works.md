@@ -66,7 +66,8 @@ what is in Build, and watches for more.
 
 **`/spool-record <what you want, and where>`** files one message. Your words are captured exactly,
 split into threads, each given a size and a short spec (what, why, done when), and put in the
-backlog. The chat carries on as it was.
+backlog. The chat carries on as it was. Only ideas, wishes, feedback and bugs become threads: telling
+an agent how to work ("keep going until midnight"), or saying go or no, is acted on, not recorded.
 
 ## The page
 
