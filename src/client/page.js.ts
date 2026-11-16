@@ -1309,17 +1309,21 @@ function threadNode(c, b) {
   const leave = (what, suggested) => by ? cap(by) + ' decides' : suggested ? 'Suggested: ' + suggested : what;
   // Left to the chooser, a quiet line says what the size would give if it could not choose.
   const sizeSays = (mine, suggested) => !mine && by && suggested && el('div', { class: 'hint' }, 'Its size suggests ' + suggested);
-  const fixed = c.done || c.column === 'building';
-  const modelPick = fixed
-    ? el('div', { class: 'val' }, cap(c.run && c.run.model) || cap(c.model) || (by ? cap(by) + ' decides' : cap(c.suggest.model)) || 'As your agent runs')
+  // A run that has been, or is going on, is shown as what it really had, and only that: its agent's
+  // command named a model or an effort. A run that named neither (an agent that is not claude, or
+  // one a chat started) says nothing about it, and the boxes are the choice for the next run.
+  const ran = (c.done || c.column === 'building') && c.run && (c.run.model || c.run.effort) ? c.run : null;
+  const next = () => (c.done || c.column === 'building') && !ran && el('div', { class: 'hint' }, 'For the next run');
+  const modelPick = ran
+    ? el('div', { class: 'val', title: ran.why ? 'Why: ' + ran.why : '' }, cap(ran.model) || 'As your agent runs')
     : [choose([['', leave('As your agent runs', cap(c.suggest.model))], ...models.map((m) => [m, cap(m)])], c.model,
         (v) => save({ model: v }, v ? 'Model: ' + cap(v) : by ? cap(by) + ' decides the model' : 'Model as its size suggests')),
-      sizeSays(c.model, cap(c.suggest.model))];
-  const effortPick = fixed
-    ? el('div', { class: 'val' }, (c.run && c.run.effort) || c.effort || (by ? cap(by) + ' decides' : c.suggest.effort) || 'Default effort')
+      sizeSays(c.model, cap(c.suggest.model)), next()];
+  const effortPick = ran
+    ? el('div', { class: 'val' }, ran.effort || 'Default effort')
     : [choose([['', leave('Default effort', c.suggest.effort)], ...EFFORTS.map((e) => [e, e])], c.effort,
         (v) => save({ effort: v }, v ? 'Effort: ' + v : by ? cap(by) + ' decides the effort' : 'Effort as its size suggests')),
-      sizeSays(c.effort, c.suggest.effort)];
+      sizeSays(c.effort, c.suggest.effort), next()];
   const movable = c.column === 'proposed' || c.column === 'build';
   const status = movable
     ? choose([['proposed', '🟠 Proposed'], ['build', '🟢 Build']], c.column, (to) => post('move', { id: c.id, to }, to === 'build' ? 'In build' : 'Back to proposed', moveBack(c.id, c.column, to)))

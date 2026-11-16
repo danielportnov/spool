@@ -702,7 +702,8 @@ to Fable (`claude -p --model fable --effort high`), which reads its brief and de
 works it and at what effort, told to lean bigger and heavier than the thread seems to need; it may
 take the thread itself. Its choice and its reason go on the thread's log, and the run uses it.
 Your own pick always wins: the **Model** and **Effort** fields on the ticket (left unset, they
-say Fable decides, and what the size would give), or
+say Fable decides, and what the size would give; once a thread has run, they show the model and
+effort its agent's command really named, and where it named none, the boxes are for the next run), or
 `spool edit <id> --model opus --effort high` (`none` hands either back). Where Fable cannot
 answer, the size decides, on the big side: a tiny thread gets Sonnet at medium, a small one Opus at
 high, a medium one Opus at xhigh, a large one Fable at high, and a huge one Fable at xhigh. A
