@@ -1,0 +1,6 @@
+# Starting a new session with an id already used: refused before anything is read.
+# Recorded from Claude Code 2.1.325. > is what was written to its stdin, < what it printed, ! its stderr; the number is seconds into the recording.
+# 3.3 claude -p --model haiku --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool stdio --session-id 3486a718-65b8-4df5-8fcc-2b9cd7a75f45 --safe-mode   (in /work/skyhop)
+> 3.3 {"type":"user","message":{"role":"user","content":"Do not use any tools. Reply with exactly the one word: fig"}}
+! 3.4 Error: Session ID 3486a718-65b8-4df5-8fcc-2b9cd7a75f45 is already in use.
+# 3.4 exit 1
