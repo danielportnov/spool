@@ -42,8 +42,8 @@ const alive = (pid: number): boolean => {
 test('a check that hangs is ended at its limit, its thread refused, and the landing behind it carries on', async () => {
   const s = repo();
   // A thread without ok.txt hangs, and leaves a grandchild running that holds the pipe; one with it passes.
-  s.exec(['checks', 'test -f ok.txt || { sleep 61 & echo $! > "$HOME/grandchild.pid"; sleep 60; }', '--timeout', '0.05'], { tty: true });
-  assert.match(s.sp('checks'), /ended after 0\.05 minutes/);
+  s.exec(['checks', 'test -f ok.txt || { sleep 91 & echo $! > "$HOME/grandchild.pid"; sleep 90; }', '--timeout', '0.25'], { tty: true });
+  assert.match(s.sp('checks'), /ended after 0\.25 minutes/);
   const [hung, fine] = [['hang', 'a.txt'], ['fine', 'ok.txt']].map(([name, file]) => {
     const id = s.id('task', `Add ${name}`);
     s.sp('start', id, '--worktree');
@@ -63,7 +63,7 @@ test('a check that hangs is ended at its limit, its thread refused, and the land
 
   const [refused, landed] = await Promise.all([first, second]);
   assert.equal(refused.ok, false);
-  assert.match(refused.out, /the check took longer than 0\.05 minutes/);
+  assert.match(refused.out, /the check took longer than 0\.25 minutes/);
   assert.equal(s.json('show', hung).item.status === 'done', false);
   assert.equal(landed.ok, true, landed.out);
   assert.equal(s.json('show', fine).item.status, 'done');
