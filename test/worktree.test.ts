@@ -253,8 +253,9 @@ test('a failing check lands nothing, loose work is not left behind, and the chec
 
 test('landing stamps each commit with its thread, agent and model, keeps what was there, and leaves the author alone', () => {
   const s = repo();
-  // The check sees the stamped commits: it writes down the foot of the branch tip it ran on.
-  s.sp('checks', 'git log -1 --format=%B | grep -c "^Spool-Model: opus$" > "$HOME/checked.txt"');
+  // The check sees the stamped commits: it writes down the foot of the branch tip it ran on. Codex
+  // builds an unsized thread on its own ladder's Sol, at its lean.
+  s.sp('checks', 'git log -1 --format=%B | grep -c "^Spool-Model: gpt-6.1-sol$" > "$HOME/checked.txt"');
   const base = s.git('rev-parse', 'HEAD');
   const id = s.id('task', 'Tighten the jump');
   s.sp('--as', 'Codex GPT-6', 'next', '--claim', '--worktree');
@@ -270,12 +271,12 @@ test('landing stamps each commit with its thread, agent and model, keeps what wa
   assert.equal(s.read('.home/checked.txt').trim(), '1', 'the check ran on the stamped commits');
   assert.equal(
     s.git('log', '-1', '--format=%B', 'HEAD~1').trim(),
-    `Tighten the jump\n\nSpool: ${id}\nSpool-Agent: Codex GPT-6\nSpool-Model: opus`,
+    `Tighten the jump\n\nSpool: ${id}\nSpool-Agent: Codex GPT-6\nSpool-Model: gpt-6.1-sol`,
     'a commit with no trailers gets all three',
   );
   assert.equal(
     s.git('log', '-1', '--format=%B').trim(),
-    `Soften the landing\n\n---\nnot a divider\n\nSpool: ${id}\nSpool-Agent: Codex\nCo-Authored-By: Someone <s@example.com>\nSpool-Model: opus`,
+    `Soften the landing\n\n---\nnot a divider\n\nSpool: ${id}\nSpool-Agent: Codex\nCo-Authored-By: Someone <s@example.com>\nSpool-Model: gpt-6.1-sol`,
     'what a commit already said is kept, and not said twice',
   );
   assert.equal(s.git('log', '--format=%an <%ae> %at', `${base}..HEAD`), authors, 'the author is untouched');
