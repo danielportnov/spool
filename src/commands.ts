@@ -12,7 +12,7 @@ import { agentsCommand } from './agents-switch.ts';
 import { ATTACH } from './attach.ts';
 import { ADOPT, strayFixes, strayLines, straysOf } from './strays.ts';
 import { builderCommand } from './builder.ts';
-import { type Picked, builderLine, effortOf, modelOf, pickFor, pickLabel } from './agent.ts';
+import { type Picked, builderLine, effortOf, modelOf, pickFor, pickLabel, ranOn } from './agent.ts';
 import { morning, morningText } from './brief.ts';
 import { DISABLE, ENABLE } from './off.ts';
 import { HARNESSES, describe, harness, installFor, installedAnywhere, others } from './harness.ts';
@@ -98,7 +98,7 @@ import { alikeIn, alikeLines, similarLines, similarTo } from './similar.ts';
 import { addQuote, setLine, visionQuote } from './sprints.ts';
 import { SUGGEST, suggestSkills } from './suggest.ts';
 import { standingLines, standingOf } from './standing.ts';
-import { type Landing, type Opened, closeWorktree, land, openWorktree } from './worktree.ts';
+import { type Landing, type Opened, closeWorktree, land, landingTrailers, openWorktree } from './worktree.ts';
 
 export type Options = NonNullable<ParseArgsConfig['options']>;
 export type Values = Record<string, string | boolean | (string | boolean)[] | undefined>;
@@ -336,7 +336,9 @@ function beforeDone(call: Bare): Finishing | undefined {
   if (task.worktree) {
     // What the command is about to refuse is left for it to refuse, before anything is landed.
     if (isClosed(task) || task.status === 'proposed' || !summaryOf(call)) return undefined;
-    const landing = land(task, (cwd) => (command ? runCheck(ctx, command, cwd) : undefined));
+    // Git itself is told whose work it is: the one finishing it, or the one who claimed it where that is only "agent".
+    const agent = [call.actor, task.by].find((who) => who && who !== 'agent');
+    const landing = land(task, (cwd) => (command ? runCheck(ctx, command, cwd) : undefined), landingTrailers(task.id, agent, ranOn(task)));
     return { checked: landing.checked, landing };
   }
   return command ? { checked: runCheck(ctx, command, task.spool.root) } : undefined;

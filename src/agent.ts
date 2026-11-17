@@ -151,6 +151,22 @@ function givenBy(what: string): Pick | undefined {
 }
 
 /**
+ * The model the thread's current run is on, where Spool knows it: the `--model` of the command
+ * the page or the loop handed it to, or, for a chat's subagent, the model its claim named
+ * ("builder model: opus · medium"). Nothing where the run was handed to a command that names
+ * none, or the last claim left no line: an older run's model is not this one's.
+ */
+export function ranOn(task: Item): string | undefined {
+  const lines = splitBody(task.body).log.map(said);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const given = givenBy(lines[i]!);
+    if (given) return given.model;
+    if (/^(started\b|picked up after)/.test(lines[i]!)) return undefined;
+  }
+  return undefined;
+}
+
+/**
  * Why the last run did not work, read from what happened to the thread after it was given out,
  * or nothing where it did. Two things count: its work was undone (reverted, or taken back from
  * done), and it ended without finishing (its agent left, whether or not its check had failed).

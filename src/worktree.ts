@@ -21,7 +21,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { git, real, resolveCommit } from './git.ts';
+import { type Trailer, git, real, resolveCommit, stampCommits } from './git.ts';
 import { type Item, SpoolError } from './model.ts';
 import { WORKTREES_DIR } from './store.ts';
 
@@ -319,15 +319,31 @@ export interface Landing<T = unknown> {
 }
 
 /**
- * Land a thread's work on the checkout: rebase its branch onto the checkout's HEAD, run `check`
- * in the worktree on the rebased tree, and fast-forward the checkout's branch to it. `check` is
- * given the folder to run in and refuses the landing by throwing.
+ * The lines `spool done` puts at the foot of each commit it lands, so git itself says which
+ * thread it was for, who built it and on what: `Spool: <id>`, `Spool-Agent: <name>` and, where
+ * Spool knows what ran, `Spool-Model: <model>`. A commit that already says one keeps its own: a
+ * hand-written `Spool:` naming another thread is kept beside this one, never replaced.
+ */
+export function landingTrailers(id: string, agent?: string, model?: string): Trailer[] {
+  return [
+    { key: 'Spool', value: id },
+    ...(agent ? [{ key: 'Spool-Agent', value: agent, once: true }] : []),
+    ...(model ? [{ key: 'Spool-Model', value: model, once: true }] : []),
+  ];
+}
+
+/**
+ * Land a thread's work on the checkout: rebase its branch onto the checkout's HEAD, stamp each of
+ * its commits with `trailers`, run `check` in the worktree on the result, and fast-forward the
+ * checkout's branch to it. The commits are the thread's own until then, on no branch but its, so
+ * rewriting their messages is safe. `check` is given the folder to run in and refuses the landing
+ * by throwing.
  *
  * Every refusal leaves the checkout where it was and the worktree with all its commits. On
  * success the landing lock is still held, so the thread can be recorded done and its worktree
  * removed before the next thread lands: the caller lets go with `release`.
  */
-export function land<T>(task: Item, check: (cwd: string) => T, waitMs = LAND_WAIT_MS): Landing<T> {
+export function land<T>(task: Item, check: (cwd: string) => T, trailers: Trailer[] = [], waitMs = LAND_WAIT_MS): Landing<T> {
   const at = locate(task);
   if (!at || !isWorktree(at.dir)) {
     throw new SpoolError(
@@ -369,6 +385,9 @@ export function land<T>(task: Item, check: (cwd: string) => T, waitMs = LAND_WAI
           '  Resolve each conflict, git add it, git rebase --continue. Then run spool done again.',
       );
     }
+    // Stamped before the check, so what is checked is what lands. Run again after a refusal, nothing is doubled.
+    const stamped = stampCommits(at.dir, onto, trailers);
+    if (!stamped.ok) throw new SpoolError(stamped.error, 'Nothing was landed. Run spool done again.');
     const commits = git(at.dir, ['rev-list', '--reverse', `${onto}..HEAD`]).out.split('\n').filter(Boolean);
 
     // Looked at before the check, which may be a long one: the fast-forward would be refused over these.

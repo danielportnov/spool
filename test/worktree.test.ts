@@ -76,7 +76,7 @@ test('three threads built at once, each in its own worktree, land as three clean
 
   assert.equal(s.git('log', '--format=%s', `${base}..HEAD`), 'Add c\nAdd a\nAdd b', 'one commit a thread, in the order they finished');
   assert.equal(s.git('rev-list', '--merges', 'HEAD'), '', 'a straight line, with no merge commits');
-  assert.equal(s.git('log', '-1', '--format=%B').trim(), `Add c\n\nSpool: ${c}`);
+  assert.equal(s.git('log', '-1', '--format=%B').trim(), `Add c\n\nSpool: ${c}\nSpool-Model: opus`, 'its claim named the model, and nobody signed it');
   assert.deepEqual(['a.txt', 'b.txt', 'c.txt'].map((f) => s.read(f)), ['a\n', 'b\n', 'c\n']);
   assert.equal(s.git('status', '--porcelain'), '');
   assert.deepEqual(fs.readFileSync(path.join(s.root, '.home', 'ran.txt'), 'utf8').trim().split('\n'), [`${dir(b)} b`, `${dir(a)} ab`, `${dir(c)} abc`], 'each check ran in its worktree, on the rebased tree');
@@ -248,6 +248,61 @@ test('a failing check lands nothing, loose work is not left behind, and the chec
   assert.deepEqual([done.task.checked, done.landed.length, done.task.commits.length], ['test -f passed.txt', 2, 2]);
   assert.deepEqual([s.read('jump.txt'), s.read('passed.txt')], ['snappy\n', 'ok\n']);
   assert.equal(s.git('log', '--format=%s', '-2'), 'Pass the check\nTighten the jump');
+  s.cleanup();
+});
+
+test('landing stamps each commit with its thread, agent and model, keeps what was there, and leaves the author alone', () => {
+  const s = repo();
+  // The check sees the stamped commits: it writes down the foot of the branch tip it ran on.
+  s.sp('checks', 'git log -1 --format=%B | grep -c "^Spool-Model: opus$" > "$HOME/checked.txt"');
+  const base = s.git('rev-parse', 'HEAD');
+  const id = s.id('task', 'Tighten the jump');
+  s.sp('--as', 'Codex GPT-6', 'next', '--claim', '--worktree');
+  const w = s.cd(`.spool/worktrees/${id}`);
+  w.write('jump.txt', 'snappy\n');
+  w.commitAll('Tighten the jump');
+  w.write('land.txt', 'soft\n');
+  w.commitAll(`Soften the landing\n\n---\nnot a divider\n\nSpool: ${id}\nSpool-Agent: Codex\nCo-Authored-By: Someone <s@example.com>`);
+  const authors = w.git('log', '--format=%an <%ae> %at', `${base}..HEAD`);
+
+  const done = w.json('--as', 'Codex GPT-6', 'done', id, '-m', 'Snappier');
+  assert.equal(done.landed.length, 2);
+  assert.equal(s.read('.home/checked.txt').trim(), '1', 'the check ran on the stamped commits');
+  assert.equal(
+    s.git('log', '-1', '--format=%B', 'HEAD~1').trim(),
+    `Tighten the jump\n\nSpool: ${id}\nSpool-Agent: Codex GPT-6\nSpool-Model: opus`,
+    'a commit with no trailers gets all three',
+  );
+  assert.equal(
+    s.git('log', '-1', '--format=%B').trim(),
+    `Soften the landing\n\n---\nnot a divider\n\nSpool: ${id}\nSpool-Agent: Codex\nCo-Authored-By: Someone <s@example.com>\nSpool-Model: opus`,
+    'what a commit already said is kept, and not said twice',
+  );
+  assert.equal(s.git('log', '--format=%an <%ae> %at', `${base}..HEAD`), authors, 'the author is untouched');
+  assert.deepEqual([...done.task.commits].sort(), s.git('rev-list', `${base}..HEAD`).split('\n').sort(), 'the stamped commits are the ones on record');
+  s.cleanup();
+});
+
+test('stamping again after a refused landing doubles nothing, and a run handed to a command takes the model it named', () => {
+  const s = repo();
+  s.sp('checks', 'test -f passed.txt');
+  const id = s.id('task', 'Tighten the jump');
+  s.sp('--as', 'Claude Sonnet 5.5', 'start', id, '--worktree');
+  // As the page leaves it when it hands a thread to its agent.
+  s.sp('--as', 'page', 'log', id, 'handed to `claude -p --model claude-sonnet-5-5 --effort medium`');
+  const w = s.cd(`.spool/worktrees/${id}`);
+  w.write('jump.txt', 'snappy\n');
+  w.commitAll('Tighten the jump');
+  w.fails('--as', 'Claude Sonnet 5.5', 'done', id, '-m', 'Snappier');
+  w.write('passed.txt', 'ok\n');
+  w.commitAll('Pass the check');
+  w.sp('--as', 'Claude Sonnet 5.5', 'done', id, '-m', 'Snappier');
+  for (const subject of ['Tighten the jump', 'Pass the check']) {
+    assert.equal(
+      s.git('log', '-1', '--format=%B', `--grep=^${subject}$`).trim(),
+      `${subject}\n\nSpool: ${id}\nSpool-Agent: Claude Sonnet 5.5\nSpool-Model: claude-sonnet-5-5`,
+    );
+  }
   s.cleanup();
 });
 
