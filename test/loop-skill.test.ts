@@ -29,7 +29,7 @@ test('the loop skill has one job: make this chat the builder', () => {
   assert.match(flat, /`--as` signs the work, as in `--as "Claude Fable 5\.2"`: the board shows who built each thread\./);
   assert.match(flat, /sign every `spool` command the same way/);
   // Each subagent runs on the model its claim names: the smallest that can build the thread, so building several spends less.
-  assert.match(flat, /Start it on the model and effort the brief's `MODEL` line names \(`model` and `effort` on Claude Code's Agent tool\): the smallest that can build it\./);
+  assert.match(flat, /Start it on the model and effort the brief's `MODEL` line names \(`model` and `effort` on Claude Code's Agent tool\), the smallest that can build it; another\? Claim it with `--model <that model>`\./);
   // They can steer while it builds; everything else they say is /spool's.
   assert.match(flat, /\*\*They can steer at any time\.\*\* Their words on a thread being built change it at once: pass them on, and say what changed in a line\. Everything else they say is for the `spool` skill, which has the one table\./);
 

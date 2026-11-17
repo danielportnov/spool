@@ -42,9 +42,7 @@ says, three unless they set it.
 - Claim each with `spool next --claim --worktree --as "<your model>"`, or
   `spool start <t-id> --worktree --as "<your model>"`. It prints the brief,
   and the brief names the folder to work in. `--as` signs the work, as in
-  `--as "Claude Fable 5.2"`: the board shows who built each thread. Add
-  `--model <model>` with the model you start its subagent on, so the thread
-  logs what it was built on.
+  `--as "Claude Fable 5.2"`: the board shows who built each thread.
 - Give each to a fresh subagent, in the background, with: the brief as
   printed, that folder, the worker's rules (`spool prime worker`), and this:
   work only in that folder; commit there, every commit ending with the
@@ -53,8 +51,8 @@ says, three unless they set it.
   A question about how something looks gives each option in its report as
   a small mockup or its code. A landing that is refused is fixed there and
   tried again, never forced. Start it on the model and effort the brief's
-  `MODEL` line names (`model` and `effort` on Claude Code's Agent tool):
-  the smallest that can build it.
+  `MODEL` line names (`model` and `effort` on Claude Code's Agent tool), the
+  smallest that can build it; another? Claim it with `--model <that model>`.
 - Meanwhile you build nothing yourself. Say one line as each thread starts
   ("🧵 Starting the jump: more gravity, less hang time") and one as each
   lands ("✅ The jump: it lands in half the time"), notify them of each
