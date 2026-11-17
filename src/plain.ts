@@ -55,6 +55,9 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
     return model ? `Handed to an agent on ${modelWords(`${model}${effort ? ` · ${effort}` : ''}`)}` : m[0];
   }],
   [/^agent (.+?) without finishing; back in build$/, (m) => `The agent ${m[1]} without finishing. Back in Build`],
+  [/^opened in Claude Code, in session \S+?(, a new one)?$/, (m) => `Opened in Claude Code${m[1] ? ', in a new session' : ''}`],
+  [/^handed back from Claude Code; back in build$/, () => 'Handed back from Claude Code, for the agent to finish. Back in Build'],
+  [/^stopped in Claude Code; back in build$/, () => 'Closed Claude Code and left it stopped. Back in Build'],
 ];
 
 /** One of Spool's own lines in plain words, or the line itself where it is not one of them. */

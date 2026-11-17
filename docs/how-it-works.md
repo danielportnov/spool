@@ -815,6 +815,17 @@ does one whose session cannot be picked up, because the agent command is not `cl
 no longer has the session; its log says which. What the page remembers of a session is beside the
 thread's transcripts, in `.spool/runs/<id>/session.json`.
 
+**Open a thread in Claude Code.** `spool open <id>`, in a terminal, lends it to the thread's
+session: the page's agent is stopped first, the thread is yours while Claude Code is open (no agent
+takes it), and the terminal becomes `claude --resume <session>` in the thread's folder. Type to it as
+to any Claude Code session. When you quit, the thread is done if `spool done` ran there; otherwise
+one question: hand it back to the agent (`h`), and the page carries it on in that same session, or
+leave it stopped (`s`, the default), to open again or carry on from the board. `--then back` or
+`--then stop` answers it ahead. A thread with no session Spool knows (one nobody has started, or
+one in Chat mode, where a chat's subagents build) opens in a new session in its worktree, with its
+brief as the first message; handed back, the page carries that one on too, and in Chat mode it
+waits in Build for the chat. A thread another agent has claimed is not taken from it.
+
 **A run that was cut off carries on.** A page that is killed outright, or a machine that goes
 down, leaves its threads marked as being built with nobody building them. The next page to start
 finds them. With agents on, each that was in a Claude session is carried on there at once, in the

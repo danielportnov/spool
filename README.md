@@ -334,6 +334,9 @@ the target, by default; `spool target --headroom` changes it), says which it pas
 up what it is building.
 An agent that runs out mid-thread hands it off (`spool handoff`): its work is committed, and the
 thread goes back to Build for another agent or a smaller model to carry on from its note.
+`spool open <id>` opens a thread's Claude session in your terminal: the agent lets go, you type to
+it in Claude Code, and when you quit you hand it back to the agent, which finishes it in the same
+session, or leave it stopped.
 
 Beside the usage, you can give the agents a **time to work**: how long (`spool for 2h`) or until
 when (`spool until 1:00`), under Settings or from the chat. It counts as a budget, like the usage: as
