@@ -2009,7 +2009,7 @@ document.addEventListener('click', (e) => {
 
 // ---- Settings: every choice about how this spool runs, in one place, each with what it does and its command
 
-const GEAR = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M3.4 12.6l1.3-1.3M11.3 4.7l1.3-1.3"/></svg>';
+const GEAR = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M6.7 1.5h2.6l.4 2.1 1.3.6 1.8-1.2 1.8 1.8-1.2 1.8.6 1.3 2.1.4v2.6l-2.1.4-.6 1.3 1.2 1.8-1.8 1.8-1.8-1.2-1.3.6-.4 2.1H6.7l-.4-2.1-1.3-.6-1.8 1.2-1.8-1.8 1.2-1.8-.6-1.3-2.1-.4V6.7l2.1-.4.6-1.3-1.2-1.8 1.8-1.8 1.8 1.2 1.3-.6z"/><circle cx="8" cy="8" r="2.2"/></svg>';
 let settingsOpen = false;
 // Each row's own fill, run on every board drawn while the panel is open.
 let settingsFills = [];
