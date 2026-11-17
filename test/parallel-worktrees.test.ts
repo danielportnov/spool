@@ -108,7 +108,8 @@ test('three threads moved to Build are built at once, each in a worktree of its 
     // Three commits in a straight line on the checkout, one a thread, each with its trailer; nothing else left behind.
     const landed = s.git('log', '--format=%B%x00', `${base}..HEAD`).split('\0').map((m) => m.trim()).filter(Boolean);
     assert.equal(landed.length, 3);
-    assert.deepEqual(landed.map((m) => /Spool: (t-\w+)$/.exec(m)?.[1]).sort(), [...ids].sort());
+    assert.deepEqual(landed.map((m) => /^Spool: (t-\w+)$/m.exec(m)?.[1]).sort(), [...ids].sort());
+    assert.ok(landed.every((m) => /^Spool-Agent: agent\.sh$/m.test(m)), 'the page\'s agent is named on each, as it signs');
     assert.equal(s.git('rev-list', '--merges', 'HEAD'), '');
     assert.deepEqual(ids.map((id) => s.read(`file-${id}.txt`)), ids.map((id) => `${id}\n`));
     assert.equal(s.git('status', '--porcelain'), '');

@@ -296,7 +296,7 @@ test('stamping again after a refused landing doubles nothing, and a run handed t
   w.fails('--as', 'Claude Sonnet 5.5', 'done', id, '-m', 'Snappier');
   w.write('passed.txt', 'ok\n');
   w.commitAll('Pass the check');
-  w.sp('--as', 'Claude Sonnet 5.5', 'done', id, '-m', 'Snappier');
+  assert.doesNotMatch(w.sp('--as', 'Claude Sonnet 5.5', 'done', id, '-m', 'Snappier'), /not stamped|No commits found/);
   for (const subject of ['Tighten the jump', 'Pass the check']) {
     assert.equal(
       s.git('log', '-1', '--format=%B', `--grep=^${subject}$`).trim(),
@@ -365,6 +365,11 @@ test('without --worktree nothing changes, and where there can be no worktree it 
   const done = s.json('done', id, '-m', 'Snappier');
   assert.deepEqual([done.task.commits, 'landed' in done], [[sha], false]);
   assert.equal(s.git('log', '-1', '--format=%H%n%B').trim(), `${sha}\nTighten the jump\n\nSpool: ${id}`, 'built in the project, it may be pushed: it is not rewritten');
+  const other = s.id('task', 'Soften the landing');
+  s.sp('start', other);
+  s.write('land.txt', 'soft\n');
+  s.commitAll(`Soften the landing\n\nSpool: ${other}`);
+  assert.match(s.sp('done', other, '-m', 'Softer'), /1 commit\(s\) on record — spool revert .* would undo them\n {2}built in the project's folder, so its commits were not stamped with who built them\n/);
   assert.doesNotMatch(s.item(id), /worktree|branch|landed/);
   assert.deepEqual([s.git('worktree', 'list').split('\n').length, s.git('branch', '--list', 'spool/*')], [1, '']);
 
