@@ -10,7 +10,7 @@
  *
  * Each entry also holds the sizes it takes (minSize, maxSize): a claim outside them is refused, and
  * `spool next --claim` and `spool build --takeover` pass those threads over. No size counts as medium.
- * It is where each agent's other settings go as they come: its usage limit.
+ * Each agent's usage, its own reading against its own target, is shown with it (usage.ts `usageOf`).
  */
 
 import { type Ctx, parallelOf, saveUserConfig, userConfig } from './context.ts';
@@ -19,6 +19,7 @@ import { type Item, SIZES, type Size, type Spool, SpoolError, oneLine } from './
 import { taskState, tasks } from './schedule.ts';
 import { sharedFolderWhy } from './slots.ts';
 import type { Workspace } from './store.ts';
+import { type Usage, usageOf } from './usage.ts';
 import { watcherList } from './watch.ts';
 
 export interface RosterEntry {
@@ -224,6 +225,8 @@ export interface AgentView {
   /** Whether it is on the roster; a watcher that is not is shown anyway. */
   listed: boolean;
   building: { id: string; title: string }[];
+  /** Its own plan's usage: the target it is held to, its last reading, and what that reading reached. */
+  usage: Usage;
 }
 
 export function rosterView(ctx: Ctx, ws: Workspace, spool: Spool): AgentView[] {
@@ -246,6 +249,7 @@ export function rosterView(ctx: Ctx, ws: Workspace, spool: Spool): AgentView[] {
       how: e.kind === 'headless' ? 'Headless' : 'Chat loop',
       listed: true,
       building: heldBy(ws, spool, e).map((t) => ({ id: t.id, title: oneLine(t.title, 90) })),
+      usage: usageOf(ctx, e.name),
     };
   });
   // A watch signed as an agent that is not on the roster: shown anyway, with no count of its own.
@@ -267,6 +271,7 @@ export function rosterView(ctx: Ctx, ws: Workspace, spool: Spool): AgentView[] {
       how: 'Another agent',
       listed: false,
       building: heldBy(ws, spool, e).map((t) => ({ id: t.id, title: oneLine(t.title, 90) })),
+      usage: usageOf(ctx, e.name),
     });
   }
   return views;

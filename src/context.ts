@@ -116,6 +116,11 @@ export interface UserConfig {
    */
   workUntil?: { end: string; from: string };
   /**
+   * Each agent's own usage target, by its name on the roster: `{ "Codex": { "weekly": 50 } }`. Each
+   * agent's plan is its own, so it is held to its own line; a limit it has none for takes `usageTarget`.
+   */
+  agentTargets?: Record<string, { weekly?: number; fiveHour?: number; fable?: number }>;
+  /**
    * For each project, by the path of its folder: `true` where the chat that builds it in Chat mode
    * takes over the backlog, moving threads to Build itself up to the usage target. See takeover.ts.
    */

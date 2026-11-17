@@ -144,7 +144,7 @@ export function fixture(): Board {
       recent: [],
       typing: [],
     },
-    usage: { target: {}, read: null, reached: [], fableCap: null },
+    usage: { agent: 'Claude', target: {}, own: {}, cannotRead: false, read: null, reached: [], fableCap: null },
     notices: { on: ['question', 'empty', 'stuck', 'budget'], default: true, notifier: '' },
     sprints: [{ id: 'r-f331', name: 'Feel', status: 'running', goal: 'The game feels tight to play.', why: 'Players drop off in the first minute.', doneWhen: 'Five people finish level one without asking how to jump.', serves: '', vision: '', version: '', started: '2026-01-01T09:00:00Z', reached: '', total: 7, done: 2, waiting: 2 }],
     columns: { proposed, build, building, done },

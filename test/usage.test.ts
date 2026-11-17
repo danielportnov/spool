@@ -117,7 +117,7 @@ test('the board carries the target and the last reading, and the page sets the t
   const post = async (body: unknown): Promise<any> =>
     (await fetch(`${page.url}api/target`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': page.token }, body: JSON.stringify(body) })).json();
   try {
-    assert.deepEqual((await board()).usage, { target: {}, read: null, reached: [], fableCap: null });
+    assert.deepEqual((await board()).usage, { agent: 'Claude', target: {}, own: {}, cannotRead: false, read: null, reached: [], fableCap: null, all: {} });
     s.sp('target', '--weekly', '80');
     s.sp('usage', '--weekly', '62', '--five-hour', '18', '--as', 'Claude Opus 5.5');
     const { usage } = await board();
@@ -168,6 +168,82 @@ test('Fable has its own weekly figure and target: spent, a thread set to Fable o
     assert.equal(s.json('usage', '--fable', '94').fableCap, null);
     assert.equal(s.json('usage', '--fable', '95').fableCap, 95);
   } finally {
+    s.cleanup();
+  }
+});
+
+test('each agent is held to its own target: Codex stops at 50% while Claude keeps going to 80%', () => {
+  const s = spool();
+  try {
+    s.gitInit();
+    s.write('.gitignore', '.home/\n');
+    s.commitAll('start');
+    s.sp('builder', 'chat');
+    for (const agent of ['Claude', 'Codex']) s.sp('builder', '--agent', agent, '--at-once', '3');
+    const threads = Array.from({ length: 4 }, (_, i) => s.id('task', `Thread ${i + 1}`));
+    for (const t of threads) s.sp('build', t);
+
+    // The target for all is Claude's; Codex has one of its own, any other limit taken from the one for all.
+    s.sp('target', '--weekly', '80', '--five-hour', '90');
+    assert.match(s.sp('target', '--agent', 'codex', '--weekly', '50'), /^Codex's usage target: weekly 50%, 5-hour 90% \(its own weekly 50%\)\. Codex works up to it/);
+    assert.deepEqual(config(s).agentTargets, { Codex: { weekly: 50 } });
+    assert.match(s.sp('target'), /^Usage target: weekly 80%, 5-hour 90%\.[^\n]*\n {2}Codex: weekly 50%, its own\./);
+    assert.deepEqual(s.json('target', '--agent', 'Claude').target, { weekly: 80, fiveHour: 90 });
+
+    // Each reports its own plan, signed with its name, and hears its own answer.
+    assert.equal(s.sp('usage', '--weekly', '60', '--five-hour', '10', '--as', 'Claude Opus 5.5'), 'Keep building: weekly 60% of 80%, 5-hour 10% of 90%.');
+    assert.match(s.sp('usage', '--weekly', '55', '--five-hour', '10', '--as', 'Codex GPT-6'), /^Stop: Codex's usage target is reached, weekly 55% of 50%, 5-hour 10% of 90%\./);
+    const kept = JSON.parse(fs.readFileSync(readingFile(s), 'utf8'));
+    assert.deepEqual(Object.keys(kept.agents), ['Claude', 'Codex']);
+    assert.equal(kept.by, 'Codex GPT-6', 'the last reading of all stays at the top, as it was');
+    assert.deepEqual(s.json('usage', '--as', 'Claude Opus 5.5').read.used, { weekly: 60, fiveHour: 10 });
+
+    // Codex takes no new thread; Claude keeps going.
+    assert.match(s.fails('next', '--claim', '--as', 'Codex GPT-6'), /Codex's usage target is reached, weekly 55% of 50%[\s\S]*spool target --agent Codex/);
+    assert.match(s.sp('next', '--claim', '--as', 'Claude Opus 5.5'), /^t-/);
+    // Raised, Codex carries on from the same reading.
+    s.sp('target', '--agent', 'Codex', '--weekly', '70');
+    assert.match(s.sp('next', '--claim', '--as', 'Codex GPT-6'), /^t-/);
+    // Its own taken off, it is held to the one for all again.
+    s.sp('target', '--agent', 'Codex', '--weekly', 'none');
+    assert.equal(config(s).agentTargets, undefined);
+    assert.deepEqual(s.json('usage', '--as', 'Codex').target, { weekly: 80, fiveHour: 90 });
+
+    // A reading from the last half hour only: an old one refuses nothing, the agent reads it again first.
+    s.sp('target', '--agent', 'Codex', '--weekly', '50');
+    s.sp('usage', '--weekly', '55', '--as', 'Codex');
+    s.advance(1);
+    assert.match(s.sp('next', '--claim', '--as', 'Codex GPT-6'), /^t-/);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('an agent that cannot read its usage says so, and the board shows each agent against its own target', async () => {
+  const s = spool();
+  s.sp('builder', 'chat');
+  const page = await startPage(s);
+  const board = async (): Promise<any> => (await fetch(`${page.url}api/board`)).json();
+  const post = async (body: unknown): Promise<any> =>
+    (await fetch(`${page.url}api/target`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': page.token }, body: JSON.stringify(body) })).json();
+  try {
+    s.sp('target', '--weekly', '80');
+    s.sp('usage', '--weekly', '62', '--as', 'Claude Opus 5.5');
+    assert.match(s.sp('usage', '--cannot-read', '--as', 'Codex GPT-6'), /^Noted: Codex cannot read its usage\. The board says so/);
+    assert.match(s.fails('usage', '--cannot-read', '--weekly', '4', '--as', 'Codex'), /give one or the other/);
+    // From Settings, an agent's own target.
+    assert.equal((await post({ agent: 'Codex', weekly: 50 })).ok, true);
+    assert.deepEqual(config(s).agentTargets, { Codex: { weekly: 50 } });
+    const b = await board();
+    assert.deepEqual(b.usage.all, { weekly: 80 });
+    const [claude, codex] = b.runner.agents.map((a: any) => a.usage);
+    assert.deepEqual([claude.agent, claude.target, claude.read.used, claude.cannotRead], ['Claude', { weekly: 80 }, { weekly: 62 }, false]);
+    assert.deepEqual([codex.agent, codex.target, codex.own, codex.cannotRead, codex.read.by], ['Codex', { weekly: 50 }, { weekly: 50 }, true, 'Codex GPT-6']);
+    assert.match(s.sp('usage', '--as', 'Codex'), /Codex GPT-6 said \S+ ago that it cannot read its usage, so it is not held to a target\./);
+    assert.equal((await post({ agent: 'Codex', weekly: null })).ok, true);
+    assert.equal(config(s).agentTargets, undefined);
+  } finally {
+    await page.stop();
     s.cleanup();
   }
 });

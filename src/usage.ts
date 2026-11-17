@@ -11,10 +11,18 @@
  * a service, and a work queue has no business doing either. It keeps what the chat tells it. The
  * plan is the account's, so the target is too: it is kept in the user's own settings and holds in
  * every project. The last figures read are kept beside them, in `usage.json`, for the page to show.
+ *
+ * Several agents can work one spool (roster.ts), each on its own plan: a Claude chat and a Codex
+ * chat. Each reports its own reading, signed with its name (`spool usage --weekly 62 --as "Codex
+ * GPT-6"`), and is held to its own target (`spool target --agent Codex --weekly 50`). A limit an
+ * agent has no target of its own for takes the one set for all. An agent that cannot read its
+ * plan says so (`spool usage --cannot-read`), and the board says it too. `usageOf(ctx, agent)` is
+ * the one way to ask where an agent stands. Fable's own limit is Claude's alone.
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { NOT_AGENTS, signer } from './agent.ts';
 import { type Ctx, configDir, saveUserConfig, userConfig } from './context.ts';
 import { type Item, SIZES, type Size, SpoolError } from './model.ts';
 import { age } from './render.ts';
@@ -34,6 +42,10 @@ const FLAGS: Record<Limit, string> = { weekly: '--weekly', fiveHour: '--five-hou
 const FABLE_NEAR = 95;
 /** A reading older than this no longer says where Fable stands. */
 const FABLE_FRESH_MS = 24 * 3600 * 1000;
+/** A reading older than this is not taken as the usage now: a claim or a take-over is not refused on it. */
+export const FRESH_MS = 30 * 60_000;
+/** Whose a reading or a target is where nobody named an agent: the chat that built before there were several. */
+export const DEFAULT_AGENT = 'Claude';
 
 /** A percent for each limit that has one. */
 export type Figures = Partial<Record<Limit, number>>;
@@ -43,11 +55,19 @@ export interface Reading {
   used: Figures;
   at: string;
   by: string;
+  /** The agent said it has no way to read its plan's usage: `used` is empty. */
+  cannotRead?: boolean;
 }
 
 export interface Usage {
-  /** The human's target for each limit that has one. Empty: no target, and the chat builds as it always did. */
+  /** Whose usage this is: the agent's name, as on the roster. */
+  agent: string;
+  /** The target it is held to for each limit that has one: its own, else the one for all. Empty: no target, and it builds as it always did. */
   target: Figures;
+  /** The target set for this agent alone, each limit it has one for. */
+  own: Figures;
+  /** It said it cannot read its usage, so it is not held to a target. */
+  cannotRead: boolean;
   /** The last reading reported, or null where none has been. */
   read: Reading | null;
   /** The limits whose last reading is at or past their target. */
@@ -59,12 +79,49 @@ export interface Usage {
 const isTarget = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 100;
 const isUsed = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100;
 
-/** The target on file, with anything that is not a whole percent from 1 to 100 left out. */
-export function targetOf(ctx: Ctx): Figures {
-  const set = userConfig(ctx).usageTarget ?? {};
+function cleanTarget(set: Record<string, unknown> | undefined): Figures {
   const out: Figures = {};
-  for (const limit of LIMITS) if (isTarget(set[limit])) out[limit] = set[limit];
+  for (const limit of LIMITS) if (isTarget(set?.[limit])) out[limit] = set![limit] as number;
   return out;
+}
+
+/** The agent an actor is: "Codex GPT-6" is Codex. A name that is no agent's (human, agent) is the default, Claude. */
+export function agentOf(actor: string): string {
+  const agent = signer(actor).agent;
+  return NOT_AGENTS.has(agent.toLowerCase()) ? DEFAULT_AGENT : agent;
+}
+
+const sameAgent = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+
+/** The key a record by agent keeps this agent under, matched without case. */
+function keyIn(record: Record<string, unknown> | undefined, agent: string): string | undefined {
+  return Object.keys(record ?? {}).find((k) => sameAgent(k, agent));
+}
+
+/** The target set for this agent alone. */
+export function ownTargetOf(ctx: Ctx, agent: string): Figures {
+  const all = userConfig(ctx).agentTargets;
+  const key = keyIn(all, agent);
+  return key ? cleanTarget(all![key]) : {};
+}
+
+/** Every agent with a target of its own, and that target. */
+export function ownTargets(ctx: Ctx): Record<string, Figures> {
+  const out: Record<string, Figures> = {};
+  for (const name of Object.keys(userConfig(ctx).agentTargets ?? {})) {
+    const own = ownTargetOf(ctx, name);
+    if (Object.keys(own).length) out[name] = own;
+  }
+  return out;
+}
+
+/**
+ * The target on file, with anything that is not a whole percent from 1 to 100 left out. With no
+ * agent, the one for all; with one, what that agent is held to: its own, and the one for all where it has none.
+ */
+export function targetOf(ctx: Ctx, agent?: string): Figures {
+  const all = cleanTarget(userConfig(ctx).usageTarget);
+  return agent ? { ...all, ...ownTargetOf(ctx, agent) } : all;
 }
 
 function readingFile(ctx: Ctx): string {
@@ -72,23 +129,52 @@ function readingFile(ctx: Ctx): string {
   return dir ? path.join(dir, 'usage.json') : '';
 }
 
-/** The last reading reported, or null where there is none or the file is not one `spool usage` wrote. */
-export function readingOf(ctx: Ctx): Reading | null {
-  const file = readingFile(ctx);
-  if (!file) return null;
-  try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as { used?: Record<string, unknown>; at?: unknown; by?: unknown } | null;
-    if (!parsed || typeof parsed.at !== 'string' || Number.isNaN(Date.parse(parsed.at))) return null;
-    const used: Figures = {};
-    for (const limit of LIMITS) {
-      const v = parsed.used?.[limit];
-      if (isUsed(v)) used[limit] = v;
-    }
-    if (!Object.keys(used).length) return null;
-    return { used, at: parsed.at, by: typeof parsed.by === 'string' ? parsed.by : 'agent' };
-  } catch {
-    return null;
+type RawReading = { used?: Record<string, unknown>; at?: unknown; by?: unknown; cannotRead?: unknown };
+
+/** One reading as kept, or null where it is not one `spool usage` wrote. */
+function cleanReading(raw: RawReading | null | undefined): Reading | null {
+  if (!raw || typeof raw !== 'object' || typeof raw.at !== 'string' || Number.isNaN(Date.parse(raw.at))) return null;
+  const by = typeof raw.by === 'string' ? raw.by : 'agent';
+  if (raw.cannotRead === true) return { used: {}, at: raw.at, by, cannotRead: true };
+  const used: Figures = {};
+  for (const limit of LIMITS) {
+    const v = raw.used?.[limit];
+    if (isUsed(v)) used[limit] = v;
   }
+  if (!Object.keys(used).length) return null;
+  return { used, at: raw.at, by };
+}
+
+/**
+ * What the file holds: the last reading of all (as it always was, for anything that reads it so),
+ * and each agent's own. A file from before there were several is that one reading, by whoever signed it.
+ */
+function readingsFile(ctx: Ctx): { last: RawReading | null; agents: Record<string, RawReading> } {
+  const file = readingFile(ctx);
+  if (!file) return { last: null, agents: {} };
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as (RawReading & { agents?: Record<string, RawReading> }) | null;
+    if (!parsed || typeof parsed !== 'object') return { last: null, agents: {} };
+    const { agents, ...last } = parsed;
+    if (agents && typeof agents === 'object') return { last, agents };
+    const one = cleanReading(last);
+    return { last, agents: one ? { [agentOf(one.by)]: last } : {} };
+  } catch {
+    return { last: null, agents: {} };
+  }
+}
+
+/** The last reading this agent reported (Claude where none is named), or null where there is none. */
+export function readingOf(ctx: Ctx, agent: string = DEFAULT_AGENT): Reading | null {
+  const { agents } = readingsFile(ctx);
+  const key = keyIn(agents, agent);
+  return key ? cleanReading(agents[key]) : null;
+}
+
+/** Every agent that has reported, by name. */
+export function readingAgents(ctx: Ctx): string[] {
+  const { agents } = readingsFile(ctx);
+  return Object.keys(agents).filter((k) => cleanReading(agents[k]));
 }
 
 /** Fable's percent when it is at or over its target (95% where it has none) in a reading read within a day. */
@@ -98,18 +184,41 @@ function fableCapOf(target: Figures, read: Reading | null, now: Date): number | 
   return used >= (target.fable ?? FABLE_NEAR) ? used : null;
 }
 
-/** Fable's percent where no thread should go to Fable now, else undefined. */
+/** Fable's percent where no thread should go to Fable now, else undefined. Fable is Claude's: its reading decides. */
 export function fableCap(ctx: Ctx): number | undefined {
-  const { fableCap: at } = usageOf(ctx);
+  const { fableCap: at } = usageOf(ctx, DEFAULT_AGENT);
   return at ?? undefined;
 }
 
-/** The target, the last reading, and which limits that reading has reached. */
-export function usageOf(ctx: Ctx): Usage {
-  const target = targetOf(ctx);
-  const read = readingOf(ctx);
+/**
+ * Where one agent stands: the target it is held to, its last reading, and which limits that
+ * reading has reached. With no agent named, Claude: the one chat that built before there were several.
+ */
+export function usageOf(ctx: Ctx, agent: string = DEFAULT_AGENT): Usage {
+  const target = targetOf(ctx, agent);
+  const read = readingOf(ctx, agent);
   const reached = STOPS.filter((l) => target[l] !== undefined && read?.used[l] !== undefined && read.used[l]! >= target[l]!);
-  return { target, read, reached, fableCap: fableCapOf(target, read, ctx.now()) };
+  return { agent, target, own: ownTargetOf(ctx, agent), cannotRead: !!read?.cannotRead, read, reached, fableCap: fableCapOf(target, read, ctx.now()) };
+}
+
+/** Where nobody has set or read anything: the board's usage before the page has read any. */
+export function noUsage(): Usage & { all: Figures } {
+  return { agent: DEFAULT_AGENT, target: {}, own: {}, cannotRead: false, read: null, reached: [], fableCap: null, all: {} };
+}
+
+/**
+ * Refuse a claim by an agent whose own reading, read in the last half hour, has reached its own
+ * target. An older reading, or none, refuses nothing: the agent reads it again before it claims.
+ */
+export function refuseOverTarget(ctx: Ctx, actor: string): void {
+  const usage = usageOf(ctx, agentOf(actor));
+  const { read, reached, target } = usage;
+  if (!reached.length || !read || ctx.now().getTime() - Date.parse(read.at) > FRESH_MS) return;
+  const against = reached.map((l) => `${NAMES[l]} ${read.used[l]}% of ${target[l]}%`).join(', ');
+  throw new SpoolError(
+    `${usage.agent}'s usage target is reached, ${against}`,
+    `Claim no new thread: let what is being built land. Read the usage again when one lands, and carry on once it is under. Raising it is the human's: spool target --agent ${usage.agent} --weekly <n>`,
+  );
 }
 
 /**
@@ -155,8 +264,8 @@ export interface Headroom {
  * runs out at 100% whatever the target. The time to work (until.ts) is a budget too, the share of
  * its window gone; once it has passed, nothing fits. The budget nearest its end decides.
  */
-export function headroomOf(ctx: Ctx): Headroom | null {
-  const { target, read } = usageOf(ctx);
+export function headroomOf(ctx: Ctx, agent: string = DEFAULT_AGENT): Headroom | null {
+  const { target, read } = usageOf(ctx, agent);
   const time = timeOf(ctx);
   if (time?.passed) return { used: 100, upTo: 'xs', why: time.why, over: true };
   let worst: { used: number; why: string } | null = time ? { used: time.usedPercent, why: time.why } : null;
@@ -189,8 +298,8 @@ export function fitsHeadroom(h: Headroom | null, size: Size | undefined): boolea
  * The threads a chat may start with the headroom left, and the line that says why the first one
  * it would have taken is passed by, where one is.
  */
-export function withinHeadroom<T extends Pick<Item, 'id' | 'size'>>(ctx: Ctx, list: T[]): { fits: T[]; passed: string | null; headroom: Headroom | null } {
-  const headroom = headroomOf(ctx);
+export function withinHeadroom<T extends Pick<Item, 'id' | 'size'>>(ctx: Ctx, list: T[], agent?: string): { fits: T[]; passed: string | null; headroom: Headroom | null } {
+  const headroom = headroomOf(ctx, agent);
   const fits = list.filter((t) => fitsHeadroom(headroom, t.size));
   const first = list[0];
   const passed = headroom && first && !fits.includes(first) ? passedLine(first, headroom) : null;
@@ -203,8 +312,8 @@ export function passedLine(task: Pick<Item, 'id' | 'size'>, h: Headroom): string
 }
 
 /** Refuse to start a thread too large for the headroom left. One already being built goes on. */
-export function refuseOverHeadroom(ctx: Ctx, task: Item): void {
-  const h = headroomOf(ctx);
+export function refuseOverHeadroom(ctx: Ctx, task: Item, agent?: string): void {
+  const h = headroomOf(ctx, agent);
   if (fitsHeadroom(h, task.size)) return;
   throw new SpoolError(
     `${task.id} is ${(task.size ?? 'm').toUpperCase()}, and the chat is ${headroomText(h!)}`,
@@ -251,6 +360,7 @@ function percentOf(typed: string, limit: Limit, kind: 'target' | 'used'): number
 function readLine(read: Reading | null, now: Date): string {
   if (!read) return 'No usage has been read yet: the chat that builds reports it before each thread.';
   const when = age(read.at, now);
+  if (read.cannotRead) return `${read.by} said ${when === 'now' ? 'just now' : `${when} ago`} that it cannot read its usage, so it is not held to a target.`;
   return `Last read ${when === 'now' ? 'just now' : `${when} ago`} by ${read.by}: ${figuresText(read.used)}.`;
 }
 
@@ -265,8 +375,27 @@ function fableText(usage: Usage): string {
     : `Fable is at ${used}%${against}: threads may still go to Fable.`;
 }
 
+/** Each agent's own target, a line each: "  Codex: weekly 50%, its own." */
+function ownLines(ctx: Ctx): string[] {
+  return Object.entries(ownTargets(ctx)).map(([agent, own]) => `  ${agent}: ${figuresText(own)}, its own. Any other limit is the one for all.`);
+}
+
+/** What one agent's target means, and where its last reading stands against it. */
+function agentText(usage: Usage, now: Date): string {
+  const { agent, target, own, read, reached } = usage;
+  const stops = STOPS.some((l) => target[l] !== undefined);
+  const fable = agent === DEFAULT_AGENT ? fableText(usage) : '';
+  const whose = Object.keys(own).length ? `its own ${figuresText(own)}` : 'none of its own, so the one for all';
+  return [
+    stops ? `${agent}'s usage target: ${figuresText(target)} (${whose}). ${agent} works up to it, then takes no new thread.` : `${agent} has no usage target: it builds what is in Build, whatever the usage.`,
+    `  ${readLine(read, now)}`,
+    ...(fable ? [`  ${fable}`] : []),
+    ...(reached.length ? [`  Reached: ${reached.map((l) => NAMES[l]).join(' and ')}. ${agent} takes no new thread until it is under again, or its target is raised.`] : []),
+  ].join('\n');
+}
+
 /** What the target means, and where the last reading stands against it. */
-function targetText(usage: Usage, now: Date): string {
+function targetText(usage: Usage, now: Date, own: string[] = []): string {
   const { target, read, reached } = usage;
   const stops = STOPS.some((l) => target[l] !== undefined);
   const fable = fableText(usage);
@@ -275,12 +404,14 @@ function targetText(usage: Usage, now: Date): string {
       'No usage target: a chat in Chat mode builds what is in Build, whatever the usage.',
       '  Set one on the page, in the header, or: spool target --weekly 80',
       ...(target.fable !== undefined ? [`  Fable target: ${target.fable}%. No thread goes to Fable once it is there.`] : []),
+      ...own,
       ...(read ? [`  ${readLine(read, now)}`] : []),
       ...(fable ? [`  ${fable}`] : []),
     ].join('\n');
   }
   return [
     `Usage target: ${figuresText(target)}. A chat in Chat mode works up to it, then takes no new thread.`,
+    ...own,
     `  ${readLine(read, now)}`,
     ...(fable ? [`  ${fable}`] : []),
     ...(reached.length ? [`  Reached: ${reached.map((l) => NAMES[l]).join(' and ')}. The chat takes no new thread until it is under again, or the target is raised.`] : []),
@@ -311,13 +442,20 @@ function stepsText(steps: Array<[number, Size]>): string {
   return steps.map(([at, size], i) => `${i ? '' : 'up to '}${size.toUpperCase()} from ${at}%${i ? '' : ' of the budget used'}`).join(', ');
 }
 
-export function targetCommand(ctx: Ctx, typed: Partial<Record<Limit, string>> & { headroom?: string }, guard: () => void): { text: string; data: Usage & { headroom: Array<[number, Size]> } } {
+export function targetCommand(
+  ctx: Ctx,
+  typed: Partial<Record<Limit, string>> & { headroom?: string },
+  guard: () => void,
+  agent?: string,
+): { text: string; data: Usage & { headroom: Array<[number, Size]>; all: Figures; agents: Record<string, Figures> } } {
   const changes = new Map<Limit, number | null>();
   for (const limit of LIMITS) {
     const t = typed[limit];
     if (t !== undefined) changes.set(limit, t.trim().toLowerCase() === 'none' ? null : percentOf(t, limit, 'target'));
   }
-  const before = targetOf(ctx);
+  if (agent !== undefined && !agent.trim()) throw new SpoolError('which agent?', 'spool target --agent Codex --weekly 50');
+  // For one agent, its own: none there means it takes the one for all again.
+  const before = agent ? ownTargetOf(ctx, agent) : targetOf(ctx);
   const steps = typed.headroom !== undefined ? parseHeadroom(typed.headroom) : undefined;
   const stepsChanged = steps !== undefined && JSON.stringify(steps ?? undefined) !== JSON.stringify(userConfig(ctx).headroom);
   if (stepsChanged) {
@@ -336,40 +474,68 @@ export function targetCommand(ctx: Ctx, typed: Partial<Record<Limit, string>> & 
         else next[limit] = value;
       }
       // No target at all is what nothing said means, so nothing is kept for it.
-      if (Object.keys(next).length) config.usageTarget = next;
-      else delete config.usageTarget;
+      if (!agent) {
+        if (Object.keys(next).length) config.usageTarget = next;
+        else delete config.usageTarget;
+        return;
+      }
+      const all = { ...(config.agentTargets ?? {}) };
+      const key = keyIn(all, agent) ?? agent;
+      if (Object.keys(next).length) all[key] = next;
+      else delete all[key];
+      if (Object.keys(all).length) config.agentTargets = all;
+      else delete config.agentTargets;
     });
   }
+  const extra = { all: targetOf(ctx), agents: ownTargets(ctx) };
+  if (agent) {
+    const usage = usageOf(ctx, agent);
+    return { text: agentText(usage, ctx.now()), data: { ...usage, ...extra, headroom: headroomSteps(ctx) } };
+  }
+  // The target for all, against the reading of the chat that always built here.
   const usage = usageOf(ctx);
   const now = headroomSteps(ctx);
   // The headroom is said where it was just set or is not the default; the default goes without saying.
   const say = typed.headroom !== undefined || userConfig(ctx).headroom !== undefined;
   const line = say ? `\n  Near the end of the budget a chat takes ${stepsText(now)}. Back to the default: spool target --headroom default` : '';
-  return { text: `${targetText(usage, ctx.now())}${line}`, data: { ...usage, headroom: now } };
+  return { text: `${targetText({ ...usage, target: extra.all }, ctx.now(), ownLines(ctx))}${line}`, data: { ...usage, ...extra, headroom: now } };
 }
 
 /**
  * `spool usage`: the chat that builds reports the plan's usage it just read, and hears whether the
  * target lets it take another thread. With nothing typed it only says the last reading.
  */
-export function usageCommand(ctx: Ctx, typed: Partial<Record<Limit, string>>, by: string): { text: string; data: Usage & { keepBuilding: boolean } } {
+export function usageCommand(
+  ctx: Ctx,
+  typed: Partial<Record<Limit, string>>,
+  by: string,
+  cannotRead = false,
+): { text: string; data: Usage & { keepBuilding: boolean } } {
   const used: Figures = {};
   for (const limit of LIMITS) {
     const t = typed[limit];
     if (t !== undefined) used[limit] = percentOf(t, limit, 'used');
   }
-  const reported = Object.keys(used).length > 0;
+  if (cannotRead && Object.keys(used).length) throw new SpoolError('--cannot-read says there are no figures: give one or the other', 'spool usage --cannot-read, or spool usage --weekly 62');
+  const agent = agentOf(by);
+  const reported = Object.keys(used).length > 0 || cannotRead;
   if (reported) {
     const file = readingFile(ctx);
     if (!file) throw new SpoolError('no home directory to keep the usage in');
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    const reading: Reading = { used, at: ctx.now().toISOString(), by };
-    fs.writeFileSync(file, `${JSON.stringify(reading, null, 2)}\n`);
+    const reading: Reading = cannotRead ? { used: {}, at: ctx.now().toISOString(), by, cannotRead: true } : { used, at: ctx.now().toISOString(), by };
+    // Each agent's under its own name; the last of all stays at the top, as it always was.
+    const { agents } = readingsFile(ctx);
+    const key = keyIn(agents, agent) ?? agent;
+    fs.writeFileSync(file, `${JSON.stringify({ ...reading, agents: { ...agents, [key]: reading } }, null, 2)}\n`);
   }
-  const usage = usageOf(ctx);
-  const headroom = headroomOf(ctx);
+  const usage = usageOf(ctx, agent);
+  const headroom = headroomOf(ctx, agent);
   const data = { ...usage, keepBuilding: usage.reached.length === 0 && !headroom?.over, headroom };
-  if (!reported) return { text: targetText(usage, ctx.now()), data };
+  if (!reported) return { text: Object.keys(usage.own).length || agent !== DEFAULT_AGENT ? agentText(usage, ctx.now()) : targetText(usage, ctx.now()), data };
+  if (cannotRead) {
+    return { text: `Noted: ${agent} cannot read its usage. The board says so, and it is held to no target: build as if none were set.`, data };
+  }
   const { target, read, reached } = usage;
   // Past the time to work it is a stop, whatever the usage: a soft one, so what is building lands.
   if (headroom?.over && !reached.length) {
@@ -393,7 +559,7 @@ export function usageCommand(ctx: Ctx, typed: Partial<Record<Limit, string>>, by
   if (!reached.length) return { text: withFable(`Keep building: ${against.join(', ') || 'nothing to check'}.${missing}`), data };
   return {
     text: [
-      `Stop: the usage target is reached, ${against.join(', ')}.`,
+      `Stop: ${Object.keys(usage.own).length || agent !== DEFAULT_AGENT ? `${agent}'s` : 'the'} usage target is reached, ${against.join(', ')}.`,
       '  Claim no new thread, and let what is being built land. Tell them once.',
       '  Read the usage again when a thread lands or Build changes, and carry on once it is under the target or they raise it.',
     ].join('\n') + missing,

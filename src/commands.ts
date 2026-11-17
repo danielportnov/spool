@@ -13,7 +13,7 @@ import { ATTACH } from './attach.ts';
 import { HANDOFF, handedToOther, handoffOf } from './handoff.ts';
 import { ADOPT, strayFixes, strayLines, straysOf } from './strays.ts';
 import { builderCommand } from './builder.ts';
-import { refuseOutsideSizes, refuseOverCount, routingFor, withinSizes } from './roster.ts';
+import { refuseOutsideSizes, refuseOverCount, rosterAgent, rosterOf, routingFor, withinSizes } from './roster.ts';
 import { type Picked, builderLine, effortOf, modelOf, pickFor, pickLabel, ranOn } from './agent.ts';
 import { morning, morningText } from './brief.ts';
 import { DISABLE, ENABLE } from './off.ts';
@@ -35,7 +35,7 @@ import { ideate } from './ideate.ts';
 import { manage } from './manage.ts';
 import { markLine } from './mark.ts';
 import { noticesCommand } from './notices.ts';
-import { fableCap, headroomText, refuseOverHeadroom, targetCommand, usageCommand, withinHeadroom } from './usage.ts';
+import { agentOf, fableCap, headroomText, refuseOverHeadroom, refuseOverTarget, targetCommand, usageCommand, withinHeadroom } from './usage.ts';
 import { forCommand, untilCommand } from './until.ts';
 import { servePage } from './page.ts';
 import { watch } from './watch.ts';
@@ -191,6 +191,12 @@ const MESSAGE: Options = { message: { type: 'string', short: 'm' } };
 const BODY: Options = { body: { type: 'string', short: 'b' } };
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
+
+/** An agent as the human typed it, "codex" or "Codex GPT-6", by its name on the roster where it is on it. */
+function agentName(call: Call, typed: string | undefined): string | undefined {
+  if (typed === undefined) return undefined;
+  return rosterAgent(rosterOf(call.ctx, call.ws.home.root), typed)?.name ?? agentOf(typed);
+}
 const raw = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : typeof v === 'string' ? [v] : []);
 const many = (v: unknown): string[] =>
   raw(v)
@@ -617,11 +623,13 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
     throw new SpoolError(`${task.id} is being worked by ${task.by ?? 'someone'}`, 'Take it anyway with --force, or: spool next');
   }
   // In Chat mode each agent builds up to its own count (roster.ts): past it, the claim is refused.
-  // And only the sizes it takes: a thread outside them is left for an agent that does.
+  // And only the sizes it takes: a thread outside them is left for an agent that does. And only
+  // under its own usage target (usage.ts), where it read its usage in the last half hour.
   if (builderOf(call.ctx, task.spool.root) === 'chat') {
     refuseOutsideSizes(call.ctx, task, actor);
-    // Near the end of the budget, nothing is started that cannot be finished before it runs out.
-    if (!(state === 'active' && task.by === actor)) refuseOverHeadroom(call.ctx, task);
+    // Past its own target it takes nothing new; near the end of its budget, nothing it cannot finish.
+    if (!(state === 'active' && task.by === actor)) refuseOverTarget(call.ctx, actor);
+    if (!(state === 'active' && task.by === actor)) refuseOverHeadroom(call.ctx, task, agentOf(actor));
     refuseOverCount(call.ctx, ws, task, actor);
   }
   // Handed off to another agent: it is kept for that one.
@@ -1367,14 +1375,14 @@ export const COMMANDS: Command[] = [
   {
     name: 'target',
     group: 'setup',
-    usage: 'target [--weekly <percent>|none] [--five-hour <percent>|none] [--fable <percent>|none] [--headroom <percent:size,...>|default]',
-    summary: 'Say how much of your Claude plan a chat in Chat mode may use: it works up to the target, then takes no new thread. none takes one off. --headroom says the largest size it starts as the end nears (80:m,90:s,97:xs). With nothing after it, says what is set and the usage last read',
+    usage: 'target [--agent <name>] [--weekly <percent>|none] [--five-hour <percent>|none] [--fable <percent>|none] [--headroom <percent:size,...>|default]',
+    summary: "Say how much of your Claude plan a chat in Chat mode may use: it works up to the target, then takes no new thread. none takes one off. --agent sets one agent's own (Codex up to 50%), and none there gives it the one for all again. --headroom says the largest size it starts as the end nears (80:m,90:s,97:xs). With nothing after it, says what is set and the usage last read",
     human: true,
-    options: { weekly: { type: 'string' }, 'five-hour': { type: 'string' }, fable: { type: 'string' }, headroom: { type: 'string' } },
+    options: { agent: { type: 'string' }, weekly: { type: 'string' }, 'five-hour': { type: 'string' }, fable: { type: 'string' }, headroom: { type: 'string' } },
     run(call) {
       const { ws, ctx, args, opts } = call;
       if (args.length) throw new SpoolError('a target is given with its flag', 'spool target --weekly 80 --five-hour 90, or --weekly none to take it off');
-      return targetCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']), fable: str(opts.fable), headroom: str(opts.headroom) }, () => byTheHuman(call, [ws.home], 'target'));
+      return targetCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']), fable: str(opts.fable), headroom: str(opts.headroom) }, () => byTheHuman(call, [ws.home], 'target'), agentName(call, str(opts.agent)));
     },
   },
   {
@@ -1560,7 +1568,7 @@ export const COMMANDS: Command[] = [
       // A thread handed off to another agent waits for that agent.
       const sized = (chat ? withinSizes(call.ctx, all[0]!.spool.root, call.actor, all) : all).filter((t) => !handedToOther(t, call.actor));
       // And near the end of the budget, only what fits what is left; the first passed by is said.
-      const room = chat ? withinHeadroom(call.ctx, sized) : { fits: sized, passed: null, headroom: null };
+      const room = chat ? withinHeadroom(call.ctx, sized, agentOf(call.actor)) : { fits: sized, passed: null, headroom: null };
       const list = room.fits;
       const task = list[0];
       if (!task && room.headroom && sized.length) {
@@ -1604,14 +1612,14 @@ export const COMMANDS: Command[] = [
   {
     name: 'usage',
     group: 'agents',
-    usage: 'usage [--weekly <percent>] [--five-hour <percent>] [--fable <percent>]',
-    summary: "Building in Chat mode: report the plan usage you just read, before you claim a thread, and hear whether the human's usage target lets you take it. With nothing after it, says the last reading",
+    usage: 'usage [--weekly <percent>] [--five-hour <percent>] [--fable <percent>] | --cannot-read',
+    summary: "Building in Chat mode: report your plan's usage you just read, signed with your name, before you claim a thread, and hear whether your usage target lets you take it. --cannot-read says you have no way to read it, and the board shows that. With nothing after it, says your last reading",
     write: true,
-    options: { weekly: { type: 'string' }, 'five-hour': { type: 'string' }, fable: { type: 'string' } },
+    options: { weekly: { type: 'string' }, 'five-hour': { type: 'string' }, fable: { type: 'string' }, 'cannot-read': { type: 'boolean' } },
     run(call) {
       const { ctx, args, opts } = call;
       if (args.length) throw new SpoolError('a figure is given with its flag', 'spool usage --weekly 62 --five-hour 18');
-      return usageCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']), fable: str(opts.fable) }, call.actor);
+      return usageCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']), fable: str(opts.fable) }, call.actor, opts['cannot-read'] === true);
     },
   },
   {

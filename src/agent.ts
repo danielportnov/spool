@@ -356,7 +356,7 @@ export function signer(name: string): { agent: string; model?: string } {
 }
 
 /** Names that are not an agent's: the human, Spool's own page and loop, and nobody. */
-const NOT_AGENTS = new Set(['human', 'page', 'loop', 'agent', '']);
+export const NOT_AGENTS = new Set(['human', 'page', 'loop', 'agent', '']);
 
 /**
  * Who a line is signed by, on a thread claimed by `by`: a command nobody signed (`given` is

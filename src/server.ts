@@ -48,7 +48,7 @@ import { CODE_DIR, CODE_EXT, Upkeep } from './upkeep.ts';
 import { settingsOf } from './settings.ts';
 import { takeOverState } from './takeover.ts';
 import { noticesOf } from './notices.ts';
-import { timeLeftOf, usageOf } from './usage.ts';
+import { targetOf, timeLeftOf, usageOf } from './usage.ts';
 import { watched } from './watch.ts';
 
 interface Started {
@@ -235,7 +235,7 @@ export function startPage(
           options.serves?.(servedBy(ws, options.project));
           // The project asked for, by its name on the workspace's own list; any other is the page's own.
           const spool = named(ws, url.searchParams.get('project')) ?? own(ws);
-          const shown = board(ws, spool === ws.home ? undefined : spool.name, runner, upkeep, builderOf(ctx, spool.root), atOnceIn(ctx, spool.root), usageOf(ctx), noticesOf(ctx), builderOf(ctx, spool.root) === 'chat' ? rosterView(ctx, ws, spool) : []);
+          const shown = board(ws, spool === ws.home ? undefined : spool.name, runner, upkeep, builderOf(ctx, spool.root), atOnceIn(ctx, spool.root), { ...usageOf(ctx), all: targetOf(ctx) }, noticesOf(ctx), builderOf(ctx, spool.root) === 'chat' ? rosterView(ctx, ws, spool) : []);
           const several = ws.spools.length > 1;
           const workspace = {
             projects: projectsOf(ws, (p) => builds(ws, p), (id) => runner.runs.get(id)?.lines),

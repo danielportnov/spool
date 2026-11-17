@@ -29,7 +29,7 @@ import { sprintDates } from './sprints.ts';
 import type { Workspace } from './store.ts';
 import type { Upkeep } from './upkeep.ts';
 import { DEFAULT_ON, type Notices } from './notices.ts';
-import type { Usage } from './usage.ts';
+import { type Figures, type Usage, noUsage } from './usage.ts';
 import { watched } from './watch.ts';
 import type { AgentView } from './roster.ts';
 
@@ -307,8 +307,10 @@ export interface Board {
   /**
    * The human's usage target, and the plan's usage the chat that builds last read: the page shows it
    * in the header in Chat mode, where the chat works up to it. Empty where the page did not say.
+   * It is Claude's, the chat that always built; `all` is the target for every agent with none of its
+   * own. Each agent's own is on `runner.agents`.
    */
-  usage: Usage;
+  usage: Usage & { all?: Figures };
   /** What tells the human (notices.ts): the page shows it in its own box, and changes it there. */
   notices: Notices;
   /**
@@ -592,7 +594,7 @@ export function identicon(seed: string): string {
  * `usage` the human's usage target and the last reading (usage.ts), read from them too, and
  * `notices` what tells the human (notices.ts).
  */
-export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?: Upkeep, builder?: Builder, atOnce?: number, usage?: Usage, notices?: Notices, agents?: AgentView[]): Board {
+export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?: Upkeep, builder?: Builder, atOnce?: number, usage?: Usage & { all?: Figures }, notices?: Notices, agents?: AgentView[]): Board {
   const spool = project ? ws.project(project) : ws.home;
   const builds = builder ?? runner?.builder ?? 'headless';
   const d = docket(ws, spool);
@@ -643,7 +645,7 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
       recent: (runner?.recent ?? []).filter((r) => ours.has(r.id)),
       typing: (runner?.typing() ?? []).filter((t) => ours.has(t.id)),
     },
-    usage: usage ?? { target: {}, read: null, reached: [], fableCap: null },
+    usage: usage ?? noUsage(),
     notices: notices ?? { on: [...DEFAULT_ON], default: true, notifier: '' },
     sprints: ws.items
       .filter((i) => i.kind === 'sprint' && i.spool === spool && i.status !== 'dropped')

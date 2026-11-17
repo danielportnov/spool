@@ -117,7 +117,7 @@ export function builderCommand(
   const now = mine ? countOf(ctx, project.root, mine) : atOnceIn(ctx, project.root);
   const shared = (mine ? now : parallelOf(ctx)) > 1 || parallelOf(ctx) > 1 ? sharedFolderWhy(project.root) : '';
   return {
-    text: sayWho(project.name, builder, now, shared, figuresText(targetOf(ctx)), takeOverOf(ctx, project.root), agents),
+    text: sayWho(project.name, builder, now, shared, figuresText(targetOf(ctx, mine?.name)), takeOverOf(ctx, project.root), agents),
     data: { project: project.name, builder, atOnce: now, agents },
   };
 }

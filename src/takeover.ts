@@ -20,13 +20,13 @@
 import type { Call, Result } from './commands.ts';
 import { type Ctx, builderOf, saveUserConfig, userConfig } from './context.ts';
 import { type Item, type Spool, SpoolError, isRun, oneLine, splitBody } from './model.ts';
-import { withinSizes } from './roster.ts';
+import { rosterOf, withinSizes } from './roster.ts';
 import { blockers, docket, ready } from './schedule.ts';
 import type { Workspace } from './store.ts';
-import { STOPS, figuresText, headroomText, usageOf, withinHeadroom } from './usage.ts';
+import { FRESH_MS, STOPS, agentOf, figuresText, headroomText, usageOf, withinHeadroom } from './usage.ts';
 
 /** A reading older than this is not taken as the usage now: the chat reads it again first. */
-export const FRESH_MS = 30 * 60_000;
+export { FRESH_MS };
 
 /** What the log line of a thread moved this way starts with: the brief finds them by it. */
 export const MOVED = 'moved to build, taking over the backlog';
@@ -73,27 +73,30 @@ function notReasonable(ws: Workspace, t: Item): string {
   return `${t.id} is not one the chat may take`;
 }
 
-/** The usage now against the target, "weekly 40% of 80%", or why it does not let the chat move a thread. */
-function underTarget(ctx: Ctx): { ok: true; against: string } | { ok: false; why: string; hint: string } {
-  const { target, read, reached } = usageOf(ctx);
+/** The agent's usage now against its own target, "weekly 40% of 80%", or why it does not let it move a thread. */
+function underTarget(ctx: Ctx, agent: string): { ok: true; against: string } | { ok: false; why: string; hint: string } {
+  const { target, own, read, reached, cannotRead } = usageOf(ctx, agent);
   const set = STOPS.filter((l) => target[l] !== undefined);
-  if (!set.length) return { ok: false, why: 'no usage target is set, and taking over works up to one', hint: 'The human sets one, on the board or: spool target --weekly 80' };
+  if (!set.length) return { ok: false, why: 'no usage target is set, and taking over works up to one', hint: `The human sets one, on the board or: spool target --weekly 80, or spool target --agent ${agent} --weekly 80` };
+  if (cannotRead && read && ctx.now().getTime() - Date.parse(read.at) <= FRESH_MS) {
+    return { ok: false, why: `${agent} cannot read its usage, so it cannot be held to its target`, hint: 'Taking over works up to a target: build only what they move to Build.' };
+  }
   const report = 'Read it with your harness\'s tool and report it first: spool usage --weekly <n> --five-hour <n>';
   if (!read || ctx.now().getTime() - Date.parse(read.at) > FRESH_MS) return { ok: false, why: 'the usage has not been read in the last 30 minutes', hint: report };
   const unread = set.filter((l) => read.used[l] === undefined);
   if (unread.length) return { ok: false, why: `the ${unread.map((l) => NAMES[l]).join(' and ')} usage was not read, so its target cannot be checked`, hint: report };
   const against = set.map((l) => `${NAMES[l]} ${read.used[l]}% of ${target[l]}%`).join(', ');
-  if (reached.length) return { ok: false, why: `the usage target is reached, ${against}`, hint: 'Move nothing more. Let what is building land, and tell them once.' };
+  if (reached.length) return { ok: false, why: `${Object.keys(own).length ? `${agent}'s` : 'the'} usage target is reached, ${against}`, hint: 'Move nothing more. Let what is building land, and tell them once.' };
   return { ok: true, against };
 }
 
-/** Why the chat may not move a thread to build in this project now, or null where it may. */
-function whyNot(ctx: Ctx, ws: Workspace, spool: Spool): { why: string; hint: string } | null {
+/** Why this agent may not move a thread to build in this project now, or null where it may. */
+function whyNot(ctx: Ctx, ws: Workspace, spool: Spool, agent: string): { why: string; hint: string } | null {
   if (!takeOverOf(ctx, spool.root)) {
     return { why: `taking over the backlog is off in ${spool.name}`, hint: 'Only the human moves work to build. They switch taking over on, on the board or: spool takeover on' };
   }
   if (builderOf(ctx, spool.root) !== 'chat') return { why: `${spool.name} is built headless: taking over is for a chat in Chat mode`, hint: 'spool builder chat, on their word' };
-  const usage = underTarget(ctx);
+  const usage = underTarget(ctx, agent);
   if (!usage.ok) return usage;
   const waiting = ready(ws, spool).filter((t) => !isRun(t));
   if (waiting.length) return { why: `Build has work waiting: ${waiting[0]!.id} ${oneLine(waiting[0]!.title, 60)}`, hint: 'Build what is there first. Take from the backlog only when Build is empty.' };
@@ -114,8 +117,12 @@ export function takeOverState(ctx: Ctx, ws: Workspace, spool: Spool): TakeOver {
   if (!on) return { on, next: null, waiting: null };
   const top = reasonable(ws, spool)[0];
   const next = top ? { id: top.id, title: top.title } : null;
-  const why = whyNot(ctx, ws, spool);
-  return { on, next, waiting: why ? why.why : top ? null : 'nothing in the backlog it may take' };
+  // Each agent on the roster against its own target: it waits only where none of them may move one.
+  const whys = rosterOf(ctx, spool.root).map((e) => ({ name: e.name, why: whyNot(ctx, ws, spool, e.name)?.why ?? null }));
+  const free = whys.some((w) => w.why === null);
+  const said = [...new Set(whys.map((w) => w.why))];
+  const why = free ? null : said.length === 1 ? said[0]! : whys.map((w) => `${w.name}: ${w.why}`).join('; ');
+  return { on, next, waiting: why ?? (top ? null : 'nothing in the backlog it may take') };
 }
 
 /** `spool takeover`: switch it on or off, or with nothing after it say where it stands. `byHuman` refuses an agent switching it on where the gate is locked. */
@@ -155,13 +162,14 @@ export function buildUnderTakeOver(call: Call): { tasks: Item[]; line: string; p
   if (args.length > 1) throw new SpoolError('taking over moves one thread at a time', 'spool build --takeover, then build it, then the next');
   const named = args.length ? ws.get(args[0]!, 'task') : undefined;
   const spool = named?.spool ?? (typeof opts.project === 'string' ? ws.project(opts.project) : ws.home);
-  const why = whyNot(ctx, ws, spool);
+  const agent = agentOf(call.actor);
+  const why = whyNot(ctx, ws, spool, agent);
   if (why) throw new SpoolError(why.why, why.hint);
   const all = reasonable(ws, spool);
   // Only within the sizes of the agent that takes over: the rest is left for one that takes them.
   const sized = withinSizes(ctx, spool.root, call.actor, all);
   // And near the end of the budget, only what fits what is left: nothing it cannot finish.
-  const room = withinHeadroom(ctx, sized);
+  const room = withinHeadroom(ctx, sized, agent);
   const may = room.fits;
   if (named && all.includes(named) && !sized.includes(named)) throw new SpoolError(`${named.id} is ${(named.size ?? 'm').toUpperCase()}, outside the sizes ${call.actor} takes`, 'Take the top one it may: spool build --takeover');
   if (named && sized.includes(named) && !may.includes(named) && room.headroom) throw new SpoolError(`${named.id} is ${(named.size ?? 'm').toUpperCase()}, and the chat is ${headroomText(room.headroom)}`, 'Take one that fits what is left: spool build --takeover');
@@ -172,7 +180,7 @@ export function buildUnderTakeOver(call: Call): { tasks: Item[]; line: string; p
   if (!task) {
     throw new SpoolError('nothing in the backlog the chat may take', 'Only threads a person filed, not on hold and waiting on nothing. Tell them once that Build is empty, and watch.');
   }
-  const usage = underTarget(ctx);
+  const usage = underTarget(ctx, agent);
   const passed = !named && room.passed ? room.passed : '';
-  return { tasks: [task], line: `${MOVED}: ${usage.ok ? usage.against : figuresText(usageOf(ctx).target)}`, passed };
+  return { tasks: [task], line: `${MOVED}: ${usage.ok ? usage.against : figuresText(usageOf(ctx, agent).target)}`, passed };
 }
