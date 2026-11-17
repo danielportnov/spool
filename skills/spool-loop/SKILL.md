@@ -146,10 +146,10 @@ changes: it waits on the board, and `spool ask` ran their notifier.
 
 **Taking over the backlog?** Where they switched it on (`spool takeover`
 says), read the usage and report it, as above, then `spool build --takeover
---as "<your model>"`. It moves the top thread they filed to Build, signed by
-you, and says so on the thread: build it, with a line ("🧵 Taking over: the
-jump"). One at a time, as slots free. Refused? It says why, and if a tidy of
-the backlog is due: run that pass first. Then carry on below.
+--as "<your model>"`. It moves the next thread to Build, theirs first, then AI
+suggested, signed by you: build it, with a line ("🧵 Taking over: the jump").
+Keep on until it refuses; never judge one not worth the usage. Refused? It says
+why, and if a tidy is due: run that pass first. Then carry on below.
 
 **Nothing in build?** Do not build. Then, once:
 

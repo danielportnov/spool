@@ -69,7 +69,8 @@ those comments are the detail.
   which `headroomOf` in `usage.ts` reads as one more budget, so claims, `spool next`, `spool usage`
   and taking over wrap up by it as by the usage. The board's header and Settings show it.
 - `takeover.ts` is `spool takeover`: whether the chat in Chat mode takes over a project's backlog,
-  kept in the user's settings beside who builds it. `reasonable` is which threads it may take;
+  kept in the user's settings beside who builds it. `reasonable` is which threads it may take, the
+  human's first, leaving what `potentiallyIrrelevant` in `manage.ts` names;
   `buildUnderTakeOver` is `spool build --takeover`, refused unless the switch is on, a chat builds,
   the usage is freshly read and under the target, and Build is empty.
   `tidyDue` is when that chat runs its own pass over the backlog (`spool manage --start --takeover`):

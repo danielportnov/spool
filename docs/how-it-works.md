@@ -312,10 +312,14 @@ Where nobody has usage left, it waits in Build, and the board's list says it was
 
 **It can take over the backlog,** where you switch that on (`spool takeover on`, or Take over in
 the header). With Build empty and the usage under the target, it runs `spool build --takeover`,
-which moves the top thread you filed to Build, signed by the chat and saying so on the thread, and
-builds it. The command picks the thread and checks the usage, so the chat cannot stretch the rule:
-nothing AI suggested, on hold or waiting on anything, one at a time, and nothing once the target is
-reached. Switched off, nothing moves to Build without you. Where the gate is locked only you can
+which moves the next thread to Build, signed by the chat and saying so on the thread, and builds
+it: yours first, then the AI suggested ones (a thread an agent filed counts as one, marked or not).
+It keeps on until the target is reached; the chat never decides a thread is not worth the usage.
+The command picks the thread and checks the usage, so the chat cannot stretch the rule: nothing on
+hold, nothing you undid or moved back from Build, nothing waiting on anything, one at a time. It
+leaves what a tidy marked potentially irrelevant, a drop or archive it proposed that you have not
+answered or a thread its worksheet found gone cold, and when only those are left it stops and says
+why. Switched off, nothing moves to Build without you. Where the gate is locked only you can
 switch it on.
 
 Taking over, it **tidies the backlog too**: with Build empty, once a night at most and only when

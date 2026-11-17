@@ -346,10 +346,11 @@ is stopped, and an agent that needs a minute or two past it to land cleanly does
 shows the time left beside the usage. `spool until none` takes it off.
 
 Beside it, **Take over** lets the chat fill Build for you. Switched on, from its menu in the header
-or by saying "take over the backlog", the chat that builds moves the top thread you filed to Build
-itself whenever Build is empty and the usage is under the target, and builds it; it stops once the
-target is reached. Never an AI suggested thread, one on hold, or one waiting on a question or a
-plan's go-ahead. Each one says on its thread that the chat moved it, the brief lists it as worth a
+or by saying "take over the backlog", the chat that builds moves the next thread to Build itself
+whenever Build is empty and the usage is under the target, and builds it: yours first, then the AI
+suggested ones. It keeps on until the target is reached. Never one on hold, one you undid or moved
+back, or one waiting on a question or a plan's go-ahead; and it leaves what a tidy proposed to drop
+or archive or found gone cold, stopping when only those are left. Each one says on its thread that the chat moved it, the brief lists it as worth a
 look, and `spool revert` takes it back. `spool takeover on` and `off` are the same switch.
 
 **Caveman mode** (`spool caveman on`, or say "caveman" to the chat) makes the chat that steers or builds
