@@ -23,6 +23,10 @@ test('item history keeps signed edits and byte-for-byte undo across commands', (
 
   s.sp('edit', id, '--tag', 'later', '--as', 'Another person');
   const latest = s.item(id);
+  // Only what the tag changed is shown: the tag and its log line, not the lines around them.
+  const tagged = s.sp('history', id).split(/\n(?=j-)/)[0]!;
+  assert.match(tagged, /\+ tags: \[?later/);
+  assert.doesNotMatch(tagged, /Rewritten description|New title/);
   assert.match(s.fails('undo', entry.id), /changed after/);
   assert.equal(s.item(id), latest);
 
