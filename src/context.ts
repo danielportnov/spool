@@ -76,6 +76,11 @@ export interface UserConfig {
    * every project. A chat building in Chat mode works up to it. Set on the page. See usage.ts.
    */
   usageTarget?: { weekly?: number; fiveHour?: number };
+  /**
+   * For each project, by the path of its folder: `true` where the chat that builds it in Chat mode
+   * takes over the backlog, moving threads to Build itself up to the usage target. See takeover.ts.
+   */
+  takeOver?: Record<string, boolean>;
 }
 
 /** Threads built at once when nothing is said: each has a worktree of its own, and three is plenty. */

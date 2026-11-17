@@ -21,7 +21,8 @@ import { doctor } from './doctor.ts';
 import { GOALS_STARTER, goalsFile, goalsOf, goalsText } from './goals.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
 import { demo } from './demo.ts';
-import { buildUnderLeave, dropUnderLeave, leaveCommand } from './leave.ts';
+import { buildUnderLeave, dropUnderLeave, leaveCommand, signer } from './leave.ts';
+import { buildUnderTakeOver, takeoverCommand } from './takeover.ts';
 import { dropLesson, learn, lessonLine, lessons } from './lessons.ts';
 import { runLoop } from './loop.ts';
 import { manage } from './manage.ts';
@@ -979,20 +980,22 @@ export const COMMANDS: Command[] = [
   {
     name: 'build',
     group: 'you',
-    usage: 'build <t-id…> [--abort] [--leave]',
+    usage: 'build <t-id…> [--abort] [--leave] | --takeover [<t-id>] [-P <project>]',
     summary:
-      'Move proposed work to build: it may be built now, in its turn. --abort takes it off whoever is building it, back to waiting in build. --leave is how an agent moves it there itself, under a leave the human gave',
+      'Move proposed work to build: it may be built now, in its turn. --abort takes it off whoever is building it, back to waiting in build. --leave is how an agent moves it there itself, under a leave the human gave. --takeover is how the chat that builds moves the next thread there itself, where the human switched taking over on and the usage is under their target',
     human: true,
     write: true,
-    options: { abort: { type: 'boolean' }, leave: { type: 'boolean' } },
+    options: { abort: { type: 'boolean' }, leave: { type: 'boolean' }, takeover: { type: 'boolean' }, ...PROJECT },
     run(call) {
       const { ws, args, p } = call;
-      if (!args.length) throw new SpoolError('what to build is missing', 'spool build <t-id>');
-      const tasks = args.map((ref) => ws.get(ref, 'task'));
+      // Taking over the backlog, the chat moves the next thread there itself, up to the usage target. See takeover.ts.
+      const taking = call.opts.takeover ? buildUnderTakeOver(call) : undefined;
+      if (!args.length && !taking) throw new SpoolError('what to build is missing', 'spool build <t-id>');
+      const tasks = taking?.tasks ?? args.map((ref) => ws.get(ref, 'task'));
       // Under a leave the human gave, an agent moves work to build itself, up to the leave's count. See leave.ts.
       const leave = call.opts.leave ? buildUnderLeave(call, tasks) : undefined;
-      if (!leave) byTheHuman(call, tasks.map((t) => t.spool), 'build');
-      const actor = leave?.actor ?? call.actor;
+      if (!leave && !taking) byTheHuman(call, tasks.map((t) => t.spool), 'build');
+      const actor = taking ? signer(call) : (leave?.actor ?? call.actor);
       for (const t of tasks) {
         const state = taskState(ws, t);
         if (state === 'done' || state === 'dropped') throw new SpoolError(`${t.id} is already ${state}`);
@@ -1009,13 +1012,26 @@ export const COMMANDS: Command[] = [
         }
         // Moving something to build is the human saying start: it clears a hold as well, and brings back an archived thread.
         if (t.status !== 'proposed' && !t.hold && !t.archived) continue;
-        addLog(t, actor, leave ? leave.moved(t) : t.hold ? `moved to build (was on hold: ${t.hold})` : t.archived ? 'moved to build (was archived)' : 'moved to build', ws.now());
+        addLog(t, actor, taking ? taking.line : leave ? leave.moved(t) : t.hold ? `moved to build (was on hold: ${t.hold})` : t.archived ? 'moved to build (was archived)' : 'moved to build', ws.now());
         if (t.status === 'proposed') t.status = 'open';
         t.hold = undefined;
         t.archived = undefined;
         ws.save(t);
       }
       return { text: `In build:\n${tasks.map((t) => `  ${itemLine(ws, t, p)}`).join('\n')}`, data: { build: tasks.map((t) => itemJson(ws, t)) } };
+    },
+  },
+  {
+    name: 'takeover',
+    group: 'you',
+    usage: 'takeover [on | off] [-P <project>]',
+    summary:
+      "Say whether the chat that builds in Chat mode takes over the backlog: with Build empty and the usage under your target, it moves the top thread you filed to Build itself, and builds it. Switching it on is yours, like spool build; with nothing after it, says where it stands",
+    human: true,
+    options: { ...PROJECT },
+    run(call) {
+      const spool = str(call.opts.project) ? call.ws.project(str(call.opts.project)) : call.ws.home;
+      return takeoverCommand(call, spool, () => byTheHuman(call, [spool], 'takeover on'));
     },
   },
   {

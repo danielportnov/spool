@@ -20,7 +20,9 @@ import * as path from 'node:path';
 import type { Bare, Result } from './commands.ts';
 import { type Item, SpoolError, isSettled, oneLine, splitBody } from './model.ts';
 import { dependents, ready, tasks } from './schedule.ts';
+import type { Ctx } from './context.ts';
 import { Workspace } from './store.ts';
+import { takeOverOf } from './takeover.ts';
 
 interface Seen {
   /** Threads that could be claimed right now. */
@@ -31,6 +33,8 @@ interface Seen {
   inbox: Set<string>;
   /** Questions waiting on the human, each with the line that tells of it. */
   asks: Map<string, string>;
+  /** Projects whose backlog the chat takes over, by name. */
+  takeOver?: Set<string>;
 }
 
 /**
@@ -91,11 +95,10 @@ function asked(ws: Workspace, d: Item): string {
 }
 
 function look(
-  cwd: string,
-  now: () => Date,
+  ctx: Ctx,
   project?: string,
 ): { seen: Seen; roots: string[]; text: (note: string) => string; title: (id: string) => string } {
-  const ws = Workspace.open(cwd, now);
+  const ws = Workspace.open(ctx.cwd, ctx.now);
   try {
     const open = tasks(ws, project).filter((t) => t.status !== 'done' && t.status !== 'dropped');
     const notes = new Map(ws.items.filter((i) => i.kind === 'note').map((n) => [n.id, oneLine(splitBody(n.body).main, 140)]));
@@ -110,6 +113,7 @@ function look(
         said: new Map(open.map((t) => [t.id, new Set(t.from.filter((id) => notes.has(id)))])),
         inbox: new Set(ws.items.filter((i) => i.kind === 'note' && i.status === 'new').map((n) => n.id)),
         asks: new Map(questions.map((d) => [d.id, asked(ws, d)])),
+        takeOver: new Set((spool ? [spool] : ws.spools).filter((s) => takeOverOf(ctx, s.root)).map((s) => s.name)),
       },
       roots: (project ? [ws.project(project)] : ws.spools).map((s) => real(s.root)),
       text: (note) => notes.get(note) ?? '',
@@ -132,6 +136,8 @@ export function changes(before: Seen, after: Seen, text: (note: string) => strin
   }
   // A question is news once, as it is asked. One answered or dropped goes without a word.
   for (const [id, line] of after.asks) if (!before.asks.has(id)) out.push(line);
+  // Switched on, taking over is news: the chat may fill an empty Build from the backlog now.
+  for (const name of after.takeOver ?? []) if (!before.takeOver?.has(name)) out.push(`takeover: ${name} — they switched taking over the backlog on: Build empty? spool build --takeover`);
   return out;
 }
 
@@ -141,7 +147,7 @@ export function watch({ ctx, opts }: Bare): Result {
   if (!Number.isInteger(every) || every < 20) throw new SpoolError('--interval is in milliseconds, 20 or more');
   const project = typeof opts.project === 'string' ? opts.project : undefined;
   // Fail now, in words, where there is no spool; after this the watch only reports.
-  const first = look(ctx.cwd, ctx.now, project);
+  const first = look(ctx, project);
   let before = first.seen;
   // Say it is up, for as long as it is: the page shows whether anyone is listening.
   const beat = beatFile(process.pid);
@@ -166,7 +172,7 @@ export function watch({ ctx, opts }: Bare): Result {
   const told = new Set(before.inbox);
   setInterval(() => {
     try {
-      const now = look(ctx.cwd, ctx.now, project);
+      const now = look(ctx, project);
       for (const line of changes(before, now.seen, now.text, now.title)) ctx.out(line);
       for (const note of waiting.keys()) if (!now.seen.inbox.has(note)) waiting.delete(note);
       for (const note of now.seen.inbox) {

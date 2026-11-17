@@ -18,6 +18,7 @@ import { JOURNAL } from './journal.ts';
 import { picturesOf } from './pictures.ts';
 import { type Scope, children, dependents, review, sprintOf, taskState, tasks } from './schedule.ts';
 import { hearLine } from './stream.ts';
+import { MOVED } from './takeover.ts';
 import type { Workspace } from './store.ts';
 
 /** Lines are kept under this, so a phone shows each on one or two rows and a chat never wraps a table. */
@@ -159,6 +160,11 @@ function weigh(ws: Workspace, t: Item): { score: number; reasons: string[]; file
   if (calls) {
     score += 2 * Math.min(calls, 3);
     reasons.push(`${calls} ${calls === 1 ? 'call' : 'calls'} an agent made`);
+  }
+  // Taking over the backlog, the chat moved it to Build itself: the human never said go on this one.
+  if (entries(t).some((e) => e.text.startsWith(MOVED))) {
+    score += 3;
+    reasons.push('the chat moved it to Build itself, taking over the backlog');
   }
   const redone = entries(t).some((e) => /reverted \d+ commit/.test(e.text)) || /on reverting the first attempt/.test(t.body);
   if (redone) {

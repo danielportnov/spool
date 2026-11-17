@@ -283,7 +283,7 @@ function refuse(found: { live?: Leave; expired?: Leave }, what: 'build' | 'drop'
 }
 
 /** A move under a leave is the agent's own doing, so unless a person is at the keys it is not signed as the human's. */
-function signer(call: Call): string {
+export function signer(call: Call): string {
   return call.actor === 'human' && !call.ctx.tty && !call.ctx.human ? 'agent' : call.actor;
 }
 

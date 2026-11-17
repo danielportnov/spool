@@ -212,6 +212,11 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     }
     return argv.length > 1 ? act(ctx, argv) : { ok: false, text: 'which target?' };
   }
+  if (action === 'takeover') {
+    // The header's switch: the chat that builds takes over the backlog, or no longer does.
+    if (typeof body.on !== 'boolean') return { ok: false, text: 'on, or off?' };
+    return act(ctx, ['takeover', body.on ? 'on' : 'off']);
+  }
   if (action === 'answer') {
     const choice = text(body.choice);
     if (!/^d-[a-z0-9]+$/.test(id) || !choice) return { ok: false, text: 'which question, and what is the answer?' };

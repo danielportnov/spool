@@ -38,6 +38,7 @@ import { atOnceIn } from './slots.ts';
 import { briefAcross, named, projectsOf } from './projects.ts';
 import { Workspace } from './store.ts';
 import { CODE_DIR, CODE_EXT, Upkeep } from './upkeep.ts';
+import { takeOverState } from './takeover.ts';
 import { usageOf } from './usage.ts';
 
 interface Started {
@@ -219,7 +220,9 @@ export function startPage(
             // Asked for by the home view alone; left out otherwise, so the page knows to ask.
             brief: several && url.searchParams.get('home') === '1' ? briefAcross(ws) : undefined,
           };
-          return send(res, 200, 'application/json', JSON.stringify({ ...shown, workspace }));
+          // Whether the chat takes over this project's backlog, and what it would take next, for the header's switch and its menu.
+          const takeOver = takeOverState(ctx, ws, spool);
+          return send(res, 200, 'application/json', JSON.stringify({ ...shown, takeOver, workspace }));
         } finally {
           ws.close();
         }

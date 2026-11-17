@@ -7,6 +7,7 @@
 import { type Builder, type Ctx, builderOf, parallelOf, saveBuilder, saveUserConfig } from './context.ts';
 import { SpoolError } from './model.ts';
 import { atOnceIn, sharedFolderWhy } from './slots.ts';
+import { takeOverOf } from './takeover.ts';
 import { figuresText, targetOf } from './usage.ts';
 
 export interface BuilderResult {
@@ -22,12 +23,13 @@ function threads(n: number): string {
  * The line the page and the command say, in the page's own words. `shared` is why its threads would
  * share one folder; `target` is the human's usage target in words, empty where there is none.
  */
-function sayWho(name: string, builder: Builder, n: number, shared: string, target: string): string {
+function sayWho(name: string, builder: Builder, n: number, shared: string, target: string, takeOver: boolean): string {
   const why = shared ? `: ${shared}, so its threads cannot have a worktree each` : ', each in a worktree of its own';
   const atOnce = `${threads(n)} at once${n > 1 || shared ? why : ''}`;
   // The loop reads its number here, and its target: a chat builds as many at once as the page would, and up to the human's line.
   const upTo = target ? ` It works up to the usage target, ${target}: spool usage says when to stop.` : '';
-  if (builder === 'chat') return `A chat builds ${name}: say /spool-loop in a Claude Code chat there. The page starts no agents. The chat builds ${atOnce}.${upTo}`;
+  const takes = takeOver ? ' It takes over the backlog: with Build empty and the usage under the target, spool build --takeover moves the next thread to Build.' : '';
+  if (builder === 'chat') return `A chat builds ${name}: say /spool-loop in a Claude Code chat there. The page starts no agents. The chat builds ${atOnce}.${upTo}${takes}`;
   return `The page builds ${name}, headless, ${atOnce}. Switch its Agents on to start.`;
 }
 
@@ -67,5 +69,5 @@ export function builderCommand(
   // The page's own number, read through the same function the page reads it with, so the two never disagree.
   const now = atOnceIn(ctx, project.root);
   const shared = parallelOf(ctx) > 1 ? sharedFolderWhy(project.root) : '';
-  return { text: sayWho(project.name, builder, now, shared, figuresText(targetOf(ctx))), data: { project: project.name, builder, atOnce: now } };
+  return { text: sayWho(project.name, builder, now, shared, figuresText(targetOf(ctx)), takeOverOf(ctx, project.root)), data: { project: project.name, builder, atOnce: now } };
 }
