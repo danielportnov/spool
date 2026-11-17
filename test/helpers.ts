@@ -56,13 +56,51 @@ export class Sandbox {
   /** Run a command. Each run moves the clock a minute so creation order is unambiguous. */
   exec(args: string[], options: RunOptions = {}): Out {
     const { ctx, said } = this.context(options);
-    return said(run(args, ctx));
+    const before = this.builders();
+    const result = said(run(args, ctx));
+    if (args[0] === 'init' && !this.freshBuilder) this.restoreBuilders(before);
+    return result;
+  }
+
+  /**
+   * A project set up fresh is built from a chat. Most tests are about the page building, so a sandbox puts
+   * the pick back to nothing said (Headless) after `init`; one testing a fresh project turns this on.
+   */
+  freshBuilder = false;
+
+  private configFile(): string {
+    return path.join(this.root, '.home', '.config', 'spool', 'config.json');
+  }
+
+  private builders(): Record<string, string> {
+    try {
+      return JSON.parse(fs.readFileSync(this.configFile(), 'utf8')).builder ?? {};
+    } catch {
+      return {};
+    }
+  }
+
+  private restoreBuilders(before: Record<string, string>): void {
+    if (JSON.stringify(this.builders()) === JSON.stringify(before)) return;
+    let config: Record<string, unknown> = {};
+    try {
+      config = JSON.parse(fs.readFileSync(this.configFile(), 'utf8'));
+    } catch {
+      /* no file */
+    }
+    config.builder = before;
+    // Nothing else was there: leave no file, as before.
+    if (Object.keys(before).length === 0 && Object.keys(config).length === 1) return void fs.rmSync(this.configFile(), { force: true });
+    fs.writeFileSync(this.configFile(), `${JSON.stringify(config, null, 2)}\n`);
   }
 
   /** Run a command that works on, `spool loop`, and wait for it to stop. */
   async execLater(args: string[], options: RunOptions = {}): Promise<Out> {
     const { ctx, said } = this.context(options);
-    return said(await runLater(args, ctx));
+    const before = this.builders();
+    const result = said(await runLater(args, ctx));
+    if (args[0] === 'init' && !this.freshBuilder) this.restoreBuilders(before);
+    return result;
   }
 
   /** The same, for a command that must succeed; returns its output. */

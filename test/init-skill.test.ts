@@ -34,6 +34,7 @@ test('set-up asks who builds, ends with the doctor, and names the three skills t
 
 test('the pick is kept, a fresh project is built from a chat, and saying so again is refused nowhere', () => {
   const s = new Sandbox();
+  s.freshBuilder = true;
   try {
     s.sp('init', '--name', 'skyhop', '--lock');
     // Set up fresh, it is built from a chat: Headless is for them to pick later.
