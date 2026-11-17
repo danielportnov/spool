@@ -167,7 +167,7 @@ export function buildUnderTakeOver(call: Call): { tasks: Item[]; line: string; p
   if (named && sized.includes(named) && !may.includes(named) && room.headroom) throw new SpoolError(`${named.id} is ${(named.size ?? 'm').toUpperCase()}, and the chat is ${headroomText(room.headroom)}`, 'Take one that fits what is left: spool build --takeover');
   if (named && !may.includes(named)) throw new SpoolError(notReasonable(ws, named), 'Take the top one it may: spool build --takeover');
   const task = named ?? may[0];
-  if (!task && room.headroom && sized.length) throw new SpoolError(`nothing in the backlog fits what is left: ${headroomText(room.headroom)}`, 'Move nothing more. Finish and land what you are building, or leave a hand-off note (spool log) and stop. Tell them once.');
+  if (!task && room.headroom && sized.length) throw new SpoolError(`nothing in the backlog fits what is left: ${headroomText(room.headroom)}`, 'Move nothing more. Finish and land what you are building, or hand it off: spool handoff <id> -m "<where it stopped>". Tell them once.');
   if (!task && all.length) throw new SpoolError(`nothing in the backlog is in the sizes ${call.actor} takes`, `${all.length} thread${all.length === 1 ? '' : 's'} wait for an agent that takes them. Tell them once, and watch.`);
   if (!task) {
     throw new SpoolError('nothing in the backlog the chat may take', 'Only threads a person filed, not on hold and waiting on nothing. Tell them once that Build is empty, and watch.');

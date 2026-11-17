@@ -1540,7 +1540,7 @@ export const COMMANDS: Command[] = [
       const task = list[0];
       if (!task && room.headroom && sized.length) {
         return {
-          text: `Nothing ready fits what is left: ${headroomText(room.headroom)}. ${sized.length} wait${sized.length === 1 ? 's' : ''} for more room.\n  Finish and land what you are building, or leave a hand-off note (spool log) and stop.`,
+          text: `Nothing ready fits what is left: ${headroomText(room.headroom)}. ${sized.length} wait${sized.length === 1 ? 's' : ''} for more room.\n  Finish and land what you are building, or hand it off: spool handoff <id> -m "<where it stopped>".`,
           data: { task: null, ready: 0, passed: sized.map((t) => t.id), headroom: room.headroom },
         };
       }

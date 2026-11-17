@@ -32,7 +32,7 @@ test('at 92% of the target the chat passes a large thread by, saying why, takes 
 
     const said = s.sp('usage', '--weekly', '92', '--as', 'Claude Opus 5.5');
     assert.match(said, /^Keep building: weekly 92% of 100%\.\n {2}Near the end: weekly 92% of 100%, so take only up to S now/);
-    assert.match(said, /Finish and land what you are building, or leave a hand-off note \(spool log\) and stop\./);
+    assert.match(said, /Finish and land what you are building, or hand it off: spool handoff/);
     assert.deepEqual(s.json('usage').headroom, { used: 92, upTo: 's', why: 'weekly 92% of 100%' });
 
     const next = s.sp('next', '--claim', '--as', 'Claude Opus 5.5');

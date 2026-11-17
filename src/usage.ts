@@ -208,7 +208,7 @@ export function refuseOverHeadroom(ctx: Ctx, task: Item): void {
 const WRAP_UP = (h: Headroom): string =>
   `Near the end: ${h.why}, so take only up to ${h.upTo.toUpperCase()} now; claims pass larger threads by.` +
   // Down to small work, what is in flight is wrapped up too.
-  (SIZES.indexOf(h.upTo) <= SIZES.indexOf('s') ? ' Finish and land what you are building, or leave a hand-off note (spool log) and stop.' : '');
+  (SIZES.indexOf(h.upTo) <= SIZES.indexOf('s') ? ' Finish and land what you are building, or hand it off: spool handoff <id> -m "<where it stopped>".' : '');
 
 /** "weekly 80%, 5-hour 90%". */
 export function figuresText(figures: Figures): string {
