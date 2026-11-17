@@ -602,8 +602,10 @@ function slide(board, before) {
   }
 }
 
-// ---- a card opens its thread
+// ---- a card opens its thread, and what an agent wrote read as a post
 
+// What an agent wrote, whole, read as a post on its thread is: lists and code shown as what they are.
+const richNote = (text) => el('pre', { class: 'note said' }, rich(text));
 // A card opens its thread from anywhere on it. Its buttons, links, id, tags and boxes do their own
 // thing, and so does a drag or a selection of its words.
 function opensOn(node, id) {
