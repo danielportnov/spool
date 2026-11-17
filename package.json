@@ -1,7 +1,7 @@
 {
   "name": "spool-ai",
   "version": "0.24.0",
-  "description": "Agent skills, and the small CLI under them, that keep coding agents working on their own: you talk, they turn it into tasks, work them around the clock, and come back only for the calls that are yours.",
+  "description": "A small CLI and agent skills that turn what you say into tasks, have coding agents work them on their own, and come back only for the calls that are yours.",
   "keywords": [
     "ai-agents",
     "coding-agents",
@@ -14,6 +14,10 @@
   ],
   "license": "MIT",
   "author": "Daniel Portnov",
+  "homepage": "https://github.com/danielportnov/spool#readme",
+  "bugs": {
+    "url": "https://github.com/danielportnov/spool/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/danielportnov/spool.git"
@@ -29,6 +33,7 @@
     "docs",
     "README.md",
     "CHANGELOG.md",
+    "CONTRIBUTING.md",
     "LICENSE"
   ],
   "engines": {
