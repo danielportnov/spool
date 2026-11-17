@@ -2,6 +2,39 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.24.0 · 2026-11-17
+
+**Spool in the terminal (sprint finished):** type `spool` and see the queue and every running agent, steer
+any of them, and open any in Claude Code.
+- `spool open <thread>` opens the thread's own Claude Code session; when you quit, hand it back or leave it stopped.
+- In `spool`, `r` replies to an agent, Esc interrupts, `y` `a` `n` answer it, `o` opens it in Claude Code.
+- `spool loop` builds on the board's own engine: several threads at once, each with a transcript.
+- A finished sprint notifies you once, and the brief says what it took: runs, minutes, turns, cost.
+
+**Many agents, your limits**
+- A roster: Claude and Codex each with their own thread count, sizes and usage target, and who is watching.
+- A Usage-to-Development slider per brand moves each size's model down to save usage or up for power.
+- Fable's own weekly usage is counted; near its limit, a thread goes to Opus instead.
+- Near the usage limit or the end of a time budget (`spool for 2h`, `spool until 1:00`), agents take only
+  what fits and wrap up; `spool handoff` passes a thread to an agent with usage left.
+- AFK mode: agents take their own recommendation and leave a call, asking only what truly needs you.
+
+**The board**
+- Settings: one panel for every setting, each row with its command.
+- A 🧹 Clean Up button: an agent proposes what to archive, delete and re-prioritize, and you say yes or no;
+  under take-over the chat tidies the backlog itself once a day.
+- Dictate a thread or a reply with 🎙.
+- Research mode: a thread whose agent researches and brings back a report, kept for later work.
+- Posts on a thread read in the order they happened, and Spool's own lines read in plain words.
+- Headless is greyed out; `/spool-steer` steers without recording.
+
+**Lineage and safety**
+- Every landed commit gets a git note with its thread, calls and builder (kept on this machine).
+- A thread's worktree refuses `git push`.
+- The board remembers threads an agent walked away from across restarts.
+- A drag on the board no longer gets lost when a slow refresh lands mid-drag.
+- `.spool/` is never committed: the queue is private, and it has been removed from the whole history.
+
 ## 0.23.0 · 2026-11-17
 
 **Lineage: who did what, and how to take it back**
