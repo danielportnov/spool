@@ -51,7 +51,8 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   [/^(?:the pass is )?handed to `(.*)`$/, (m) => {
     const model = flag(m[1]!, 'model');
     const effort = flag(m[1]!, 'effort');
-    return model ? `Handed to an agent on ${modelWords(`${model}${effort ? ` · ${effort}` : ''}`)}` : 'Handed to an agent';
+    // A custom command is shown by its name, as written.
+    return model ? `Handed to an agent on ${modelWords(`${model}${effort ? ` · ${effort}` : ''}`)}` : m[0];
   }],
   [/^agent (.+?) without finishing; back in build$/, (m) => `The agent ${m[1]} without finishing. Back in Build`],
 ];
