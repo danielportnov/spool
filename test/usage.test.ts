@@ -11,7 +11,7 @@ const readingFile = (s: Sandbox): string => path.join(s.root, '.home', '.config'
 test('spool target sets how much of the plan a chat may use, reads it back, and takes it off', () => {
   const s = spool();
   try {
-    assert.match(s.sp('target'), /^No usage target: a chat in Chat mode builds what is in Build, whatever the usage\.\n {2}Set one on the page, in the header, or: spool target --weekly 80$/);
+    assert.match(s.sp('target'), /^No usage target: a chat in Chat mode builds what is in Build, whatever the usage\.\n {2}Set one in the page’s Settings, or: spool target --weekly 80$/);
     assert.equal(fs.existsSync(configFile(s)), false, 'saying what is set keeps nothing');
 
     assert.match(s.sp('target', '--weekly', '80', '--five-hour', '90%'), /^Usage target: weekly 80%, 5-hour 90%\. A chat in Chat mode works up to it, then takes no new thread\.\n {2}No usage has been read yet/);

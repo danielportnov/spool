@@ -418,7 +418,7 @@ function targetText(usage: Usage, now: Date, own: string[] = []): string {
   if (!stops) {
     return [
       'No usage target: a chat in Chat mode builds what is in Build, whatever the usage.',
-      '  Set one on the page, in the header, or: spool target --weekly 80',
+      '  Set one in the page’s Settings, or: spool target --weekly 80',
       ...(target.fable !== undefined ? [`  Fable target: ${target.fable}%. No thread goes to Fable once it is there.`] : []),
       ...own,
       ...(read ? [`  ${readLine(read, now)}`] : []),
