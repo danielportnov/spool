@@ -2002,18 +2002,21 @@ function settingsSections() {
 
   // Usage: the target the chat works up to, one row a limit.
   const usageRows = LIMITS.map(([key, name]) => {
-    const on = settingSwitch(name + ' target', (yes) => sendSetting('target', { [key]: yes ? (Number(num.value) || TARGET_START) : null }, yes ? name + ' target: ' + (Number(num.value) || TARGET_START) + '%.' : 'No ' + name.toLowerCase() + ' target.'));
-    const num = settingNumber(name + ' target, in percent', 1, 100, (n) => sendSetting('target', { [key]: n }, name + ' target: ' + n + '%. The chat works up to it.'));
-    return settingRow(name + ' usage target', 'How much of your Claude plan’s ' + name.toLowerCase() + ' limit the chat that builds may use. Past it, it takes no new thread.',
-      'spool target --' + (key === 'weekly' ? 'weekly' : 'five-hour') + ' 80', el('span', { class: 'unit' }, on, num, '%'), (b, row) => {
-        const u = b.usage;
-        const goal = u.target[key];
-        if (!leave(on)) on.checked = goal != null;
-        num.disabled = goal == null;
-        if (!leave(num)) num.value = String(goal != null ? goal : (Number(num.value) || TARGET_START));
-        const used = usedOf(u, key);
-        row.querySelector('p').textContent = 'How much of your Claude plan’s ' + name.toLowerCase() + ' limit the chat that builds may use. Past it, it takes no new thread.' + (used == null ? '' : ' Used now: ' + pct(used) + '.');
-      });
+    const flag = { weekly: 'weekly', fiveHour: 'five-hour', fable: 'fable' }[key];
+    const what = key === 'fable'
+      ? 'How much of Fable’s own weekly limit threads may use. Past it, no thread goes to Fable: it is built on Opus instead.'
+      : 'How much of your Claude plan’s ' + name.toLowerCase() + ' limit the chat that builds may use. Past it, it takes no new thread.';
+    const on = settingSwitch(name + ' target', (yes) => sendSetting('target', { [key]: yes ? (Number(num.value) || TARGET_START) : null }, yes ? name + ' target: ' + (Number(num.value) || TARGET_START) + '%.' : 'No ' + (key === 'fable' ? name : name.toLowerCase()) + ' target.'));
+    const num = settingNumber(name + ' target, in percent', 1, 100, (n) => sendSetting('target', { [key]: n }, name + ' target: ' + n + '%.'));
+    return settingRow(name + ' usage target', what, 'spool target --' + flag + ' 80', el('span', { class: 'unit' }, on, num, '%'), (b, row) => {
+      const u = b.usage;
+      const goal = u.target[key];
+      if (!leave(on)) on.checked = goal != null;
+      num.disabled = goal == null;
+      if (!leave(num)) num.value = String(goal != null ? goal : (Number(num.value) || TARGET_START));
+      const used = usedOf(u, key);
+      row.querySelector('p').textContent = what + (used == null ? '' : ' Used now: ' + pct(used) + '.');
+    });
   });
   const coming = el('p', { class: 'coming' }, 'Coming here as they are built: each agent’s usage limit, and the Usage-to-Development slider.');
 
