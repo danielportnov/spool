@@ -274,21 +274,78 @@ function versionOf(v: unknown): string | undefined {
  * build). It runs before a change can be finished, and a failure refuses the finish. It runs with
  * nothing locked, since tests take as long as they take and the page must stay usable meanwhile.
  */
-const CHECK_MINUTES = 30;
+export const CHECK_MINUTES = 10;
 interface Checked {
   command: string;
   seconds: number;
 }
-function runCheck(ctx: Ctx, command: string, cwd: string): Checked {
+
+/**
+ * Runs the check in a process group of its own and ends the whole group if it passes the limit, so
+ * the browsers and servers a test started go with it. It is a process of its own, because a plain
+ * synchronous spawn can end only the shell and leaves what the shell started running.
+ */
+const RUN_CHECK = `const { spawn } = require('node:child_process');
+const { command, cwd, ms } = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
+const posix = process.platform !== 'win32';
+const child = spawn(command, { shell: true, cwd, detached: posix, stdio: ['ignore', 'pipe', 'pipe'] });
+let tail = '';
+const keep = (c) => { tail = (tail + c).slice(-65536); };
+child.stdout.on('data', keep);
+child.stderr.on('data', keep);
+const end = () => { try { posix ? process.kill(-child.pid, 'SIGKILL') : child.kill('SIGKILL'); } catch {} };
+let timedOut = false;
+const timer = setTimeout(() => { timedOut = true; end(); }, ms);
+const finish = (status, signal, error) => {
+  clearTimeout(timer);
+  end();
+  process.stdout.write(JSON.stringify({ status, signal, timedOut, error, tail }), () => process.exit(0));
+};
+child.on('error', (e) => finish(null, null, e.message));
+child.on('exit', (status, signal) => setTimeout(() => finish(status, signal), 50));`;
+
+/** How long a project's check may run, in minutes: what was set, or 10. */
+export function checkMinutesOf(ctx: Ctx, root: string): number {
+  const set = userConfig(ctx).checkMinutes?.[root];
+  return typeof set === 'number' && set > 0 ? set : CHECK_MINUTES;
+}
+
+function runCheck(ctx: Ctx, command: string, cwd: string, minutes = CHECK_MINUTES): Checked {
   const began = Date.now();
-  const ran = spawnSync(command, { shell: true, cwd, encoding: 'utf8', timeout: CHECK_MINUTES * 60_000, maxBuffer: 64 * 1024 * 1024, env: ctx.env });
+  const ms = Math.round(minutes * 60_000);
+  // Nothing of the caller's environment is lost: the check gets what `spool done` had.
+  const ran = spawnSync(process.execPath, ['-e', RUN_CHECK], {
+    input: JSON.stringify({ command, cwd, ms }),
+    encoding: 'utf8',
+    timeout: ms + 30_000,
+    killSignal: 'SIGKILL',
+    maxBuffer: 64 * 1024 * 1024,
+    env: ctx.env,
+  });
   const seconds = Math.round((Date.now() - began) / 1000);
-  if (ran.status === 0) return { command, seconds };
-  const tail = `${ran.stdout ?? ''}\n${ran.stderr ?? ''}`.trim().split('\n').slice(-15).join('\n  ');
-  const how = ran.error ? `could not run (${ran.error.message})` : ran.signal ? `was stopped (${ran.signal})` : `failed (exit ${ran.status})`;
+  let result: { status: number | null; signal: string | null; timedOut: boolean; error?: string; tail: string } | undefined;
+  try {
+    result = JSON.parse(ran.stdout || '');
+  } catch {
+    // The runner itself was lost: it is said below as the check not running.
+  }
+  if (result?.status === 0 && !result.timedOut) return { command, seconds };
+  const tail = (result?.tail ?? '').trim().split('\n').slice(-15).join('\n  ');
+  const hint = (more: string): string =>
+    `${more}${tail ? `\n\n  ${tail}` : ''}`;
+  if (result?.timedOut || (ran.error as NodeJS.ErrnoException | undefined)?.code === 'ETIMEDOUT') {
+    throw new SpoolError(
+      `the check took longer than ${minutes} minute${minutes === 1 ? '' : 's'}: ${command}`,
+      hint(
+        'It was ended, with everything it had started, and nothing was landed: the next thread can land. A test waiting for something that never comes is the usual cause.\n' +
+          '  Fix it and run spool done again. If the check is only slow, its limit is the user\'s to change: spool checks --timeout <minutes>.',
+      ),
+    );
+  }
+  const how = !result || ran.error ? `could not run (${ran.error?.message ?? 'no answer'})` : result.error ? `could not run (${result.error})` : result.signal ? `was stopped (${result.signal})` : `failed (exit ${result.status})`;
   throw new SpoolError(
     `the check ${how}: ${command}`,
-    `It has to pass before this can be finished. Fix what it found and run spool done again.\n  If the check itself is wrong, that is the human's to change: put it to them with spool ask.${tail ? `\n\n  ${tail}` : ''}`,
+    hint(`It has to pass before this can be finished. Fix what it found and run spool done again.\n  If the check itself is wrong, that is the human's to change: put it to them with spool ask.`),
   );
 }
 
@@ -367,10 +424,12 @@ function beforeDone(call: Bare): Finishing | undefined {
     if (isClosed(task) || task.status === 'proposed' || !summaryOf(call)) return undefined;
     // Git itself is told whose work it is: the one finishing it, or the one who claimed it where that is only Spool's own name.
     const agent = [call.actor, task.by].find((who) => who && !['agent', 'page', 'loop'].includes(who));
-    const landing = land(task, (cwd) => (command ? runCheck(ctx, command, cwd) : undefined), landingTrailers(task.id, agent, ranOn(task)));
+    const minutes = checkMinutesOf(ctx, task.spool.root);
+    // A thread behind another waits for its check, up to the limit, and some to land it.
+    const landing = land(task, (cwd) => (command ? runCheck(ctx, command, cwd, minutes) : undefined), landingTrailers(task.id, agent, ranOn(task)), (minutes + 5) * 60_000, (minutes + 35) * 60_000);
     return { checked: landing.checked, landing };
   }
-  return command ? { checked: runCheck(ctx, command, task.spool.root) } : undefined;
+  return command ? { checked: runCheck(ctx, command, task.spool.root, checkMinutesOf(ctx, task.spool.root)) } : undefined;
 }
 
 /**
@@ -1275,41 +1334,63 @@ export const COMMANDS: Command[] = [
   {
     name: 'checks',
     group: 'setup',
-    usage: 'checks [<command…> | --none] [-P <project>]',
-    summary: 'Name the command that must pass before a change can be finished here (your tests, a build); kept on your machine',
+    usage: 'checks [<command…> | --none] [--timeout <minutes>|default] [-P <project>]',
+    summary: 'Name the command that must pass before a change can be finished here (your tests, a build); kept on your machine. It is ended if it runs longer than 10 minutes, or --timeout minutes, so a hung check cannot hold every landing',
     human: true,
-    options: { none: { type: 'boolean' }, ...PROJECT },
+    options: { none: { type: 'boolean' }, timeout: { type: 'string' }, ...PROJECT },
     run({ ws, ctx, args, opts }) {
       const spool = str(opts.project) ? ws.project(str(opts.project)) : ws.home;
       const now = userConfig(ctx).checks?.[spool.root];
-      if (!args.length && !opts.none) {
+      const limit = checkMinutesOf(ctx, spool.root);
+      const given = str(opts.timeout);
+      let minutes: number | null | undefined;
+      if (given !== undefined) {
+        minutes = given === 'default' ? null : Number(given);
+        if (minutes !== null && !(Number.isFinite(minutes) && minutes > 0)) {
+          throw new SpoolError(`"${given}" is not a number of minutes`, 'spool checks --timeout 20   or   --timeout default');
+        }
+      }
+      if (!args.length && !opts.none && minutes === undefined) {
         return {
           text: now
-            ? `${spool.name} is checked with: ${now}\n  It runs before every spool done on a change there, and a failure refuses it.`
+            ? `${spool.name} is checked with: ${now}\n  It runs before every spool done on a change there, and a failure refuses it.\n  It is ended after ${limit} minute${limit === 1 ? '' : 's'}: spool checks --timeout <minutes> changes that.`
             : `${spool.name} has no check: a change is done when the agent says so.\n  Name one: spool checks "npm test"`,
-          data: { project: spool.name, check: now ?? null },
+          data: { project: spool.name, check: now ?? null, timeoutMinutes: limit },
         };
       }
       // An agent may name a check where there is none, on the human's word. Changing or removing one is
-      // the human's alone: a check an agent can switch off proves nothing.
-      if (now && !ctx.tty && !ctx.human) {
+      // the human's alone: a check an agent can switch off proves nothing, and nor is its limit theirs.
+      if ((now || minutes !== undefined) && !ctx.tty && !ctx.human) {
         throw new SpoolError(
           `the check for ${spool.name} is the human's to change`,
           'They type it in their own terminal. If the check is wrong, put it to them with spool ask; do not work round it.',
         );
       }
       const command = opts.none ? '' : args.join(' ').trim();
+      const change = Boolean(command) || Boolean(opts.none);
       const file = saveUserConfig(ctx, (config) => {
-        const checks = { ...(config.checks ?? {}) };
-        if (command) checks[spool.root] = command;
-        else delete checks[spool.root];
-        config.checks = checks;
+        if (change) {
+          const checks = { ...(config.checks ?? {}) };
+          if (command) checks[spool.root] = command;
+          else delete checks[spool.root];
+          config.checks = checks;
+        }
+        if (minutes !== undefined) {
+          const set = { ...(config.checkMinutes ?? {}) };
+          if (minutes === null) delete set[spool.root];
+          else set[spool.root] = minutes;
+          config.checkMinutes = set;
+        }
       });
+      const after = minutes === undefined ? limit : minutes ?? CHECK_MINUTES;
+      const limitLine = minutes === undefined ? '' : `\n  Its check is ended after ${after} minute${after === 1 ? '' : 's'}.`;
       return {
-        text: command
-          ? `${spool.name} is now checked with: ${command}\n  Kept in ${file}, on this machine, not in the project.`
-          : `${spool.name} has no check any more.`,
-        data: { project: spool.name, check: command || null },
+        text: (change
+          ? command
+            ? `${spool.name} is now checked with: ${command}\n  Kept in ${file}, on this machine, not in the project.`
+            : `${spool.name} has no check any more.`
+          : `${spool.name}: the check's limit is set.\n  Kept in ${file}, on this machine, not in the project.`) + limitLine,
+        data: { project: spool.name, check: change ? command || null : now ?? null, timeoutMinutes: after },
       };
     },
   },

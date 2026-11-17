@@ -66,6 +66,11 @@ export interface UserConfig {
    */
   checks?: Record<string, string>;
   /**
+   * For each project, by the path of its folder: how many minutes its check may run before it is
+   * ended and the landing refused. Not set: 10. A check that never ends would hold every landing behind it.
+   */
+  checkMinutes?: Record<string, number>;
+  /**
    * For each project, by the path of its folder: who builds what is in Build. `"chat"` is a
    * Claude Code chat running the loop, and the page starts no agent of its own there. A project
    * not named here is built headless, by the page starting the agent command. Set on the page.

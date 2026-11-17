@@ -26,6 +26,7 @@ import { type Body, act, change, text } from './act.ts';
 import { type Column, board, columnOf, diffOf } from './board.ts';
 import { PAGE } from './client/page.html.ts';
 import type { Bare, Result } from './commands.ts';
+import { landingState, landingWords } from './worktree.ts';
 import { type Ctx, afkOf, builderOf, saveBuilder } from './context.ts';
 import { type PageRecord, detachPage, forgetPage, pageStatus, pageUp, realOf, rememberPage, startedAbove, stopPage } from './detach.ts';
 import { Runner } from './engine.ts';
@@ -258,7 +259,7 @@ export function startPage(
           // Whether the human is AFK: agents take their own recommendation instead of asking.
           // And every setting the Settings panel shows that the board does not carry already.
           const settings = settingsOf(ctx, ws, spool);
-          return send(res, 200, 'application/json', JSON.stringify({ ...shown, takeOver, afk: afkOf(ctx), mode: currentMode(ctx, spool.root), time: timeLeftOf(ctx), settings, workspace }));
+          return send(res, 200, 'application/json', JSON.stringify({ ...shown, takeOver, afk: afkOf(ctx), mode: currentMode(ctx, spool.root), time: timeLeftOf(ctx), settings, workspace, landing: landingWords(landingState(spool.root)) ?? null }));
         } finally {
           ws.close();
         }

@@ -307,13 +307,17 @@ function alive(pid: number): boolean {
  * the project's check runs. A second thread waits for it, then says it is still waiting.
  * Returns what lets go of it.
  */
-export function landingLock(repo: string, id: string, waitMs = LAND_WAIT_MS): () => void {
+export function landingLock(repo: string, id: string, waitMs = LAND_WAIT_MS, staleMs = LAND_STALE_MS): () => void {
   const file = path.join(commonDir(repo), 'spool-landing.lock');
   const mine = `${process.pid} ${id}\n`;
   const deadline = Date.now() + waitMs;
+  // While this waits it leaves a note beside the lock, so `spool status` and the board can say who waits behind whom.
+  const waiting = path.join(commonDir(repo), `${WAITING}${process.pid}-${id}`);
+  const stopWaiting = (): void => fs.rmSync(waiting, { force: true });
   for (;;) {
     try {
       fs.writeFileSync(file, mine, { flag: 'wx' });
+      stopWaiting();
       return () => {
         try {
           if (fs.readFileSync(file, 'utf8') === mine) fs.rmSync(file, { force: true });
@@ -329,14 +333,22 @@ export function landingLock(repo: string, id: string, waitMs = LAND_WAIT_MS): ()
       const [pid, who = ''] = fs.readFileSync(file, 'utf8').trim().split(' ');
       holder = who;
       // Whoever held it is gone without letting go: a crash, or a check that was killed.
-      if ((pid && !alive(Number(pid))) || Date.now() - fs.statSync(file).mtimeMs > LAND_STALE_MS) {
+      if ((pid && !alive(Number(pid))) || Date.now() - fs.statSync(file).mtimeMs > staleMs) {
         fs.rmSync(file, { force: true });
         continue;
       }
     } catch {
       continue; // Let go of between the two looks.
     }
+    if (waitMs > 0 && !fs.existsSync(waiting)) {
+      try {
+        fs.writeFileSync(waiting, `${Date.now()}\n`);
+      } catch {
+        // A note nobody can read costs nothing but the sentence on the board.
+      }
+    }
     if (Date.now() >= deadline) {
+      stopWaiting();
       const waited = waitMs >= 60_000 ? `${Math.round(waitMs / 60_000)} minute(s)` : `${Math.ceil(waitMs / 1000)} second(s)`;
       throw new SpoolError(
         `${holder || 'another thread'} is still landing, after ${waited} of waiting`,
@@ -345,6 +357,49 @@ export function landingLock(repo: string, id: string, waitMs = LAND_WAIT_MS): ()
     }
     sleep(100);
   }
+}
+
+const WAITING = 'spool-landing-wait-';
+
+export interface LandingState {
+  /** The thread landing now, and for how many seconds its landing has held the lock. */
+  landing: { id: string; seconds: number };
+  /** The threads waiting behind it, the longest first, and for how many seconds each has. */
+  waiting: { id: string; seconds: number }[];
+}
+
+/** Who holds the landing lock and who waits behind it, or undefined when nothing is landing. */
+export function landingState(repo: string): LandingState | undefined {
+  try {
+    const dir = commonDir(repo);
+    const file = path.join(dir, 'spool-landing.lock');
+    const [pid, id = ''] = fs.readFileSync(file, 'utf8').trim().split(' ');
+    if (!pid || !alive(Number(pid))) return undefined;
+    const now = Date.now();
+    const seconds = (since: number): number => Math.max(0, Math.round((now - since) / 1000));
+    const waiting: { id: string; seconds: number }[] = [];
+    for (const name of fs.readdirSync(dir)) {
+      if (!name.startsWith(WAITING)) continue;
+      const [who, ...rest] = name.slice(WAITING.length).split('-');
+      if (!who || !alive(Number(who))) {
+        fs.rmSync(path.join(dir, name), { force: true });
+        continue;
+      }
+      const since = Number(fs.readFileSync(path.join(dir, name), 'utf8').trim());
+      waiting.push({ id: rest.join('-'), seconds: Number.isFinite(since) ? seconds(since) : 0 });
+    }
+    waiting.sort((a, b) => b.seconds - a.seconds);
+    return { landing: { id, seconds: seconds(fs.statSync(file).mtimeMs) }, waiting };
+  } catch {
+    return undefined;
+  }
+}
+
+export function landingWords(state: LandingState | undefined): string | undefined {
+  if (!state) return undefined;
+  const how = (s: number): string => (s < 90 ? `${s}s` : `${Math.round(s / 60)} min`);
+  const behind = state.waiting.map((w) => `${w.id} has waited ${how(w.seconds)}`);
+  return `${state.landing.id} is landing (${how(state.landing.seconds)} so far)${behind.length ? `; ${behind.join(', ')} behind it` : ''}.`;
 }
 
 export interface Landing<T = unknown> {
@@ -383,7 +438,7 @@ export function landingTrailers(id: string, agent?: string, model?: string): Tra
  * success the landing lock is still held, so the thread can be recorded done and its worktree
  * removed before the next thread lands: the caller lets go with `release`.
  */
-export function land<T>(task: Item, check: (cwd: string) => T, trailers: Trailer[] = [], waitMs = LAND_WAIT_MS): Landing<T> {
+export function land<T>(task: Item, check: (cwd: string) => T, trailers: Trailer[] = [], waitMs = LAND_WAIT_MS, staleMs = LAND_STALE_MS): Landing<T> {
   const at = locate(task);
   if (!at || !isWorktree(at.dir)) {
     throw new SpoolError(
@@ -407,7 +462,7 @@ export function land<T>(task: Item, check: (cwd: string) => T, trailers: Trailer
     );
   }
 
-  const release = landingLock(at.repo, task.id, waitMs);
+  const release = landingLock(at.repo, task.id, waitMs, staleMs);
   try {
     const onto = resolveCommit(at.repo, 'HEAD');
     if (!onto) throw new SpoolError(`nothing is committed in ${at.repo}, so there is nothing to land on`);

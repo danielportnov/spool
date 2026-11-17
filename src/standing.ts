@@ -15,6 +15,7 @@ import { stoppedInBuild } from './page.ts';
 import { blockers, buildLine, taskState, tasks } from './schedule.ts';
 import type { Workspace } from './store.ts';
 import { watched } from './watch.ts';
+import { landingState, landingWords } from './worktree.ts';
 import { type AgentView, rosterLine, rosterView } from './roster.ts';
 
 /** How long a page has to answer before it is said not to be. */
@@ -74,6 +75,8 @@ export interface Standing {
   roster?: AgentView[];
   /** Why nothing in Build is moving, where it has work and none is being built. */
   stuck: string | null;
+  /** A thread landing now, and any waiting behind it and for how long, in a sentence; null when nothing is landing. */
+  landing?: string | null;
 }
 
 /** The first thing a thread in Build waits on, in a few words. */
@@ -107,7 +110,7 @@ export function standingOf(ctx: Ctx, ws: Workspace, spool: Spool): Standing {
     else if (blocked.length + stopped.length === line.length) stuck = `every thread in it was stopped. Carry on with one from its card on the page: ${stopped[0]!.id} “${oneLine(stopped[0]!.title, 60)}”.`;
   }
   const roster = builder === 'chat' ? { roster: rosterView(ctx, ws, spool) } : {};
-  return { page: up?.url ?? null, answering, builder, agents, building, watching, stuck, ...roster };
+  return { page: up?.url ?? null, answering, builder, agents, building, watching, stuck, landing: landingWords(landingState(spool.root)) ?? null, ...roster };
 }
 
 /** The lines `spool status` prints under a project's count. */
@@ -118,5 +121,5 @@ export function standingLines(s: Standing): string[] {
   else who = `the page builds (Headless)${s.agents === null ? '' : s.agents ? ', agents on' : ', agents off'}`;
   const building = s.building ? `, ${s.building} building` : '';
   const roster = s.roster?.length ? [`Agents: ${rosterLine(s.roster)}`] : [];
-  return [`Board: ${where} · ${who}${building}`, ...roster, ...(s.stuck ? [`Build is not moving: ${s.stuck}`] : [])];
+  return [`Board: ${where} · ${who}${building}`, ...roster, ...(s.stuck ? [`Build is not moving: ${s.stuck}`] : []), ...(s.landing ? [`Landing: ${s.landing}`] : [])];
 }

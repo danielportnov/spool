@@ -1641,7 +1641,7 @@ function draw(b) {
   // cannot promise that nothing builds by itself; and what the page has to say about itself, when
   // it is rebuilding Spool or could not.
   const rule = document.getElementById('rule');
-  const lines = [b.gate ? '' : 'The build gate is off in this project: new threads go straight to Build.', b.notice || ''].filter(Boolean);
+  const lines = [b.gate ? '' : 'The build gate is off in this project: new threads go straight to Build.', b.notice || '', b.landing && /behind it/.test(b.landing) ? 'Landing: ' + b.landing : ''].filter(Boolean);
   rule.textContent = lines.join(' ');
   rule.hidden = !lines.length;
   for (const tab of document.querySelectorAll('.tab')) tab.classList.toggle('on', tab.dataset.view === view);

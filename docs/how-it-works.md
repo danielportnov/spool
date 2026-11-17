@@ -415,6 +415,12 @@ The command is kept on your machine (`~/.config/spool/config.json`), never in th
 it is run: a repository must not be able to name a program for Spool to start. An agent may set a
 check where there is none, on your word; changing or removing one takes you, at your own terminal.
 
+A check that never ends would hold every landing behind it, so it has a time limit: 10 minutes, or
+what you set with `spool checks --timeout <minutes>` (`--timeout default` goes back). Past it the
+check is ended with everything it started, the thread is refused with "the check took longer than N
+minutes" and the last lines it printed, and the next landing goes by itself. While one thread is
+landing and others wait, `spool status` and the board say who waits behind whom, and for how long.
+
 ## Several at once: a worktree per thread
 
 One checkout is one agent's desk. Two agents in it edit each other's files, and each one's check
@@ -1095,7 +1101,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool disable [--all]` · `enable [--all]` | Switch Spool off in a project: its block comes out of `AGENTS.md` and `CLAUDE.md`, so no agent is sent to it, and its commands refuse; the queue is kept. On again puts the block back where it was. `--all` does every spool in this folder and below |
 | `spool demo [folder] [--open]` | A throwaway sample project with threads in its spool, to try the page and the loop on |
 | `spool install [--for claude\|codex\|cursor\|gemini\|all] [--here \| --dir path]` | Put the skills where your agent finds them: Claude Code unless `--for` names another; it also names the other agents it finds here |
-| `spool checks [command \| --none]` | Name the command that must pass before a change is done here |
+| `spool checks [command \| --none] [--timeout minutes]` | Name the command that must pass before a change is done here, and how long it may run (10 minutes) |
 | `spool builder [headless \| chat] [--at-once n] [--agent <name> [--model m] [--lean usage\|balanced\|development]]` | Say who builds here, and how many threads at once, for every agent or, with `--agent`, for one on the roster (adding it), and how far it leans from saving usage to pushing development; with nothing after it, says what is set and lists the agents. The human's, like `spool build` |
 | `spool agents [on \| off]` | Switch the page's agents on or off, as its Agents button does; with nothing after it, says whether a page is up and its agents are on. On is the human's, like `spool build`, and refused while a chat builds; off is always allowed |
 | `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it. It names work that landed on no thread, as `spool status` does. After an upgrade it also names a retired skill that is still installed, for any agent, and a Spool block in `AGENTS.md` that is not the one this version writes; changes nothing |
