@@ -161,6 +161,8 @@ test('another agent command cannot pick a Claude session up: it starts afresh, a
   const worker = path.join(s.root, 'worker.sh');
   fs.writeFileSync(worker, `#!/bin/sh\ncat > "${s.root}/worker-prompt.txt"\n"${process.execPath}" "${CLI}" done "$SPOOL_TASK" -m "finished" > /dev/null\n`);
   fs.chmodSync(worker, 0o755);
+  // A page taking over leaves it alone until something about it changes: here, an edit.
+  s.sp('edit', jump, '--title', 'Tighten the jump arc, again');
   const second = new Runner(engineCtx(s), undefined, worker, true);
   try {
     second.wake();
