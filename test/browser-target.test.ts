@@ -60,7 +60,7 @@ test('in Chat mode the header holds the usage target: a slider and a number, aga
     await chip.click();
     await box.waitFor();
     assert.equal(await chip.getAttribute('aria-expanded'), 'true');
-    assert.deepEqual(await box.locator('.limit .name').allInnerTexts(), ['Weekly', '5-hour']);
+    assert.deepEqual(await box.locator('.limit .name').allInnerTexts(), ['Weekly', '5-hour', 'Fable']);
     assert.equal(await weekly.locator('input[type="range"]').isDisabled(), true);
     await weekly.locator('input[type="checkbox"]').check();
     await until('the weekly target is set', () => target().weekly === 80);
