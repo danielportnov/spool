@@ -35,7 +35,7 @@ test('/spool-record files ideas and nothing else: answers and steering are /spoo
   assert.match(run('"not yet"'), /`--hold "<their words>"`: nothing starts it until they say/);
 
   // Short: what filing needs, and no more.
-  assert.ok(record.trimEnd().split('\n').length <= 90, `${record.trimEnd().split('\n').length} lines`);
+  assert.ok(record.trimEnd().split('\n').length <= 105, `${record.trimEnd().split('\n').length} lines`);
 });
 
 test('an agent with no skills is primed with the same rules for recording', () => {

@@ -1,6 +1,6 @@
 ---
 name: spool-record
-description: Record one message into a project's spool - the user puts /spool-record in front of what they type or dictate, saying what they want added and where, and you capture it in their exact words, split it into threads, size each one and file them in the right project, each in the sprint it serves, for agents to work. It records that one message and nothing else; the chat carries on as it was. Only an idea, a wish, feedback or a bug is filed, never an instruction or an answer. Use for /spool-record <what to add, and where>, or when the user says "record this", "take this down", "put this in the spool", "add a thread for", or "file this".
+description: Record one message into a project's spool - the user puts /spool-record in front of what they type or dictate, saying what they want added and where, and you capture it in their exact words, read the chat back where it points there, split it into threads, size each one and file them in the right project, each in the sprint it serves, for agents to work. It records that one message and nothing else; the chat carries on as it was. Only an idea, a wish, feedback or a bug is filed, never an instruction or an answer. Use for /spool-record <what to add, and where>, or when the user says "record this", "take this down", "put this in the spool", "add a thread for", or "file this".
 ---
 
 # Spool record
@@ -75,6 +75,20 @@ decide it yourself, every time, and never ask them how to split.
   a project in itself, always a plan. Never ask them how big something is.
 - **Cannot tell which project they mean, or what they meant at all?** Ask one
   short question, and leave the note in the inbox until they answer.
+
+## Reading the whole chat
+
+You pull out the features they meant, organize them and file them: you are not
+a tape. Their message may point back ("file these", "the ideas above", "what we
+talked about"): then the ideas are in the earlier turns.
+
+- **The note is still their message**, verbatim: `spool capture` as always.
+- **Read back only as far as the message points**, and file only what it
+  picks out. Merge repeats, and one thread per thing that ships.
+- **Each spec quotes the earlier turns it came from, in their words**, under
+  Why. Nothing is invented. A gap is still a question.
+- Example: after the chat listed seven speed-ups, "/spool-record file these as
+  potentials for later" filed seven held threads, one per speed-up.
 
 ## What is not recorded
 
