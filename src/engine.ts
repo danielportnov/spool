@@ -25,6 +25,7 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { act } from './act.ts';
+import { fableCap } from './usage.ts';
 import { type Pick as Picked, type Routing, commandFor, pickFor, stepNote, takesPick } from './agent.ts';
 import { type Builder, type Ctx, builderOf, notify, parallelOf, quietLimits, saveBuilder, userConfig } from './context.ts';
 import { dirtyPaths, discardPaths, repoRoot } from './git.ts';
@@ -445,7 +446,7 @@ export class Runner {
           told: notes.map((n) => n.id),
           spoke: picked.unheard ? Date.now() : undefined,
         };
-        fresh.command = this.afresh(this.command(pickFor(task, models, asItRan(task))));
+        fresh.command = this.afresh(this.command(pickFor(task, models, asItRan(task), fableCap(this.ctx))));
         task.by = this.name();
         task.started = timestamp(ws.now());
         addLog(task, 'page', 'its page had stopped with nobody working it; carried on where it was', ws.now());
@@ -469,7 +470,7 @@ export class Runner {
    * the human's notes that is. Nothing where the agent command cannot pick a session up.
    */
   private pickUp(task: Item, left: { session: string; how: Left }, notes: Item[], models: Routing): (Start & { unheard: number }) | undefined {
-    const command = inSession(this.command(pickFor(task, models, asItRan(task))), left.session, true);
+    const command = inSession(this.command(pickFor(task, models, asItRan(task), fableCap(this.ctx))), left.session, true);
     if (!command) return undefined;
     const given = recall(task);
     const told = new Set(given?.session === left.session ? given.told : []);
@@ -934,7 +935,7 @@ export class Runner {
           addLog(task, 'page', `session ${left.session} cannot be picked up by \`${this.agent}\`; starting afresh`, ws.now());
         }
         // Afresh, a thread whose last run did not work goes one model up, and its log says so.
-        const pick = pickFor(task, models, again ? asItRan(task) : undefined);
+        const pick = pickFor(task, models, again ? asItRan(task) : undefined, fableCap(this.ctx));
         const stepped = takesPick(this.agent) ? stepNote(pick) : undefined;
         task.status = 'active';
         task.by = this.name();

@@ -204,7 +204,7 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
   if (action === 'target') {
     // The usage target, from the header: a whole percent for each limit given, or null to take that one off.
     const argv = ['target'];
-    for (const [key, flag] of [['weekly', 'weekly'], ['fiveHour', 'five-hour']] as const) {
+    for (const [key, flag] of [['weekly', 'weekly'], ['fiveHour', 'five-hour'], ['fable', 'fable']] as const) {
       const value = body[key];
       if (value === null) argv.push(`--${flag}=none`);
       else if (typeof value === 'number') argv.push(`--${flag}=${value}`);

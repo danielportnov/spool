@@ -1522,7 +1522,9 @@ function draw(b) {
 // ---- the usage target: in Chat mode, how much of the Claude plan the chat that builds may use
 
 // The plan's limits a target can be set on: the key the board and the command use, and its name.
-const LIMITS = [['weekly', 'Weekly'], ['fiveHour', '5-hour']];
+const LIMITS = [['weekly', 'Weekly'], ['fiveHour', '5-hour'], ['fable', 'Fable']];
+// Fable's own limit never stops the chat: it only keeps threads off Fable, so the header's meter is for the others.
+const STOPS = LIMITS.filter(([key]) => key !== 'fable');
 let targetsOpen = false;
 // What the slider of a limit with no target starts at, once it is switched on.
 const TARGET_START = 80;
@@ -1534,7 +1536,7 @@ const pct = (n) => (Math.round(n * 10) / 10) + '%';
 
 // The limit the header shows: the one nearest its target, or the first that has one.
 function shownLimit(u) {
-  const set = LIMITS.filter(([key]) => u.target[key] != null);
+  const set = STOPS.filter(([key]) => u.target[key] != null);
   const near = (key) => (usedOf(u, key) == null ? -1 : usedOf(u, key) / u.target[key]);
   return set.sort((a, z) => near(z[0]) - near(a[0]))[0] || null;
 }
@@ -1568,6 +1570,13 @@ function drawTarget(b) {
       ? 'Usage target reached: ' + u.reached.map((k) => LIMITS.find(([x]) => x === k)[1].toLowerCase() + ' ' + pct(usedOf(u, k)) + ' of ' + u.target[k] + '%').join(', ') + '. The chat that builds takes no new thread until it is under again, or you raise it.' + change
       : used == null ? name + ' target: ' + goal + '% of your Claude plan. No usage read yet: the chat that builds reads it before each thread.' + change
       : name + ' usage ' + pct(used) + ' of your ' + goal + '% target, read ' + ago(u.read.at, true) + ' by ' + u.read.by + '. The chat that builds works up to it, then takes no new thread.' + change;
+  }
+  // Beside it, Fable's own weekly figure where it has been read, or has a target: shaded when it is spent and no thread goes to it.
+  const fableUsed = usedOf(u, 'fable');
+  if (fableUsed != null || u.target.fable != null) {
+    const capped = u.fableCap != null;
+    chip.append(el('span', { class: 'num fable' + (capped ? ' capped' : '') }, 'Fable ' + (fableUsed == null ? 'to ' + u.target.fable + '%' : Math.round(fableUsed) + '%')));
+    chip.title += ' Fable weekly: ' + (fableUsed == null ? 'not read yet' : pct(fableUsed)) + (u.target.fable != null ? ' of a ' + u.target.fable + '% target' : '') + (capped ? ': no thread goes to Fable now, it is built on Opus instead.' : '.');
   }
   // Said in words to a screen reader: the meter is only a picture of them.
   const said = shown && (shown[1] + ' usage ' + (usedOf(u, shown[0]) == null ? 'target ' : pct(usedOf(u, shown[0])) + ' of a target of ') + u.target[shown[0]] + '%');
@@ -1636,7 +1645,8 @@ function fillTargets(u) {
     const [on, slide, num] = row.querySelectorAll('input');
     const goal = u.target[key];
     const used = usedOf(u, key);
-    const reached = u.reached.includes(key);
+    const capped = key === 'fable' && u.fableCap != null;
+    const reached = u.reached.includes(key) || capped;
     if (at !== on) on.checked = goal != null;
     row.classList.toggle('off', goal == null);
     row.classList.toggle('reached', reached);
@@ -1644,7 +1654,7 @@ function fillTargets(u) {
     if (at !== slide && at !== num) slide.value = num.value = String(goal != null ? goal : (Number(num.value) || TARGET_START));
     slide.style.setProperty('--used', Math.min(100, used || 0) + '%');
     row.querySelector('.now').className = 'now' + (reached ? ' reached' : '');
-    row.querySelector('.now').textContent = used == null ? 'Not read yet.' : 'Used ' + pct(used) + (reached ? ': reached, so the chat takes no new thread.' : goal != null ? ', ' + pct(Math.max(0, goal - used)) + ' to go.' : '.');
+    row.querySelector('.now').textContent = used == null ? 'Not read yet.' : 'Used ' + pct(used) + (capped ? ': no thread goes to Fable now, it is built on Opus.' : reached ? ': reached, so the chat takes no new thread.' : goal != null ? ', ' + pct(Math.max(0, goal - used)) + ' to go.' : '.');
   }
   box.querySelector('.foot').textContent = u.read
     ? 'Read ' + ago(u.read.at, true) + ' by ' + u.read.by + '. The chat reads it again before each thread.'

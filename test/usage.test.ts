@@ -117,7 +117,7 @@ test('the board carries the target and the last reading, and the page sets the t
   const post = async (body: unknown): Promise<any> =>
     (await fetch(`${page.url}api/target`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': page.token }, body: JSON.stringify(body) })).json();
   try {
-    assert.deepEqual((await board()).usage, { target: {}, read: null, reached: [] });
+    assert.deepEqual((await board()).usage, { target: {}, read: null, reached: [], fableCap: null });
     s.sp('target', '--weekly', '80');
     s.sp('usage', '--weekly', '62', '--five-hour', '18', '--as', 'Claude Opus 5.5');
     const { usage } = await board();
@@ -137,6 +137,37 @@ test('the board carries the target and the last reading, and the page sets the t
     assert.deepEqual(s.json('target').target, { fiveHour: 90 });
   } finally {
     await page.stop();
+    s.cleanup();
+  }
+});
+
+test('Fable has its own weekly figure and target: spent, a thread set to Fable or stepping up to it is built on Opus, and says why', () => {
+  const s = spool();
+  try {
+    s.sp('target', '--weekly', '80', '--fable', '90');
+    assert.deepEqual(config(s).usageTarget, { weekly: 80, fable: 90 });
+    // Fable under its target: it does not stop the chat, and threads may still go to Fable.
+    assert.match(s.sp('usage', '--weekly', '40', '--fable', '70', '--as', 'Claude Opus 5.5'), /^Keep building: weekly 40% of 80%\.\n {2}Fable is at 70% of its 90% target: threads may still go to Fable\./);
+    const t = s.id('task', 'Fix a typo', '--size', 'xs');
+    s.sp('edit', t, '--model', 'fable');
+    assert.equal(s.json('start', t, '--as', 'Claude Opus 5.5').model.model, 'fable');
+
+    // Fable over its target: the weekly is fine, so the chat keeps building, but not on Fable.
+    const over = s.json('usage', '--weekly', '40', '--fable', '96', '--as', 'Claude Opus 5.5');
+    assert.equal(over.keepBuilding, true);
+    assert.equal(over.fableCap, 96);
+    assert.match(s.sp('usage'), /Fable is at 96% of its 90% target: no thread goes to Fable now/);
+    const t2 = s.id('task', 'Fix another typo', '--size', 'xs');
+    s.sp('edit', t2, '--model', 'fable');
+    const started = s.json('start', t2, '--as', 'Claude Opus 5.5');
+    assert.equal(started.model.model, 'opus');
+    assert.match(s.item(t2), /Claude Opus 5\.5: is set to Fable, but Fable's weekly usage is at 96%: built on Opus/);
+    assert.match(s.sp('show', t2), /built on Opus/);
+    // With no Fable target, 95% is where it counts as spent.
+    s.sp('target', '--fable', 'none');
+    assert.equal(s.json('usage', '--fable', '94').fableCap, null);
+    assert.equal(s.json('usage', '--fable', '95').fableCap, 95);
+  } finally {
     s.cleanup();
   }
 });

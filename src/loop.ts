@@ -14,6 +14,7 @@ import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { fableCap } from './usage.ts';
 import { commandFor, pickFor, stepNote, takesPick } from './agent.ts';
 import type { Bare, Result } from './commands.ts';
 import { notify, userConfig } from './context.ts';
@@ -54,7 +55,7 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
   const { models: routing } = userConfig(ctx);
   /** The command for this thread: the user's, with the model and effort it gets put in, and the line that says it stepped up, if it did. */
   const commandOf = (task: Item): { command: string; stepped?: string } => {
-    const pick = pickFor(task, routing);
+    const pick = pickFor(task, routing, undefined, fableCap(ctx));
     const stepped = takesPick(agent) ? stepNote(pick) : undefined;
     return { command: commandFor(agent, pick), ...(stepped ? { stepped } : {}) };
   };

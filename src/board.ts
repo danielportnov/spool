@@ -636,7 +636,7 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
       recent: (runner?.recent ?? []).filter((r) => ours.has(r.id)),
       typing: (runner?.typing() ?? []).filter((t) => ours.has(t.id)),
     },
-    usage: usage ?? { target: {}, read: null, reached: [] },
+    usage: usage ?? { target: {}, read: null, reached: [], fableCap: null },
     notices: notices ?? { on: [...DEFAULT_ON], default: true, notifier: '' },
     sprints: ws.items
       .filter((i) => i.kind === 'sprint' && i.spool === spool && i.status !== 'dropped')

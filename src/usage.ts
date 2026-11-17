@@ -20,10 +20,19 @@ import { SpoolError } from './model.ts';
 import { age } from './render.ts';
 
 /** The plan's limits a target can be set on. */
-export const LIMITS = ['weekly', 'fiveHour'] as const;
+export const LIMITS = ['weekly', 'fiveHour', 'fable'] as const;
 export type Limit = (typeof LIMITS)[number];
-const NAMES: Record<Limit, string> = { weekly: 'weekly', fiveHour: '5-hour' };
-const FLAGS: Record<Limit, string> = { weekly: '--weekly', fiveHour: '--five-hour' };
+/**
+ * The limits that stop the chat: the plan's weekly and 5-hour. Fable's own weekly limit does not
+ * stop it: it only keeps threads off Fable (`fableCap`), and the chat builds on Opus instead.
+ */
+export const STOPS = ['weekly', 'fiveHour'] as const;
+const NAMES: Record<Limit, string> = { weekly: 'weekly', fiveHour: '5-hour', fable: 'Fable' };
+const FLAGS: Record<Limit, string> = { weekly: '--weekly', fiveHour: '--five-hour', fable: '--fable' };
+/** Where Fable counts as nearly spent when no target is set for it. */
+const FABLE_NEAR = 95;
+/** A reading older than this no longer says where Fable stands. */
+const FABLE_FRESH_MS = 24 * 3600 * 1000;
 
 /** A percent for each limit that has one. */
 export type Figures = Partial<Record<Limit, number>>;
@@ -42,6 +51,8 @@ export interface Usage {
   read: Reading | null;
   /** The limits whose last reading is at or past their target. */
   reached: Limit[];
+  /** Fable's percent where it is at or over its target (or nearly spent, with none set), so no thread goes to Fable; else null. */
+  fableCap: number | null;
 }
 
 const isTarget = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 100;
@@ -79,12 +90,25 @@ export function readingOf(ctx: Ctx): Reading | null {
   }
 }
 
+/** Fable's percent when it is at or over its target (95% where it has none) in a reading read within a day. */
+function fableCapOf(target: Figures, read: Reading | null, now: Date): number | null {
+  const used = read?.used.fable;
+  if (used === undefined || !read || now.getTime() - Date.parse(read.at) > FABLE_FRESH_MS) return null;
+  return used >= (target.fable ?? FABLE_NEAR) ? used : null;
+}
+
+/** Fable's percent where no thread should go to Fable now, else undefined. */
+export function fableCap(ctx: Ctx): number | undefined {
+  const { fableCap: at } = usageOf(ctx);
+  return at ?? undefined;
+}
+
 /** The target, the last reading, and which limits that reading has reached. */
 export function usageOf(ctx: Ctx): Usage {
   const target = targetOf(ctx);
   const read = readingOf(ctx);
-  const reached = LIMITS.filter((l) => target[l] !== undefined && read?.used[l] !== undefined && read.used[l]! >= target[l]!);
-  return { target, read, reached };
+  const reached = STOPS.filter((l) => target[l] !== undefined && read?.used[l] !== undefined && read.used[l]! >= target[l]!);
+  return { target, read, reached, fableCap: fableCapOf(target, read, ctx.now()) };
 }
 
 /** "weekly 80%, 5-hour 90%". */
@@ -114,19 +138,35 @@ function readLine(read: Reading | null, now: Date): string {
   return `Last read ${when === 'now' ? 'just now' : `${when} ago`} by ${read.by}: ${figuresText(read.used)}.`;
 }
 
+/** Where Fable stands: whether threads still go to it. Nothing where Fable was not read. */
+function fableText(usage: Usage): string {
+  const used = usage.read?.used.fable;
+  if (used === undefined) return '';
+  const goal = usage.target.fable;
+  const against = goal !== undefined ? ` of its ${goal}% target` : '';
+  return usage.fableCap !== null
+    ? `Fable is at ${used}%${against}: no thread goes to Fable now, a step up or a thread set to it is built on Opus.`
+    : `Fable is at ${used}%${against}: threads may still go to Fable.`;
+}
+
 /** What the target means, and where the last reading stands against it. */
 function targetText(usage: Usage, now: Date): string {
   const { target, read, reached } = usage;
-  if (!Object.keys(target).length) {
+  const stops = STOPS.some((l) => target[l] !== undefined);
+  const fable = fableText(usage);
+  if (!stops) {
     return [
       'No usage target: a chat in Chat mode builds what is in Build, whatever the usage.',
       '  Set one on the page, in the header, or: spool target --weekly 80',
+      ...(target.fable !== undefined ? [`  Fable target: ${target.fable}%. No thread goes to Fable once it is there.`] : []),
       ...(read ? [`  ${readLine(read, now)}`] : []),
+      ...(fable ? [`  ${fable}`] : []),
     ].join('\n');
   }
   return [
     `Usage target: ${figuresText(target)}. A chat in Chat mode works up to it, then takes no new thread.`,
     `  ${readLine(read, now)}`,
+    ...(fable ? [`  ${fable}`] : []),
     ...(reached.length ? [`  Reached: ${reached.map((l) => NAMES[l]).join(' and ')}. The chat takes no new thread until it is under again, or the target is raised.`] : []),
   ].join('\n');
 }
@@ -181,12 +221,14 @@ export function usageCommand(ctx: Ctx, typed: Partial<Record<Limit, string>>, by
   const data = { ...usage, keepBuilding: usage.reached.length === 0 };
   if (!reported) return { text: targetText(usage, ctx.now()), data };
   const { target, read, reached } = usage;
-  if (!Object.keys(target).length) return { text: 'No usage target is set: build what is in Build, whatever the usage.', data };
+  const fable = fableText(usage);
+  const withFable = (text: string) => (fable ? `${text}\n  ${fable}` : text);
+  if (!STOPS.some((l) => target[l] !== undefined)) return { text: withFable('No usage target is set: build what is in Build, whatever the usage.'), data };
   // A limit with a target that this reading did not give is not checked, and the chat is told so.
-  const unread = LIMITS.filter((l) => target[l] !== undefined && read?.used[l] === undefined);
+  const unread = STOPS.filter((l) => target[l] !== undefined && read?.used[l] === undefined);
   const missing = unread.length ? `\n  The ${unread.map((l) => NAMES[l]).join(' and ')} figure was not given, so its target was not checked.` : '';
-  const against = LIMITS.filter((l) => target[l] !== undefined && read?.used[l] !== undefined).map((l) => `${NAMES[l]} ${read!.used[l]}% of ${target[l]}%`);
-  if (!reached.length) return { text: `Keep building: ${against.join(', ') || 'nothing to check'}.${missing}`, data };
+  const against = STOPS.filter((l) => target[l] !== undefined && read?.used[l] !== undefined).map((l) => `${NAMES[l]} ${read!.used[l]}% of ${target[l]}%`);
+  if (!reached.length) return { text: withFable(`Keep building: ${against.join(', ') || 'nothing to check'}.${missing}`), data };
   return {
     text: [
       `Stop: the usage target is reached, ${against.join(', ')}.`,

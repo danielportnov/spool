@@ -33,7 +33,7 @@ import { ideate } from './ideate.ts';
 import { manage } from './manage.ts';
 import { markLine } from './mark.ts';
 import { noticesCommand } from './notices.ts';
-import { targetCommand, usageCommand } from './usage.ts';
+import { fableCap, targetCommand, usageCommand } from './usage.ts';
 import { servePage } from './page.ts';
 import { watch } from './watch.ts';
 import { serve } from './mcp.ts';
@@ -587,7 +587,7 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
   // Before anything is written: where there can be no worktree, the thread is not claimed either.
   const opened = worktree || task.worktree ? openWorktree(task) : undefined;
   // What the subagent that builds it is started on, read from the log as it stands, before this claim is on it.
-  const pick = pickFor(task, userConfig(call.ctx).models);
+  const pick = pickFor(task, userConfig(call.ctx).models, undefined, fableCap(call.ctx));
   // The model that builds it, where the claim says (--model). Not read from the claimer's name: a
   // chat that claims for a subagent is not the model the subagent runs on.
   const ran = modelOf(call.opts.model);
@@ -599,6 +599,8 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
   task.place = undefined;
   const how = state === 'stale' ? 'picked up after the last claim went quiet' : 'started';
   addLog(task, actor, opened ? `${how}, in its own worktree on ${opened.branch}` : how, ws.now());
+  // Where Fable's own limit kept it off Fable, the thread says so, as a step up does.
+  if (pick.capped && !ran) addLog(task, actor, pick.capped, ws.now());
   if (given) addLog(task, actor, given, ws.now());
   ws.save(task);
   return { opened, pick, ran: ran || undefined };
@@ -611,6 +613,7 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
 function modelNote(pick: Picked, p: Paint, ran?: string): string | undefined {
   if (ran) return `${p.bold('MODEL')} — built on ${ran}, as the claim says${pick.model ? ` (Spool would pick ${pickLabel(pick)}, ${pick.why})` : ''}.`;
   if (!pick.model && !pick.effort) return undefined;
+  if (pick.capped) return `${p.bold('MODEL')} — ${pickLabel(pick)}: ${pick.capped}. Start the subagent that builds it on that model, at that effort, not on Fable.`;
   return `${p.bold('MODEL')} — ${pickLabel(pick)}, ${pick.why}. Start the subagent that builds it on that model, at that effort.`;
 }
 
@@ -1284,14 +1287,14 @@ export const COMMANDS: Command[] = [
   {
     name: 'target',
     group: 'setup',
-    usage: 'target [--weekly <percent>|none] [--five-hour <percent>|none]',
+    usage: 'target [--weekly <percent>|none] [--five-hour <percent>|none] [--fable <percent>|none]',
     summary: 'Say how much of your Claude plan a chat in Chat mode may use: it works up to the target, then takes no new thread. none takes one off. With nothing after it, says what is set and the usage last read',
     human: true,
-    options: { weekly: { type: 'string' }, 'five-hour': { type: 'string' } },
+    options: { weekly: { type: 'string' }, 'five-hour': { type: 'string' }, fable: { type: 'string' } },
     run(call) {
       const { ws, ctx, args, opts } = call;
       if (args.length) throw new SpoolError('a target is given with its flag', 'spool target --weekly 80 --five-hour 90, or --weekly none to take it off');
-      return targetCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']) }, () => byTheHuman(call, [ws.home], 'target'));
+      return targetCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']), fable: str(opts.fable) }, () => byTheHuman(call, [ws.home], 'target'));
     },
   },
   {
@@ -1451,7 +1454,7 @@ export const COMMANDS: Command[] = [
       const task = list[0];
       if (!task) return { text: nothingReady(ws, project), data: { task: null, ready: 0 } };
       const claimed = call.opts.claim ? claim(call, task, true, !!call.opts.worktree) : undefined;
-      const pick = claimed?.pick ?? pickFor(task, userConfig(call.ctx).models);
+      const pick = claimed?.pick ?? pickFor(task, userConfig(call.ctx).models, undefined, fableCap(call.ctx));
       const out = [brief(ws, task, p)];
       const model = modelNote(pick, p, claimed?.ran);
       if (model) out.push('', model);
@@ -1481,14 +1484,14 @@ export const COMMANDS: Command[] = [
   {
     name: 'usage',
     group: 'agents',
-    usage: 'usage [--weekly <percent>] [--five-hour <percent>]',
+    usage: 'usage [--weekly <percent>] [--five-hour <percent>] [--fable <percent>]',
     summary: "Building in Chat mode: report the plan usage you just read, before you claim a thread, and hear whether the human's usage target lets you take it. With nothing after it, says the last reading",
     write: true,
-    options: { weekly: { type: 'string' }, 'five-hour': { type: 'string' } },
+    options: { weekly: { type: 'string' }, 'five-hour': { type: 'string' }, fable: { type: 'string' } },
     run(call) {
       const { ctx, args, opts } = call;
       if (args.length) throw new SpoolError('a figure is given with its flag', 'spool usage --weekly 62 --five-hour 18');
-      return usageCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']) }, call.actor);
+      return usageCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']), fable: str(opts.fable) }, call.actor);
     },
   },
   {

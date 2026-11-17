@@ -69,6 +69,8 @@ export const CSS = String.raw`  :root {
   .target .meter .used { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; background: var(--blue); }
   .target .meter .mark { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--ink); }
   .target .num { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .target .num.fable { font-weight: 500; color: var(--soft); }
+  .target .num.fable.capped { font-weight: 600; color: var(--warn); }
   .target.reached { color: var(--warn); border-color: var(--warn); }
   .target.reached .meter .used { background: var(--warn); }
   .target[aria-expanded="true"] { border-color: var(--soft); background: var(--bg); }

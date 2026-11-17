@@ -99,7 +99,7 @@ export interface Step {
 }
 
 /** What will run the thread, and why: "by its size", "as the thread says", "stepped up from haiku: …". */
-export type Picked = Pick & { suggested: Pick; stepped?: Step; why: string };
+export type Picked = Pick & { suggested: Pick; stepped?: Step; why: string; /** Set where Fable was the pick and its weekly usage kept the thread off it: the line that says so. */ capped?: string };
 
 /**
  * What will run the thread: what the human picked, then, where its last run did not work, the
@@ -107,17 +107,25 @@ export type Picked = Pick & { suggested: Pick; stepped?: Step; why: string };
  * picked up again in its own session is given `ran`, the pick it was started with: it carries on
  * as it ran, and does not step up.
  */
-export function pickFor(task: Item, routing: Routing, ran?: Pick): Picked {
+export function pickFor(task: Item, routing: Routing, ran?: Pick, fableAt?: number): Picked {
   const suggested = suggestion(task, routing);
   const human = { model: safeModel(task.model), effort: safeEffort(task.effort) };
   const up = ran || human.model ? undefined : stepUp(task, routing);
-  return {
-    model: human.model ?? safeModel(ran?.model) ?? up?.model ?? suggested.model,
-    effort: human.effort ?? safeEffort(ran?.effort) ?? up?.effort ?? suggested.effort,
-    suggested,
-    ...(up ? { stepped: { from: up.from, reason: up.reason, top: up.top } } : {}),
-    why: up ? stepWhy(up) : human.model || human.effort ? 'as the thread says' : ran ? 'as it ran' : 'by its size',
-  };
+  const model = human.model ?? safeModel(ran?.model) ?? up?.model ?? suggested.model;
+  const effort = human.effort ?? safeEffort(ran?.effort) ?? up?.effort ?? suggested.effort;
+  const why = up ? stepWhy(up) : human.model || human.effort ? 'as the thread says' : ran ? 'as it ran' : 'by its size';
+  // Fable's own weekly limit is nearly spent: a thread that would go to Fable, by a step up or by its own say, goes to Opus. One already running carries on as it ran.
+  if (fableAt !== undefined && !ran && model && model.toLowerCase() === 'fable') {
+    const would = up && !human.model ? 'would step up to Fable' : 'is set to Fable';
+    return {
+      model: 'opus',
+      effort,
+      suggested,
+      why: `Fable's weekly usage is at ${fableAt}%`,
+      capped: `${would}, but Fable's weekly usage is at ${fableAt}%: built on Opus`,
+    };
+  }
+  return { model, effort, suggested, ...(up ? { stepped: { from: up.from, reason: up.reason, top: up.top } } : {}), why };
 }
 
 // ------------------------------------------------------------ stepping up
@@ -227,6 +235,7 @@ const stepWhy = (up: Step): string => `${up.top ? 'kept on the biggest model' : 
  * "stepped up from haiku to sonnet · medium: its last run was undone".
  */
 export function stepNote(pick: Picked): string | undefined {
+  if (pick.capped) return pick.capped;
   const up = pick.stepped;
   if (!up) return undefined;
   const to = pickLabel(pick);

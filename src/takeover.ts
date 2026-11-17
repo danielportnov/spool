@@ -22,7 +22,7 @@ import { type Ctx, builderOf, saveUserConfig, userConfig } from './context.ts';
 import { type Item, type Spool, SpoolError, isRun, oneLine, splitBody } from './model.ts';
 import { blockers, docket, ready } from './schedule.ts';
 import type { Workspace } from './store.ts';
-import { LIMITS, figuresText, usageOf } from './usage.ts';
+import { STOPS, figuresText, usageOf } from './usage.ts';
 
 /** A reading older than this is not taken as the usage now: the chat reads it again first. */
 export const FRESH_MS = 30 * 60_000;
@@ -75,7 +75,7 @@ function notReasonable(ws: Workspace, t: Item): string {
 /** The usage now against the target, "weekly 40% of 80%", or why it does not let the chat move a thread. */
 function underTarget(ctx: Ctx): { ok: true; against: string } | { ok: false; why: string; hint: string } {
   const { target, read, reached } = usageOf(ctx);
-  const set = LIMITS.filter((l) => target[l] !== undefined);
+  const set = STOPS.filter((l) => target[l] !== undefined);
   if (!set.length) return { ok: false, why: 'no usage target is set, and taking over works up to one', hint: 'The human sets one, on the board or: spool target --weekly 80' };
   const report = 'Read it with your harness\'s tool and report it first: spool usage --weekly <n> --five-hour <n>';
   if (!read || ctx.now().getTime() - Date.parse(read.at) > FRESH_MS) return { ok: false, why: 'the usage has not been read in the last 30 minutes', hint: report };

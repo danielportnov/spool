@@ -102,7 +102,7 @@ export interface UserConfig {
    * limit: `{ "weekly": 80, "fiveHour": 90 }`. The plan is the account's, so one target holds in
    * every project. A chat building in Chat mode works up to it. Set on the page. See usage.ts.
    */
-  usageTarget?: { weekly?: number; fiveHour?: number };
+  usageTarget?: { weekly?: number; fiveHour?: number; fable?: number };
   /**
    * For each project, by the path of its folder: `true` where the chat that builds it in Chat mode
    * takes over the backlog, moving threads to Build itself up to the usage target. See takeover.ts.
