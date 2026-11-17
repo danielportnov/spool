@@ -18,6 +18,7 @@ import type { Builder } from './context.ts';
 import { type Live as Running, type Picking, type Runner, stoppedInBuild } from './engine.ts';
 import { git, repoRoot } from './git.ts';
 import { type Goals, goalsOf } from './goals.ts';
+import { plain } from './plain.ts';
 import { type Item, isPlan, isRun, oneLine, reportFile, splitBody, whyOf } from './model.ts';
 import { attachLine, picturesOf } from './pictures.ts';
 import type { Typing } from './quick.ts';
@@ -228,7 +229,7 @@ function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['
     const decided = /^assumed (d-[a-z0-9]+): (.*)$/.exec(s.what);
     // A call is stamped with when it was made, not when it was written on the thread.
     if (decided) return { at: feedTime(ws.find(decided[1]!)?.created) || s.at, who: s.who, kind: 'decided', text: decided[2]!, ref: decided[1]! };
-    return { at: s.at, who: s.who, kind: BOOKKEEPING.test(s.what) || s.who === 'human' ? 'event' : 'post', text: s.what };
+    return { at: s.at, who: s.who, kind: BOOKKEEPING.test(s.what) || s.who === 'human' ? 'event' : 'post', text: plain(s.what) };
   });
   // Oldest first by the real time of each post; ties keep the order they were written in, words first.
   const when = (p: Post): number => Date.parse(p.at.replace(' ', 'T')) || 0;
