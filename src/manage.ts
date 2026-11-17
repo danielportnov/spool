@@ -23,6 +23,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { CLEANUP_RULE, type CleanupAsk, takeCleanup } from './cleanup.ts';
 import { COMMANDS, type Call, type Result } from './commands.ts';
 import { git, repoRoot } from './git.ts';
 import { type Leave, allowed, leaveLine, leaveOfRun, runUnder, settle } from './leave.ts';
@@ -111,6 +112,8 @@ export interface Worksheet {
   open: number;
   /** The leave the run is under: how far the human said it may go. Null: it tidies only. */
   leave: Leave | null;
+  /** The human asked for this pass with Clean Up on the board: every drop and archive is theirs to say yes to. */
+  asked: CleanupAsk | null;
   /** New ideas the run may file: five, or what the leave says; none while too many still wait. */
   proposals: { cap: number; unanswered: number };
   saidNo: {
@@ -328,7 +331,7 @@ function outcome(ws: Workspace, item: Item | undefined): string {
 }
 
 /** Everything the worksheet says, as data. Reads the spool, the git log, the changelog and the tests; writes nothing. */
-export function gather(ws: Workspace, spool: Spool, run: Item, leave?: Leave): Worksheet {
+export function gather(ws: Workspace, spool: Spool, run: Item, leave?: Leave, asked?: CleanupAsk): Worksheet {
   const now = ws.now();
   const mine = tasks(ws, spool).filter((t) => !isRun(t));
   const state = (t: Item) => taskState(ws, t);
@@ -427,6 +430,7 @@ export function gather(ws: Workspace, spool: Spool, run: Item, leave?: Leave): W
     project: spool.name,
     open: open.length,
     leave: leave ?? null,
+    asked: asked ?? null,
     // The human's own number for tonight stands, whatever is waiting.
     proposals: { cap: leave?.allows.proposals ?? (unanswered >= MANAGE.waiting ? 0 : MANAGE.proposals), unanswered },
     saidNo: {
@@ -489,6 +493,11 @@ export function worksheetText(ws: Workspace, w: Worksheet, p: Paint): string {
 
   const ideas = w.proposals;
   out.push(`SPOOL_RUN=${w.run}`, `Set it on every command of this run, so one undo takes back all of it:  export SPOOL_RUN=${w.run}`, '');
+  if (w.asked) {
+    out.push(p.bold(CLEANUP_RULE));
+    if (w.asked.words) out.push(`  What they wrote with it: "${w.asked.words}"`);
+    out.push('');
+  }
   // How far this run may go: the human's leave, in their words, or none.
   if (w.leave) {
     const a = w.leave.allows;
@@ -834,7 +843,13 @@ export function manage(call: Call): Result {
     // A leave that is live is this run's from now on: its thread names it, and undoing the run ends it.
     const { live } = settle(ws, spool);
     if (live) runUnder(ws, run, live, actor);
-    const sheet = gather(ws, spool, run, live);
+    // Asked for with Clean Up on the board: the request is this run's now, and its thread says so.
+    const asked = takeCleanup(spool);
+    if (asked) {
+      addLog(run, actor, `asked for with Clean Up on the board by ${asked.by}${asked.words ? `: "${asked.words}"` : ''}`, ws.now());
+      ws.save(run);
+    }
+    const sheet = gather(ws, spool, run, live, asked);
     return { text: worksheetText(ws, sheet, p), data: { env: { SPOOL_RUN: run.id }, ...sheet } };
   }
 
