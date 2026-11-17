@@ -88,7 +88,7 @@ their code. Words that come from a project's files and go near a shell are check
 **The page is one page, and does only what a command can.** The whole client is three strings in
 `src/client/`: its HTML (`page.html.ts`), its CSS (`page.css.ts`) and its script (`page.js.ts`),
 joined into the one `PAGE` the server sends, with nothing else to load and no build step. Every
-change the page makes is an ordinary command run as the human (`change` and `act` in
+change the page makes is an ordinary command run as the user (`change` and `act` in
 `src/act.ts`), so the page can do nothing the command line cannot. A new button starts as a
 command.
 

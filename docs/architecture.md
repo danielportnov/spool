@@ -26,7 +26,7 @@ those comments are the detail.
 - `schedule.ts` works out everything that is not stored. `taskState` says whether a task is
   proposed, ready, held, blocked, active, stale, done or dropped. `blockers` says what it waits
   on. `ready` gives the order work is built in: urgency first, then the smallest, with one pick in
-  four kept for large work. `review` gathers what waits on the human.
+  four kept for large work. `review` gathers what waits on the user.
 
 **The commands**
 
@@ -36,7 +36,7 @@ those comments are the detail.
   queue full-screen (`tui.ts`).
 - `commands.ts` is the `COMMANDS` table: every verb, its options, its help line, and the rules
   about what may follow what. A command with `write` runs under the lock; one with `human` acts as
-  the human unless told otherwise; `before` does slow work, such as running a check, before the
+  the user unless told otherwise; `before` does slow work, such as running a check, before the
   lock is taken, and `after` lets go of whatever `before` took.
 - `context.ts` is `Ctx`, the outside world passed in, and the user's own settings in
   `~/.config/spool/config.json`. It also runs the notifier.
@@ -58,25 +58,25 @@ those comments are the detail.
   and no judgment; `worksheetText` prints them. `changesOf` folds a run's journal into the report
   `--end` writes. A run's own thread is told by `isRun` in `model.ts`, and `ready` never hands
   it out.
-- `usage.ts` is the usage target: `spool target`, how much of their Claude plan the human wants a
+- `usage.ts` is the usage target: `spool target`, how much of their Claude plan the user wants a
   chat in Chat mode to use, kept in their own settings; and `spool usage`, the plan's usage that
   chat read and reported before a thread, kept beside it in `usage.json`. Each roster agent has its
   own reading and may have its own target (`agentTargets`), the old one being the one for all.
   `usageOf(ctx, agent)` is one agent's target, reading and which limits are reached, for the
   header, claims (`refuseOverTarget`) and taking over.
-- `until.ts` is the time to work: `spool until` and `spool for`, the end the human set, kept in their
+- `until.ts` is the time to work: `spool until` and `spool for`, the end the user set, kept in their
   own settings. `timeOf` is where it stands now: the minutes left and the share of the window gone,
   which `headroomOf` in `usage.ts` reads as one more budget, so claims, `spool next`, `spool usage`
   and taking over wrap up by it as by the usage. The board's header and Settings show it.
 - `takeover.ts` is `spool takeover`: whether the chat in Chat mode takes over a project's backlog,
   kept in the user's settings beside who builds it. `reasonable` is which threads it may take, the
-  human's first, leaving what `potentiallyIrrelevant` in `manage.ts` names;
+  user's first, leaving what `potentiallyIrrelevant` in `manage.ts` names;
   `buildUnderTakeOver` is `spool build --takeover`, refused unless the switch is on, a chat builds,
   the usage is freshly read and under the target, and Build is empty.
   `tidyDue` is when that chat runs its own pass over the backlog (`spool manage --start --takeover`):
   Build empty, no pass open, the last one 20 hours back or more, something changed since, and the
   usage under the target. `spool watch` prints `tidy:` as one comes due.
-- `notices.ts` is `spool notify`: which events tell the human (a thread started or done, a
+- `notices.ts` is `spool notify`: which events tell the user (a thread started or done, a
   question, a sprint finished, Build empty, an agent stuck, the usage target reached), kept in their
   own settings under `notifyOn`. The chat that builds asks `spool notify check <event>` before it
   sends a Claude notification; `notify` in `context.ts` runs the notifier only for events picked.
@@ -84,7 +84,7 @@ those comments are the detail.
   of their own (quick replies, quiet-agent minutes, rebuilding after a landing, offering Headless,
   and caveman again). `settingsOf` is what the page's Settings panel needs that the board does not
   already carry, the roster included whoever builds.
-- `leave.ts` is `spool leave`: how far agents may go while the human is away, and until when,
+- `leave.ts` is `spool leave`: how far agents may go while the user is away, and until when,
   kept in `.spool/leave.json`. `settle` gives the live leave and removes one that has run out.
   `buildUnderLeave` and `dropUnderLeave` are what `spool build --leave` and `spool drop --leave`
   ask before they act, and count each use.
@@ -112,19 +112,19 @@ those comments are the detail.
   to it; `rosterView` is what `spool builder`, `spool status` and the header show.
 - `watch.ts` is `spool watch`. Once a second it reads the spool and prints a line for each change
   the loop should wake for (`changes`): work that can be built, a reply, a question an agent just
-  asked (`ask:`, with its thread and options, which the chat puts to the human), an unfiled note.
+  asked (`ask:`, with its thread and options, which the chat puts to the user), an unfiled note.
   While it runs it leaves a file in the temp folder, which the page reads to say a chat is watching.
 - `server.ts` is `spool page`: the command (`servePage`) and a server on `127.0.0.1`
   (`startPage`) that sends the page and the board, and takes each click as a POST. `moveThread`
   is a drag: a command, and a word to the runner the server holds.
 - `board.ts` reads the spool for the page. `board` is every card in its column, each thread as a
-  conversation, and what waits on the human; `diffOf` is what a finished thread changed.
-- `act.ts` runs one command in-process as the human (`act`). `change` turns each click into one.
+  conversation, and what waits on the user; `diffOf` is what a finished thread changed.
+- `act.ts` runs one command in-process as the user (`act`). `change` turns each click into one.
 - `engine.ts` is the `Runner`: it builds what is in Build when agents are on, the same way
   `runLoop` does. It picks the next thread, gives it a worktree, and settles the thread when its
   agent has gone. A thread a run left unfinished is carried on in the Claude session it was in
-  (`leftOff`, `carryOn`), and what the human writes on a thread being built is said to its agent
-  (`attend`). A tool call an agent needs a yes for is held for the human where one is looking
+  (`leftOff`, `carryOn`), and what the user writes on a thread being built is said to its agent
+  (`attend`). A tool call an agent needs a yes for is held for the user where one is looking
   (`asked`, `permit`). On start, a thread a dead page left handed out is carried on in its
   session, or put back (`recover`). There is no HTTP in it.
 - `session.ts` is one agent on one thread, and the only file that knows how one is started and
@@ -181,7 +181,7 @@ those comments are the detail.
 
 **Agents and models**
 
-- `agent.ts` decides which model works a thread and at what effort. `pickFor` takes the human's
+- `agent.ts` decides which model works a thread and at what effort. `pickFor` takes the user's
   pick first, then a step up where the thread's last run did not work (`stepUp`, read from its
   log: one model up from the one that ran it), then the smallest model its size can be built with
   (`suggestion`). `commandFor` puts the pick into the agent command; `builderLine` is what a
@@ -219,7 +219,7 @@ those comments are the detail.
 2. **`spool task "Tighter jump" --from n-…`.** `fileWork` makes the task and quotes the note's
    words into it (`quoteNote`). The note becomes `filed`. Where the gate is on, the task is
    `proposed`, and `claim` refuses it to any agent.
-3. **`spool build t-…`.** The human moves it to Build. `byTheHuman` refuses an agent where the gate
+3. **`spool build t-…`.** The user moves it to Build. `byTheHuman` refuses an agent where the gate
    is locked. The task becomes `open`, with `moved to build` on its log. On the page, ▶ is the same
    command: `change` calls `act`, which calls `run` with `human: true`.
 4. **It is picked up.** `ready` in `schedule.ts` puts it in line, and `spool watch` prints

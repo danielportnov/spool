@@ -38,7 +38,7 @@ Three things can sit on a thread while it waits:
 ## The gate
 
 Where the gate is on (`/spool-init` turns it on), every new thread starts in the backlog and **no
-agent can claim it**. `spool build`, the human's command, is the only way into Build; the page's ▶,
+agent can claim it**. `spool build`, the user's command, is the only way into Build; the page's ▶,
 a drag, and ▶ on a sprint all run it.
 
 A project can also **lock** the gate: `spool init --lock`. Then the three commands that start work —
@@ -899,11 +899,11 @@ the Agents switch is not a switch but a reading: **building** while a thread is 
 **watching** while a `spool watch` is up for the project (it leaves a file named with its pid in
 the temp folder for as long as it runs), and **off** when nobody is listening, so nothing in Build
 would be built. The pick is kept on your machine, by the project's folder, under `builder` in
-`~/.config/spool/config.json`, so it outlives the page. It can be set from a chat too, on the human's
+`~/.config/spool/config.json`, so it outlives the page. It can be set from a chat too, on the user's
 word: `spool builder chat` or `spool builder headless` (and `--at-once <n>`, how many threads are
 built at the same time, kept as `parallel`). It writes what the page reads, so the page's selector
 follows within a second. With nothing after it, `spool builder` says what is set. Setting it is the
-human's, refused to an agent where the gate is locked, as `spool build` is.
+user's, refused to an agent where the gate is locked, as `spool build` is.
 
 **Several agents at once: the roster.** In Chat mode more than one agent can build the project side
 by side, a Claude Code chat and a Codex chat each running the loop. Each is one entry on the
@@ -1073,7 +1073,7 @@ ones marked 🔒:
 | `spool log <id> <fact>` | Leave a note for whoever comes next |
 | `spool adopt <sha…> --for <t-id>` | Put a commit that landed on no thread on the thread it belongs to: it joins the thread's commits, so `spool revert` takes it back with the rest, and the thread's log says so. Refused for a commit on a thread already, or not on this branch |
 | `spool attach <t-id> <file…> [--as before\|after] [--by <name>] [-m caption]` | Keep a picture or a file with a thread: a PNG, JPEG, GIF or WebP picture or a PDF, told by its bytes, or plain text (`.txt .md .csv .json .log`, UTF-8), 5 MB and 20 a thread at most. A file keeps its own name after Spool's number, and text is only ever served as plain text. It is copied into `.spool/runs/<id>/files/` under a name Spool gives, a line on the thread's log says who attached it and the caption, and the thread's brief names its path. `--as before` and `--as after` are the proof of a change you can see, shown side by side when it is done. A picture pasted or dropped into a box on the page, or a file dropped on a thread or picked with Add a file, is attached the same way, and `spool watch` prints a `reply:` line with its path |
-| `spool ask` · `assume` | Put a call to the human; or make it and leave a receipt |
+| `spool ask` · `assume` | Put a call to the user; or make it and leave a receipt |
 | `spool done <t-id> -m <summary> [--steps <step>…]` | Finish: record the commits, or hand in a report. The summary keeps its line breaks, so a list in it stays a list. Work in a worktree of its own is landed first. `--steps` (each word after it is a step, as in `--steps "Open the board" "The card is at the top"`, or `-` for one a line from stdin) says how to see a change working; a change finished without them says so |
 | `spool edit <id>` | Change a title, priority, size, kind, model, effort, tags, version, sprint, or the steps to check it by (`--steps`, `none` clears them); a sprint's version stamps its finished threads too |
 | `spool hold <t-id> -m why` · `drop <id> [--leave]` | Park work; abandon it. `drop --leave -m "Shipped in <sha>: …"` drops a thread as shipped under a leave that allows it, and the commit must exist |
@@ -1102,8 +1102,8 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool demo [folder] [--open]` | A throwaway sample project with threads in its spool, to try the page and the loop on |
 | `spool install [--for claude\|codex\|cursor\|gemini\|all] [--here \| --dir path]` | Put the skills where your agent finds them: Claude Code unless `--for` names another; it also names the other agents it finds here |
 | `spool checks [command \| --none] [--timeout minutes]` | Name the command that must pass before a change is done here, and how long it may run (10 minutes) |
-| `spool builder [headless \| chat] [--at-once n] [--agent <name> [--model m] [--lean usage\|balanced\|development]]` | Say who builds here, and how many threads at once, for every agent or, with `--agent`, for one on the roster (adding it), and how far it leans from saving usage to pushing development; with nothing after it, says what is set and lists the agents. The human's, like `spool build` |
-| `spool agents [on \| off]` | Switch the page's agents on or off, as its Agents button does; with nothing after it, says whether a page is up and its agents are on. On is the human's, like `spool build`, and refused while a chat builds; off is always allowed |
+| `spool builder [headless \| chat] [--at-once n] [--agent <name> [--model m] [--lean usage\|balanced\|development]]` | Say who builds here, and how many threads at once, for every agent or, with `--agent`, for one on the roster (adding it), and how far it leans from saving usage to pushing development; with nothing after it, says what is set and lists the agents. The user's, like `spool build` |
+| `spool agents [on \| off]` | Switch the page's agents on or off, as its Agents button does; with nothing after it, says whether a page is up and its agents are on. On is the user's, like `spool build`, and refused while a chat builds; off is always allowed |
 | `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it. It names work that landed on no thread, as `spool status` does. After an upgrade it also names a retired skill that is still installed, for any agent, and a Spool block in `AGENTS.md` that is not the one this version writes; changes nothing |
 | `spool page [--run] [--agent cmd] [--port n] [--no-open] [-P project]` | The board; `--run` has it build what is in Build too. In a folder of projects it shows them all, one click apart |
 | `spool page -d \| --status \| --stop` | The board in the background, with no browser opened; whether it is up, and where; end it |

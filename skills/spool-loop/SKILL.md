@@ -30,7 +30,7 @@ them, and whoever builds a thread reads them first: you, or each subagent.
 
 ## Build what is in Build
 
-**Nothing is built unless the human has moved it to build.** You never move a
+**Nothing is built unless the user has moved it to build.** You never move a
 thread to build yourself, whatever it is and whoever thought of it, unless
 they switched **taking over** on: then "When Build is empty" says how.
 
@@ -57,7 +57,7 @@ says is yours; a claim past it is refused.
   ("🧵 Starting the jump: more gravity, less hang time") and one as each
   lands ("✅ The jump: it lands in half the time"), notify them of each
   where they picked it (below), take the next from build as a slot frees,
-  and answer the human. In caveman mode (`spool caveman`)
+  and answer the user. In caveman mode (`spool caveman`)
   those lines, your notifications and every reply are fragments:
   "Start: the jump." "Landed: the jump. Build empty. http://127.0.0.1:4747/"
 
@@ -159,7 +159,7 @@ why, and if a tidy is due: run that pass first. Then carry on below.
    `spool ideate` prints the facts to find them in; it says none? File none.
    `spool task "<the idea>" --suggested "<why, in a line they would agree with>" --size <size> -b "<its spec>"`
    files one as proposed and marked **AI suggested**: nobody starts it, you
-   included, until the human moves it to build. None that is already there,
+   included, until the user moves it to build. None that is already there,
    and no chores for yourself. A step agents keep working out again is an
    idea too: `spool skills --suggest` lists them by the words they share, so
    read the threads first.

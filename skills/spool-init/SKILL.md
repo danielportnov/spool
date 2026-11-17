@@ -6,7 +6,7 @@ description: Set Spool up in this folder or repository so agents can work it on 
 # Spool init
 
 Get this project from nothing to agents working it, in one short conversation.
-`spool` is your tool; the human should not have to type anything but answers.
+`spool` is your tool; the user should not have to type anything but answers.
 
 Only trying Spool, not setting this project up? Offer `spool demo --open`: a
 throwaway project with threads in its spool, and its board in their browser.
@@ -49,7 +49,7 @@ None of their own code is touched.
    If you see that, step 3 applies.
 
    The queue is private by default: git ignores everything under `.spool/`,
-   because it is working state for agents and holds the human's words exactly
+   because it is working state for agents and holds the user's words exactly
    as they said them. Tell them so in a line. Only if they ask to share the
    queue with a team, or to keep its history in git: `spool init --refresh --share`.
 

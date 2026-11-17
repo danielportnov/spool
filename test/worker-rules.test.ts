@@ -10,10 +10,10 @@ import { spool } from './helpers.ts';
  * "Working a thread" as `spool prime worker` printed it while it was a section of the loop skill
  * (commit 131b10a): the sha256 of that text. The rules moved to rules/worker.md and did not change,
  * until the rules on before and after pictures, on how to write on a thread, on adopting a commit
- * that landed on no thread, on signing, on the trailers stamped at landing, on questions that are truly the human's while they are AFK, on handing a thread off when out of usage, on recording a call when it is made, and on research, were added on purpose.
+ * that landed on no thread, on signing, on the trailers stamped at landing, on questions that are truly the user's while they are AFK, on handing a thread off when out of usage, on recording a call when it is made, and on research, were added on purpose, and the person was called the user rather than the human.
  * Changed them on purpose since? Put the new hash here.
  */
-const WORKING_A_THREAD = 'f724d1dc9ff32700a26b53585e0a43d0b8e6676fc9cadd77e423232bcb035f3b';
+const WORKING_A_THREAD = 'c888f62f853751f93bc47a5e0327d53070e1d69197dd0a86b84cb7ee87ec2028';
 
 const sha = (text: string): string => createHash('sha256').update(text).digest('hex');
 
@@ -45,7 +45,7 @@ test("the worker's rules are one shipped file, and spool prime worker prints the
 test('the loop skill points at the rules and repeats none of them', () => {
   const loop = shipped('spool-loop');
   assert.match(loop, /`spool prime worker`/);
-  assert.doesNotMatch(loop, /^#+ (Working a thread|A version for what shipped|Size: how much would have to change|Choices the thread doesn't settle|The human's verbs)$/m);
+  assert.doesNotMatch(loop, /^#+ (Working a thread|A version for what shipped|Size: how much would have to change|Choices the thread doesn't settle|The user's verbs)$/m);
   assert.doesNotMatch(loop, /\*\*An audit\.\*\*|\*\*In a worktree\.\*\*|\*\*Find the version\*\*/);
 });
 

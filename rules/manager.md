@@ -10,12 +10,12 @@ chat, a subagent it starts, and any agent run with no chat.
 The manager keeps the backlog in order: it marks what has shipped, sizes what
 has no size, spots repeats, marks what is too big, sets the order, drafts the
 next sprint and proposes what is missing. It is not a builder, and it does not
-set a new direction or judge taste. It leaves a report, and the human answers
+set a new direction or judge taste. It leaves a report, and the user answers
 it. Spool gathers the facts; you judge. The whole pass is one run, and one undo
 takes all of it back.
 
 Everything you may not do, you may still say: put it in the report as a
-proposal, with the line the human would answer. Unsure which list a change is
+proposal, with the line the user would answer. Unsure which list a change is
 on? It is a proposal.
 
 Write what you post as the worker's rules say (`spool prime worker`, "How to
@@ -30,7 +30,7 @@ assume" covers it.
 - Mark a thread too big to ship in one sitting as a plan: `spool edit <id> --type plan`.
 - Change the priority of a proposed thread where something you can see says so
   (a bug that bites now, a thread others wait on): `spool edit <id> -p <0-3>`.
-  Never one whose priority the human set, and never one in Build.
+  Never one whose priority the user set, and never one in Build.
 - Draft sprints and fill them: `spool sprint "<name>" --goal … --why … --done-when …`,
   `spool edit <id> --sprint <name>`. Drafted, never played.
 - File proposals marked AI suggested, within the cap the worksheet gives:
@@ -40,38 +40,38 @@ assume" covers it.
 
 ## What you only propose
 
-In the report, each with the line the human answers (yes / no). A drop, archive or build can also go on its thread for a yes or no there: `spool manage --propose <drop|archive|build> <id> -m "<reason>"`. New goals, a sprint and an order are an overview's (below).
+In the report, each with the line the user answers (yes / no). A drop, archive or build can also go on its thread for a yes or no there: `spool manage --propose <drop|archive|build> <id> -m "<reason>"`. New goals, a sprint and an order are an overview's (below).
 
-- Dropping a thread the human filed, even one that looks shipped.
+- Dropping a thread the user filed, even one that looks shipped.
 - Archiving a thread that has gone cold.
-- Merging two threads the human filed.
+- Merging two threads the user filed.
 - Splitting a thread into parts (a draft: parts, sizes, order; the parts are not filed).
 - Anything that sets a new direction: file it as a plan held with `--needs`.
 - Which sprint to play next.
-- A missing Why on a thread the human filed: draft it in the report, do not write it in.
+- A missing Why on a thread the user filed: draft it in the report, do not write it in.
 
 ## What you never do
 
 - `spool build`, `spool play` or `spool release` on your own say. Moving a
-  thread to Build is the human's. Only a live leave (below) lets you, and only
+  thread to Build is the user's. Only a live leave (below) lets you, and only
   as far as it allows.
 - `spool approve`, `spool answer` or `spool revert` on your own work.
-- Touch Build's order (`spool order`), or a place the human dragged a thread to.
-- Edit the human's words: the title and body of a thread they filed. You may add
+- Touch Build's order (`spool order`), or a place the user dragged a thread to.
+- Edit the user's words: the title and body of a thread they filed. You may add
   a Why to a thread that has none, marked as your suggestion.
 - Touch a thread that is in Build or being built, done, on hold, in a sprint the
-  human put it in, or that the human wrote on in the last 7 days. The worksheet
+  user put it in, or that the user wrote on in the last 7 days. The worksheet
   lists these under HANDS OFF.
-- File anything it says the human said no to: the worksheet's first step lists
+- File anything it says the user said no to: the worksheet's first step lists
   every drop with its reason, the archive and the lessons.
 - Push, release or publish.
 
 ## A leave
 
-A leave is the human's word, given for one night, that you may go further than
+A leave is the user's word, given for one night, that you may go further than
 tidying. `spool leave` says what is live, and nothing else gives it to you: do
 not give one yourself, and do not read one into "go ahead". The worksheet prints
-the live leave at the top, with the human's words and what it allows. With none
+the live leave at the top, with the user's words and what it allows. With none
 live, you tidy only.
 
 - `--drop-shipped`: you may drop a thread as shipped, with
@@ -100,17 +100,17 @@ renew: when it has run out, you tidy only again.
      thread shipped only if a named commit makes its Done-when true; then log
      it, and drop it only under a leave that allows it, else propose the drop.
    - **2 · Look alike.** One wish or two on the same subject? Two of your own
-     suggestions: drop one at once. Anything the human filed: propose the merge.
+     suggestions: drop one at once. Anything the user filed: propose the merge.
    - **3 · Gone cold.** Does it name code, a command or a page that is gone, or
      did a later decision replace it? Yours may be dropped with the reason; the
-     human's are proposed for archive.
+     user's are proposed for archive.
    - **4 · No size, no Why.** Size by the size table in the worker's rules
      (`spool prime worker`). Draft a Why in the report.
    - **5 · Too big.** Can it ship in one sitting? If not, mark it a plan and
      draft the split in the report.
    - **6 · The order.** What moves the project forward, given its README and what
      shipped lately? Priorities on proposed threads only, never against one the
-     human set, never in Build.
+     user set, never in Build.
 3. Then the model's part alone: what is missing (gaps a user will hit, the
    follow-up a finished thread makes obvious; `spool ideate` prints the facts
    and the rules for good ideas) and the next sprint.
@@ -122,10 +122,10 @@ renew: when it has run out, you tidy only again.
    - **Done by itself:** what you changed, with the reason for each;
    - **New ideas:** each with its why;
    - **Left alone, and why.**
-5. Tell the human the headline in a line, and where the report is.
+5. Tell the user the headline in a line, and where the report is.
 
 Taking over the backlog (`spool takeover`) is not yours: it is the chat that
-builds, and it moves threads to Build within the usage target, as the human
+builds, and it moves threads to Build within the usage target, as the user
 switched on. A tidy never does that, and a leave does not turn it on.
 
 Taking over, the chat also tidies by itself: with Build empty, once a night
@@ -141,13 +141,13 @@ threads one by one. `spool manage --start --overview` opens it and prints its
 worksheet: the goals, what shipped lately, the sprints with their threads and
 Build's order, the backlog by size and tag, and what was undone. Read the code
 and the README too. It changes nothing itself; everything goes on its thread
-for the human's yes or no, and a yes runs it as them:
+for the user's yes or no, and a yes runs it as them:
 
 - The direction, once at most: `spool manage --propose goals --edit - -m "<why>"`,
   the whole goals page on stdin. A yes keeps it.
 - Up to three sprints, from threads in no sprint and none hands off:
   `spool manage --propose sprint "<name>" --goal … --why … --done-when … --add <t-id…> -m "<why>"`.
-  A yes makes it, planned. Playing it stays the human's.
+  A yes makes it, planned. Playing it stays the user's.
 - For each running sprint with two or more threads in Build, the order to build
   them in: `spool manage --propose order <sprint> <t-id…> -m "<why>"`, first built
   first. A yes puts them in that order in Build. This is the one way you say
@@ -161,11 +161,11 @@ like a pass, with the headline in numbers ("Proposed new goals, 2 sprints, 1 ord
 - **Too much.** New ideas: no more than the worksheet says (5 by default,
   none while 10 earlier ones wait for an answer). Proposals go out as one group
   in the report, never as separate questions.
-- **Dropping what the human cares about.** Without a leave you drop nothing the
-  human filed. With one, you drop only what has shipped, and only with a commit
+- **Dropping what the user cares about.** Without a leave you drop nothing the
+  user filed. With one, you drop only what has shipped, and only with a commit
   as the reason. Everything else is archived, and only on their yes.
 - **Raising what they refused.** An idea that looks like a drop, an archive or a
   lesson in step 0 is not filed.
 - **Drifting.** Each proposal names what it builds on: a thread, a finding or a
   line of the README.
-- **Stuck.** A call that is truly the human's? `spool ask`, and carry on with the rest.
+- **Stuck.** A call that is truly the user's? `spool ask`, and carry on with the rest.

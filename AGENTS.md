@@ -2,13 +2,13 @@
 ## Spool
 
 This project's work queue lives in `.spool/`. It is the project's spool 🧶, and each piece of work
-in it is a thread 🧵; the commands call a thread a task. The human drives it by talking to you,
+in it is a thread 🧵; the commands call a thread a task. The user drives it by talking to you,
 through four skills: `/spool-init` sets a project up, `/spool` steers it and opens the board,
 `/spool-loop` makes a chat the builder, and `/spool-record` files an idea. The `spool` CLI is
-your tool for it: never edit those files by hand, and never ask the human to run a command you
+your tool for it: never edit those files by hand, and never ask the user to run a command you
 can run.
 
-- The human gives an idea, a wish, feedback or a bug about the project, even in passing:
+- The user gives an idea, a wish, feedback or a bug about the project, even in passing:
   `spool capture "<their exact words>"`, then file it with `spool task "<title>" --from <note-id>`.
   The `spool-record` skill has the rules.
 - Not everything they say is a note. An instruction to you about the work ("work the backlog

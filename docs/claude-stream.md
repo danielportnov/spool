@@ -34,7 +34,7 @@ Written to stdin:
 {"type":"control_response","response":{"subtype":"success","request_id":"<its id>",
   "response":{"behavior":"allow","updatedInput":{…the input it sent…},"updatedPermissions":[…]}}}
 {"type":"control_response","response":{"subtype":"success","request_id":"<its id>",
-  "response":{"behavior":"deny","message":"The human said no: not from an agent."}}}
+  "response":{"behavior":"deny","message":"The user said no: not from an agent."}}}
 ```
 
 Printed on stdout, among the events Spool already read (`system/init`, `assistant`, `user` with a

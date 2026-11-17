@@ -13,11 +13,11 @@ task. Its brief says what type of work it is, and finishing means something
 different for each.
 
 Before you start, read "What was undone here, and why" in `spool prime`, and
-any "UNDONE BEFORE" in the brief: the human took that work back. Do not repeat it.
+any "UNDONE BEFORE" in the brief: the user took that work back. Do not repeat it.
 
 **A change.** Make it, in small commits. Where the project has a check
 (`spool checks` says), `spool done` runs it first and refuses if it fails:
-fix what it found and run `spool done` again. The check is the human's. If
+fix what it found and run `spool done` again. The check is the user's. If
 it is wrong, ask them (`spool ask`); never switch it off or work round it.
 End every commit message with the trailer
 
@@ -29,10 +29,10 @@ is the only link. Who built it and on what model are added at landing too
 (`Spool-Agent:`, `Spool-Model:`): do not write those yourself. Check the result
 the way a user would meet it. Then:
 
-    spool done <id> -m "<what changed, and how the human can see it>" \
+    spool done <id> -m "<what changed, and how the user can see it>" \
       --steps "<a step>" --steps "<a step>"
 
-The steps are how the human sees it working in a minute: two or three, written
+The steps are how the user sees it working in a minute: two or three, written
 for someone who has not seen the code, each something they do or see ("Open
 the board", "Drag a card up in Build", "The top card is built first"), never
 "run the tests". Forgot them? `spool edit <id> --steps "<a step>"` adds them.
@@ -82,7 +82,7 @@ smallest pieces that can ship on their own, in the order they land:
 
     spool task "<the part>" --from <id> --size <size> [--needs <an earlier part>]
 
-If the policy says the human should see the plan before work starts (big scope,
+If the policy says the user should see the plan before work starts (big scope,
 a new direction), add `--needs <id>`, the plan's own id, to every part: they
 wait for the go-ahead. Then hand in the plan:
 
@@ -100,7 +100,7 @@ report, a short summary first:
     <the summary, then the detail, then the sources>
     EOF
 
-The `-m` is what the human reads; the report is a click away. It is kept with
+The `-m` is what the user reads; the report is a click away. It is kept with
 the project, and later work is pointed at it, so write it for the next agent
 too. Something to build came out of it? File it, `--from <id>`, as an audit's
 findings are.
@@ -156,7 +156,7 @@ Check it wasn't settled already: `spool list -k decision --search "<topic>"`
 
       spool ask "<the question>" --option "<A>" --option "<B>" --recommend 1 --why "<reason>" --for <task-id>
 
-  That thread now waits and the human is told. Do not wait for them: take the next thread.
+  That thread now waits and the user is told. Do not wait for them: take the next thread.
 
 - **Truly theirs, even while they are away?** Add `--human <kind>`: `money` (it
   spends money), `publish` (publishing, pushing or sending outside the repo),
@@ -180,13 +180,13 @@ recommendation, the reason.
 - A commit of yours landed with no `Spool:` trailer? `spool adopt <sha> --for <id>` puts it on the
   thread, so it is undone with it. `spool status` names what landed on no thread.
 - Found something out of scope? `spool task "<title>" --size <size>`. Queue it, don't wander.
-- Out of usage mid-thread (your plan's limit, or the human's target)? `spool handoff <id> -m "<where it
+- Out of usage mid-thread (your plan's limit, or the user's target)? `spool handoff <id> -m "<where it
   stopped>"`, with `--to <agent>` or `--to <model>` where one has usage left, and stop. It commits the
   work so far, puts the thread back in Build, and the next one carries on from your note.
 - Cannot finish? Then you need something. Say what with `spool ask … --for <id>`,
   so the thread waits on the answer instead of on you.
-- A thread on hold is the human saying not yet. It is never handed out; never release it yourself.
-- The human says something about the project while you work? `spool capture "<their exact words>"`,
+- A thread on hold is the user saying not yet. It is never handed out; never release it yourself.
+- The user says something about the project while you work? `spool capture "<their exact words>"`,
   file it with `spool task "<title>" --from <note-id>`, and carry on. That is for an idea, a wish,
   feedback or a bug. An instruction to you about the work ("work the backlog until midnight",
   "use subagents") is done, not recorded; a go, a no or a choice is a verb (`spool build`,
@@ -203,19 +203,19 @@ will come up again, with no skill for it? Write it down:
     <the steps, the commands, the traps>
     EOF
 
-It works immediately, and the human sees it in their review.
+It works immediately, and the user sees it in their review.
 
 Spool watches for the ones nobody wrote down: `spool done` says when the steps
 you just took match earlier finished threads with no skill for them. It only
-sees shared words, so whether that is a skill is the human's call:
+sees shared words, so whether that is a skill is the user's call:
 `spool skills --suggest` prints the line that offers it. Run it now, with the
 steps as its spec while you still know them. On their yes, writing the skill
 is a thread, `--from` every thread it was seen in.
 
-### The human's verbs
+### The user's verbs
 
 `spool answer`, `spool approve`, `spool revert`, `spool release` and
-`spool archive` act for the human. Run them only when they tell you to. Never answer your own question,
+`spool archive` act for the user. Run them only when they tell you to. Never answer your own question,
 approve your own assumption, or approve your own plan.
 
 ## A version for what shipped
@@ -233,11 +233,11 @@ Handed one thread and nothing more? Then only a sprint reached is yours to cut.
    file at `0.1.0`.
 2. **Bump it.** Something a user can newly see or do: minor, 0.3.2 → 0.4.0.
    Only fixes and tidying: patch, 0.3.2 → 0.3.3. A major, or the first 1.0,
-   is the human's call: `spool ask`. Use the project's own tool where it has
+   is the user's call: `spool ask`. Use the project's own tool where it has
    one (`npm version minor --no-git-tag-version`), so lockfiles follow.
 3. **Write the changelog.** `CHANGELOG.md`, newest first: the version, the
    date, and one line for each thread shipped since the last version, in the
-   human's terms. For a sprint, lead with its name and goal, then its threads. `git log <last tag>..HEAD` shows what shipped, yours and
+   user's terms. For a sprint, lead with its name and goal, then its threads. `git log <last tag>..HEAD` shows what shipped, yours and
    anyone else's.
 4. **Commit and tag.** One commit, `Version <x.y.z>`, holding only the version
    and the changelog, its message ending with the trailer
@@ -254,5 +254,5 @@ Handed one thread and nothing more? Then only a sprint reached is yours to cut.
    records the version it became, and its threads take it too.
 
 The tag stays on this machine. Pushing it, publishing a package and making a
-release are the human's calls, in their words. If the policy says this project
+release are the user's calls, in their words. If the policy says this project
 is not versioned, skip all of this.
