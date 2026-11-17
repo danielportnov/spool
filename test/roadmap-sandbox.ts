@@ -44,6 +44,7 @@ export function roadmapSandbox(): Roadmap {
   s.exec(['play', 'Polish'], { tty: true });
   ship(s, jump, 'src/jump.txt', 'The jump is snappier', ['Open level 1', 'Jump the first gap: you land on it']);
   s.exec(['revert', jump, '-m', 'still floaty'], { tty: true });
+  s.exec(['build', jump], { tty: true });
   ship(s, jump, 'src/jump.txt', 'The jump is snappier, for real', ['Open level 1', 'Jump the first gap: you land on it']);
   s.sp('start', coins);
   const call = s.json('assume', 'Outline the coins, or turn them teal?', '--chose', 'Outline them', '--why', 'teal clashes with water', '--for', coins).decision.id;

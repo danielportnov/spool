@@ -196,7 +196,7 @@ test('sending a plan or an audit back takes its unstarted work with it', () => {
   assert.equal(s.json('show', waiting).item.status, 'dropped');
   assert.equal(s.json('show', started).item.status, 'active', 'work already under way is not thrown out');
   const again = s.json('show', plan).item;
-  assert.equal(again.status, 'open');
+  assert.equal(again.status, 'proposed');
   assert.equal(again.priority, 1);
   assert.ok(again.body.includes('> too much at once; start with sharing levels'));
 
