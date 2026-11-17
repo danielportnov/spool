@@ -52,10 +52,14 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
   });
   const column = (key: string): Locator => page.locator(`#board [data-column="${key}"]`);
   const card = (key: string, title: string): Locator => column(key).locator('.card', { hasText: title });
-  // A real mouse drag of a card to a column. On a slow runner (CI's macOS on Node 24, once) a drag
-  // was lost: the card never left its column, though every other drag in the run landed. Chrome
-  // drops a drag whose card is redrawn in the moment it starts, and a person would simply drag
-  // again; so does this, at most three times. A board that never takes the drop still fails.
+  // A real mouse drag of a card to a column. On CI's slow macOS runners a drag is sometimes lost,
+  // and every drag after it with it: Chrome starts the drag and hands it to Playwright, which misses
+  // that it began (it gives the page one tick to say dragstart), so nothing ever drops or ends it.
+  // Chrome then holds that drag, and the page's later drags go nowhere. In a person's browser a drag
+  // always ends, if only on Escape; here the lost one is let go of, and the card dragged again, at
+  // most three times. A board that never takes the drop still fails.
+  const cdp = await page.context().newCDPSession(page);
+  const letGo = (): Promise<unknown> => cdp.send('Input.dispatchDragEvent', { type: 'dragCancel', x: 0, y: 0, data: { items: [], dragOperationsMask: 0xffff } });
   const drag = async (title: string, from: string, to: string): Promise<void> => {
     for (let tries = 0; tries < 3; tries++) {
       if (await card(to, title).count()) return;
@@ -64,7 +68,8 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
         await card(to, title).waitFor({ timeout: 10_000 });
         return;
       } catch {
-        // Not there yet: look again, and drag again if it is still where it was.
+        // Not there: end any drag Chrome still holds, look again, and drag again if it is still where it was.
+        await letGo();
       }
     }
     await card(to, title).waitFor();
