@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test } from 'node:test';
 import { shipped } from '../src/builtin.ts';
-import { type Sandbox, spool } from './helpers.ts';
+import { Sandbox, spool, startPage } from './helpers.ts';
 
 /** Claim tasks one after another, the way a loop would, and return the order they came out in. */
 function picks(s: Sandbox, n: number): string[] {
@@ -305,4 +305,25 @@ test('work on hold is never handed out, and only the user releases it', () => {
   assert.doesNotMatch(s.item(parked), /^hold:/m);
   assert.match(s.sp('prime', 'recorder'), /--hold "<their words>"/);
   s.cleanup();
+});
+
+test('a proposed thread on hold is listed as held and stays on the board with its reason', async () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop');
+  const held = s.id('task', 'Wait for the launch', '--hold', 'after the launch');
+
+  assert.equal(s.json('show', held).item.state, 'held');
+  assert.match(s.sp('list', '-s', 'held'), new RegExp(`${held}.*Wait for the launch.*on hold: after the launch`));
+  assert.match(s.sp('status'), /1 on hold/);
+
+  const { url, stop } = await startPage(s);
+  try {
+    const board = (await (await fetch(`${url}api/board`)).json()) as any;
+    const card = board.columns.proposed.find((item: any) => item.id === held);
+    assert.ok(card, 'a held proposed thread stays in the backlog column');
+    assert.deepEqual(card.waiting, { kind: 'hold', text: 'after the launch', on: [], said: '', refused: [] });
+  } finally {
+    await stop();
+    s.cleanup();
+  }
 });

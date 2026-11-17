@@ -68,9 +68,9 @@ export function taskState(ws: Workspace, task: Item): TaskState {
   // Out of sight, not dropped: whatever it was before it waits under that, untouched. One being
   // built is never archived, so a claim always wins.
   if (task.archived && task.status !== 'active') return 'archived';
+  if (task.hold) return 'held';
   // Proposed is the gate: it has not been moved to build, so nothing else about it matters yet.
   if (task.status === 'proposed') return 'proposed';
-  if (task.hold) return 'held';
   if (blockers(ws, task).length) return 'blocked';
   if (task.status === 'active') {
     // A claim nobody has touched for a lease is assumed abandoned and offered again.
