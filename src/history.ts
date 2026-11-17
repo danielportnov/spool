@@ -1,7 +1,7 @@
 import type { Command } from './commands.ts';
-import { SpoolError } from './model.ts';
+import { SpoolError, deserialize, type Spool } from './model.ts';
 import { type QueueEntry, QUEUE_ITEM, associatedCommand, queueEntry, queueHistory, undoQueue } from './queue-journal.ts';
-import { offError } from './store.ts';
+import { offError, readConfig } from './store.ts';
 
 const PROJECT = { project: { type: 'string', short: 'P' } } as const;
 const FILES = ['config', 'policy', 'goals'];
@@ -66,6 +66,17 @@ export const HISTORY: Command = {
   },
 };
 
+/** A history entry cannot bring a thread back into Build past a locked gate. */
+function restoresBuild(spool: Spool, entry: QueueEntry): boolean {
+  if (!entry.target.startsWith('t-')) return false;
+  const inBuild = (text: string | null): boolean => {
+    if (text === null) return false;
+    const item = deserialize(text, spool);
+    return item.status === 'open' && !item.hold && !item.archived;
+  };
+  return inBuild(entry.before) && !inBuild(entry.after);
+}
+
 export const UNDO: Command = {
   name: 'undo',
   group: 'you',
@@ -82,9 +93,16 @@ export const UNDO: Command = {
       if (!entry) continue;
       const hint = associatedCommand(spool, entry);
       if (hint) throw new SpoolError(`${id} has effects outside this queue file`, hint);
-      if (ws.home.config.disabled) throw offError(ws.home.name);
-      if (entry.target === 'config' && spool.config.gate === 'locked' && !ctx.tty && !ctx.human) {
-        throw new SpoolError(`${spool.name}'s gate is locked`, 'The human can undo this config change at their terminal.');
+      // Workspace discovery can precede another command changing the config; enforce the live gate under the lock.
+      const config = readConfig(spool.root);
+      if (config.disabled) throw offError(spool.name);
+      if (spool !== ws.home && readConfig(ws.home.root).disabled) throw offError(ws.home.name);
+      if (config.gate === 'locked' && !ctx.tty && !ctx.human &&
+        (entry.target === 'config' || restoresBuild(spool, entry))) {
+        throw new SpoolError(
+          `spool undo is the human's alone in ${spool.name}: its gate is locked`,
+          'The human can undo this entry at their terminal.',
+        );
       }
       if (entry.before === null && QUEUE_ITEM.test(entry.target)) {
         const links = ws.items.filter((item) => item.id !== entry.target &&

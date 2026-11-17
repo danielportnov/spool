@@ -220,3 +220,16 @@ test('undo never follows an item directory symlink out of the queue', (t) => {
   assert.match(s.fails('undo', entry.id), /expected a directory/);
   assert.equal(s.read(`outside/${id}.md`), entry.after);
 });
+
+test('restoring a thread to Build through history respects a locked gate', (t) => {
+  const s = spool();
+  t.after(() => s.cleanup());
+  const id = s.id('task', 'Return this task to Build');
+  s.sp('init', '--lock');
+  s.sp('propose', id);
+  const entry = s.json('history', id).entries[0];
+  assert.match(s.fails('undo', entry.id, '--as', 'human'), /the human's alone.*its gate is locked/);
+  assert.equal(s.json('show', id).item.state, 'proposed');
+  assert.equal(s.exec(['undo', entry.id], { tty: true }).code, 0);
+  assert.match(s.item(id), /^status: open$/m);
+});
