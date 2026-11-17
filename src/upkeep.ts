@@ -18,6 +18,7 @@ import { columnOf } from './board.ts';
 import { type Ctx, builderOf } from './context.ts';
 import type { Runner } from './engine.ts';
 import { oneLine } from './model.ts';
+import { rebuildOn } from './settings.ts';
 import { taskState, tasks } from './schedule.ts';
 import { endGroup } from './session.ts';
 import { Workspace } from './store.ts';
@@ -176,6 +177,8 @@ export class Upkeep {
 
   private rebuildWhenIdle(): void {
     if (!this.own || this.building) return;
+    // Switched off in Settings (spool settings rebuild off): the page stays on the code it has.
+    if (!rebuildOn(this.ctx)) return;
     // A chat builds each thread from source in its own worktree and the page runs no agents, so a
     // rebuild stops nothing: it comes as each thread lands. Headless waits, since a restart ends its agents.
     if (builderOf(this.ctx, this.own.spool) === 'chat') {

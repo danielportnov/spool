@@ -229,6 +229,23 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     if (!/^[a-z]+$/.test(event) || typeof body.on !== 'boolean') return { ok: false, text: 'which notification, on or off?' };
     return act(ctx, ['notify', body.on ? 'on' : 'off', event]);
   }
+  if (action === 'setting') {
+    // One of the settings kept with spool settings, from the page's Settings panel.
+    const name = text(body.name);
+    const value = typeof body.value === 'boolean' ? (body.value ? 'on' : 'off') : typeof body.value === 'number' ? String(body.value) : '';
+    if (!/^[a-z-]+$/.test(name) || !value) return { ok: false, text: 'which setting, and what to?' };
+    return act(ctx, ['settings', name, value]);
+  }
+  if (action === 'parallel') {
+    // Threads at once for the page's own agents, headless: spool builder --at-once.
+    const n = body.atOnce;
+    if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > 20) return { ok: false, text: 'how many threads (1 to 20)?' };
+    return act(ctx, ['builder', `--at-once=${n}`]);
+  }
+  if (action === 'caveman') {
+    if (typeof body.on !== 'boolean') return { ok: false, text: 'on, or off?' };
+    return act(ctx, ['caveman', body.on ? 'on' : 'off']);
+  }
   if (action === 'answer') {
     const choice = text(body.choice);
     if (!/^d-[a-z0-9]+$/.test(id) || !choice) return { ok: false, text: 'which question, and what is the answer?' };

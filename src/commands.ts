@@ -19,6 +19,7 @@ import { DISABLE, ENABLE } from './off.ts';
 import { HARNESSES, describe, harness, installFor, installedAnywhere, others } from './harness.ts';
 import { spawnSync } from 'node:child_process';
 import { type Ctx, afkOf, builderOf, cavemanOf, notify, saveUserConfig, userConfig } from './context.ts';
+import { settingsCommand } from './settings.ts';
 import { doctor } from './doctor.ts';
 import { GOALS_STARTER, goalsFile, goalsOf, goalsText } from './goals.ts';
 import { isReverted, repoRoot, resolveCommit, trailerCommits } from './git.ts';
@@ -1338,6 +1339,17 @@ export const COMMANDS: Command[] = [
           : 'AFK is off. Agents ask you as usual.',
         data: { afk: on },
       };
+    },
+  },
+  {
+    name: 'settings',
+    group: 'setup',
+    usage: 'settings [<name> <value>]',
+    summary: 'Every setting kept in your config, for every project, and what each does: caveman, quick-reply, quiet-minutes, stop-minutes, rebuild, headless. With a name and a value, sets that one (on or off, or minutes). The page shows them all, with the rest, under Settings',
+    human: true,
+    run(call) {
+      const { ws, ctx, args } = call;
+      return settingsCommand(ctx, args, () => byTheHuman(call, [ws.home], 'settings'));
     },
   },
   {

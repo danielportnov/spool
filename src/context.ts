@@ -116,6 +116,10 @@ export interface UserConfig {
    * for every project and agent.
    */
   afk?: boolean;
+  /** `false` where the page should not rebuild Spool after a thread lands. On unless set. See upkeep.ts, settings.ts. */
+  rebuild?: boolean;
+  /** `true` where the page offers Headless as a pick; greyed out otherwise. See settings.ts. */
+  offerHeadless?: boolean;
 }
 
 export function cavemanOf(ctx: Ctx): boolean {

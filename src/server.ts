@@ -44,6 +44,7 @@ import { rosterView, saveAgent, sizesText } from './roster.ts';
 import { briefAcross, named, projectsOf } from './projects.ts';
 import { Workspace } from './store.ts';
 import { CODE_DIR, CODE_EXT, Upkeep } from './upkeep.ts';
+import { settingsOf } from './settings.ts';
 import { takeOverState } from './takeover.ts';
 import { noticesOf } from './notices.ts';
 import { usageOf } from './usage.ts';
@@ -258,7 +259,9 @@ export function startPage(
             waiting: waits ? { id: waits.id, count: unanswered(readProposals(waits)).length } : null,
           };
           // Whether the human is AFK: agents take their own recommendation instead of asking.
-          return send(res, 200, 'application/json', JSON.stringify({ ...shown, takeOver, cleanup, afk: afkOf(ctx), workspace }));
+          // And every setting the Settings panel shows that the board does not carry already.
+          const settings = settingsOf(ctx, ws, spool);
+          return send(res, 200, 'application/json', JSON.stringify({ ...shown, takeOver, cleanup, afk: afkOf(ctx), settings, workspace }));
         } finally {
           ws.close();
         }
