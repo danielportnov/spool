@@ -1984,6 +1984,7 @@ export const COMMANDS: Command[] = [
     group: 'agents',
     usage: 'hold <t-id…> -m <why>',
     summary: 'Park work the human does not want started yet; only they release it',
+    human: true,
     write: true,
     options: { ...MESSAGE },
     run(call) {

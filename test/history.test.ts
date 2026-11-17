@@ -251,6 +251,26 @@ test('an unsigned write on a claimed thread is kept under the claimer, as its lo
   assert.equal(entry.actor, 'Claude Opus 5.5');
 });
 
+test('hold defaults to the human on a claimed thread, while log defaults to its claimer', (t) => {
+  const s = spool();
+  t.after(() => s.cleanup());
+  const id = s.id('task', 'Claimed work');
+  s.sp('build', id);
+  s.sp('start', id, '--as', 'Claude Opus 5.5');
+  s.sp('log', id, 'A fact for the next agent');
+  s.sp('hold', id, '-m', 'wait for the launch');
+
+  const entries = s.json('history', id).entries;
+  assert.deepEqual(entries.slice(0, 2).map((entry: { command: string; actor: string }) => [entry.command, entry.actor]), [
+    ['hold', 'human'],
+    ['log', 'Claude Opus 5.5'],
+  ]);
+
+  const explicit = s.id('task', 'Explicitly signed hold');
+  s.sp('hold', explicit, '-m', 'wait', '--as', 'Project owner');
+  assert.equal(s.json('history', explicit).entries[0].actor, 'Project owner');
+});
+
 test('the history is kept in check: old entries and all but each file\'s newest few go, once a day', (t) => {
   const s = spool();
   t.after(() => s.cleanup());
