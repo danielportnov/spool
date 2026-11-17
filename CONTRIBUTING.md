@@ -11,16 +11,17 @@ Node 22 and 24.
 
 ```bash
 git clone https://github.com/danielportnov/spool.git && cd spool
-npm install
+npm ci
 ```
 
-`npm install` also builds `dist/`, the JavaScript that `spool` runs once installed.
+`npm ci` also builds `dist/`, the JavaScript that `spool` runs once installed.
 
 Run the CLI from the sources, with no build:
 
 ```bash
 node src/cli.ts --version
-node src/cli.ts init -C /tmp/try-spool
+mkdir -p /tmp/try-spool
+node src/cli.ts init /tmp/try-spool
 node src/cli.ts status -C /tmp/try-spool
 ```
 
@@ -157,8 +158,8 @@ try {
 Open a pull request with the tests passing. CI (`.github/workflows/ci.yml`) runs on every pull
 request and every push to `main`, on Ubuntu and macOS, with Node 22 and 24. It runs `npm ci`,
 `npm run check`, `npm test`, and then `node dist/cli.js --version` to see that the build starts.
-Run the same before you push. Say in the pull request what changes for someone using Spool.
-Issues are welcome too.
+Run the same before you push. Open a pull request describing what changed, why, and how you tested it.
+Issues are welcome too: use the bug report or idea form to give us the context we need.
 
 ## Spool is built with Spool
 

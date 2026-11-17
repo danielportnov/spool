@@ -1,0 +1,20 @@
+name: Idea
+description: Suggest an improvement to Spool.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: Tell us what you need and why it would help.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: Describe a possible solution or example, if you have one.
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Add any other context that would help us understand the idea.

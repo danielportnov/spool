@@ -1,0 +1,42 @@
+name: Bug report
+description: Tell us what went wrong with Spool.
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Include what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Give the smallest example that shows the problem.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Spool version
+      description: Run `spool --version`.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: e.g. macOS 15 or Ubuntu 24.04
+    validations:
+      required: true
+  - type: input
+    id: agent
+    attributes:
+      label: Agent and version
+      description: If relevant, name the coding agent and its version.
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Doctor output
+      description: Run `spool doctor` and paste the output. Remove private paths, names, tokens, or other sensitive details first.
+      render: text
