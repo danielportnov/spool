@@ -21,7 +21,8 @@ import type { Call, Result } from './commands.ts';
 import { type Ctx, builderOf, saveUserConfig, userConfig } from './context.ts';
 import { type Item, type Spool, SpoolError, isRun, oneLine, splitBody } from './model.ts';
 import { rosterOf, withinSizes } from './roster.ts';
-import { blockers, docket, ready } from './schedule.ts';
+import { age } from './render.ts';
+import { blockers, docket, openRun, ready, tasks } from './schedule.ts';
 import type { Workspace } from './store.ts';
 import { FRESH_MS, STOPS, agentOf, figuresText, headroomText, usageOf, withinHeadroom } from './usage.ts';
 
@@ -30,6 +31,12 @@ export { FRESH_MS };
 
 /** What the log line of a thread moved this way starts with: the brief finds them by it. */
 export const MOVED = 'moved to build, taking over the backlog';
+
+/** What the log of a pass over the backlog the chat ran itself, taking over, says: the brief finds them by it. */
+export const TIDIED = 'a tidy of the backlog the chat ran itself, taking over';
+
+/** A tidy the chat runs itself comes no oftener than this: once a night, near enough. */
+export const TIDY_GAP_MS = 20 * 3_600_000;
 
 const NAMES = { weekly: 'weekly', fiveHour: '5-hour' } as const;
 
@@ -103,6 +110,40 @@ function whyNot(ctx: Ctx, ws: Workspace, spool: Spool, agent: string): { why: st
   return null;
 }
 
+/**
+ * Whether the chat, taking over, runs a pass over the backlog itself now: the same pass as a press of
+ * Clean Up, by the manager's rules. Only with Build empty, no pass open, the last pass at least
+ * TIDY_GAP_MS ago, and something changed since it. With `agent`, its usage under the target too.
+ * Not due: why, and where it is a matter of time, when it is.
+ */
+export function tidyDue(ctx: Ctx, ws: Workspace, spool: Spool, agent?: string): { due: true } | { due: false; why: string; at?: string } {
+  if (!takeOverOf(ctx, spool.root)) return { due: false, why: `taking over the backlog is off in ${spool.name}` };
+  if (builderOf(ctx, spool.root) !== 'chat') return { due: false, why: `${spool.name} is built headless: taking over is for a chat in Chat mode` };
+  const open = openRun(ws, spool);
+  if (open) return { due: false, why: `a pass is open already: ${open.id}` };
+  if (ready(ws, spool).some((t) => !isRun(t))) return { due: false, why: 'Build has work waiting: the tidy comes when Build is empty' };
+  const all = tasks(ws, spool);
+  const last = all.filter(isRun).sort((a, b) => b.updated.localeCompare(a.updated))[0];
+  if (last) {
+    const after = Date.parse(last.updated) + TIDY_GAP_MS;
+    if (ctx.now().getTime() < after) {
+      const at = new Date(after).toISOString();
+      return { due: false, why: `the last pass, ${last.id}, was ${age(last.updated, ctx.now())} ago: one a night at most`, at };
+    }
+    if (!all.some((t) => !isRun(t) && t.updated > last.updated)) return { due: false, why: `nothing changed since the last pass, ${last.id}` };
+  }
+  if (agent) {
+    const usage = underTarget(ctx, agent);
+    if (!usage.ok) return { due: false, why: usage.why };
+  }
+  return { due: true };
+}
+
+/** The line that tells the chat a tidy is due, and how to run it. */
+export function tidyLine(name: string): string {
+  return `tidy: ${name} — taking over, a tidy of the backlog is due. Run the pass by spool prime manager: spool manage --start --takeover`;
+}
+
 /** Where taking over stands in a project, for the board and the command. */
 export interface TakeOver {
   on: boolean;
@@ -110,11 +151,13 @@ export interface TakeOver {
   next: { id: string; title: string } | null;
   /** Why it moves nothing now, where it is on and does not. */
   waiting: string | null;
+  /** When the chat next tidies the backlog itself: "now", a time, or why not; null where it is off. */
+  tidy: { due: boolean; why: string | null; at: string | null } | null;
 }
 
 export function takeOverState(ctx: Ctx, ws: Workspace, spool: Spool): TakeOver {
   const on = takeOverOf(ctx, spool.root);
-  if (!on) return { on, next: null, waiting: null };
+  if (!on) return { on, next: null, waiting: null, tidy: null };
   const top = reasonable(ws, spool)[0];
   const next = top ? { id: top.id, title: top.title } : null;
   // Each agent on the roster against its own target: it waits only where none of them may move one.
@@ -122,7 +165,17 @@ export function takeOverState(ctx: Ctx, ws: Workspace, spool: Spool): TakeOver {
   const free = whys.some((w) => w.why === null);
   const said = [...new Set(whys.map((w) => w.why))];
   const why = free ? null : said.length === 1 ? said[0]! : whys.map((w) => `${w.name}: ${w.why}`).join('; ');
-  return { on, next, waiting: why ?? (top ? null : 'nothing in the backlog it may take') };
+  const due = tidyDue(ctx, ws, spool);
+  const tidy = due.due ? { due: true, why: null, at: null } : { due: false, why: due.why, at: due.at ?? null };
+  return { on, next, waiting: why ?? (top ? null : 'nothing in the backlog it may take'), tidy };
+}
+
+/** When the next tidy comes, in a few words. */
+function tidyWhen(tidy: TakeOver['tidy'], now: Date): string {
+  if (!tidy) return 'never, taking over is off';
+  if (tidy.due) return 'due now: spool manage --start --takeover';
+  if (tidy.at) return `after ${tidy.at.slice(0, 16).replace('T', ' ')} UTC, in ${age(now.toISOString(), new Date(tidy.at))}, once something changes`;
+  return `not yet: ${tidy.why}`;
 }
 
 /** `spool takeover`: switch it on or off, or with nothing after it say where it stands. `byHuman` refuses an agent switching it on where the gate is locked. */
@@ -144,6 +197,8 @@ export function takeoverCommand(call: Call, spool: Spool, byHuman: () => void): 
         `The chat takes over ${spool.name}'s backlog: with Build empty and the usage under the target, it moves the top thread you filed to Build itself, and builds it.`,
         '  Never an AI suggested one, one on hold, or one waiting on a question or a plan\'s go-ahead. Each says so on its thread, and spool revert takes one back.',
         state.waiting ? `  Not now: ${state.waiting}.` : state.next ? `  Next: ${state.next.id} ${oneLine(state.next.title, 70)}` : '',
+        '  With Build empty it tidies the backlog too, once a night at most: it sizes and orders threads, and proposes what to drop or archive.',
+        `  Next tidy: ${tidyWhen(state.tidy, ctx.now())}`,
         '  Off: spool takeover off',
       ]
     : [`The chat does not take over ${spool.name}'s backlog: nothing moves to Build without you.`, '  On, in Chat mode and up to the usage target: spool takeover on'];
@@ -175,10 +230,12 @@ export function buildUnderTakeOver(call: Call): { tasks: Item[]; line: string; p
   if (named && sized.includes(named) && !may.includes(named) && room.headroom) throw new SpoolError(`${named.id} is ${(named.size ?? 'm').toUpperCase()}, and the chat is ${headroomText(room.headroom)}`, 'Take one that fits what is left: spool build --takeover');
   if (named && !may.includes(named)) throw new SpoolError(notReasonable(ws, named), 'Take the top one it may: spool build --takeover');
   const task = named ?? may[0];
+  // Nothing to take: a tidy of the backlog may be due instead, and the refusal says so.
+  const tidy = !task && tidyDue(ctx, ws, spool, agent).due ? ' A tidy of the backlog is due first: run the pass by spool prime manager, spool manage --start --takeover.' : '';
   if (!task && room.headroom && sized.length) throw new SpoolError(`nothing in the backlog fits what is left: ${headroomText(room.headroom)}`, 'Move nothing more. Finish and land what you are building, or hand it off: spool handoff <id> -m "<where it stopped>". Tell them once.');
-  if (!task && all.length) throw new SpoolError(`nothing in the backlog is in the sizes ${call.actor} takes`, `${all.length} thread${all.length === 1 ? '' : 's'} wait for an agent that takes them. Tell them once, and watch.`);
+  if (!task && all.length) throw new SpoolError(`nothing in the backlog is in the sizes ${call.actor} takes`, `${all.length} thread${all.length === 1 ? '' : 's'} wait for an agent that takes them. Tell them once, and watch.${tidy}`);
   if (!task) {
-    throw new SpoolError('nothing in the backlog the chat may take', 'Only threads a person filed, not on hold and waiting on nothing. Tell them once that Build is empty, and watch.');
+    throw new SpoolError('nothing in the backlog the chat may take', `Only threads a person filed, not on hold and waiting on nothing. Tell them once that Build is empty, and watch.${tidy}`);
   }
   const usage = underTarget(ctx, agent);
   const passed = !named && room.passed ? room.passed : '';

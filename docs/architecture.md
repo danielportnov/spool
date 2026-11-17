@@ -72,6 +72,9 @@ those comments are the detail.
   kept in the user's settings beside who builds it. `reasonable` is which threads it may take;
   `buildUnderTakeOver` is `spool build --takeover`, refused unless the switch is on, a chat builds,
   the usage is freshly read and under the target, and Build is empty.
+  `tidyDue` is when that chat runs its own pass over the backlog (`spool manage --start --takeover`):
+  Build empty, no pass open, the last one 20 hours back or more, something changed since, and the
+  usage under the target. `spool watch` prints `tidy:` as one comes due.
 - `notices.ts` is `spool notify`: which events tell the human (a thread started or done, a
   question, a sprint finished, Build empty, an agent stuck, the usage target reached), kept in their
   own settings under `notifyOn`. The chat that builds asks `spool notify check <event>` before it

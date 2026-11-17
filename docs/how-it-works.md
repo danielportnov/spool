@@ -318,6 +318,12 @@ nothing AI suggested, on hold or waiting on anything, one at a time, and nothing
 reached. Switched off, nothing moves to Build without you. Where the gate is locked only you can
 switch it on.
 
+Taking over, it **tidies the backlog too**: with Build empty, once a night at most and only when
+something changed since the last pass, it runs `spool manage --start --takeover`, the same pass as
+Clean Up. It sizes threads and sets priorities itself, and puts every drop and archive on the
+run's thread for your yes. The brief shows its headline, and one `spool revert` of the run takes it
+all back. `spool takeover` says when the next tidy is due.
+
 **It reacts; it does not wait on a clock.** `spool watch` stays up and prints a line when a thread
 can be built, when you reply on one, when an agent asks you something, when you press Clean Up on the board, or when a note stays unfiled for a few seconds. In Claude Code the loop listens to that
 with the Monitor tool, so pressing ▶ starts the build within seconds. Where a harness cannot listen,

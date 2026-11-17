@@ -89,7 +89,7 @@ do, and nothing otherwise:
 | `unfiled: n-9wxa "add a mute button"` | A note nobody has filed. File it, by the `spool-record` skill |
 | `ask: d-3kq2 for t-4kq7 Tighter jump — "Outline, or teal?"`, and its options | An agent needs their call. Ask them in the chat, below |
 | `takeover: skyhop`, and how | They switched taking over on. Build empty? Take the next, below |
-| `cleanup: skyhop`, and their words | They pressed Clean Up. Run the pass by `spool prime manager`, every drop and archive a proposal, and reply with the run's link |
+| `cleanup: skyhop`, and their words, or `tidy: skyhop` | They pressed Clean Up, or a tidy is due while you take over. Run the pass by `spool prime manager` (a tidy: `spool manage --start --takeover`), every drop and archive a proposal, and reply with the run's link |
 
 - **In Claude Code:** start the `Monitor` tool with the command `spool watch
   --as "<your model>"` (the board shows who watches) and the longest timeout it allows. Then end your turn: each line wakes you.
@@ -148,8 +148,8 @@ changes: it waits on the board, and `spool ask` ran their notifier.
 says), read the usage and report it, as above, then `spool build --takeover
 --as "<your model>"`. It moves the top thread they filed to Build, signed by
 you, and says so on the thread: build it, with a line ("🧵 Taking over: the
-jump"). One at a time, as slots free. Refused? It says why: the target is
-reached, or nothing may be taken. Then carry on below.
+jump"). One at a time, as slots free. Refused? It says why, and if a tidy of
+the backlog is due: run that pass first. Then carry on below.
 
 **Nothing in build?** Do not build. Then, once:
 

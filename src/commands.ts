@@ -2233,11 +2233,11 @@ export const COMMANDS: Command[] = [
   {
     name: 'manage',
     group: 'agents',
-    usage: 'manage [--start | --end -m <headline> [--report <file>|-] | --propose <drop|archive|build> <id> -m <why> | --answer <yes|no> <n…|all> [--on <run>]] [-P <project>]',
+    usage: 'manage [--start [--takeover] | --end -m <headline> [--report <file>|-] | --propose <drop|archive|build> <id> -m <why> | --answer <yes|no> <n…|all> [--on <run>]] [-P <project>]',
     summary:
-      'Put the backlog in order as one run that can be undone: --start opens the run and prints the worksheet of facts to work from, --end writes the report of what it changed; --propose puts what it would do on its thread for a yes or no, and --answer is that yes or no; with none, says whether a run is open',
+      'Put the backlog in order as one run that can be undone: --start opens the run and prints the worksheet of facts to work from (with --takeover, the tidy the chat runs itself, taking over the backlog, once one is due), --end writes the report of what it changed; --propose puts what it would do on its thread for a yes or no, and --answer is that yes or no; with none, says whether a run is open',
     write: true,
-    options: { start: { type: 'boolean' }, end: { type: 'boolean' }, propose: { type: 'boolean' }, answer: { type: 'boolean' }, on: { type: 'string' }, report: { type: 'string' }, ...MESSAGE, ...PROJECT },
+    options: { start: { type: 'boolean' }, takeover: { type: 'boolean' }, end: { type: 'boolean' }, propose: { type: 'boolean' }, answer: { type: 'boolean' }, on: { type: 'string' }, report: { type: 'string' }, ...MESSAGE, ...PROJECT },
     reads: 'report',
     run: (call) => manage(call),
   },

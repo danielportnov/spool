@@ -19,7 +19,7 @@ import { picturesOf } from './pictures.ts';
 import { readProposals, unanswered } from './proposals.ts';
 import { type Scope, children, dependents, review, sprintOf, taskState, tasks } from './schedule.ts';
 import { hearLine, readTook } from './stream.ts';
-import { MOVED } from './takeover.ts';
+import { MOVED, TIDIED } from './takeover.ts';
 import { type Strays, strayFixes, strayLines, straysOf } from './strays.ts';
 import type { Workspace } from './store.ts';
 
@@ -173,6 +173,11 @@ function weigh(ws: Workspace, t: Item): { score: number; reasons: string[]; file
   if (entries(t).some((e) => e.text.startsWith(MOVED))) {
     score += 3;
     reasons.push('the chat moved it to Build itself, taking over the backlog');
+  }
+  // Taking over the backlog, the chat tidied it itself: what it changed is the headline, and one undo takes it back.
+  if (entries(t).some((e) => e.text.startsWith(TIDIED))) {
+    score += 3;
+    reasons.push(`the chat tidied the backlog itself, taking over: spool revert ${t.id} takes it all back`);
   }
   const redone = entries(t).some((e) => /reverted \d+ commit/.test(e.text)) || /on reverting the first attempt/.test(t.body);
   if (redone) {

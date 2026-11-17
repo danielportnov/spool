@@ -106,7 +106,7 @@ test('the board says whether the chat takes over, and its switch is the command'
   const { url, stop } = await startPage(s);
   try {
     const board = async (): Promise<any> => (await (await fetch(`${url}api/board`)).json()) as any;
-    assert.deepEqual((await board()).takeOver, { on: false, next: null, waiting: null });
+    assert.deepEqual((await board()).takeOver, { on: false, next: null, waiting: null, tidy: null });
     s.sp('takeover', 'on');
     const on = (await board()).takeOver;
     assert.equal(on.on, true);
@@ -136,4 +136,64 @@ test('a thread the human undid waits for them: taking over does not move it', ()
   } finally {
     s.cleanup();
   }
+});
+
+test('taking over, the chat tidies the backlog itself once a night: sizes and orders, proposes drops, the brief says so, one undo takes it back', () => {
+  const { s, top, suggested, next } = chatProject();
+  try {
+    s.sp('usage', '--weekly', '40');
+    // Off, no tidy is the chat's to run.
+    assert.match(s.fails('manage', '--start', '--takeover', '--as', 'Claude'), /no tidy is due: taking over the backlog is off/);
+    s.sp('takeover', 'on');
+    assert.match(s.sp('takeover'), /Next tidy: due now: spool manage --start --takeover/);
+    assert.equal(s.json('takeover').tidy.due, true);
+
+    // With Build waiting, the tidy waits for it to empty.
+    s.sp('build', '--takeover', '--as', 'Claude');
+    assert.match(s.fails('manage', '--start', '--takeover', '--as', 'Claude'), /no tidy is due: Build has work waiting/);
+    s.sp('start', top, '--as', 'Claude');
+    s.sp('done', top, '-m', 'Tighter', '--as', 'Claude');
+
+    // Over the target, no tidy either.
+    s.sp('usage', '--weekly', '90');
+    assert.match(s.fails('manage', '--start', '--takeover', '--as', 'Claude'), /no tidy is due: the usage target is reached/);
+    s.sp('usage', '--weekly', '40');
+
+    const sheet = s.sp('manage', '--start', '--takeover', '--as', 'Claude');
+    assert.match(sheet, /Run by the chat itself, taking over the backlog: nobody asked for this pass/);
+    const run = /^SPOOL_RUN=(t-\w+)$/m.exec(sheet)![1]!;
+    const under = { env: { SPOOL_RUN: run } };
+    assert.equal(s.exec(['edit', next, '--size', 'm', '-p', '0', '--as', 'Claude'], under).code, 0);
+    assert.equal(s.exec(['manage', '--propose', 'drop', suggested, '-m', 'a repeat of the jump', '--as', 'Claude'], under).code, 0);
+    assert.equal(s.exec(['manage', '--end', '-m', 'Sized 1, reordered 1, 1 proposed to drop', '--as', 'Claude'], under).code, 0);
+    assert.match(s.item(run), /a tidy of the backlog the chat ran itself, taking over/);
+
+    // The brief says what it changed, and how to take it back.
+    const brief = s.sp('brief');
+    assert.match(brief, /Sized 1, reordered 1, 1 proposed to drop/);
+    assert.match(brief, /the chat tidied the backlog itself, taking over/);
+
+    // Once a night at most, and only when something changed since.
+    assert.match(s.sp('takeover'), /Next tidy: after \d{4}-\d\d-\d\d \d\d:\d\d UTC/);
+    assert.match(s.fails('manage', '--start', '--takeover', '--as', 'Claude'), /no tidy is due: the last pass, t-\w+, was .* ago: one a night at most/);
+    s.advance(21);
+    s.sp('usage', '--weekly', '40');
+    assert.match(s.fails('manage', '--start', '--takeover', '--as', 'Claude'), /no tidy is due: nothing changed since the last pass/);
+
+    // One undo takes the pass back.
+    s.sp('revert', run);
+    const after = s.json('show', next).item;
+    assert.deepEqual([after.size, after.priority], ['s', 2]);
+    assert.equal(s.json('show', suggested).item.status, 'proposed');
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('the watch tells the chat once when a tidy comes due', () => {
+  const seen = (tidy: string[]) => ({ ready: new Map(), said: new Map(), inbox: new Set<string>(), asks: new Map(), tidy: new Set(tidy) });
+  assert.deepEqual(changes(seen([]), seen(['skyhop']), () => '', () => ''), [
+    'tidy: skyhop — taking over, a tidy of the backlog is due. Run the pass by spool prime manager: spool manage --start --takeover',
+  ]);
+  assert.deepEqual(changes(seen(['skyhop']), seen(['skyhop']), () => '', () => ''), []);
 });

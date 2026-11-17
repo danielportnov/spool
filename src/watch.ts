@@ -22,7 +22,7 @@ import { type Item, SpoolError, isSettled, oneLine, splitBody } from './model.ts
 import { dependents, ready, tasks } from './schedule.ts';
 import type { Ctx } from './context.ts';
 import { Workspace } from './store.ts';
-import { takeOverOf } from './takeover.ts';
+import { takeOverOf, tidyDue, tidyLine } from './takeover.ts';
 import { picturesOf } from './pictures.ts';
 import { signer } from './agent.ts';
 import { cleanupAsked, cleanupLine } from './cleanup.ts';
@@ -45,6 +45,8 @@ interface Seen {
   takeOver?: Set<string>;
   /** Projects where the human pressed Clean Up and no pass has taken it up yet, each with the line that tells of it. */
   cleanup?: Map<string, string>;
+  /** Projects where, taking over, a tidy of the backlog is due, by name. */
+  tidy?: Set<string>;
 }
 
 /**
@@ -146,6 +148,7 @@ function look(
         inbox: new Set(ws.items.filter((i) => i.kind === 'note' && i.status === 'new').map((n) => n.id)),
         asks: new Map(questions.map((d) => [d.id, asked(ws, d)])),
         takeOver: new Set((spool ? [spool] : ws.spools).filter((s) => takeOverOf(ctx, s.root)).map((s) => s.name)),
+        tidy: new Set((spool ? [spool] : ws.spools).filter((s) => tidyDue(ctx, ws, s).due).map((s) => s.name)),
         cleanup: new Map(
           (spool ? [spool] : ws.spools).flatMap((s) => {
             const ask = cleanupAsked(s);
@@ -197,6 +200,8 @@ export function changes(before: Seen, after: Seen, text: (note: string) => strin
   for (const name of after.takeOver ?? []) if (!before.takeOver?.has(name)) out.push(`takeover: ${name} — they switched taking over the backlog on: Build empty? spool build --takeover`);
   // Clean Up pressed on the board: the chat that builds runs the pass. Once, as it is asked.
   for (const [name, line] of after.cleanup ?? []) if (!before.cleanup?.has(name)) out.push(line);
+  // Taking over, a tidy of the backlog has come due: the chat runs the pass itself. Once, as it comes due.
+  for (const name of after.tidy ?? []) if (!before.tidy?.has(name)) out.push(tidyLine(name));
   return out;
 }
 

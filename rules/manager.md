@@ -128,6 +128,12 @@ Taking over the backlog (`spool takeover`) is not yours: it is the chat that
 builds, and it moves threads to Build within the usage target, as the human
 switched on. A tidy never does that, and a leave does not turn it on.
 
+Taking over, the chat also tidies by itself: with Build empty, once a night
+at most and only when something changed, `spool watch` prints `tidy:` and
+`spool manage --start --takeover` opens the pass. It is a pass like any
+other, by these rules, with one more: every drop and every archive goes on
+its thread as a proposal, as for Clean Up. The headline is what the brief shows.
+
 ## Guard rails
 
 - **Too much.** New ideas: no more than the worksheet says (5 by default,

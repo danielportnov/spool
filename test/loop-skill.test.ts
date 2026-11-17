@@ -53,7 +53,9 @@ test('the loop watches the spool, and falls back to one scheduled job', () => {
   assert.match(loop, /^\| `build: t-4kq7 Tighter jump` \| They moved it to Build, or an answer freed it\. Build it \|$/m);
   assert.match(loop, /^\| `reply: t-4kq7 Tighter jump`, and their words, or the path of a picture or a file they added \| They wrote on a thread\. Being built\? It steers that work: open what they added\. Otherwise leave it for whoever builds it \|$/m);
   assert.match(loop, /^\| `unfiled: n-9wxa "add a mute button"` \| A note nobody has filed\. File it, by the `spool-record` skill \|$/m);
-  assert.match(loop, /^\| `cleanup: skyhop`, and their words \| They pressed Clean Up\. Run the pass by `spool prime manager`, every drop and archive a proposal, and reply with the run's link \|$/m);
+  assert.match(loop, /^\| `cleanup: skyhop`, and their words, or `tidy: skyhop` \| They pressed Clean Up, or a tidy is due while you take over\. Run the pass by `spool prime manager` \(a tidy: `spool manage --start --takeover`\), every drop and archive a proposal, and reply with the run's link \|$/m);
+  // Taking over, a refusal that says a tidy is due sends the chat to that pass first.
+  assert.match(flat, /Refused\? It says why, and if a tidy of the backlog is due: run that pass first\./);
   assert.match(loop, /^\| `ask: d-3kq2 for t-4kq7 Tighter jump — "Outline, or teal\?"`, and its options \| An agent needs their call\. Ask them in the chat, below \|$/m);
   assert.match(flat, /start the `Monitor` tool with the command `spool watch --as "<your model>"` \(the board shows who watches\) and the longest timeout it allows\. Then end your turn: each line wakes you\./);
   assert.match(flat, /\*\*The watch runs out\*\* after a while, and the harness tells you\. Look once \(`spool next`\), then start it again, until they say stop\./);

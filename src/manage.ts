@@ -49,6 +49,8 @@ import { type Entry, readJournal, startJournal } from './journal.ts';
 import { buildLine, effort, openRun, taskState, tasks } from './schedule.ts';
 import { SIMILAR, alikeIn, compare, droppedBecause, wordsOf } from './similar.ts';
 import { SPOOL_DIR, type Workspace } from './store.ts';
+import { TIDIED, tidyDue } from './takeover.ts';
+import { agentOf } from './usage.ts';
 
 /** The numbers, in one place so they are easy to change. */
 export const MANAGE = {
@@ -114,6 +116,8 @@ export interface Worksheet {
   leave: Leave | null;
   /** The human asked for this pass with Clean Up on the board: every drop and archive is theirs to say yes to. */
   asked: CleanupAsk | null;
+  /** The chat that builds ran this pass itself, taking over the backlog: it sizes and orders, and proposes every drop and archive. */
+  tidy?: boolean;
   /** New ideas the run may file: five, or what the leave says; none while too many still wait. */
   proposals: { cap: number; unanswered: number };
   saidNo: {
@@ -475,6 +479,10 @@ function handsOffLine(left: { why: string }[]): string {
     .join(' · ');
 }
 
+/** What the worksheet of a pass the chat runs itself, taking over, says first. */
+export const TIDY_RULE =
+  'Run by the chat itself, taking over the backlog: nobody asked for this pass, so go no further than tidying. Size what has no size or a wrong one, and set priorities, yourself, by the rules. Every drop and every archive goes on this thread as a proposal, your own suggestions too: spool manage --propose <drop|archive> <t-id> -m "<the reason>". End with a headline in numbers ("Sized 4, reordered 2, 3 proposed to drop"): the brief shows it.';
+
 /** The worksheet as an agent reads it: each step's facts under its number, and nothing that is a judgment. */
 export function worksheetText(ws: Workspace, w: Worksheet, p: Paint): string {
   const now = ws.now();
@@ -493,6 +501,9 @@ export function worksheetText(ws: Workspace, w: Worksheet, p: Paint): string {
 
   const ideas = w.proposals;
   out.push(`SPOOL_RUN=${w.run}`, `Set it on every command of this run, so one undo takes back all of it:  export SPOOL_RUN=${w.run}`, '');
+  if (w.tidy && !w.asked) {
+    out.push(p.bold(TIDY_RULE), '');
+  }
   if (w.asked) {
     out.push(p.bold(CLEANUP_RULE));
     if (w.asked.words) out.push(`  What they wrote with it: "${w.asked.words}"`);
@@ -819,7 +830,13 @@ export function manage(call: Call): Result {
   if (opts.propose) return propose(call, open);
   if (opts.answer) return answer(call);
 
+  if (opts.takeover && !opts.start) throw new SpoolError('--takeover goes with --start: it is how the chat that takes over the backlog opens its own tidy', 'spool manage --start --takeover');
   if (opts.start) {
+    // Taking over, the chat runs its own pass: only when one is due, and never past the usage target.
+    if (opts.takeover && !open) {
+      const due = tidyDue(ctx, ws, spool, agentOf(actor));
+      if (!due.due) throw new SpoolError(`no tidy is due: ${due.why}`, 'See when the next one is: spool takeover');
+    }
     if (open) {
       throw new SpoolError(
         `a run is open already: ${open.id}, started ${since(open.started ?? open.created, ws.now())} by ${open.by ?? 'someone'}`,
@@ -849,7 +866,11 @@ export function manage(call: Call): Result {
       addLog(run, actor, `asked for with Clean Up on the board by ${asked.by}${asked.words ? `: "${asked.words}"` : ''}`, ws.now());
       ws.save(run);
     }
-    const sheet = gather(ws, spool, run, live, asked);
+    if (opts.takeover) {
+      addLog(run, actor, TIDIED, ws.now());
+      ws.save(run);
+    }
+    const sheet = { ...gather(ws, spool, run, live, asked), ...(opts.takeover ? { tidy: true } : {}) };
     return { text: worksheetText(ws, sheet, p), data: { env: { SPOOL_RUN: run.id }, ...sheet } };
   }
 
