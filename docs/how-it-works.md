@@ -311,7 +311,7 @@ note, and its log says who it took over from. A hand-off is not a failed run, so
 Where nobody has usage left, it waits in Build, and the board's list says it was handed off.
 
 **It can take over the backlog,** where you switch that on (`spool takeover on`, or Take over in
-the header). With Build empty and the usage under the target, it runs `spool build --takeover`,
+Settings). With Build empty and the usage under the target, it runs `spool build --takeover`,
 which moves the next thread to Build, signed by the chat and saying so on the thread, and builds
 it: yours first, then the AI suggested ones (a thread an agent filed counts as one, marked or not).
 It keeps on until the target is reached; the chat never decides a thread is not worth the usage.
@@ -903,8 +903,8 @@ is Codex. With nothing set the roster is Claude and Codex, each at the shared `-
 builds on); naming an agent not on the roster adds it. A claim (`spool start`, `spool next
 --claim`) past that agent's count is refused, "Codex is at its 2 threads", so one agent never takes
 the room given to another; a thread another agent holds is refused as it always was. In the header,
-next to Headless and Chat, each agent shows what it is building of its count (`1/3`) with − and + to
-change the count, greyed while no watch of its own is up: the loop starts `spool watch --as "<its
+each agent is its logo in a ring of its usage, with a dot for how many threads it is building; a click
+opens its count, sizes, lean and own target under it. It is greyed while no watch of its own is up: the loop starts `spool watch --as "<its
 name>"`, and the watch's file says who it is. `spool builder` and `spool status` list each agent the
 same way. It is kept under `roster` in `~/.config/spool/config.json`, by the project's folder, and is
 where each agent's other settings go.

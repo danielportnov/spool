@@ -311,8 +311,10 @@ the work and step in; the page then starts nothing, and the switch says whether 
 watching, or not there. The pick is kept for the project. Say "switch to chat mode" to a chat and it
 runs `spool builder chat`; "let the page build" is `spool builder headless`.
 
-In Chat mode Claude and Codex can build at once. The header shows each with what it is building of
-its thread count, and − and + to change it; one with no chat watching is greyed.
+In Chat mode Claude and Codex can build at once. The header shows each as its logo in a ring of
+its usage, with the percent beside it and a dot for what it is building; one with no chat watching
+is greyed. Click a logo for that agent's own settings: its usage target, its thread count, the sizes
+it takes and its lean. Everything else you decide is in Settings, behind the gear.
 `spool builder --agent Codex --at-once 2` sets it from a chat, and a claim past it is refused.
 In Settings each also has a slider from **usage** to **development**. At usage, small threads go to
 the smallest model (Haiku for Claude, Luna for Codex) and every size to the cheapest that can do it;
@@ -320,11 +322,11 @@ toward development, each size gets a bigger model and more effort. Under it, wha
 now. `spool builder --agent Claude --lean usage` (or `balanced`, `development`) sets it from a chat.
 A thread's own Model still wins.
 
-In Chat mode the header also holds a **usage target**: how much of your Claude plan the chat may
-use, as a percent of the weekly limit, the 5-hour limit, or both. Set it with the slider or type the
-number. Before each thread the chat reads the plan's usage with its own tool (`get_usage` in the
+In Chat mode you can set a **usage target**: how much of your Claude plan the chat may
+use, as a percent of the weekly limit, the 5-hour limit, or both. Set it in Settings, or for one
+agent under its logo. Before each thread the chat reads the plan's usage with its own tool (`get_usage` in the
 Claude app) and reports it with `spool usage`; once a target is reached it takes no new thread, and
-the header shows the usage against the target. `spool target --weekly 80` sets it from a chat or a
+each logo's ring shows the usage against the target. `spool target --weekly 80` sets it from a chat or a
 terminal. Spool never reads your account or calls a service for it: it keeps what the chat reports.
 Codex is the one it reads for itself: Codex writes its ChatGPT plan's limits (a 5-hour and a weekly
 window, apart from Claude's) into its own session logs on this machine, and Spool takes only those
@@ -332,7 +334,7 @@ figures from the newest, so Codex is held to its own plan without reporting anyt
 --from-codex` reports them as Codex's, and says whether to keep building).
 With several agents on the spool, each reads its own plan and is held to its own target: `spool
 target --agent Codex --weekly 50` holds Codex to half its plan while Claude goes on to 80%, and the
-header shows a meter for each, or says where an agent cannot read its usage. Settings sets each one.
+header shows a ring for each, or a dash where an agent cannot read its usage. Its logo, or Settings, sets each one.
 As the end nears, the chat starts only threads small enough to finish (nothing past S from 90% of
 the target, by default; `spool target --headroom` changes it), says which it passed by, and wraps
 up what it is building.
@@ -347,9 +349,9 @@ when (`spool until 1:00`), under Settings or from the chat. It counts as a budge
 the end nears the chat starts only threads it can finish (the same steps, by the share of the time
 gone), lands or hands off what it has, and takes nothing new once the end has passed. It is a soft end: nothing
 is stopped, and an agent that needs a minute or two past it to land cleanly does so. The header
-shows the time left beside the usage. `spool until none` takes it off.
+shows the time left beside the logos. `spool until none` takes it off.
 
-Beside it, **Take over** lets the chat fill Build for you. Switched on, from its menu in the header
+Beside it, **Take over** lets the chat fill Build for you. Switched on, in Settings
 or by saying "take over the backlog", the chat that builds moves the next thread to Build itself
 whenever Build is empty and the usage is under the target, and builds it: yours first, then the AI
 suggested ones. It keeps on until the target is reached. Never one on hold, one you undid or moved
@@ -360,7 +362,7 @@ look, and `spool revert` takes it back. `spool takeover on` and `off` are the sa
 **Caveman mode** (`spool caveman on`, or say "caveman" to the chat) makes the chat that steers or builds
 answer in the fewest words, as short fragments. `spool caveman off` returns to normal replies.
 
-**AFK** (`spool afk on`, say "I'm AFK" to the chat, or tick "I'm AFK" in the take-over menu) is for
+**AFK** (`spool afk on`, say "I'm AFK" to the chat, or switch on "Away from keyboard" in Settings) is for
 when you are away and don't want to be pinged. An agent that would ask you takes its own
 recommendation instead, records it as a call you can overrule in your review, and keeps going, in
 every project, Headless or Chat. Only what is truly yours still asks and notifies: spending money,
@@ -368,7 +370,7 @@ publishing or pushing, deleting what cannot come back, a new account or service,
 is, and your own accounts or machine. The agent marks those `spool ask --human <kind>`.
 `spool afk off`, or "I'm back", and questions are asked again.
 
-The **bell** by the theme picks what notifies you, in every project: a thread started, a thread
+The **bell** by the gear picks what notifies you, in every project: a thread started, a thread
 done, a question, a sprint finished, Build empty, an agent stuck or refused, a run stopped at its
 usage target. Out of the box, only what needs you: questions, Build empty, stuck, the target. In
 Chat mode the chat that builds sends each one you picked as a single-line Claude notification and
@@ -383,9 +385,11 @@ settings". A mode is only settings, and where the gate is locked, one that switc
 on is yours to pick.
 
 **Settings**, the gear in the header (or ⌘K, "Open settings"), gathers every choice about how
-the spool runs in one panel: who builds and whether Headless is offered, threads at once for each
-agent, taking over the backlog, rebuilding after each landing, the quiet-agent minutes, the usage
-targets, what notifies you, caveman mode and quick replies. Each row says what it does and the
+the spool runs in one panel: who builds and whether Headless is offered, whether the page's own
+agents are on, threads at once, sizes and lean for each agent, taking over the backlog, AFK, rebuilding after each landing, the quiet-agent minutes, the usage
+targets and the time to work, what notifies you, caveman mode, quick replies and the theme.
+The header keeps only what you glance at: the views, the search, who builds and their usage, the
+bell and the gear. Clicking who builds, or the time left, opens Settings at that section. Each row says what it does and the
 command that does the same. `spool settings` lists the ones that had only a line in the config
 file, and `spool settings quick-reply off`, `rebuild off`, `headless on` or `quiet-minutes 15`
 sets one.
