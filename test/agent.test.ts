@@ -64,14 +64,14 @@ test('only plain words reach the command, and it chooses for itself where it alr
   assert.equal(commandFor('claude -p', { model: '$(touch pwned)', effort: 'high; rm' as never }), 'claude -p');
 });
 
-test('the loop runs the thread with its pick put in the command', () => {
+test('the loop runs the thread with its pick put in the command', async () => {
   const s = spool();
   const t = s.id('task', 'Fix a typo', '--size', 's');
   const file = path.join(s.root, 'worker.sh');
   const seen = path.join(s.root, 'seen.txt');
   fs.writeFileSync(file, `#!/bin/sh\necho "$1 $2" > "${seen}"\n"${process.execPath}" "${CLI}" done "$SPOOL_TASK" -m ok > /dev/null\n`);
   fs.chmodSync(file, 0o755);
-  assert.match(s.sp('loop', '--agent', `${file} {model} {effort}`), /1 done/);
+  assert.match(await s.spLater('loop', '--agent', `${file} {model} {effort}`), /1 done/);
   assert.equal(fs.readFileSync(seen, 'utf8').trim(), 'sonnet medium');
   assert.match(s.item(t), /loop: handed to `.*worker\.sh sonnet medium`/);
   s.cleanup();
@@ -138,7 +138,7 @@ test('the human’s pick wins over a step up, and a run carried on in its sessio
   assert.equal(pickFor(thread('xs', []), undefined).why, 'by its size');
 });
 
-test('a thread undone and moved back to build is built one model up from its last run, and its log says so', () => {
+test('a thread undone and moved back to build is built one model up from its last run, and its log says so', async () => {
   const s = spool();
   const t = s.id('task', 'Fix a typo', '--size', 'xs');
   const dir = path.join(s.root, 'bin');
@@ -154,9 +154,12 @@ test('a thread undone and moved back to build is built one model up from its las
   fs.chmodSync(file, 0o755);
   const agent = `${file} -p`;
   const runs = (): string[] => fs.readFileSync(worked, 'utf8').trim().split('\n');
+  // The loop runs Claude as the page does, with the stream on both ways and in a session of Spool's choosing: the pick comes first.
+  const picked = (): string => runs().at(-1)!.replace(/ --output-format .*$/, '');
 
-  assert.match(s.sp('loop', '--agent', agent), /1 done/);
-  assert.equal(runs().at(-1), '-p --model haiku --effort medium');
+  assert.match(await s.spLater('loop', '--agent', agent), /1 done/);
+  assert.equal(picked(), '-p --model haiku --effort medium');
+  assert.match(runs().at(-1)!, / --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool stdio --session-id [0-9a-f-]{36}$/);
   assert.doesNotMatch(s.item(t), /stepped up/);
 
   // Undone, and back in build: Sonnet builds it next, and the log says why.
@@ -164,28 +167,29 @@ test('a thread undone and moved back to build is built one model up from its las
   s.sp('build', t);
   assert.deepEqual(s.json('loop', '--dry-run', '--agent', agent).stepped, [t]);
   assert.match(s.sp('loop', '--dry-run', '--agent', agent), /stepped up from haiku to sonnet · medium: its last run was undone/);
-  assert.match(s.sp('loop', '--agent', agent), /1 done/);
-  assert.equal(runs().at(-1), '-p --model sonnet --effort medium');
-  assert.match(s.item(t), /loop: stepped up from haiku to sonnet · medium: its last run was undone\n.*loop: handed to `.*claude -p --model sonnet --effort medium`/);
+  assert.match(await s.spLater('loop', '--agent', agent), /1 done/);
+  assert.equal(picked(), '-p --model sonnet --effort medium');
+  assert.match(s.item(t), /loop: stepped up from haiku to sonnet · medium: its last run was undone\n.*loop: handed to `.*claude -p --model sonnet --effort medium --output-format/);
 
-  // Undone again, and this time its agent gives up: Opus, then Fable, then Fable again.
+  // Undone again, and this time its agent gives up on Opus. Built again, it is carried on in that same session, as it ran: nothing steps.
   s.sp('revert', t);
   s.sp('build', t);
   fs.writeFileSync(give, '');
-  assert.match(s.sp('loop', '--agent', agent), /unfinished/);
-  assert.equal(runs().at(-1), '-p --model opus --effort medium');
+  assert.match(await s.spLater('loop', '--agent', agent), /unfinished/);
+  assert.equal(picked(), '-p --model opus --effort medium');
+  const session = /--session-id (\S+)$/.exec(runs().at(-1)!)![1]!;
   fs.rmSync(give);
   s.sp('edit', t, '--tag', 'again');
-  assert.match(s.sp('loop', '--agent', agent), /1 done/);
-  assert.equal(runs().at(-1), '-p --model fable --effort high');
-  assert.match(s.item(t), /loop: stepped up from opus to fable · high: its last run ended without finishing/);
+  assert.match(await s.spLater('loop', '--agent', agent), /1 done/);
+  assert.equal(picked(), '-p --model opus --effort medium');
+  assert.ok(runs().at(-1)!.endsWith(`--resume ${session}`), 'picked up where it left off');
 
   // The human's pick wins over the step.
   s.sp('revert', t);
   s.sp('build', t);
   s.sp('edit', t, '--model', 'haiku');
-  assert.match(s.sp('loop', '--agent', agent), /1 done/);
-  assert.equal(runs().at(-1), '-p --model haiku --effort medium');
+  assert.match(await s.spLater('loop', '--agent', agent), /1 done/);
+  assert.equal(picked(), '-p --model haiku --effort medium');
   s.cleanup();
 });
 

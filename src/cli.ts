@@ -142,7 +142,7 @@ export function readable(argv: string[], options: Options): { args: string[]; fo
   return { args: [...flags, '--', ...words], follows };
 }
 
-function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
+function dispatch(argv: string[], ctx: Ctx): { result: Result | Promise<Result>; json: boolean } {
   // Globals may come before the command name; after it, parseArgs handles them.
   let json = false;
   let wantHelp = false;
@@ -276,21 +276,42 @@ function signed(ws: Workspace, command: Command, base: { ctx: Ctx; args: string[
   return base.actor;
 }
 
-/** Run one command. Returns the exit code. */
+/** Say what a command came to, and give its exit code. */
+function said(result: Result, asJson: boolean, ctx: Ctx): number {
+  // `spool mcp` returns with nothing to say: its output is the conversation that follows, and nothing else may be on stdout.
+  if (!result.text && result.data === undefined) return result.code ?? 0;
+  if (asJson) ctx.out(JSON.stringify(result.data ?? { text: result.text }, null, 2));
+  else if (result.text) ctx.out(result.text);
+  return result.code ?? 0;
+}
+
+function refused(error: unknown, json: boolean, ctx: Ctx): number {
+  if (!(error instanceof SpoolError)) throw error;
+  if (json) ctx.out(JSON.stringify({ error: error.message, hint: error.hint ?? null }, null, 2));
+  else ctx.err(`spool: ${error.message}${error.hint ? `\n  ${error.hint}` : ''}`);
+  return error.code;
+}
+
+/** Run one command, one that answers at once. Returns the exit code. A command that works on (`spool loop`) is for `runLater`. */
 export function run(argv: string[], ctx: Ctx): number {
   const json = argv.includes('--json');
   try {
     const { result, json: asJson } = dispatch(argv, ctx);
-    // `spool mcp` returns with nothing to say: its output is the conversation that follows, and nothing else may be on stdout.
-    if (!result.text && result.data === undefined) return result.code ?? 0;
-    if (asJson) ctx.out(JSON.stringify(result.data ?? { text: result.text }, null, 2));
-    else if (result.text) ctx.out(result.text);
-    return result.code ?? 0;
+    if (result instanceof Promise) throw new Error(`spool ${argv.join(' ')} works on after it is called: run it with runLater`);
+    return said(result, asJson, ctx);
   } catch (error) {
-    if (!(error instanceof SpoolError)) throw error;
-    if (json) ctx.out(JSON.stringify({ error: error.message, hint: error.hint ?? null }, null, 2));
-    else ctx.err(`spool: ${error.message}${error.hint ? `\n  ${error.hint}` : ''}`);
-    return error.code;
+    return refused(error, json, ctx);
+  }
+}
+
+/** Run one command, and wait for it where it works on: `spool loop` answers when the loop stops. Resolves to the exit code. */
+export async function runLater(argv: string[], ctx: Ctx): Promise<number> {
+  const json = argv.includes('--json');
+  try {
+    const { result, json: asJson } = dispatch(argv, ctx);
+    return said(await result, asJson, ctx);
+  } catch (error) {
+    return refused(error, json, ctx);
   }
 }
 
@@ -303,7 +324,8 @@ function isMain(): boolean {
 }
 
 if (isMain()) {
-  process.exitCode = run(process.argv.slice(2), {
+  // Most commands answer at once; `spool loop` answers when it stops, and the exit code waits for it.
+  void runLater(process.argv.slice(2), {
     cwd: process.cwd(),
     env: process.env,
     out: (text) => process.stdout.write(`${text}\n`),
@@ -316,5 +338,7 @@ if (isMain()) {
     inherit: true,
     tty: !!process.stdin.isTTY && !!process.stdout.isTTY,
     columns: process.stdout.columns,
+  }).then((code) => {
+    process.exitCode = code;
   });
 }

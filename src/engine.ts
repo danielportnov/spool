@@ -30,7 +30,6 @@ import { type Pick as Picked, type Routing, commandFor, pickFor, stepNote, takes
 import { agentOfCommand, rosterOf, routingFor } from './roster.ts';
 import { type Builder, type Ctx, builderOf, notify, parallelOf, quietLimits, saveBuilder, userConfig } from './context.ts';
 import { dirtyPaths, discardPaths, repoRoot } from './git.ts';
-import { DEFAULT_AGENT, PREAMBLE } from './loop.ts';
 import { type Item, type SpoolError, addLog, isRun, oneLine, splitBody, timestamp } from './model.ts';
 import { type Worksheet, worksheetText } from './manage.ts';
 import { prime } from './prime.ts';
@@ -68,6 +67,17 @@ export function stoppedInBuild(task: Item): boolean {
   const said = splitBody(task.body).log.map((line) => /^- \S+ \S+ .+?: (.*)$/.exec(line)?.[1] ?? '');
   return STOP.test(said.filter((what) => STANDS.test(what)).at(-1) ?? '');
 }
+
+/** The agent command where nobody has said which: Claude Code, headless. */
+export const DEFAULT_AGENT = 'claude -p';
+
+/** What an agent is told first: it works one thread, and nobody reads its chat. */
+export const PREAMBLE = `You are working one task from a Spool queue, unattended. Nobody is reading your
+replies, so nothing you say in chat reaches the human: a question goes through
+\`spool ask\`, a call you make yourself goes through \`spool assume\`. The task
+below is already claimed for you. Finish it with \`spool done\`, or leave it
+waiting on a question — then stop.
+`;
 
 /**
  * A thread whose last word is the page's own, that its agent walked away or it could not be started,
@@ -128,7 +138,7 @@ const LEFT: [RegExp, Left][] = [
   [STOP, 'stopped'],
   [/^handed back from Claude Code; back in build$/, 'handed back'],
   [/^agent .* without finishing; back in build$/, 'unfinished'],
-  [/^(the page was stopped|its page had stopped with nobody working it); back in build$/, 'cut off'],
+  [/^(the (page|loop) was stopped|its page had stopped with nobody working it); back in build$/, 'cut off'],
 ];
 
 /**
@@ -285,6 +295,31 @@ export interface Asking {
 /** What one try at handing out a thread came to: an agent started, nothing there to hand out, or a thread that could not be started. */
 type HandOut = 'started' | 'none' | 'skipped';
 
+/**
+ * A face that is told what happens as it happens, rather than reading the runner's fields: the
+ * plain lines `spool loop` prints are one. Every part is optional.
+ */
+export interface Face {
+  /** A thread was handed to an agent, started with this command. */
+  started?(task: Item, command: string): void;
+  /** Its agent printed a line, as a person reads it. */
+  heard?(id: string, line: string): void;
+  /**
+   * Its run is over. `outcome` is as `recent` has it ("done", "waiting on you", "unfinished: …");
+   * `how` is how the agent went ("exited 3"); `task` is the thread as it now stands, if it is there.
+   */
+  settled?(run: { id: string; title: string }, outcome: string, how: string, task: Item | undefined): void;
+}
+
+/** Who holds a runner, and what it is told. The page's server holds one with none of these. */
+export interface RunnerOptions {
+  /** What the runner signs on a thread's log: the page, or the loop. */
+  as?: 'page' | 'loop';
+  face?: Face;
+  /** Hand out at most this many threads, and then nothing more. */
+  most?: number;
+}
+
 /** How a card learns what its model will be: the user's table by size. */
 export interface Picking {
   models: Routing;
@@ -302,9 +337,10 @@ export interface Picking {
  * worktrees is built in its own folder, one thread at a time. A thread is
  * taken the moment it lands in Build.
  *
- * It is the same contract as `spool loop`: a thread the agent finished is
- * done, one it asked a question on waits for the human, and one it walked
- * away from is put back and not tried again until something about it changes.
+ * `spool loop` holds one too, and prints what it is told (`Face`). For both,
+ * a thread the agent finished is done, one it asked a question on waits for
+ * the human, and one it walked away from is put back and not tried again
+ * until something about it changes.
  * The agent command comes from the user's machine, never from the project.
  *
  * That is building headless. The human can pick a chat to build instead, on the
@@ -343,10 +379,22 @@ export class Runner {
   private timer: NodeJS.Timeout;
   private ctx: Ctx;
   private project: string | undefined;
+  /** What it signs on a thread's log. */
+  readonly as: 'page' | 'loop';
+  private face: Face;
+  private most: number;
 
-  constructor(ctx: Ctx, project: string | undefined, agent: string | undefined, on: boolean) {
+  /**
+   * A runner for a page, or with `options.as` set to 'loop', for `spool loop`: someone typed that,
+   * so it builds what is in Build whoever the page says builds, and leaves to the next page any
+   * thread a page that died left handed out.
+   */
+  constructor(ctx: Ctx, project: string | undefined, agent: string | undefined, on: boolean, options: RunnerOptions = {}) {
     this.ctx = ctx;
     this.project = project;
+    this.as = options.as ?? 'page';
+    this.face = options.face ?? {};
+    this.most = options.most ?? Infinity;
     this.agent = agent || ctx.env.SPOOL_AGENT || userConfig(ctx).agent || DEFAULT_AGENT;
     this.on = on;
     this.quick = new QuickReplies(ctx);
@@ -360,8 +408,18 @@ export class Runner {
     } catch {
       // No spool to read: there is nothing to build either.
     }
-    this.recover();
+    if (this.as === 'page') this.recover();
     this.timer = setInterval(() => this.tick(), 1000);
+  }
+
+  /** How it signs what it saves. */
+  private get signed(): { actor: string; command: string } {
+    return { actor: this.as, command: this.as };
+  }
+
+  /** Whether a chat builds this project's threads, as picked on the page. The loop builds them all the same: someone asked it to. */
+  private chatBuilds(root: string): boolean {
+    return this.as === 'page' && builderOf(this.ctx, root) === 'chat';
   }
 
   /** Who builds what is in Build: read fresh, so a pick made on any page of this project shows at once. */
@@ -395,7 +453,7 @@ export class Runner {
     this.runs.clear();
     for (const run of runs) {
       run.stopped = true;
-      this.putBack(run.id, 'the page was stopped; back in build');
+      this.putBack(run.id, `the ${this.as} was stopped; back in build`);
       endAgent(run.child);
       fs.rmSync(promptFile(run.id, process.pid), { force: true });
     }
@@ -410,8 +468,8 @@ export class Runner {
         if (task?.status !== 'active') return;
         task.status = 'open';
         task.by = undefined;
-        addLog(task, 'page', why, ws.now());
-        ws.save(task, { actor: 'page', command: 'page' });
+        addLog(task, this.as, why, ws.now());
+        ws.save(task, this.signed);
       } finally {
         ws.close();
       }
@@ -446,7 +504,7 @@ export class Runner {
       const kept = recall(task);
       if (kept) endLeftover(kept);
       // As for any hand-out: with agents on, as many as are built at once, and never where a chat builds.
-      const room = this.on && builderOf(this.ctx, task.spool.root) !== 'chat' && this.runs.size < this.parallel;
+      const room = this.on && !this.chatBuilds(task.spool.root) && this.runs.size < this.parallel;
       if (!room || !this.carryOnCutOff(task.id)) this.putBack(task.id, 'its page had stopped with nobody working it; back in build');
     }
   }
@@ -486,9 +544,9 @@ export class Runner {
         fresh.command = this.afresh(this.command(pickFor(task, this.leaned(task), asItRan(task), fableCap(this.ctx))));
         task.by = this.name();
         task.started = timestamp(ws.now());
-        addLog(task, 'page', 'its page had stopped with nobody working it; carried on where it was', ws.now());
-        addLog(task, 'page', `handed to \`${again.command}\``, ws.now());
-        ws.save(task, { actor: 'page', command: 'page' });
+        addLog(task, this.as, 'its page had stopped with nobody working it; carried on where it was', ws.now());
+        addLog(task, this.as, `handed to \`${again.command}\``, ws.now());
+        ws.save(task, this.signed);
         fresh.prompt = this.opening(ws, fresh.command, brief(ws, task, paint(false)));
       } finally {
         ws.close();
@@ -550,8 +608,8 @@ export class Runner {
         run = again.get(id, 'task');
         folder = run.spool.root;
         const command = this.afresh(this.command(pickFor(run, this.leaned(run))));
-        addLog(run, 'page', `the pass is handed to \`${command}\``, again.now());
-        again.save(run, { actor: 'page', command: 'page' });
+        addLog(run, this.as, `the pass is handed to \`${command}\``, again.now());
+        again.save(run, this.signed);
         prompt = `${PASS}\n${prime(again, 'manager')}\n\nYOUR PASS\n\n${worksheetText(again, sheet, paint(false))}\n`;
         this.startPass(run, prompt, command, folder);
       } finally {
@@ -963,9 +1021,10 @@ export class Runner {
       try {
         // A thread an agent of this page's is on is never handed out twice, however long it has gone quiet.
         // Nor is one of a project where a chat builds: there nothing is started from the page.
+        if (this.handedOut >= this.most) return 'none';
         const chat = new Map<string, boolean>();
         const chatBuilds = (t: Item): boolean => {
-          if (!chat.has(t.spool.root)) chat.set(t.spool.root, builderOf(this.ctx, t.spool.root) === 'chat');
+          if (!chat.has(t.spool.root)) chat.set(t.spool.root, this.chatBuilds(t.spool.root));
           return chat.get(t.spool.root)!;
         };
         // Nor one another page, or the human in Claude Code (`spool open`), has an agent on.
@@ -994,7 +1053,7 @@ export class Runner {
         if (shared) {
           // Said once on the thread, the first time it is built so: it is the same every time after.
           if (!splitBody(task.body).log.some((line) => line.includes(OWN_FOLDER))) {
-            addLog(task, 'page', `${OWN_FOLDER}${shared}, so its threads are built one at a time`, ws.now());
+            addLog(task, this.as, `${OWN_FOLDER}${shared}, so its threads are built one at a time`, ws.now());
           }
         } else {
           try {
@@ -1002,8 +1061,8 @@ export class Runner {
           } catch (error) {
             // Not this tick, and not every second after: it waits in Build until something about it changes.
             const e = error as SpoolError;
-            addLog(task, 'page', `not started: it could not have a worktree of its own (${e.message}${e.hint ? `. ${e.hint}` : ''})`, ws.now());
-            ws.save(task, { actor: 'page', command: 'page' });
+            addLog(task, this.as, `not started: it could not have a worktree of its own (${e.message}${e.hint ? `. ${e.hint}` : ''})`, ws.now());
+            ws.save(task, this.signed);
             this.gaveUp.set(task.id, task.updated);
             return 'skipped';
           }
@@ -1030,7 +1089,7 @@ export class Runner {
           // Words of theirs it is picked up with are words to it: it is kept for the next as after any other.
           if (picked.unheard) handed.spoke = Date.now();
         } else if (left) {
-          addLog(task, 'page', `session ${left.session} cannot be picked up by \`${this.agent}\`; starting afresh`, ws.now());
+          addLog(task, this.as, `session ${left.session} cannot be picked up by \`${this.agent}\`; starting afresh`, ws.now());
         }
         // Afresh, a thread whose last run did not work goes one model up, and its log says so.
         const pick = pickFor(task, this.leaned(task), again ? asItRan(task) : undefined, fableCap(this.ctx));
@@ -1039,9 +1098,9 @@ export class Runner {
         task.by = this.name();
         task.started = timestamp(ws.now());
         fresh.command = this.afresh(this.command(pick));
-        if (stepped) addLog(task, 'page', stepped, ws.now());
-        addLog(task, 'page', `handed to \`${(again ?? fresh).command}\``, ws.now());
-        ws.save(task, { actor: 'page', command: 'page' });
+        if (stepped) addLog(task, this.as, stepped, ws.now());
+        addLog(task, this.as, `handed to \`${(again ?? fresh).command}\``, ws.now());
+        ws.save(task, this.signed);
         fresh.prompt = this.opening(ws, fresh.command, brief(ws, task, paint(false)));
       } finally {
         ws.close();
@@ -1099,11 +1158,13 @@ export class Runner {
         },
         turn: () => this.attend(),
         ask: (ask) => this.asked(run, task, ask),
+        line: (line) => this.face.heard?.(task.id, line),
       });
     } catch (error) {
-      this.couldNotStart(task.id, (error as Error).message);
+      this.couldNotStart(task, (error as Error).message);
       return;
     }
+    this.face.started?.(task, how.command);
     const run: Run = { ...handed, child: session.child, lines: session.lines, began: session.began, session, afresh, stopped: false };
     // Which session it is, and what of the human's words it has now been given: kept for the run after this one.
     if (session.id) remember(task, { session: session.id, told: handed.told, pid: session.child.pid });
@@ -1113,7 +1174,8 @@ export class Runner {
   }
 
   /** A thread the page handed out but could not start (its prompt could not be written, say): back in Build, and not tried every second. */
-  private couldNotStart(id: string, why: string): void {
+  private couldNotStart(given: Item, why: string): void {
+    const id = given.id;
     this.runs.delete(id);
     this.putBack(id, `could not be started (${why}); back in build`);
     try {
@@ -1127,6 +1189,7 @@ export class Runner {
     } catch {
       // Busy for an instant; it is tried again, and fails again into the same line.
     }
+    this.face.settled?.({ id, title: given.title }, 'unfinished: it could not be started', `could not start (${why})`, undefined);
   }
 
   /**
@@ -1141,9 +1204,9 @@ export class Runner {
       try {
         const now = ws.find(task.id);
         if (now?.status !== 'active') return false;
-        addLog(now, 'page', `session ${run.session.id} could not be picked up again; starting afresh`, ws.now());
-        addLog(now, 'page', `handed to \`${afresh.command}\``, ws.now());
-        ws.save(now, { actor: 'page', command: 'page' });
+        addLog(now, this.as, `session ${run.session.id} could not be picked up again; starting afresh`, ws.now());
+        addLog(now, this.as, `handed to \`${afresh.command}\``, ws.now());
+        ws.save(now, this.signed);
       } finally {
         ws.close();
       }
@@ -1163,8 +1226,8 @@ export class Runner {
       try {
         const task = ws.find(id);
         if (task) {
-          for (const n of notes) addLog(task, 'page', n, ws.now());
-          ws.save(task, { actor: 'page', command: 'page' });
+          for (const n of notes) addLog(task, this.as, n, ws.now());
+          ws.save(task, this.signed);
         }
         notes.length = 0;
       } finally {
@@ -1177,14 +1240,16 @@ export class Runner {
 
   private settle(run: Run, how: string): void {
     let outcome = 'gone';
+    let task: Item | undefined;
     try {
       const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
       try {
         const now = ws.find(run.id);
+        task = now;
         if (run.pass && now?.status === 'active' && isRun(now)) {
           // A pass its agent left before it ended: the run stays open for whoever ends it, or takes it back.
-          addLog(now, 'page', `the agent ${run.stopped ? 'was stopped' : how} before it ended the pass: end it (spool manage --end -m "<headline>") or take it back (spool revert ${now.id})`, ws.now());
-          ws.save(now, { actor: 'page', command: 'page' });
+          addLog(now, this.as, `the agent ${run.stopped ? 'was stopped' : how} before it ended the pass: end it (spool manage --end -m "<headline>") or take it back (spool revert ${now.id})`, ws.now());
+          ws.save(now, this.signed);
           outcome = 'unfinished: the pass is still open';
         } else if (now?.status === 'done') outcome = 'done';
         else if (now?.status === 'proposed') outcome = 'aborted: back in the backlog';
@@ -1194,9 +1259,9 @@ export class Runner {
           now.status = 'open';
           now.by = undefined;
           // A check that refused it and was still failing when it left: the output stays on the thread for whoever picks it up.
-          if (!run.stopped && run.session?.failedCheck) addLog(now, 'page', `the check ${run.retried ? 'failed again after one more go' : 'failed'}: ${run.session.failedCheck.slice(-1200)}`, ws.now());
-          addLog(now, 'page', run.stopped ? 'stopped from the page; back in build' : `agent ${how} without finishing; back in build`, ws.now());
-          ws.save(now, { actor: 'page', command: 'page' });
+          if (!run.stopped && run.session?.failedCheck) addLog(now, this.as, `the check ${run.retried ? 'failed again after one more go' : 'failed'}: ${run.session.failedCheck.slice(-1200)}`, ws.now());
+          addLog(now, this.as, run.stopped ? 'stopped from the page; back in build' : `agent ${how} without finishing; back in build`, ws.now());
+          ws.save(now, this.signed);
           if (!run.stopped) this.gaveUp.set(now.id, now.updated);
           outcome = run.stopped ? 'stopped' : `unfinished: the agent ${how}${run.lines.length ? ` — ${run.lines.at(-1)}` : ''}`;
         } else if (now?.status === 'open' && run.stopped && !now.needs.length) {
@@ -1216,5 +1281,6 @@ export class Runner {
     this.recent.unshift({ id: run.id, title: run.title, outcome });
     this.recent.splice(5);
     if (this.runs.get(run.id) === run) this.runs.delete(run.id);
+    this.face.settled?.({ id: run.id, title: run.title }, outcome, how, task);
   }
 }

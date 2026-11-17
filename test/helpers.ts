@@ -10,7 +10,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Browser } from 'playwright-core';
-import { run } from '../src/cli.ts';
+import { run, runLater } from '../src/cli.ts';
 
 export const CLI = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
 
@@ -54,10 +54,28 @@ export class Sandbox {
 
   /** Run a command. Each run moves the clock a minute so creation order is unambiguous. */
   exec(args: string[], options: RunOptions = {}): Out {
+    const { ctx, said } = this.context(options);
+    return said(run(args, ctx));
+  }
+
+  /** Run a command that works on, `spool loop`, and wait for it to stop. */
+  async execLater(args: string[], options: RunOptions = {}): Promise<Out> {
+    const { ctx, said } = this.context(options);
+    return said(await runLater(args, ctx));
+  }
+
+  /** The same, for a command that must succeed; returns its output. */
+  async spLater(...args: string[]): Promise<string> {
+    const result = await this.execLater(args);
+    if (result.code !== 0) throw new Error(`spool ${args.join(' ')} failed (${result.code}): ${result.err || result.out}`);
+    return result.out;
+  }
+
+  private context(options: RunOptions): { ctx: Parameters<typeof run>[1]; said: (code: number) => Out } {
     this.clock.now += 60_000;
     const out: string[] = [];
     const err: string[] = [];
-    const code = run(args, {
+    const ctx: Parameters<typeof run>[1] = {
       cwd: this.dir,
       env: { HOME: path.join(this.root, '.home'), ...options.env },
       out: (text) => out.push(text),
@@ -68,8 +86,8 @@ export class Sandbox {
       color: false,
       inherit: false,
       tty: options.tty,
-    });
-    return { code, out: out.join('\n'), err: err.join('\n') };
+    };
+    return { ctx, said: (code) => ({ code, out: out.join('\n'), err: err.join('\n') }) };
   }
 
   /** Run a command that must succeed; returns its output. */

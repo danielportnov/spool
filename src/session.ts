@@ -208,14 +208,15 @@ export interface Session {
  * A `claude -p` command with its input open is given the prompt as its first message, and its
  * input stays open. `on.turn` hears each time it ends a turn and waits: it goes on waiting until
  * it is spoken to or its input is closed, so whoever holds it must do one or the other. `on.ask`
- * hears each tool call it needs a yes for; that waits too, until it is answered.
+ * hears each tool call it needs a yes for; that waits too, until it is answered. `on.line` hears
+ * each line as it is added to `lines`, for a face that prints them as they come.
  */
 export function startSession(
   task: Item,
   prompt: string,
   command: string,
   at: { folder: string; env: Ctx['env']; actor: string },
-  on: { note: (notes: string[]) => void; end: (how: string) => void; turn?: () => void; ask?: (ask: Ask) => void },
+  on: { note: (notes: string[]) => void; end: (how: string) => void; turn?: () => void; ask?: (ask: Ask) => void; line?: (line: string) => void },
 ): Session {
   const file = promptFile(task.id, process.pid);
   fs.writeFileSync(file, prompt);
@@ -232,6 +233,7 @@ export function startSession(
   const show = (line: string): void => {
     lines.push(line.slice(0, 400));
     if (lines.length > LIVE_LINES) lines.splice(0, lines.length - LIVE_LINES);
+    on.line?.(line);
   };
   let sent = 0;
   // What Spool says to a session: written to it, and kept in the transcript as an event of Spool's own, which is

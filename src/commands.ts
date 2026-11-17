@@ -154,8 +154,8 @@ export interface Command {
   /** The option that names a file to read. A caller with no files (`spool mcp`) gives the text instead. */
   reads?: string;
   run?: (call: Call) => Result;
-  /** For commands that manage the workspace themselves. */
-  bare?: (call: Bare) => Result;
+  /** For commands that manage the workspace themselves. One that works on (`spool loop`) answers when it is over: see `runLater` in cli.ts. */
+  bare?: (call: Bare) => Result | Promise<Result>;
   /**
    * Slow work to do first, before the store is opened and locked: its result arrives as `call.before`.
    * It may refuse the command by throwing.
