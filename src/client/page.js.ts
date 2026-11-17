@@ -1757,7 +1757,7 @@ function openTakeOvers() {
       el('div', { class: 'name' }, 'Takes'),
       el('p', {}, 'Threads you filed, top of the backlog first, one at a time. Never an AI suggested one, one on hold, or one waiting on a question or a plan’s go-ahead.'),
       el('p', { class: 'now' })),
-    el('div', { class: 'entry switch afk' },
+    el('div', { class: 'entry afk' },
       el('label', { class: 'name' }, afk, 'I’m AFK'),
       el('p', {}, 'Agents don’t ask you: each takes its own recommendation and records it as a call for your review. Only money, publishing or pushing, deleting, new accounts, what the product is and your own machine still ask.')));
   box.hidden = false;
@@ -1775,7 +1775,7 @@ function closeTakeOvers() {
 function fillTakeOvers(b) {
   const box = document.getElementById('takeovers');
   const t = takeOverOf(b);
-  const on = box.querySelector('.switch:not(.afk) input');
+  const on = box.querySelector('.switch input');
   if (on && document.activeElement !== on) on.checked = t.on;
   const afk = box.querySelector('.afk input');
   if (afk && document.activeElement !== afk) afk.checked = b.afk === true;
