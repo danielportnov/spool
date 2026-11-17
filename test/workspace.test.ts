@@ -99,7 +99,7 @@ test('the recorder is briefed with the projects and what is waiting', () => {
 test('outside any spool, it says how to start one', () => {
   const s = new Sandbox();
   assert.match(s.fails('status'), /no \.spool\/ here or in any parent directory[\s\S]*spool init/);
-  assert.match(s.sp(), /the engine under the Spool skills[\s\S]*\/spool-init once, \/spool to steer, \/spool-loop to build, \/spool-record to add/, 'bare `spool` prints help');
+  assert.match(s.sp(), /the engine under the Spool skills[\s\S]*\/spool-init once, \/spool to steer Spool, \/spool-steer to steer the work, \/spool-loop to build, \/spool-record to add/, 'bare `spool` prints help');
   s.sp('init');
   assert.match(s.sp(), /nothing is waiting on you/, 'and status once there is a spool');
   s.cleanup();

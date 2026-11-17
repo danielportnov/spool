@@ -16,7 +16,7 @@ test('init lays down the store, the policy and a pointer for agents', () => {
   assert.match(out, /The queue stays on this machine: git ignores \.spool\/\./);
 
   // The pointer sends any agent to the skills, and one with no skills to the CLI's copy of the rules.
-  assert.match(s.read('AGENTS.md'), /<!-- spool:start -->[\s\S]*`\/spool-init` sets a project up, `\/spool` steers it and opens the board,\n`\/spool-loop` makes a chat the builder, and `\/spool-record` files an idea\.[\s\S]*spool prime[\s\S]*<!-- spool:end -->/);
+  assert.match(s.read('AGENTS.md'), /<!-- spool:start -->[\s\S]*`\/spool-steer` steers how you work without recording anything[\s\S]*spool prime[\s\S]*<!-- spool:end -->/);
 
   // What comes next is said to an agent, not typed here. The skills are per machine, not per project.
   assert.match(out, /skills are not installed for your agent yet[\s\S]*spool install/);
@@ -128,7 +128,7 @@ test('init can leave the agents file alone', () => {
 });
 
 test('the shipped skills are valid Agent Skills, and few', () => {
-  assert.deepEqual([...SKILL_NAMES], ['spool-init', 'spool', 'spool-loop', 'spool-lazy', 'spool-record']);
+  assert.deepEqual([...SKILL_NAMES], ['spool-init', 'spool', 'spool-loop', 'spool-lazy', 'spool-record', 'spool-steer']);
   for (const name of SKILL_NAMES) {
     const skill = parseFrontmatter(shipped(name));
     assert.equal(skill.data.get('name'), name);
@@ -137,8 +137,8 @@ test('the shipped skills are valid Agent Skills, and few', () => {
     assert.ok(description.includes(`/${name}`), `${name}: says how it is invoked`);
     assert.ok(skill.body.includes('`spool'), `${name}: tells the agent which command to run`);
   }
-  // Four, and each says what to do where there is no spool yet.
-  for (const name of SKILL_NAMES) assert.match(shipped(name), /spool-init|spool init/);
+  // Setup and workflow skills point to initialization where it applies.
+  for (const name of SKILL_NAMES.slice(0, 5)) assert.match(shipped(name), /spool-init|spool init/);
 });
 
 test('every command a skill tells an agent to run exists', () => {
@@ -190,7 +190,7 @@ test('the recorder records one message, and decides the split and the size itsel
 test('install puts the skills where the agent finds them, and keeps the ones you edited', () => {
   const s = new Sandbox();
   const out = s.sp('install');
-  assert.match(out, /Spool skills in ~\/\.claude\/skills\n {2}installed {2}spool-init\n {2}installed {2}spool\n {2}installed {2}spool-loop\n {2}installed {2}spool-lazy\n {2}installed {2}spool-record\n\nIn your agent: {2}\/spool-init in a project, then \/spool$/);
+  assert.match(out, /Spool skills in ~\/\.claude\/skills\n {2}installed {2}spool-init\n {2}installed {2}spool\n {2}installed {2}spool-loop\n {2}installed {2}spool-lazy\n {2}installed {2}spool-record\n {2}installed {2}spool-steer\n\nIn your agent: {2}\/spool-init in a project, then \/spool$/);
   for (const name of SKILL_NAMES) {
     const text = s.read(`.home/.claude/skills/${name}/SKILL.md`);
     assert.ok(text.startsWith(shipped(name).trimEnd()), 'the shipped skill, word for word');

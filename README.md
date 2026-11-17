@@ -391,9 +391,9 @@ It reads `GEMINI.md` unless its settings name `AGENTS.md` too.
   The board opens with the same brief above its columns, each line a click from its thread, and
   one button to approve the lot.
 
-## The five skills
+## Skills
 
-You use Spool by talking to Claude. There are five skills, short enough to read: [`skills/`](skills).
+You use Spool by talking to Claude. There are six skills, short enough to read: [`skills/`](skills).
 
 | You type | What it is for |
 | --- | --- |
@@ -402,6 +402,7 @@ You use Spool by talking to Claude. There are five skills, short enough to read:
 | `/spool-loop` | Makes that chat the builder: it builds what is in Build, several threads at once, then watches for more. |
 | `/spool-lazy` | Lazy dev mode, in that chat: Claude decides how, never asks, builds what you moved to Build, and shows you screenshots and a line or two. You react, and it files your words as threads. `/spool-lazy off` ends it. |
 | `/spool-record <idea>` | Files one message as threads, in your words. The chat carries on as it was. |
+| `/spool-steer <instruction>` | Steers how the work is handled without recording it. Pass steering for an active thread to its builder. |
 
 Upgrading? `spool install` brings your copies up to date and takes away a skill that has been
 retired, and `spool doctor` says if an old one, or an old Spool block in `AGENTS.md`, is still there.

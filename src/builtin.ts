@@ -30,7 +30,7 @@ import { parseFrontmatter } from './frontmatter.ts';
 import { SpoolError } from './model.ts';
 
 /** In the order someone meets them. */
-export const SKILL_NAMES = ['spool-init', 'spool', 'spool-loop', 'spool-lazy', 'spool-record'] as const;
+export const SKILL_NAMES = ['spool-init', 'spool', 'spool-loop', 'spool-lazy', 'spool-record', 'spool-steer'] as const;
 export type SkillName = (typeof SKILL_NAMES)[number];
 
 /**

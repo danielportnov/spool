@@ -2510,6 +2510,7 @@ export const COMMANDS: Command[] = [
             '  /spool-loop       makes that chat the builder: it builds what is in build, and tells you when it needs you',
             '  /spool-lazy       lazy dev mode: it decides, builds and shows you screenshots; you react',
             '  /spool-record     put it in front of anything you type or say, and that message is filed as threads',
+            '  /spool-steer      tell your agent how to handle the work, without filing a note or thread',
             `  ${path.join(SPOOL_DIR, 'policy.md')} says what agents may decide without you — worth two minutes.`,
             `  ${path.join(SPOOL_DIR, 'goals.md')} says where the project is heading: your agent asks you, in one question.`,
           );

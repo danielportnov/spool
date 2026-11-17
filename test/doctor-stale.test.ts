@@ -115,10 +115,10 @@ test("doctor says when a project's Spool block is not the one this version write
   }
 });
 
-test('the block names the four skills as they are now, and owns the words every skill uses', () => {
+test('the block names the skills as they are now, and owns the words every skill uses', () => {
   const block = upsertBlock('');
   const flat = block.replace(/\s+/g, ' ');
-  assert.match(flat, /through four skills: `\/spool-init` sets a project up, `\/spool` steers it and opens the board, `\/spool-loop` makes a chat the builder, and `\/spool-record` files an idea\./);
+  assert.match(flat, /through five skills: `\/spool-init` sets a project up, `\/spool` steers the spool, `\/spool-steer` steers how you work without recording anything, `\/spool-loop` makes a chat the builder, and `\/spool-record` files an idea\./);
   assert.doesNotMatch(block, /spool-page/);
   // The vocabulary, and the rule that the store is never edited by hand, are said here, once.
   assert.match(flat, /It is the project's spool 🧶, and each piece of work in it is a thread 🧵; the commands call a thread a task\./);
@@ -127,7 +127,7 @@ test('the block names the four skills as they are now, and owns the words every 
   assert.match(flat, /work it by the worker's rules \(`spool prime worker`\)/);
   // What it says of itself: current as written, other once anything in it differs, none without one.
   assert.equal(blockIn(block), 'current');
-  assert.equal(blockIn(block.replace('four skills', 'skills')), 'other');
+  assert.equal(blockIn(block.replace('five skills', 'skills')), 'other');
   assert.equal(blockIn(OLD_BLOCK), 'other');
   assert.equal(blockIn('# Just my rules\n'), 'none');
 });
