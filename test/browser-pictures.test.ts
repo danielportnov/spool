@@ -68,8 +68,10 @@ test('a picture pasted into a reply shows under the words, opens full size, and 
   const ticket = page.locator('#thread');
   try {
     await page.goto(url);
-    // The brief marks a finished thread worth a look that has pictures.
-    await page.locator('#brief .card', { hasText: 'Pause button under the score' }).locator('.picmark', { hasText: 'has pictures' }).waitFor();
+    // A finished thread worth a look that has pictures says so in its mark on the Done card.
+    const mark = page.locator('#board .card', { hasText: 'Pause button under the score' }).locator('.chip.worth');
+    await mark.waitFor();
+    assert.match((await mark.getAttribute('title'))!, /pictures? to look at/);
 
     await page.locator(`#board .card[data-id="${coins}"] .title`).click();
     await ticket.locator('.key', { hasText: coins }).waitFor();

@@ -35,7 +35,7 @@ test('on a phone the name has its room and the search is a button; answers line 
       if (message.type() === 'error') problems.push(message.text());
     });
     await tab.goto(`${page.url}?view=board`);
-    await tab.locator('#brief .bhead').waitFor();
+    await tab.locator('#board .card', { hasText: 'Make the shares add up' }).waitFor();
     return tab;
   };
   const sameWidths = async (tab: Page, where: string): Promise<void> => {
@@ -45,9 +45,9 @@ test('on a phone the name has its room and the search is a button; answers line 
     // Side by side, or one to a line at one width.
     assert.ok(tops[0] === tops[1] || widths[0] === widths[1], `${where}: ${widths.join(', ')} at ${tops.join(', ')}`);
   };
-  // A question is asked on its thread alone: its card and the brief say nothing of it, and its ticket has the answers.
+  // A question is asked on its thread alone: its card says nothing of it, and its ticket has the answers.
   const answers = async (tab: Page): Promise<void> => {
-    assert.equal(await tab.locator('#brief, #board').getByText('Who pays the cent').count(), 0, 'no question on the board or in the brief');
+    assert.equal(await tab.locator('#board').getByText('Who pays the cent').count(), 0, 'no question on the board');
     await tab.locator('#board .card', { hasText: 'Make the shares add up' }).locator('.title').click();
     await sameWidths(tab, '#thread .post:has-text("Who pays the cent") .opts button');
   };
@@ -87,9 +87,6 @@ test('on a phone the name has its room and the search is a button; answers line 
     }
 
     const wide = await open({ viewport: { width: 1440, height: 900 } });
-    // A result written over several lines: whole, it is read with its list; where there is room for a line, its first.
-    assert.deepEqual(await wide.evaluate("[firstLine('Shares add up now:\\n- the first person pays the cent'), firstLine('\\n- one\\n- two'), richNote('Shares add up now:\\n- the first person pays the cent').querySelectorAll('li').length]"),
-      ['Shares add up now:', 'one', 1]);
     await answers(wide);
     await shot(wide, 'answers-wide');
     await shut(wide);
