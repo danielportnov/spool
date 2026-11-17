@@ -3,10 +3,11 @@
  * the project folder that git does not know about. Undo and lineage only reach what is on a thread,
  * so `spool status`, the brief and `spool doctor` name these, and `spool adopt` puts a commit on one.
  *
- * A commit is on a thread when its message carries a `Spool:` trailer (or `Spool-Revert:`, the
- * commit that undid one), or when some thread lists it in its `commits:`, which is how many older
- * commits are linked. A version commit is on no thread by design: it carries `Spool-Version:`, and
- * one titled `Version x.y.z` without it is taken as one too.
+ * A commit is on a thread when its message carries a `Spool:` trailer, a `Spool-Revert:` trailer
+ * (the commit that undid one), or a `Spool-Restore:` trailer (work put back after an undo), or when
+ * some thread lists it in its `commits:`, which is how many older commits are linked. A version
+ * commit is on no thread by design: it carries `Spool-Version:`, and one titled `Version x.y.z`
+ * without it is taken as one too.
  *
  * It looks no further back than the oldest commit already on a thread: history from before Spool
  * landed anything is not its business. Only the newest few are named; the rest are a count.
@@ -81,7 +82,7 @@ export function straysOf(ws: Workspace, spool: Spool): Strays | null {
   const top = repoRoot(spool.root);
   if (!top || !git(spool.root, ['rev-parse', '--verify', '-q', 'HEAD']).ok) return null;
   const spec = scope(ws, spool, top);
-  const FIELDS = '%H%x1f%s%x1f%(trailers:key=Spool,valueonly,separator=%x2C)%(trailers:key=Spool-Revert,valueonly,separator=%x2C)%x1f%(trailers:key=Spool-Version,valueonly)%x1e';
+  const FIELDS = '%H%x1f%s%x1f%(trailers:key=Spool,valueonly,separator=%x2C)%(trailers:key=Spool-Revert,valueonly,separator=%x2C)%(trailers:key=Spool-Restore,valueonly,separator=%x2C)%x1f%(trailers:key=Spool-Version,valueonly)%x1e';
   const log = git(spool.root, ['log', '--no-merges', `-n${DEPTH}`, `--format=${FIELDS}`, 'HEAD', ...spec]);
   const rows = (log.ok ? log.raw : '')
     .split('\x1e')

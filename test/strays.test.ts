@@ -48,6 +48,26 @@ test('the brief and doctor name it too', () => {
   s.cleanup();
 });
 
+test('a restored commit belongs to its thread in status, brief and doctor', () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop');
+  s.gitInit();
+  s.write('a.txt', 'a\n');
+  s.commitAll('First commit');
+  const t = s.id('task', 'Add b');
+  s.write('b.txt', 'b\n');
+  s.commitAll(`Add b\n\nSpool: ${t}`);
+  s.write('b.txt', 'restored\n');
+  const restored = s.commitAll(`Put b back\n\nSpool-Restore: ${t}`);
+
+  assert.deepEqual(s.json('status').projects[0].noThread.commits, []);
+  assert.deepEqual(s.json('brief').noThread, []);
+  const strays = JSON.parse(s.exec(['doctor', '--json']).out).checks.find((c: { id: string }) => c.id === 'strays');
+  assert.equal(strays.status, 'ok');
+  assert.doesNotMatch(s.sp('status'), new RegExp(restored.slice(0, 7)));
+  s.cleanup();
+});
+
 test('spool adopt puts a commit on a thread: status stops naming it, and the thread lists it', () => {
   const { s, t, hand } = project();
   assert.match(s.sp('adopt', hand.slice(0, 7), '--for', t, '--as', 'Claude'), new RegExp(`is on ${t} now`));
