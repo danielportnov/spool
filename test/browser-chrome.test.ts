@@ -221,13 +221,22 @@ test('on a phone: the bar in two rows, one column at a time, the ticket filling 
       return box.y + box.height / 2;
     };
     const row = async (a: string, b: string): Promise<boolean> => Math.abs((await middle(a)) - (await middle(b))) < 6;
-    assert.ok(await row('.brand', '.tabs'), 'the project and the views are one row');
-    assert.ok((await middle('#searchbtn')) > (await middle('.tabs')) + 30, 'the search is on the second row');
-    assert.ok(await row('#searchbtn', '#runner'), 'the status is on the search row');
-    assert.ok(await row('#searchbtn', '#notifier'), 'the bell is on the search row');
-    assert.ok(await row('#searchbtn', '#gear'), 'the gear is on the search row');
-    assert.equal(await page.locator('#themer').isVisible(), false, 'no room for the theme: it is in Settings');
-    await fits('the board');
+    const twoRows = async (font: string): Promise<void> => {
+      assert.ok(await row('.brand', '.tabs'), `${font}: the project and the views are one row`);
+      assert.ok((await middle('#searchbtn')) > (await middle('.tabs')) + 30, `${font}: the search is on the second row`);
+      assert.ok(await row('#searchbtn', '#runner'), `${font}: the status is on the search row`);
+      assert.ok(await row('#searchbtn', '#notifier'), `${font}: the bell is on the search row`);
+      assert.ok(await row('#searchbtn', '#gear'), `${font}: the gear is on the search row`);
+      assert.equal(await page.locator('#themer').isVisible(), false, `${font}: no room for the theme: it is in Settings`);
+      await fits(`the board, ${font}`);
+    };
+    await twoRows('this system font');
+    // Linux draws the page in DejaVu Sans, a good deal wider than a Mac's font: a bar that fits here
+    // wrapped to a third row on CI. Verdana is as wide, and on every Mac; where it is missing, the
+    // wide font is the system's own. The bar has to fit in it too.
+    const wide = await page.addStyleTag({ content: '* { font-family: Verdana, "DejaVu Sans", sans-serif !important; }' });
+    await twoRows('a wide font');
+    await wide.evaluate((node) => node.remove());
 
     // One column at a time, and a row of their names with what each holds goes to another.
     assert.deepEqual(await jump.locator('button').allInnerTexts(), ['Backlog 2', 'Build 1', 'Building 1', 'Done 1']);
