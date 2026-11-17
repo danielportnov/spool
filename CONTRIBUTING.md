@@ -47,6 +47,16 @@ node --test --test-name-pattern "revert" test/*.test.ts   # tests whose name mat
 
 The whole suite takes about half a minute.
 
+Install it as a newcomer would, on a machine that has never seen Spool:
+
+```bash
+bash scripts/fresh-install.sh   # npm pack, npm install -g the tarball, then install, demo, init, doctor, page
+```
+
+It runs every step under one temp folder, with an empty HOME and its own npm prefix, so nothing on
+your machine is read or changed, and it deletes the folder when it passes (`KEEP=1` keeps it). CI
+runs it on Ubuntu and macOS.
+
 **What the tests need.** Git: many tests make real repositories. Chrome, for one test only:
 `test/browser.test.ts` drives the page in the Chrome on your machine through `playwright-core`,
 which brings no browser of its own. Where there is no Chrome it skips itself. Set
