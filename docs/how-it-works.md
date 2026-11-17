@@ -326,6 +326,21 @@ or by the agent the page or the loop started on it) is signed as the claimer, an
 signs as "Codex" on a thread "Codex GPT-6" claimed is the same name, so a thread has one name per
 agent. `spool attach --as before|after` uses `--as` for the side, so `--by` signs it.
 
+A thread built in a worktree says who built it in git as well: as `spool done` lands it, each of
+its commits gets the lines it lacks of
+
+    Spool: t-4kq7
+    Spool-Agent: Claude Fable 5.2
+    Spool-Model: opus
+
+whatever agent built it, Claude, Codex or the page's own. The agent is the `--as` name that
+finished it, or claimed it. The model is the one the page or the loop started it on, or the one its
+claim named for a chat's subagent, and is left out where Spool does not know it. A line already
+there is kept, and not added twice; the author and committer stay yours. Those commits are on the
+thread's own branch until then, so nothing that was shared is rewritten. A thread built in the
+project's own folder is not stamped: its commits may already be pushed, so `spool done` only says
+so, and its hand-written `Spool:` line is the link.
+
 **What shipped gets a version.** At the end of a run that shipped something: a bump in the
 project's own version file (minor for something new, patch for fixes; a major is your call), a
 `CHANGELOG.md` entry, a commit, and a tag that stays on your machine. Each thread is stamped with

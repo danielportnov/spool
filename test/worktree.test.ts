@@ -364,6 +364,7 @@ test('without --worktree nothing changes, and where there can be no worktree it 
   const sha = s.commitAll(`Tighten the jump\n\nSpool: ${id}`);
   const done = s.json('done', id, '-m', 'Snappier');
   assert.deepEqual([done.task.commits, 'landed' in done], [[sha], false]);
+  assert.equal(s.git('log', '-1', '--format=%H%n%B').trim(), `${sha}\nTighten the jump\n\nSpool: ${id}`, 'built in the project, it may be pushed: it is not rewritten');
   assert.doesNotMatch(s.item(id), /worktree|branch|landed/);
   assert.deepEqual([s.git('worktree', 'list').split('\n').length, s.git('branch', '--list', 'spool/*')], [1, '']);
 

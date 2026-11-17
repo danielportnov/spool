@@ -40,7 +40,8 @@ those comments are the detail.
   lock is taken, and `after` lets go of whatever `before` took.
 - `context.ts` is `Ctx`, the outside world passed in, and the user's own settings in
   `~/.config/spool/config.json`. It also runs the notifier.
-- `git.ts` is the undo. It finds a thread's commits by their `Spool:` trailer, and
+- `git.ts` is the undo. It finds a thread's commits by their `Spool:` trailer (which
+  `stampCommits` writes on each commit a worktree lands, with `Spool-Agent:` and `Spool-Model:`), and
   `revertCommits` takes them back in one new commit, never touching `.spool/`, all or nothing.
 - `journal.ts` is the undo for the queue itself, which git does not hold. With `SPOOL_RUN` set,
   `record` gives the workspace a recorder: `save` tells it of every item written, and it keeps
@@ -205,8 +206,10 @@ those comments are the detail.
 5. **The work.** The agent commits, and each commit message ends with `Spool: t-…`.
 6. **`spool done t-… -m "what changed"`.** First, before the lock, `beforeDone` runs the project's
    check (`runCheck`) if the user named one; a failure stops the finish. A thread with a worktree
-   is landed there as well: `land` rebases it onto the checkout, runs the check in the worktree,
-   and fast-forwards the checkout to it. Then `done` collects the commits with
+   is landed there as well: `land` rebases it onto the checkout, stamps each of its commits with
+   `landingTrailers` (`Spool:`, `Spool-Agent:` from `--as` or the claimer, `Spool-Model:` from
+   `ranOn`) through `stampCommits`, runs the check in the worktree, and fast-forwards the checkout
+   to it. A thread built in the checkout itself is never rewritten. Then `done` collects the commits with
    `trailerCommits`, skipping any `isReverted`, marks the task `done` with its summary, ends its
    sprint if it was the last (`settleSprint`), and says what is now ready.
 7. **`spool revert t-… -m "why"`.** `undoWork` gathers the task's commits and calls

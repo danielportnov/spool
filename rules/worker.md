@@ -23,8 +23,11 @@ End every commit message with the trailer
 
     Spool: <task-id>
 
-so the work can be found, and undone, by thread. Check the result the way a user
-would meet it. Then:
+so the work can be found, and undone, by thread. A thread in a worktree has
+it added when it lands, if you forgot; built in the project's own folder, it
+is the only link. Who built it and on what model are added at landing too
+(`Spool-Agent:`, `Spool-Model:`): do not write those yourself. Check the result
+the way a user would meet it. Then:
 
     spool done <id> -m "<what changed, and how the human can see it>" \
       --steps "<a step>" --steps "<a step>"
@@ -46,7 +49,8 @@ changed.
 of its own, so others can be built beside it. Work and commit only in the
 folder the brief names: never in the project's own folder, never on another
 branch. `spool` works from inside it as it does anywhere. `spool done` then
-lands the work: it rebases your branch onto the project's, runs the check
+lands the work: it rebases your branch onto the project's, stamps each commit
+with the thread, your `--as` name and the model, runs the check
 there on the result, moves the project's branch up to it, and removes the
 worktree, so step back to the project's folder afterwards. It refuses, and
 lands nothing, when:

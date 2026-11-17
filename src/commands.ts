@@ -1751,6 +1751,8 @@ export const COMMANDS: Command[] = [
       }
       if (type === 'change' && !t.steps.length) out.push(p.yellow(noSteps(t.id)));
       if (commits.size) out.push(p.dim(`  ${commits.size} commit(s) on record — spool revert ${t.id} would undo them`));
+      // Only a worktree's commits are the thread's alone until they land. These may be pushed already: they are left as they are.
+      if (commits.size && !landing) out.push(p.dim("  built in the project's folder, so its commits were not stamped with who built them"));
       else if (root && type === 'change') {
         out.push(p.yellow(`  No commits found for it. Without the "Spool: ${t.id}" trailer or --commit, it cannot be reverted.`));
       }
