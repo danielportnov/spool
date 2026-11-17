@@ -37,7 +37,7 @@ assume" covers it.
 
 ## What you only propose
 
-In the report, each with the line the human answers (yes / no).
+In the report, each with the line the human answers (yes / no). A drop, archive or build can also go on its thread for a yes or no there: `spool manage --propose <drop|archive|build> <id> -m "<reason>"`.
 
 - Dropping a thread the human filed, even one that looks shipped.
 - Archiving a thread that has gone cold.

@@ -66,7 +66,7 @@ test('/spool is the one skill for the chat: status first, a short reply, and one
   assert.match(run('"show me everything"'), /^`spool overview --table`, as it comes/);
   assert.match(run('"why is nothing building"'), /^`spool status`: its "Build is not moving" line says why[\s\S]*`spool doctor`/);
   // Tidying is the manager's run, which landed after the plan: one pass that one undo takes back, and a leave says how far it may go.
-  assert.match(run('"tidy the backlog"'), /^`spool manage --start`: it opens a run, and prints the facts to judge from and how to end it\. One undo takes the whole pass back\. Only "what is duplicated"\? `spool list --alike`\./);
+  assert.match(run('"tidy the backlog"'), /^Tidying: `spool prime manager` \(its rules\), then `spool manage --start`; do the pass by them, end with `spool manage --end -m "<headline>"`, and reply with the headline and the run's link \(the board, then `#<run t-id>`\)\. One undo takes the pass back\. Only "what is duplicated"\? `spool list --alike`\./);
   // New ideas share the row: a worksheet of facts, and the agent files each idea as AI suggested.
   assert.match(run('"come up with ideas"'), /Ideas\? `spool ideate` \(`--max <n>` if they named a number\) prints the facts and the rules: read the code it names, file each idea as it says, and say in a line how many$/);
   assert.match(run('"manage it while I sleep"'), /^`spool leave "<their exact words>" --until <time>`, with `--build <n>` only if they said how many may be built\. Then tidy, as above$/);
