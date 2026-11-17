@@ -20,7 +20,7 @@ import { morning, morningText } from './brief.ts';
 import { DISABLE, ENABLE } from './off.ts';
 import { HARNESSES, describe, harness, installFor, installedAnywhere, others } from './harness.ts';
 import { spawnSync } from 'node:child_process';
-import { type Ctx, afkOf, builderOf, cavemanOf, notify, saveUserConfig, userConfig } from './context.ts';
+import { type Ctx, afkOf, builderOf, cavemanOf, notify, saveBuilder, saveUserConfig, userConfig } from './context.ts';
 import { settingsCommand } from './settings.ts';
 import { modeCommand } from './modes.ts';
 import { doctor } from './doctor.ts';
@@ -2792,6 +2792,13 @@ export const COMMANDS: Command[] = [
           if (opts.gate) config.gate = true;
           if (opts.lock) config.gate = 'locked';
           setup('config', `${JSON.stringify(config, null, 2)}\n`);
+          // A new project is built from a chat: Headless is something to switch on later, in Settings.
+          // Said once here, so a project set up before this keeps whatever it already had.
+          try {
+            saveBuilder(ctx, root, 'chat');
+          } catch {
+            // No home directory to keep it in: the project is built as nothing said, headless.
+          }
         } else if ((opts.lock && readConfig(root).gate !== 'locked') || (opts.gate && !readConfig(root).gate)) {
           // Turning the gate on, or locking it, for a project that has a spool: one key, nothing else touched.
           // --gate never loosens a lock; taking a lock off is done by hand, in the file, by a person.

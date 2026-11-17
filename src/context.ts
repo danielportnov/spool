@@ -73,7 +73,7 @@ export interface UserConfig {
   /**
    * For each project, by the path of its folder: who builds what is in Build. `"chat"` is a
    * Claude Code chat running the loop, and the page starts no agent of its own there. A project
-   * not named here is built headless, by the page starting the agent command. Set on the page.
+   * not named here (set up before 0.25.0) is built headless, by the page starting the agent command; `spool init` names a new one `"chat"`. Set on the page.
    */
   builder?: Record<string, string>;
   /**
@@ -181,7 +181,7 @@ export function builderOf(ctx: Ctx, root: string): Builder {
 export function saveBuilder(ctx: Ctx, root: string, builder: Builder): void {
   saveUserConfig(ctx, (config) => {
     const all = { ...(config.builder ?? {}) };
-    // Headless is what a project is with nothing said, so nothing is kept for it.
+    // Headless is what a project is with nothing said (one set up before 0.25.0), so nothing is kept for it.
     if (builder === 'chat') all[root] = 'chat';
     else delete all[root];
     config.builder = all;

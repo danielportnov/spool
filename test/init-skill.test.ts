@@ -13,7 +13,7 @@ test('set-up asks who builds, ends with the doctor, and names the three skills t
   // Headless or Chat, offered in a line; the pick is theirs and is set with the command.
   assert.match(
     flat,
-    /\*\*Ask who builds,\*\* in one line\. \*\*Headless\*\*: the board builds what is in Build by itself, with no chat open\. \*\*Chat\*\*: a chat builds it, where they can watch and step in\. Run `spool builder headless` or `spool builder chat` for their pick\. Their choice; it stays Headless until they make one\./,
+    /\*\*Ask who builds,\*\* in one line\. \*\*Headless\*\*: the board builds what is in Build by itself, with no chat open\. \*\*Chat\*\*: a chat builds it, where they can watch and step in\. Run `spool builder headless` or `spool builder chat` for their pick\. Their choice; a new project starts in Chat until they pick otherwise\./,
   );
   assert.match(flat, /Refused, because they chose the lock\? They pick it on the board\./);
   assert.match(String(parseFrontmatter(init).data.get('description')), /pick who builds/);
@@ -32,14 +32,16 @@ test('set-up asks who builds, ends with the doctor, and names the three skills t
   assert.match(flat, /Only trying Spool, not setting this project up\? Offer `spool demo --open`: a throwaway project with threads in its spool, and its board in their browser\. None of their own code is touched\./);
 });
 
-test('the pick is kept, a fresh project is Headless, and saying so again is refused nowhere', () => {
+test('the pick is kept, a fresh project is built from a chat, and saying so again is refused nowhere', () => {
   const s = new Sandbox();
   try {
     s.sp('init', '--name', 'skyhop', '--lock');
-    // Nothing said yet: the page builds. Saying Headless changes nothing, so the lock lets an agent say it.
-    assert.equal(s.json('builder').builder, 'headless');
-    assert.match(s.sp('builder', 'headless'), /^The page builds skyhop, headless/);
-    // Chat is a change, so where they chose the lock it is theirs to pick: on the board, or at their terminal.
+    // Set up fresh, it is built from a chat: Headless is for them to pick later.
+    assert.equal(s.json('builder').builder, 'chat');
+    assert.match(s.sp('builder', 'chat'), /^A chat builds skyhop/);
+    // Headless is a change, so where they chose the lock it is theirs to pick: on the board, or at their terminal.
+    assert.match(s.fails('builder', 'headless'), /user's alone.*locked/s);
+    assert.match(s.exec(['builder', 'headless'], { tty: true }).out, /^The page builds skyhop, headless/);
     assert.match(s.fails('builder', 'chat'), /user's alone.*locked/s);
     assert.match(s.exec(['builder', 'chat'], { tty: true }).out, /^A chat builds skyhop/);
     // The doctor then says what the pick still needs.

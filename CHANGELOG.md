@@ -23,6 +23,11 @@ show what changed in each version, newest first.
   worktrees and usage. A clean-install check exercises setup on macOS and Ubuntu.
 - The README now includes a quickstart and a demo board. The guides describe
   current settings, skills and how to remove Spool.
+- A new project starts in Chat mode, built from a chat. Headless stays one pick
+  away in Settings once Offer Headless is on.
+- Take-over is now **⚠️ Agent take over**, with a plain warning in Settings: agents
+  work on your repo and move cards to Build without asking each time.
+- The setup skill points at the Settings gear for Headless and Agents.
 
 ## 0.24.0 · 2026-11-17
 

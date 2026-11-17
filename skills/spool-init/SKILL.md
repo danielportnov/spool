@@ -71,7 +71,7 @@ None of their own code is touched.
 7. **Ask who builds,** in one line. **Headless**: the board builds what is in
    Build by itself, with no chat open. **Chat**: a chat builds it, where they
    can watch and step in. Run `spool builder headless` or `spool builder chat`
-   for their pick. Their choice; it stays Headless until they make one.
+   for their pick. Their choice; a new project starts in Chat until they pick otherwise.
    Refused, because they chose the lock? They pick it on the board.
 
 8. **Offer a check.** Find the command that proves a change is sound here:

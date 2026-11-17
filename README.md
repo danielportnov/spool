@@ -298,7 +298,7 @@ and `spool agents` says where it is.
 Settings also picks who builds. **Headless** is the above: the page starts the agent itself. It is
 greyed out until you switch on **Offer Headless** there (`spool settings headless on`). **Chat**
 hands building to a Claude Code chat running `/spool-loop`, where you can watch the work and step
-in; the page then starts nothing. The pick is kept for the project. Say "switch to chat mode" to a chat and it
+in; the page then starts nothing. The pick is kept for the project, and a new project starts in Chat. Say "switch to chat mode" to a chat and it
 runs `spool builder chat`; "let the page build" is `spool builder headless`.
 
 In Chat mode Claude and Codex can build at once. The header shows each as its logo in a ring of
