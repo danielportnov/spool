@@ -39,7 +39,8 @@ import { sprintReview } from './review.ts';
 import { openRun, taskState, tasks } from './schedule.ts';
 import { readProposals, unanswered } from './proposals.ts';
 import { atOnceIn } from './slots.ts';
-import { rosterView, saveAgent } from './roster.ts';
+import { SIZES, type Size } from './model.ts';
+import { rosterView, saveAgent, sizesText } from './roster.ts';
 import { briefAcross, named, projectsOf } from './projects.ts';
 import { Workspace } from './store.ts';
 import { CODE_DIR, CODE_EXT, Upkeep } from './upkeep.ts';
@@ -395,6 +396,13 @@ export function startPage(
           if (action === 'roster') {
             const name = text(body.agent).trim();
             const n = body.atOnce;
+            // Or the largest size it takes, from the chip beside its count: xs to xl, "all" for no limit.
+            if (name && name.length <= 40 && typeof body.maxSize === 'string' && n === undefined) {
+              const word = body.maxSize.toLowerCase();
+              if (word !== 'all' && !SIZES.includes(word as Size)) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which size?' }));
+              const entry = saveAgent(ctx, spool.root, name, { maxSize: word === 'all' ? null : (word as Size) });
+              return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: `${entry.name} takes ${sizesText(entry)}.` }));
+            }
             if (!name || name.length > 40 || typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > 20) {
               return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which agent, and how many threads (1 to 20)?' }));
             }

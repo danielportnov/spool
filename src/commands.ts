@@ -12,7 +12,7 @@ import { agentsCommand } from './agents-switch.ts';
 import { ATTACH } from './attach.ts';
 import { ADOPT, strayFixes, strayLines, straysOf } from './strays.ts';
 import { builderCommand } from './builder.ts';
-import { refuseOverCount } from './roster.ts';
+import { refuseOutsideSizes, refuseOverCount, withinSizes } from './roster.ts';
 import { type Picked, builderLine, effortOf, modelOf, pickFor, pickLabel, ranOn } from './agent.ts';
 import { morning, morningText } from './brief.ts';
 import { DISABLE, ENABLE } from './off.ts';
@@ -614,7 +614,11 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
     throw new SpoolError(`${task.id} is being worked by ${task.by ?? 'someone'}`, 'Take it anyway with --force, or: spool next');
   }
   // In Chat mode each agent builds up to its own count (roster.ts): past it, the claim is refused.
-  if (builderOf(call.ctx, task.spool.root) === 'chat') refuseOverCount(call.ctx, ws, task, actor);
+  // And only the sizes it takes: a thread outside them is left for an agent that does.
+  if (builderOf(call.ctx, task.spool.root) === 'chat') {
+    refuseOutsideSizes(call.ctx, task, actor);
+    refuseOverCount(call.ctx, ws, task, actor);
+  }
   // Before anything is written: where there can be no worktree, the thread is not claimed either.
   const opened = worktree || task.worktree ? openWorktree(task) : undefined;
   // What the subagent that builds it is started on, read from the log as it stands, before this claim is on it.
@@ -1277,15 +1281,15 @@ export const COMMANDS: Command[] = [
   {
     name: 'builder',
     group: 'setup',
-    usage: 'builder [headless | chat] [--at-once <n>] [--agent <name> [--model <model>]] [-P <project>]',
-    summary: 'Say who builds here: the page, starting agents (headless), or a Claude Code chat running the loop; --at-once sets how many threads at the same time, for every agent or, with --agent, for one (Claude, Codex), which adds it where it is not listed. With nothing after it, says what is set, and which agents build',
+    usage: 'builder [headless | chat] [--at-once <n>] [--agent <name> [--model <model>] [--sizes <a-b> | --max-size <s>]] [-P <project>]',
+    summary: 'Say who builds here: the page, starting agents (headless), or a Claude Code chat running the loop; --at-once sets how many threads at the same time, for every agent or, with --agent, for one (Claude, Codex), and with --sizes xs-m (or --max-size m, or all) the sizes it may take, which adds it where it is not listed. With nothing after it, says what is set, and which agents build',
     human: true,
-    options: { 'at-once': { type: 'string' }, agent: { type: 'string' }, model: { type: 'string' }, ...PROJECT },
+    options: { 'at-once': { type: 'string' }, agent: { type: 'string' }, model: { type: 'string' }, sizes: { type: 'string' }, 'max-size': { type: 'string' }, ...PROJECT },
     run(call) {
       const { ws, ctx, args, opts } = call;
       if (args.length > 1) throw new SpoolError('too many words', 'spool builder [headless | chat] [--at-once <n>] [--agent <name>]');
       const spool = str(opts.project) ? ws.project(str(opts.project)) : ws.home;
-      const ask = { word: args[0], atOnce: str(opts['at-once']), agent: str(opts.agent), model: str(opts.model) };
+      const ask = { word: args[0], atOnce: str(opts['at-once']), agent: str(opts.agent), model: str(opts.model), sizes: str(opts.sizes), maxSize: str(opts['max-size']) };
       return builderCommand(ctx, ws, spool, ask, call.actor, () => byTheHuman(call, [spool], 'builder'));
     },
   },
@@ -1502,8 +1506,13 @@ export const COMMANDS: Command[] = [
       if (call.opts.worktree && !call.opts.claim) throw new SpoolError('--worktree goes with --claim', 'spool next --claim --worktree');
       if (call.opts.model !== undefined && !call.opts.claim) throw new SpoolError('--model goes with --claim', 'spool next --claim --model <model>');
       const project = str(call.opts.project);
-      const list = ready(ws, project);
+      const all = ready(ws, project);
+      // In Chat mode an agent is handed only what is in its sizes; the rest waits for one that takes it.
+      const list = all.length && builderOf(call.ctx, all[0]!.spool.root) === 'chat' ? withinSizes(call.ctx, all[0]!.spool.root, call.actor, all) : all;
       const task = list[0];
+      if (!task && all.length) {
+        return { text: `Nothing ready is in the sizes you take: ${all.length} wait${all.length === 1 ? 's' : ''} for an agent that takes them (${[...new Set(all.map((t) => (t.size ?? 'm').toUpperCase()))].join(', ')}).`, data: { task: null, ready: 0, outsideSizes: all.length } };
+      }
       if (!task) return { text: nothingReady(ws, project), data: { task: null, ready: 0 } };
       const claimed = call.opts.claim ? claim(call, task, true, !!call.opts.worktree) : undefined;
       const pick = claimed?.pick ?? pickFor(task, userConfig(call.ctx).models, undefined, fableCap(call.ctx));

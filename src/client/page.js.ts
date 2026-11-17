@@ -1972,11 +1972,19 @@ function drawRoster(b) {
     const title = (a.watching ? a.name + ' is watching this spool, and builds up to ' + threads(a.atOnce) + ' at once.'
       : a.name + ' is not watching this spool now. It builds up to ' + threads(a.atOnce) + ' at once once a chat of it runs /spool-loop here.') + on;
     const set = (n) => post('roster', { agent: a.name, atOnce: n }, '');
+    // The largest size it takes: a click goes up one size, and past XL back to all of them down to XS.
+    const sizes = ['xs', 's', 'm', 'l', 'xl'];
+    const top = a.sizes[1];
+    const next = top === 'xl' ? 'xs' : sizes[sizes.indexOf(top) + 1];
+    const chip = el('button', { class: 'sizes', 'aria-label': a.name + ' takes ' + a.sizesText + '. Click to change the largest size.',
+      title: a.name + ' takes ' + a.sizesText + '. Click: up to ' + next.toUpperCase() + '.', onclick: () => post('roster', { agent: a.name, maxSize: next }, '') },
+      top === 'xl' ? 'all' : '≤ ' + top.toUpperCase());
     return el('span', { class: 'agent' + (a.watching ? '' : ' off'), title },
       el('span', { class: 'name' }, a.name),
       el('button', { class: 'less', 'aria-label': 'One thread fewer for ' + a.name, disabled: a.atOnce <= 1, onclick: () => set(a.atOnce - 1) }, '−'),
       el('span', { class: 'n', 'aria-label': a.building.length + ' of ' + threads(a.atOnce) }, a.building.length + '/' + a.atOnce),
-      el('button', { class: 'more', 'aria-label': 'One thread more for ' + a.name, disabled: a.atOnce >= 20, onclick: () => set(a.atOnce + 1) }, '+'));
+      el('button', { class: 'more', 'aria-label': 'One thread more for ' + a.name, disabled: a.atOnce >= 20, onclick: () => set(a.atOnce + 1) }, '+'),
+      chip);
   }));
 }
 const AWAY_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.75 14.75 13.5H1.25z"/><path d="M8 6.25v3.25M8 11.5v.01"/></svg>';

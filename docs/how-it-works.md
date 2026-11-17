@@ -850,7 +850,15 @@ next to Headless and Chat, each agent shows what it is building of its count (`1
 change the count, greyed while no watch of its own is up: the loop starts `spool watch --as "<its
 name>"`, and the watch's file says who it is. `spool builder` and `spool status` list each agent the
 same way. It is kept under `roster` in `~/.config/spool/config.json`, by the project's folder, and is
-where each agent's other settings will go.
+where each agent's other settings go.
+
+**Which sizes each agent takes.** Each roster entry also holds the sizes it may take:
+`spool builder --agent Codex --max-size m` (or `--sizes xs-m`, a single size, or `--sizes all`), so
+Claude can take every size and Codex up to medium. `spool next --claim` hands an agent only threads in
+its sizes, and says so when what is ready is all outside them; `spool start` and `spool build
+--takeover` refuse or pass over the rest, which waits for an agent that takes it. A thread with no
+size counts as medium. On the board, the chip after an agent's count (`≤ M`, or `all`) cycles its
+largest size. Only a chat in Chat mode is held to its sizes, by the agent part of its `--as` name.
 
 **In the background.** `spool page -d` starts the page as a process of its own and returns once it
 is listening, with its address. It opens no browser and outlives the terminal or chat that started

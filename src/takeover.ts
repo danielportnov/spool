@@ -20,6 +20,7 @@
 import type { Call, Result } from './commands.ts';
 import { type Ctx, builderOf, saveUserConfig, userConfig } from './context.ts';
 import { type Item, type Spool, SpoolError, isRun, oneLine, splitBody } from './model.ts';
+import { withinSizes } from './roster.ts';
 import { blockers, docket, ready } from './schedule.ts';
 import type { Workspace } from './store.ts';
 import { STOPS, figuresText, usageOf } from './usage.ts';
@@ -156,9 +157,13 @@ export function buildUnderTakeOver(call: Call): { tasks: Item[]; line: string } 
   const spool = named?.spool ?? (typeof opts.project === 'string' ? ws.project(opts.project) : ws.home);
   const why = whyNot(ctx, ws, spool);
   if (why) throw new SpoolError(why.why, why.hint);
-  const may = reasonable(ws, spool);
+  const all = reasonable(ws, spool);
+  // Only within the sizes of the agent that takes over: the rest is left for one that takes them.
+  const may = withinSizes(ctx, spool.root, call.actor, all);
+  if (named && all.includes(named) && !may.includes(named)) throw new SpoolError(`${named.id} is ${(named.size ?? 'm').toUpperCase()}, outside the sizes ${call.actor} takes`, 'Take the top one it may: spool build --takeover');
   if (named && !may.includes(named)) throw new SpoolError(notReasonable(ws, named), 'Take the top one it may: spool build --takeover');
   const task = named ?? may[0];
+  if (!task && all.length) throw new SpoolError(`nothing in the backlog is in the sizes ${call.actor} takes`, `${all.length} thread${all.length === 1 ? '' : 's'} wait for an agent that takes them. Tell them once, and watch.`);
   if (!task) {
     throw new SpoolError('nothing in the backlog the chat may take', 'Only threads a person filed, not on hold and waiting on nothing. Tell them once that Build is empty, and watch.');
   }

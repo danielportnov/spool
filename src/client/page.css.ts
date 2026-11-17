@@ -58,6 +58,8 @@ export const CSS = String.raw`  :root {
   .roster .agent { display: inline-flex; align-items: center; border: 1px solid var(--soft); border-radius: 7px; background: var(--bg); padding-left: 9px; font-weight: 600; }
   .roster .agent .n { min-width: 2.2em; text-align: center; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--soft); }
   .roster .agent button { border: 0; background: none; padding: 5px 7px; color: var(--soft); font-weight: 400; }
+  .roster .agent button.sizes { border-left: 1px solid var(--line); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+  .roster .agent button.sizes:disabled { visibility: visible; }
   .roster .agent button:hover { color: var(--ink); }
   .roster .agent button:disabled { visibility: hidden; }
   .roster .agent.off { border-color: var(--line); background: var(--panel); color: var(--line); font-weight: 400; }

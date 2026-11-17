@@ -27,7 +27,7 @@ test('Claude and Codex are on the roster to start with, each at the shared numbe
       s.json('builder').agents.map((a: any) => [a.name, a.atOnce, a.watching]),
       [['Claude', 3, false], ['Codex', 3, false]],
     );
-    assert.match(s.sp('builder', '--agent', 'Claude', '--at-once', '3'), /\nAgents: Claude 3 at once, not watching · Codex 3 at once, not watching\. Set one: spool builder --agent <name> --at-once <n>$/);
+    assert.match(s.sp('builder', '--agent', 'Claude', '--at-once', '3'), /\nAgents: Claude 3 at once, not watching · Codex 3 at once, not watching\. Set one: spool builder --agent <name> --at-once <n> \[--sizes xs-m\]$/);
     assert.match(s.sp('builder', '--agent', 'codex', '--at-once', '2'), /Codex 2 at once/);
     // One entry adds an agent, with the model it builds on.
     assert.match(s.sp('builder', '--agent', 'Gemini', '--at-once', '1', '--model', 'gemini-3'), /Gemini 1 at once on gemini-3, not watching/);
@@ -97,6 +97,36 @@ test('a watch says which agent it is, and the board shows each agent, its count,
     watcher.kill('SIGTERM');
     await gone(watcher);
     await page.stop();
+    s.cleanup();
+  }
+});
+
+test('an agent set to medium at most never claims a large thread, and Claude still does', () => {
+  const s = new Sandbox();
+  try {
+    s.sp('init', '--name', 'skyhop', '--gate');
+    s.gitInit();
+    s.write('.gitignore', '.home/\n');
+    s.commitAll('start');
+    s.sp('builder', 'chat');
+    const big = s.sp('task', 'A large one', '--size', 'l').match(/t-\w+/)![0];
+    const plain = s.sp('task', 'No size given').match(/t-\w+/)![0];
+    const small = s.sp('task', 'A small one', '--size', 's').match(/t-\w+/)![0];
+    for (const t of [big, plain, small]) s.sp('build', t);
+    assert.match(s.sp('builder', '--agent', 'Codex', '--max-size', 'm'), /Codex 3 at once, up to M/);
+    assert.deepEqual(s.json('builder').agents.find((a: any) => a.name === 'Codex').sizes, ['xs', 'm']);
+    assert.match(s.sp('builder', '--agent', 'Claude'), /Claude 3 at once, not watching/);
+    // Codex is handed only what it takes, and no size counts as medium.
+    const got = [s.sp('next', '--claim', '--as', 'Codex GPT-6'), s.sp('next', '--claim', '--as', 'Codex GPT-6')].map((o) => o.match(/t-\w+/)![0]);
+    assert.deepEqual(got.sort(), [plain, small].sort());
+    assert.match(s.sp('next', '--claim', '--as', 'Codex GPT-6'), /Nothing ready is in the sizes you take/);
+    assert.match(s.fails('start', big, '--as', 'Codex GPT-6'), /is L, and Codex takes up to M/);
+    // Claude takes the large one.
+    assert.match(s.sp('next', '--claim', '--as', 'Claude Opus 5.5'), new RegExp(big));
+    assert.match(s.fails('builder', '--max-size', 'm'), /--sizes goes with --agent/);
+    assert.match(s.fails('builder', '--agent', 'Codex', '--sizes', 'm-xs'), /runs from large to small/);
+    assert.match(s.sp('builder', '--agent', 'Codex', '--sizes', 'all'), /Codex 3 at once, not watching/);
+  } finally {
     s.cleanup();
   }
 });

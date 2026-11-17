@@ -7,7 +7,7 @@
 import { type Builder, type Ctx, builderOf, parallelOf, saveBuilder, saveUserConfig } from './context.ts';
 import { SpoolError } from './model.ts';
 import { modelOf } from './agent.ts';
-import { type AgentView, countOf, rosterAgent, rosterLine, rosterOf, rosterView, saveAgent } from './roster.ts';
+import { type AgentView, countOf, parseSizes, rosterAgent, rosterLine, rosterOf, rosterView, saveAgent } from './roster.ts';
 import { atOnceIn, sharedFolderWhy } from './slots.ts';
 import type { Workspace } from './store.ts';
 import { takeOverOf } from './takeover.ts';
@@ -33,7 +33,7 @@ function sayWho(name: string, builder: Builder, n: number, shared: string, targe
   const upTo = target ? ` It works up to the usage target, ${target}: spool usage says when to stop.` : '';
   const takes = takeOver ? ' It takes over the backlog: with Build empty and the usage under the target, spool build --takeover moves the next thread to Build.' : '';
   // Each agent on the roster builds up to its own count; the line under it names them, and what each is on.
-  const who = `\nAgents: ${rosterLine(agents)}. Set one: spool builder --agent <name> --at-once <n>`;
+  const who = `\nAgents: ${rosterLine(agents)}. Set one: spool builder --agent <name> --at-once <n> [--sizes xs-m]`;
   if (builder === 'chat') return `A chat builds ${name}: say /spool-loop in a Claude Code chat there. The page starts no agents. The chat builds ${atOnce}.${upTo}${takes}${who}`;
   return `The page builds ${name}, headless, ${atOnce}. Switch its Agents on to start.`;
 }
@@ -45,6 +45,10 @@ export interface BuilderAsk {
   /** The roster agent the count and the model are for: added where it is not on the roster. */
   agent?: string;
   model?: string;
+  /** The sizes the agent takes: "xs-m", one size, or "all". */
+  sizes?: string;
+  /** The largest size it takes, the smallest open. */
+  maxSize?: string;
 }
 
 function count(typed: string): number {
@@ -72,6 +76,8 @@ export function builderCommand(
   const n = ask.atOnce === undefined ? undefined : count(ask.atOnce);
   if (ask.model !== undefined && !ask.agent) throw new SpoolError('--model goes with --agent', 'spool builder --agent Codex --model gpt-6');
   const model = modelOf(ask.model) || undefined;
+  const range = parseSizes(ask.sizes, ask.maxSize);
+  if (range && !ask.agent) throw new SpoolError('--sizes goes with --agent', 'spool builder --agent Codex --sizes xs-m');
   const agent = ask.agent?.trim();
   if (ask.agent !== undefined && !agent) throw new SpoolError('which agent?', 'spool builder --agent Codex --at-once 2');
   // Saying what is already so changes nothing, and is nobody's to refuse: a chat starting the loop
@@ -80,12 +86,12 @@ export function builderCommand(
   const changes =
     (word !== undefined && word !== builderOf(ctx, project.root)) ||
     (agent
-      ? !entry || (n !== undefined && n !== entry.atOnce) || (model !== undefined && model !== entry.model)
+      ? !entry || (n !== undefined && n !== entry.atOnce) || (model !== undefined && model !== entry.model) || (range !== undefined && ((range.minSize ?? undefined) !== entry.minSize || (range.maxSize ?? undefined) !== entry.maxSize))
       : n !== undefined && n !== parallelOf(ctx));
   if (changes) {
     guard();
     if (word !== undefined) saveBuilder(ctx, project.root, word);
-    if (agent) saveAgent(ctx, project.root, agent, { atOnce: n, model });
+    if (agent) saveAgent(ctx, project.root, agent, { atOnce: n, model, ...range });
     else if (n !== undefined) {
       const at = n;
       saveUserConfig(ctx, (config) => {
