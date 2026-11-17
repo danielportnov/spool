@@ -479,6 +479,7 @@ export class Workspace {
       options: [],
       steps: [],
       commits: [],
+      reverted: [],
       tags: [],
       skills: [],
       body: '',

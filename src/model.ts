@@ -168,6 +168,10 @@ export interface Item {
   steps: string[];
   /** Tasks: the commits that did the work — the handle `spool revert` pulls. */
   commits: string[];
+  /** Tasks: the commits an undo took back, kept so the undo can itself be undone. */
+  reverted: string[];
+  /** Tasks: the commit that took them back; reverting it puts the work back. */
+  revert?: string;
   /** Tasks: labels the human or an agent put on it, to group and find work by. */
   tags: string[];
   /** Tasks: the version it is meant for, or shipped in. */
@@ -223,6 +227,8 @@ const FIELDS: readonly (readonly [string, FieldType])[] = [
   ['summary', 'string'],
   ['steps', 'strings'],
   ['commits', 'tokens'],
+  ['reverted', 'tokens'],
+  ['revert', 'string'],
   ['tags', 'tokens'],
   ['version', 'string'],
   ['sprint', 'string'],
@@ -267,7 +273,7 @@ export function serialize(item: Item): string {
 export function deserialize(text: string, spool: Spool): Item {
   const fm = parseFrontmatter(text);
   if (!fm.found) throw new Error('no frontmatter');
-  const record: Record<string, unknown> = { needs: [], from: [], options: [], steps: [], commits: [], skills: [], tags: [] };
+  const record: Record<string, unknown> = { needs: [], from: [], options: [], steps: [], commits: [], reverted: [], skills: [], tags: [] };
   for (const [key, type] of FIELDS) {
     const value = fm.data.get(key);
     if (value === undefined) continue;

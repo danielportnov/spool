@@ -386,9 +386,10 @@ function settleSprint(ws: Workspace, task: Item, actor: string): Item | undefine
  * agent made for it alone dropped with them. Shared by revert, and by moving a thread
  * back to the backlog with --undo. Throws, changing nothing, if the commits will not come off.
  */
-function undoWork(ws: Workspace, t: Item, actor: string, why: string): { reverted: string[]; skipped: { sha: string; why: string }[]; voided: Item[] } {
+function undoWork(ws: Workspace, t: Item, actor: string, why: string): { reverted: string[]; skipped: { sha: string; why: string }[]; voided: Item[]; commit?: string } {
   const root = repoRoot(t.spool.root);
   let reverted: string[] = [];
+  let commit: string | undefined;
   let skipped: { sha: string; why: string }[] = [];
   if (root) {
     const shas = uniq([...t.commits, ...trailerCommits(root, t.id)]);
@@ -402,7 +403,7 @@ function undoWork(ws: Workspace, t: Item, actor: string, why: string): { reverte
         ].join('\n\n'),
       );
       if (!result.ok) throw new SpoolError(`could not revert ${t.id}: ${result.error}`);
-      ({ reverted, skipped } = result);
+      ({ reverted, skipped, commit } = result);
     }
   }
 
@@ -417,8 +418,46 @@ function undoWork(ws: Workspace, t: Item, actor: string, why: string): { reverte
     ws.save(d);
   }
   t.needs = t.needs.filter((id) => !voided.some((d) => d.id === id));
+  // The work is kept on the thread, with the commit that took it back, so the undo can be undone.
+  t.reverted = reverted;
+  t.revert = commit;
   t.commits = [];
-  return { reverted, skipped, voided };
+  return { reverted, skipped, voided, commit };
+}
+
+/**
+ * Undo an undo: the work a revert took back is applied again by reverting the revert commit,
+ * and the thread is done again with the commits it had. The reason it was undone is no longer a lesson.
+ */
+function putBack(call: Call, t: Item, why: string): Result {
+  const { ws, p, actor } = call;
+  const root = repoRoot(t.spool.root);
+  if (!root) throw new SpoolError(`${t.id} cannot be put back: this is not a git repository`);
+  const result = revertCommits(root, [t.revert!], t.spool.dir, (undone) =>
+    [
+      `Put back "${t.title}"`,
+      ...(why ? [why] : []),
+      undone.map((sha) => `This reverts commit ${sha}.`).join('\n'),
+      `Spool-Restore: ${t.id}`,
+    ].join('\n\n'),
+  );
+  if (!result.ok) throw new SpoolError(`could not put ${t.id} back: ${result.error}`);
+  const gone = removeWorktree(t);
+  const kept = t.reverted.length;
+  t.commits = t.reverted;
+  t.reverted = [];
+  t.revert = undefined;
+  t.status = 'done';
+  t.summary = `Put back after it was undone${why ? `: ${why}` : ''}.`;
+  t.reviewed = undefined;
+  addLog(t, actor, `put the work back, ${kept} commit(s) in ${result.commit ? result.commit.slice(0, 7) : 'no new commit'}${why ? `: ${why}` : ''}`, ws.now());
+  ws.save(t);
+  const lesson = lessons(ws).findIndex((l) => l.thread === t.id && l.spool === t.spool);
+  if (lesson >= 0) dropLesson(ws, lesson + 1);
+  const out = [`${p.bold(t.id)} put back — its ${kept} commit(s) applied again in one new commit.`];
+  if (gone) out.push(p.dim(`  ${gone}`));
+  if (lesson >= 0) out.push(p.dim('  forgot the lesson its undo had left'));
+  return { text: out.join('\n'), data: { task: itemJson(ws, t), restored: t.commits, commit: result.commit } };
 }
 
 const SIZE_GUIDE = 'xs a line or a value · s one function or screen · m several files · l cuts across the project · xl a project in itself';
@@ -821,6 +860,10 @@ export const COMMANDS: Command[] = [
         const undone = undoRun(ws, t, actor, why, p);
         const kept = learn(ws, t, actor, why);
         return { text: [...undone.lines, ...(kept.line ? [kept.line] : [])].join('\n'), data: { ...undone.data, lesson: kept.lesson?.words } };
+      }
+      // Reverting a thread already reverted, and not built again since, puts its work back.
+      if (t.status !== 'done' && t.revert && !t.commits.length && (t.status === 'proposed' || t.status === 'open')) {
+        return putBack(call, t, why);
       }
       if (t.status !== 'done') {
         throw new SpoolError(`${t.id} isn't finished, so there is nothing to revert`, `To abandon it: spool drop ${t.id}`);

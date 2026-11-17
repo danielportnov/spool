@@ -199,7 +199,7 @@ interface Post {
 }
 
 /** The queue's own log lines: what moved where. Anything else an agent logged is something it had to say. */
-const BOOKKEEPING = /^(started|builder model: |check passed|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |session |transcript |reverted|reopened|dropped|agreed|filed |placed )/;
+const BOOKKEEPING = /^(started|builder model: |check passed|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |session |transcript |reverted|put the work back|reopened|dropped|agreed|filed |placed )/;
 
 function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['steps']): Post[] {
   const words: Post[] = said.map((s) => {

@@ -87,7 +87,7 @@ function stems(text: string): Set<string> {
 
 /** Log lines Spool writes itself, and the human's words it quotes. Only what an agent noted about the work counts. */
 const BOOKKEEPING =
-  /^(started$|builder model: |picked up after the last claim|done: |edited: |put on hold: |released from hold|approved|dropped|reverted \d+ commit|waiting on d-|assumed d-|d-\w+ changed: )/;
+  /^(started$|builder model: |picked up after the last claim|done: |edited: |put on hold: |released from hold|approved|dropped|reverted \d+ commit|put the work back|waiting on d-|assumed d-|d-\w+ changed: )/;
 
 function notes(task: Item): string[] {
   return splitBody(task.body)

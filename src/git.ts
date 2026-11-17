@@ -73,7 +73,9 @@ export function trailerCommits(root: string, id: string): string[] {
 
 /** Has a later commit on this branch already taken `sha` back? */
 export function isReverted(root: string, sha: string): boolean {
-  return !!git(root, ['log', '-1', '--format=%H', '-F', `--grep=This reverts commit ${sha}`]).out;
+  // A revert that was itself reverted has put the work back.
+  const takers = git(root, ['log', '--format=%H', '-F', `--grep=This reverts commit ${sha}`]).out;
+  return takers.split('\n').filter(Boolean).some((taker) => !isReverted(root, taker));
 }
 
 /** The pathspec for everything in the repository but the spool directory. */
@@ -115,6 +117,8 @@ export interface RevertResult {
   reverted: string[];
   /** Commits left alone, with the reason. */
   skipped: { sha: string; why: string }[];
+  /** The new commit that holds the revert, when there is one. */
+  commit?: string;
   error?: string;
 }
 
@@ -211,5 +215,5 @@ export function revertCommits(
     putBack();
     return { ...result, reverted: [], error: `git would not commit the revert: ${made.err}\nNothing was changed.` };
   }
-  return { ...result, ok: true };
+  return { ...result, ok: true, commit: git(root, ['rev-parse', 'HEAD']).out };
 }

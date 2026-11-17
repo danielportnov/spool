@@ -155,7 +155,9 @@ function setback(after: string[]): string | undefined {
   let why: string | undefined;
   for (const what of after) {
     if (what.startsWith('done: ')) done = true;
-    if (/\breverted \d+ commit/.test(what) || (done && /^moved back to /.test(what))) why = 'its last run was undone';
+    // The work being put back after an undo is the undo undone, not a failed run.
+    if (/^put the work back/.test(what)) why = undefined;
+    else if (/\breverted \d+ commit/.test(what) || (done && /^moved back to /.test(what))) why = 'its last run was undone';
     else if (/^agent .* without finishing/.test(what)) why = 'its last run ended without finishing';
   }
   return why;

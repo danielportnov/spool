@@ -18,6 +18,7 @@ function task(fields: Partial<Item>): Item {
     options: [],
     steps: [],
     commits: [],
+    reverted: [],
     skills: [],
     tags: [],
     body: '',

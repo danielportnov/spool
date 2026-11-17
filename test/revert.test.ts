@@ -205,3 +205,37 @@ test('revert --now puts it straight back in Build', () => {
   assert.equal(s.json('show', task).item.status, 'open');
   s.cleanup();
 });
+
+test('reverting again puts the work back: one step, kept on the thread and in the log', () => {
+  const s = repo();
+  const task = s.id('task', 'Tighten the jump');
+  s.write('physics.txt', 'gravity = 12\njump = 5\n');
+  const sha = s.commitAll(`Raise gravity\n\nSpool: ${task}`);
+  s.sp('done', task, '-m', 'Gravity 12');
+  s.commitAll('queue state');
+
+  s.sp('revert', task, '-m', 'too heavy');
+  assert.equal(s.read('physics.txt'), 'gravity = 9.8\njump = 5\n');
+  const shown = s.json('show', task).item;
+  assert.deepEqual(shown.reverted, [sha], 'the thread still knows what it landed');
+  assert.equal(shown.revert, s.git('rev-parse', 'HEAD'));
+  assert.equal(shown.status, 'proposed');
+  s.commitAll('queue state 2');
+
+  const back = s.json('revert', task, '-m', 'it was fine after all');
+  assert.equal(s.read('physics.txt'), 'gravity = 12\njump = 5\n');
+  assert.deepEqual(back.restored, [sha]);
+  const item = s.json('show', task).item;
+  assert.equal(item.status, 'done');
+  assert.deepEqual(item.commits, [sha]);
+  assert.deepEqual(item.reverted ?? [], []);
+  assert.match(s.item(task), /human: put the work back, 1 commit\(s\).*: it was fine after all/);
+  assert.ok(s.git('log', '-1', '--format=%B').includes(`This reverts commit ${shown.revert}.`));
+
+  // And it can be undone again.
+  s.commitAll('queue state 3');
+  const again = s.json('revert', task, '-m', 'no, really');
+  assert.deepEqual(again.reverted, [sha]);
+  assert.equal(s.read('physics.txt'), 'gravity = 9.8\njump = 5\n');
+  s.cleanup();
+});
