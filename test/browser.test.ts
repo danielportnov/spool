@@ -52,6 +52,23 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
   });
   const column = (key: string): Locator => page.locator(`#board [data-column="${key}"]`);
   const card = (key: string, title: string): Locator => column(key).locator('.card', { hasText: title });
+  // A real mouse drag of a card to a column. On a slow runner (CI's macOS on Node 24, once) a drag
+  // was lost: the card never left its column, though every other drag in the run landed. Chrome
+  // drops a drag whose card is redrawn in the moment it starts, and a person would simply drag
+  // again; so does this, at most three times. A board that never takes the drop still fails.
+  const drag = async (title: string, from: string, to: string): Promise<void> => {
+    for (let tries = 0; tries < 3; tries++) {
+      if (await card(to, title).count()) return;
+      await card(from, title).dragTo(column(to));
+      try {
+        await card(to, title).waitFor({ timeout: 10_000 });
+        return;
+      } catch {
+        // Not there yet: look again, and drag again if it is still where it was.
+      }
+    }
+    await card(to, title).waitFor();
+  };
 
   try {
     await page.goto(url);
@@ -90,11 +107,9 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     assert.equal(state(jump), 'ready');
 
     // Dragging, with the mouse: back to the backlog, and into Build again.
-    await card('build', 'Tighten the jump arc').dragTo(column('proposed'));
-    await card('proposed', 'Tighten the jump arc').waitFor();
+    await drag('Tighten the jump arc', 'build', 'proposed');
     assert.equal(state(jump), 'proposed', 'dragged back to the backlog');
-    await card('proposed', 'Tighten the jump arc').dragTo(column('build'));
-    await card('build', 'Tighten the jump arc').waitFor();
+    await drag('Tighten the jump arc', 'proposed', 'build');
     assert.equal(state(jump), 'ready', 'dragged into build');
 
     // + Add: typed, Enter, and the card is there without waiting on anything.
