@@ -245,7 +245,7 @@ function liveLine(c, b) {
 function waitMark(c, b) {
   const w = c.waiting;
   if (!w) return null;
-  const label = w.kind === 'you' ? (c.question ? 'Needs a call from you' : 'Needs you') : w.kind === 'hold' ? 'On hold'
+  const label = w.kind === 'you' ? (c.question || (c.proposals && c.proposals.length) ? 'Needs a call from you' : 'Needs you') : w.kind === 'hold' ? 'On hold'
     : w.kind === 'thread' ? 'Waiting on ' + (w.on.length === 1 ? w.on[0].id : w.on.length + ' threads') : 'Agent stopped unfinished';
   const said = w.kind === 'stuck' && lastWords(c, b);
   const title = w.kind === 'stuck' ? 'It ' + w.text + (said ? '. It last said: ' + said : '') : c.question ? 'An agent asked a question: open the thread to answer it' : '';
@@ -628,6 +628,10 @@ function drawBrief(b) {
       el('div', { class: 'title' }, '📋 Plan: ' + t.title),
       t.summary && el('div', { class: 'note one', title: t.summary }, inline(firstLine(t.summary))),
       el('div', { class: 'why' }, plural(t.parts, 'part') + (t.parts === 1 ? ' waits' : ' wait') + ' for your go-ahead')), t.id)),
+    ...n.proposals.map((m) => opensOn(el('div', { class: 'card', 'data-id': m.id },
+      el('div', { class: 'title' }, '🧹 The manager proposes ' + plural(m.count, 'change')),
+      m.headline && el('div', { class: 'note one', title: m.headline }, inline(firstLine(m.headline))),
+      el('div', { class: 'why' }, 'Open it to say yes or no to each')), m.id)),
     ...n.stopped.map((t) => opensOn(el('div', { class: 'card', 'data-id': t.id },
       el('div', { class: 'title' }, '↺ ' + t.title),
       el('div', { class: 'why' }, t.why + briefWhen(t.when)),
@@ -790,6 +794,19 @@ function optionsNode(q) {
 function answersNode(q) {
   return el('div', { class: 'acts wrap' }, optionsNode(q),
     sayNode('Or say what you want', 'Answer', (words) => post('answer', { id: q.id, choice: words }, 'Answered')));
+}
+// What a manager's run proposes: each numbered, with a yes and a no. A yes runs its verb, with the run's reason.
+function proposalsNode(c) {
+  if (!c.proposals || !c.proposals.length) return null;
+  const left = c.proposals.filter((x) => !x.answer).length;
+  const say = (x, said) => post('proposal', { id: c.id, n: x.n, said }, said === 'yes' ? 'Yes: ' + x.text : 'No: left alone');
+  return el('div', { class: 'proposals' },
+    el('h3', {}, 'Proposals ', el('span', { class: 'count' }, left ? left + ' to answer' : 'all answered')),
+    c.proposals.map((x) => el('div', { class: 'proposal', 'data-n': String(x.n) },
+      el('div', { class: 'ptext' }, el('span', { class: 'pn' }, x.n + '. '), inline(x.text)),
+      x.answer
+        ? el('div', { class: 'said ' + x.answer }, x.answer === 'yes' ? '✓ Yes, done' : 'No, left alone')
+        : el('div', { class: 'acts' }, el('button', { class: 'go', onclick: () => say(x, 'yes') }, 'Yes'), el('button', { onclick: () => say(x, 'no') }, 'No')))));
 }
 // A call an agent made is fine by him, or he overrules it in his own words.
 function callActs(call) {
@@ -1236,6 +1253,7 @@ function threadNode(c, b) {
     title,
     waitNode(c, b),
     stoppedNode(c, b),
+    proposalsNode(c),
     describeNode(c, b),
 
     // The thread itself: a conversation, oldest first. You said, Claude answered, and the moves in between.

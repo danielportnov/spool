@@ -23,7 +23,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { Call, Result } from './commands.ts';
+import { COMMANDS, type Call, type Result } from './commands.ts';
 import { git, repoRoot } from './git.ts';
 import { type Leave, allowed, leaveLine, leaveOfRun, runUnder, settle } from './leave.ts';
 import { lessons } from './lessons.ts';
@@ -42,6 +42,7 @@ import {
   tokens,
   whyOf,
 } from './model.ts';
+import { PROPOSABLE, type Proposal, type Verb, proposalLine, readProposals, unanswered, writeProposals } from './proposals.ts';
 import { type Paint, age, itemJson, itemLine, paint } from './render.ts';
 import { type Entry, readJournal, startJournal } from './journal.ts';
 import { buildLine, effort, openRun, taskState, tasks } from './schedule.ts';
@@ -736,12 +737,78 @@ function reportText(run: Item, headline: string, said: string, entries: Entry[],
 
 // ------------------------------------------------------------------ command
 
+/** `spool manage --propose <verb> <id> -m <why>`: put what the run would do on its thread, for the human's yes or no. */
+function propose(call: Call, open: Item | undefined): Result {
+  const { ws, ctx, opts, actor, p } = call;
+  const named = ctx.env.SPOOL_RUN?.trim();
+  const run = named ? ws.find(named) : open;
+  if (!run || !isRun(run) || run.status !== 'active') throw new SpoolError('no run is open to propose on', 'Start one: spool manage --start');
+  const [verb, ref, ...extra] = call.args;
+  if (!PROPOSABLE.includes(verb as Verb) || !ref || extra.length) {
+    throw new SpoolError(`a proposal is a verb (${PROPOSABLE.join(', ')}) and one thread`, 'spool manage --propose drop <id> -m "Shipped in <sha>: <why>"');
+  }
+  const item = ws.get(ref);
+  if (item.kind !== 'task' || isRun(item)) throw new SpoolError(`${item.id} is not a thread a run can propose on`);
+  if (item.status === 'dropped' || item.status === 'done') throw new SpoolError(`${item.id} is already ${item.status}`);
+  const reason = (typeof opts.message === 'string' ? opts.message : '').replace(/\s+/g, ' ').trim();
+  if (!reason) throw new SpoolError('a proposal needs its reason', `spool manage --propose ${verb} ${item.id} -m "<why>": it is what the human reads, and what a drop is given`);
+  const all = readProposals(run);
+  if (unanswered(all).some((x) => x.verb === verb && x.id === item.id)) throw new SpoolError(`${verb} ${item.id} is already proposed`);
+  const made: Proposal = { n: Math.max(0, ...all.map((x) => x.n)) + 1, verb: verb as Verb, id: item.id, title: item.title, reason };
+  writeProposals(run, [...all, made]);
+  return {
+    text: `${p.bold(`${run.id} proposal ${made.n}`)}  ${proposalLine(made)}\n${p.dim(`  The human says yes or no on the run's ticket, or:  spool manage --answer yes ${made.n}`)}`,
+    data: { run: run.id, proposal: made },
+  };
+}
+
+/** `spool manage --answer yes|no <n…|all>`: a word on proposals. A yes runs the verb, as whoever says it, with the run's reason. */
+function answer(call: Call): Result {
+  const { ws, opts, actor, p } = call;
+  const [said, ...which] = call.args;
+  if (said !== 'yes' && said !== 'no') throw new SpoolError('answer yes, or no', 'spool manage --answer yes 3   or   spool manage --answer no all');
+  const spool = typeof opts.project === 'string' && opts.project ? ws.project(opts.project) : ws.home;
+  const run =
+    typeof opts.on === 'string' && opts.on
+      ? ws.get(opts.on)
+      : tasks(ws, spool).filter((t) => isRun(t) && unanswered(readProposals(t)).length).sort((a, b) => b.created.localeCompare(a.created))[0];
+  if (!run || !isRun(run)) throw new SpoolError('no run has proposals waiting', 'See: spool manage');
+  const all = readProposals(run);
+  const picked = which.includes('all') ? unanswered(all) : which.map((w) => all.find((x) => x.n === Number(w)));
+  if (!picked.length || picked.some((x) => !x)) throw new SpoolError(`which proposals? ${run.id} has ${all.map((x) => x.n).join(', ') || 'none'}`);
+  const command = (verb: Verb) => COMMANDS.find((c) => c.name === verb)!;
+  const out: string[] = [];
+  for (const x of picked as Proposal[]) {
+    if (x.answer) {
+      out.push(`  ${x.n}: already answered ${x.answer.said}`);
+      continue;
+    }
+    if (said === 'yes') {
+      // The verb is the one a person would type, with the run's reason: its own rules hold for it.
+      command(x.verb).run!({ ...call, args: [x.id], opts: { message: `${x.reason} (proposed by run ${run.id})` } });
+    }
+    x.answer = { by: actor, at: timestamp(ws.now()), said };
+    addLog(run, actor, `${said} to proposal ${x.n}: ${proposalLine(x)}`, ws.now());
+    out.push(`  ${x.n}: ${said === 'yes' ? `${x.verb} ${x.id}, done` : `left alone, ${x.id}`}`);
+  }
+  writeProposals(run, all);
+  ws.save(run);
+  const left = unanswered(all).length;
+  return {
+    text: [`${p.bold(run.id)}: ${said} to ${plural(picked.length, 'proposal')}`, ...out, left ? p.dim(`  ${plural(left, 'proposal')} still wait`) : p.dim('  Nothing more waits on you here.')].join('\n'),
+    data: { run: run.id, proposals: all },
+  };
+}
+
 /** `spool manage`: open a run and print its worksheet, close one with its report, or say whether one is open. */
 export function manage(call: Call): Result {
   const { ws, ctx, opts, actor, p } = call;
   const spool = typeof opts.project === 'string' && opts.project ? ws.project(opts.project) : ws.home;
   if (opts.start && opts.end) throw new SpoolError('--start and --end are two ends of a run', 'spool manage --start   then, when the pass is done:   spool manage --end -m "<headline>"');
   const open = openRun(ws, spool);
+  if (opts.propose && opts.answer) throw new SpoolError('--propose and --answer are two things');
+  if (opts.propose) return propose(call, open);
+  if (opts.answer) return answer(call);
 
   if (opts.start) {
     if (open) {

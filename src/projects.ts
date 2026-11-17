@@ -92,7 +92,7 @@ export function briefAcross(ws: Workspace): Brief | null {
   if (kept?.key === key) return kept.brief;
   const b = morning(ws);
   // A question alone brings up no brief: the page asks it on its thread, and nowhere else.
-  const needs = b.needsYou.plans.length + b.needsYou.stopped.length;
+  const needs = b.needsYou.plans.length + b.needsYou.stopped.length + b.needsYou.proposals.length;
   kept = { key, brief: b.shipped || needs ? b : null };
   return kept.brief;
 }

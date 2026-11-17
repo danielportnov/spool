@@ -393,6 +393,15 @@ export const CSS = String.raw`  :root {
   .changes tr.at td { color: var(--soft); background: var(--chip); padding: 1px 10px; }
   .undo { margin-top: 12px; display: grid; gap: 8px; }
   .undo input { padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .proposals { margin-top: 18px; }
+  .proposal { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
+  .proposal .ptext { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+  .proposal .pn { color: var(--soft); font-variant-numeric: tabular-nums; }
+  .proposal .acts { margin-top: 0; flex: none; }
+  .proposal .acts button { min-width: 56px; padding: 9px 14px; }
+  .proposal .said { flex: none; font-size: 12px; font-weight: 600; color: var(--soft); }
+  .proposal .said.yes { color: var(--go); }
+  @media (max-width: 700px) { .proposal { flex-wrap: wrap; } .proposal .acts { width: 100%; } .proposal .acts button { flex: 1; } }
   .finish { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
   .finish button { width: 100%; padding: 10px; font-size: 15px; }
   .finish .ok { color: var(--go); font-weight: 600; }

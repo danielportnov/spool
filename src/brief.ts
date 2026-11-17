@@ -12,10 +12,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { git, repoRoot } from './git.ts';
-import { type Item, SpoolError, firstLine, oneLine, splitBody } from './model.ts';
+import { type Item, SpoolError, firstLine, isRun, oneLine, splitBody } from './model.ts';
 import { type Paint, age } from './render.ts';
 import { JOURNAL } from './journal.ts';
 import { picturesOf } from './pictures.ts';
+import { readProposals, unanswered } from './proposals.ts';
 import { type Scope, children, dependents, review, sprintOf, taskState, tasks } from './schedule.ts';
 import { hearLine } from './stream.ts';
 import { MOVED } from './takeover.ts';
@@ -39,6 +40,8 @@ export interface Brief {
     questions: { id: string; title: string; options: string[]; recommend: number | null; blocks: number; project: string }[];
     plans: { id: string; title: string; summary: string | null; parts: number; project: string }[];
     stopped: { id: string; title: string; why: string; when: string; lastSaid: string | null; project: string }[];
+    /** A manager's run with proposals not yet answered: one line, which opens the run's thread, where each is answered. */
+    proposals: { id: string; headline: string | null; count: number; project: string }[];
   };
   /** `steps`: how to see each one working, as the agent that finished it wrote them. */
   worthALook: { id: string; title: string; summary: string | null; steps: string[]; size: string | null; files: number; reasons: string[]; project: string; pictures: number }[];
@@ -215,6 +218,7 @@ export function waitingOnYou(ws: Workspace, scope?: Scope): number {
   }
   for (const t of queue.plans) seen.add(t.id);
   for (const t of tasks(ws, scope)) if (stopped(ws, t)) seen.add(t.id);
+  for (const t of tasks(ws, scope)) if (isRun(t) && unanswered(readProposals(t)).length) seen.add(t.id);
   return seen.size;
 }
 
@@ -251,6 +255,11 @@ export function morning(ws: Workspace, opts: { since?: string; project?: Scope }
     .filter((s): s is { t: Item; stop: { why: string; at: number } } => !!s.stop)
     .sort((a, b) => b.stop.at - a.stop.at)
     .map(({ t, stop }) => ({ id: t.id, title: t.title, why: stop.why, when: new Date(stop.at).toISOString(), lastSaid: lastSaid(t), project: project(t) }));
+
+  const proposals = tasks(ws, opts.project)
+    .filter((t) => isRun(t) && unanswered(readProposals(t)).length)
+    .sort((a, b) => b.created.localeCompare(a.created))
+    .map((t) => ({ id: t.id, headline: t.summary ?? null, count: unanswered(readProposals(t)).length, project: project(t) }));
 
   // Most worth checking first; a thread with nothing to remark on is simply shipped.
   const weighed = shipped.map((t) => ({ t, ...weigh(ws, t) }));
@@ -290,7 +299,7 @@ export function morning(ws: Workspace, opts: { since?: string; project?: Scope }
     headline,
     shipped: shipped.length,
     took,
-    needsYou: { questions, plans, stopped: stops },
+    needsYou: { questions, plans, stopped: stops, proposals },
     worthALook: worth.map(({ t, reasons, files }) => ({
       id: t.id,
       title: t.title,
@@ -321,7 +330,7 @@ export function morningText(ws: Workspace, b: Brief, p: Paint): string {
   const out = [`🌅 ${p.bold(b.headline)}`, ''];
 
   const needs = b.needsYou;
-  const count = needs.questions.length + needs.plans.length + needs.stopped.length;
+  const count = needs.questions.length + needs.plans.length + needs.stopped.length + needs.proposals.length;
   if (!count) out.push('Nothing needs you: no questions, no plans waiting, nothing stopped.');
   else {
     out.push(`🔴 ${p.bold('NEEDS YOU')}  ${p.dim(String(count))}`);
@@ -334,6 +343,11 @@ export function morningText(ws: Workspace, b: Brief, p: Paint): string {
       out.push(line('  📋 ', `plan: ${t.title}`, `${plural(t.parts, 'part')} ${t.parts === 1 ? 'waits' : 'wait'} for your go-ahead · ${t.id}${where(t.project)}`));
       if (t.summary) out.push(line('     ', firstLine(t.summary)));
       out.push(p.dim(`     spool approve ${t.id}`));
+    }
+    for (const m of needs.proposals) {
+      out.push(line('  🧹 ', `The manager proposes ${plural(m.count, 'change')}`, `${m.id}${where(m.project)}`));
+      if (m.headline) out.push(line('     ', m.headline));
+      out.push(p.dim(`     spool show ${m.id}, then spool manage --answer yes|no <n>`));
     }
     for (const s of needs.stopped) {
       out.push(line('  ↺ ', s.title, `${s.id}${where(s.project)}`));

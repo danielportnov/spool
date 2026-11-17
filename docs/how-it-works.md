@@ -476,6 +476,14 @@ each with its reason where one was given. The report is read on the thread's tic
 `spool revert <id>` takes the whole pass back. `spool manage` alone says whether a run is open.
 There is one run at a time in a project, and its thread is never handed to a worker.
 
+**What it would do, for your yes or no.** Where it has no leave to drop or build, the run puts the
+change on its thread instead: `spool manage --propose drop <t-id> -m "Shipped in <sha>: …"` (or
+`archive`, or `build`). Each is numbered. On the run's ticket, each has a Yes and a No, big enough
+for a thumb; a Yes runs that verb as you, with the run's reason, and a No leaves the thread alone.
+`spool manage --answer yes 3` (or `no all`) does the same from a chat. The brief has one line for
+it, "The manager proposes 12 changes", which opens the run's thread; the proposals are not listed
+in the brief, and a question stays on its own thread.
+
 **A leave.** By itself the manager only tidies. How far it may go beyond that is yours to say,
 in your own words, for one night at a time:
 

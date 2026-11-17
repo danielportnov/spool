@@ -39,6 +39,7 @@ export function card(id: string, title: string, column: Card['column'], over: Pa
     steps: [],
     thread: { said: [], spec: '', about: [], steps: [], feed: [], report: '', by: '', checked: '', summary: '', commits: [], cameFrom: [], parts: [], questions: [], pictures: [] },
     question: null,
+    proposals: [],
     live: null,
     worktree: '',
     run: null,
@@ -163,6 +164,7 @@ export function briefFixture(): Brief {
       questions: [{ id: 'd-9d2a', title: 'Which font for the HUD?', options: ['Pixel', 'Rounded', 'Mono'], recommend: 1, blocks: 1, project: 'skyhop' }],
       plans: [],
       stopped: [{ id: 't-e2b7', title: 'Credits screen', why: 'stopped from the page', when: '2026-01-01T11:20:00Z', lastSaid: 'Laying out the names in two columns.', project: 'skyhop' }],
+      proposals: [],
     },
     worthALook: [
       {

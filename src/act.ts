@@ -229,5 +229,11 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     if (!/^d-[a-z0-9]+$/.test(id) || !choice) return { ok: false, text: 'which question, and what is the answer?' };
     return act(ctx, ['answer', id, '--', choice]);
   }
+  if (action === 'proposal') {
+    // A yes or a no to one of the numbered proposals on a manager's run: a yes runs its verb with the run's reason.
+    const said = text(body.said);
+    if (!/^t-[a-z0-9]+$/.test(id) || (said !== 'yes' && said !== 'no') || typeof body.n !== 'number') return { ok: false, text: 'which run, which proposal, and yes or no?' };
+    return act(ctx, ['manage', '--answer', `--on=${id}`, '--', said, String(body.n)]);
+  }
   return { ok: false, text: `the page cannot ${action}` };
 }
