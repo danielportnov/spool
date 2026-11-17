@@ -1478,6 +1478,7 @@ function draw(b) {
   }
   drawTarget(b);
   drawTakeOver(b);
+  drawNotices(b);
   drawElsewhere(b);
   document.getElementById('board').hidden = view !== 'board';
   document.getElementById('backlog').hidden = view !== 'backlog';
@@ -1704,6 +1705,79 @@ function fillTakeOvers(b) {
 }
 document.addEventListener('click', (e) => {
   if (takeOversOpen && !e.composedPath().some((node) => ['takeovers', 'takeover', 'layer'].includes(node.id))) closeTakeOvers();
+// ---- what notifies him: the events he picked, sent as one line each, and quiet for the rest
+
+// Every event, in the order the command lists them, and what it is in a few words (notices.ts).
+const NOTICES = [
+  ['started', 'A thread starts'],
+  ['done', 'A thread is done'],
+  ['question', 'A question is asked'],
+  ['sprint', 'A sprint is finished'],
+  ['empty', 'Build is empty'],
+  ['stuck', 'An agent is stuck or refused'],
+  ['budget', 'A run stops at its usage target'],
+];
+const BELL = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1 1H3z"/><path d="M6.5 14a1.5 1.5 0 0 0 3 0"/></svg>';
+let noticesOpen = false;
+// The changes, sent one after another, so the last click is the one kept.
+let noticeSends = Promise.resolve();
+
+// How each is sent: by the chat in Chat mode, by his notifier headless, or not at all.
+function noticesVia(b) {
+  if (b.runner.builder === 'chat') return 'The chat that builds sends each as one line, a Claude notification.';
+  return b.notices.notifier ? 'This page runs your notifier for each: ' + b.notices.notifier : 'Headless, nothing is sent: no notifier is set. Put one under notify in ~/.config/spool/config.json.';
+}
+function drawNotices(b) {
+  const bell = document.getElementById('notifier');
+  const n = b.notices;
+  bell.hidden = false;
+  bell.innerHTML = BELL;
+  bell.className = 'themer notifier' + (n.on.length ? '' : ' quiet');
+  const words = n.on.length ? NOTICES.filter(([key]) => n.on.includes(key)).map(([, name]) => name.toLowerCase()).join(', ') : 'nothing';
+  bell.title = 'Notifications: ' + words + '. Click to change them.';
+  bell.setAttribute('aria-label', 'Notifications: ' + n.on.length + ' of ' + NOTICES.length + ' on');
+  bell.setAttribute('aria-expanded', String(noticesOpen));
+  bell.onclick = () => (noticesOpen ? closeNotices() : openNotices());
+  if (noticesOpen) fillNotices(b);
+}
+function openNotices() {
+  const box = document.getElementById('notices');
+  noticesOpen = true;
+  const shut = el('button', { class: 'shut', title: 'Close', 'aria-label': 'Close', onclick: closeNotices }, '×');
+  box.replaceChildren(
+    el('div', { class: 'head' }, el('h3', {}, 'Notifications'), shut),
+    el('p', { class: 'what' }, 'What tells you, in every project. Everything else is quiet.'),
+    ...NOTICES.map(([key, name]) => {
+      const on = el('input', { type: 'checkbox', 'data-event': key });
+      on.addEventListener('change', () => {
+        const want = on.checked;
+        noticeSends = noticeSends.then(() => post('notify', { event: key, on: want }, (want ? 'Notifies you: ' : 'Quiet: ') + name.toLowerCase() + '.'));
+      });
+      return el('label', { class: 'nrow' }, on, name);
+    }),
+    el('div', { class: 'foot' }, el('span', { class: 'via' }),
+      el('button', { class: 'reset', onclick: () => { noticeSends = noticeSends.then(() => post('notify', { default: true }, 'Notifications back to the defaults.')); } }, 'Defaults')));
+  box.hidden = false;
+  document.getElementById('notifier').setAttribute('aria-expanded', 'true');
+  if (current) fillNotices(current);
+}
+function closeNotices() {
+  if (!noticesOpen) return;
+  noticesOpen = false;
+  const box = document.getElementById('notices');
+  box.hidden = true;
+  box.replaceChildren();
+  document.getElementById('notifier').setAttribute('aria-expanded', 'false');
+}
+// What the box shows, from the board: a box being clicked is left alone.
+function fillNotices(b) {
+  const box = document.getElementById('notices');
+  for (const on of box.querySelectorAll('input[data-event]')) if (document.activeElement !== on) on.checked = b.notices.on.includes(on.dataset.event);
+  box.querySelector('.via').textContent = noticesVia(b);
+  box.querySelector('.reset').hidden = b.notices.default;
+}
+document.addEventListener('click', (e) => {
+  if (noticesOpen && !e.composedPath().some((node) => ['notices', 'notifier', 'layer'].includes(node.id))) closeNotices();
 });
 
 // The board lives in a background tab, where its title and icon are all that shows. Both say what
@@ -2015,6 +2089,7 @@ function actionsOf(b) {
     { name: 'Switch who builds to ' + (chat ? 'Headless' : 'Chat'), run: () => post('builder', { builder: chat ? 'headless' : 'chat' }, '') },
     !chat && { name: b.runner.on ? 'Switch agents off' : 'Switch agents on', run: () => post('runner', { on: !b.runner.on }, '') },
     chat && { name: 'Set the usage target', run: () => openTargets() },
+    { name: 'Choose what notifies you', run: () => openNotices() },
     ...b.sprints.filter((x) => x.waiting > 0).map((x) => ({ name: 'Play sprint: ' + x.name, run: () => post('play', { id: x.id }, x.name + ' is running') })),
     { name: 'Add a thread', hint: 'c', run: () => openLayer('add') },
     { name: 'Show the keys', hint: '?', run: () => openLayer('keys') },
@@ -2123,6 +2198,7 @@ function quickAddNode() {
 function escape(at, typing) {
   if (layer) return closeLayer();
   if (targetsOpen) { closeTargets(); document.getElementById('target').focus(); return; }
+  if (noticesOpen) { closeNotices(); document.getElementById('notifier').focus(); return; }
   if (at && at.id === 'search') { at.value = ''; query = ''; at.blur(); redraw(); return; }
   if (openId && !adding && !(at && at.isContentEditable)) return closeThread();
   if (!typing && focusId) { focusId = null; markFocus(); }

@@ -57,9 +57,11 @@ ${CSS + ROADMAP_CSS + REVIEW_CSS + PROJECTS_CSS + PICTURES_CSS}</style>
   <button class="runner" id="runner" hidden></button>
   <button class="target" id="target" aria-haspopup="dialog" aria-expanded="false" aria-controls="targets" hidden></button>
   <button class="takeover" id="takeover" aria-haspopup="dialog" aria-expanded="false" aria-controls="takeovers" hidden></button>
+  <button class="themer notifier" id="notifier" aria-haspopup="dialog" aria-expanded="false" aria-controls="notices" hidden></button>
   <button class="themer" id="themer"></button>
   <div id="targets" role="dialog" aria-label="Usage target" hidden></div>
   <div id="takeovers" role="dialog" aria-label="Take over the backlog" hidden></div>
+  <div id="notices" role="dialog" aria-label="Notifications" hidden></div>
 </div>
 <div id="away" role="status" hidden></div>
 <div class="rule" id="rule" hidden></div>

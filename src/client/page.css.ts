@@ -105,6 +105,19 @@ export const CSS = String.raw`  :root {
   #takeovers .entry button.link { border: 0; background: none; padding: 0; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; }
   #takeovers.off .entry.takes, #takeovers.off .entry.usage { opacity: .55; }
   @media (max-width: 1100px) { .target .label, .takeover .label { display: none; } }
+  /* What notifies him: a bell by the theme, and its box of events, each one on or off. */
+  .notifier { margin-right: -12px; }
+  .notifier[aria-expanded="true"] { color: var(--ink); background: var(--bg); }
+  .notifier.quiet svg { opacity: .55; }
+  #notices { position: absolute; z-index: 3; top: calc(100% + 6px); right: 20px; width: 320px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); padding: 12px 16px 14px; }
+  #notices .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  #notices h3 { margin: 0; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); }
+  #notices .shut { border: 0; background: none; color: var(--soft); padding: 2px 6px; font-size: 16px; line-height: 1; }
+  #notices .what { margin: 6px 0 8px; font-size: 13px; color: var(--soft); }
+  #notices .nrow { display: flex; align-items: center; gap: 9px; padding: 7px 0; border-top: 1px solid var(--line); cursor: pointer; }
+  #notices .nrow input { margin: 0; accent-color: var(--accent); }
+  #notices .foot { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 6px 0 0; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; color: var(--soft); }
+  #notices .foot button { border: 0; background: none; padding: 0; color: var(--soft); text-decoration: underline; font-size: 12px; white-space: nowrap; }
   .live { margin-top: 6px; display: flex; align-items: center; gap: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--soft); }
   .live .now { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .live .for { color: var(--blue); white-space: nowrap; }
@@ -425,6 +438,8 @@ export const CSS = String.raw`  :root {
     .builder { order: 6; margin: 0 0 8px; }
     .runner { order: 7; margin-bottom: 8px; }
     .themer { order: 8; margin: 0 0 8px auto; width: 36px; height: 36px; }
+    .notifier:not([hidden]) + .themer { margin-left: 0; }
+    #notices { left: 16px; right: 16px; width: auto; }
     /* In Chat mode the usage target is a row of its own: the meter runs the width of the phone. */
     .target { order: 9; flex: 1 0 100%; margin: 0 0 8px; justify-content: flex-start; }
     .target .label { display: inline; }
