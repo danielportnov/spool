@@ -1,5 +1,5 @@
 /**
- * `spool attach`: a picture kept with a thread (pictures.ts). The page's paste and drop run it
+ * `spool attach`: a picture or a file kept with a thread (pictures.ts). The page's paste and drop run it
  * too, with what was pasted written to a file first, so a picture from the page is held to the
  * same rules as one from the command line.
  */
@@ -14,7 +14,7 @@ export const ATTACH: Command = {
   name: 'attach',
   group: 'agents',
   usage: 'attach <t-id> <file…> [--as before|after] [-m "<caption>"]',
-  summary: 'Keep a picture with a thread: what you mean, or the before and after of a change you can see. Its agent finds the path in its brief',
+  summary: 'Keep a picture or a file (PDF, text) with a thread: what you mean, or the before and after of a change you can see. Its agent finds the path in its brief',
   write: true,
   options: { as: { type: 'string' }, message: { type: 'string', short: 'm' } },
   run(call) {
@@ -33,7 +33,7 @@ export const ATTACH: Command = {
         if (!stat.isFile()) throw new Error('not a file');
         size = stat.size;
       } catch {
-        throw new SpoolError(`there is no file ${given}`, 'Name a picture on this machine: spool attach <t-id> shot.png');
+        throw new SpoolError(`there is no file ${given}`, 'Name a picture or a file on this machine: spool attach <t-id> shot.png');
       }
       // Too big is said before the whole of it is read.
       if (size > MAX_BYTES) throw tooBig(shown, size);

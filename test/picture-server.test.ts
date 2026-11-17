@@ -74,7 +74,7 @@ test('the page serves a thread its own pictures, and nothing else, and takes one
     // What is not a picture is refused in words; so is one too big, before it is all read.
     res = await send(b, Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'));
     assert.equal(res.status, 400);
-    assert.match(((await res.json()) as { text: string }).text, /^That is not a picture Spool keeps/);
+    assert.match(((await res.json()) as { text: string }).text, /^That is not a picture or a file Spool keeps/);
     res = await send(b, Buffer.alloc(5 * 1024 * 1024 + 1));
     assert.equal(res.status, 413);
     assert.match(((await res.json()) as { text: string }).text, /too big: keep it under 5 MB/);
@@ -86,6 +86,42 @@ test('the page serves a thread its own pictures, and nothing else, and takes one
     const card = Object.values(board.columns).flat().find((c) => c.id === a)!;
     assert.deepEqual(card.thread.pictures.map((p) => p.name), ['1.png', '2.jpg']);
     assert.deepEqual(card.thread.feed.filter((p) => p.pictures).map((p) => [p.kind, p.pictures]), [['picture', ['1.png', '2.jpg']]]);
+  } finally {
+    await page.stop();
+    s.cleanup();
+  }
+});
+
+test('the page takes a file with its name, and serves text only as plain text and a PDF as a PDF', async () => {
+  const s = spool();
+  const a = s.id('task', 'The save file breaks', '-s', 'xs');
+  const page = await startPage(s);
+  try {
+    const send = (name: string, body: Buffer | string) =>
+      fetch(`${page.url}api/attach?id=${a}&name=${encodeURIComponent(name)}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream', 'x-spool-token': page.token },
+        body: typeof body === 'string' ? Buffer.from(body) : body,
+      });
+    let res = await send('crash.log', '<html><script>alert(1)</script></html>');
+    assert.deepEqual(await res.json(), { ok: true, text: '' });
+    res = await send('../../Spec Sheet.pdf', '%PDF-1.7\n');
+    assert.deepEqual(await res.json(), { ok: true, text: '' });
+    // A page by its name is refused, named as it was given.
+    res = await send('evil.html', '<script>alert(1)</script>');
+    assert.match(((await res.json()) as { text: string }).text, /^evil\.html is not a picture or a file Spool keeps/);
+    assert.deepEqual(fs.readdirSync(path.join(s.dir, '.spool', 'runs', a, 'files')).sort(), ['1.crash.log', '2.spec-sheet.pdf']);
+
+    const at = (name: string) => `/api/picture?id=${a}&name=${encodeURIComponent(name)}`;
+    let got = await get(page.port, at('1.crash.log'));
+    assert.equal(got.status, 200);
+    assert.equal(got.type, 'text/plain; charset=utf-8', 'markup in a text file is shown as text, never run');
+    got = await get(page.port, at('2.spec-sheet.pdf'));
+    assert.equal(got.type, 'application/pdf');
+
+    const board = (await (await fetch(`${page.url}api/board`)).json()) as { columns: Record<string, { id: string; thread: { pictures: { name: string; kind: string }[] } }[]> };
+    const card = Object.values(board.columns).flat().find((c) => c.id === a)!;
+    assert.deepEqual(card.thread.pictures.map((p) => [p.name, p.kind]), [['1.crash.log', 'file'], ['2.spec-sheet.pdf', 'file']]);
   } finally {
     await page.stop();
     s.cleanup();

@@ -123,8 +123,8 @@ interface Thread {
   feed: Post[];
   /** The report an audit or a plan handed in, in full: the long read belongs on the page. */
   report: string;
-  /** The pictures kept with it, oldest first, each by the name the page asks `/api/picture` for. */
-  pictures: { name: string; as: string | null; by: string; at: string; caption: string }[];
+  /** The pictures and files kept with it, oldest first, each by the name the page asks `/api/picture` for. */
+  pictures: { name: string; as: string | null; kind: 'picture' | 'file'; by: string; at: string; caption: string }[];
   /** Who built it, as they signed themselves. */
   by: string;
   /** The project's check that passed before it was finished, as the command that ran. */
@@ -418,7 +418,7 @@ function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Threa
     steps,
     feed: feedOf(ws, task, read.said, steps),
     report: readReport(task),
-    pictures: picturesOf(task).map(({ name, as, by, at, caption }) => ({ name, as, by, at, caption })),
+    pictures: picturesOf(task).map(({ name, as, kind, by, at, caption }) => ({ name, as, kind, by, at, caption })),
     by: task.by ?? '',
     checked: task.checked ?? '',
     summary: task.summary ?? '',

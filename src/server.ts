@@ -287,8 +287,15 @@ export function startPage(
           ws.close();
         }
         if (!found) return send(res, 404, 'text/plain', 'no such picture');
-        // A picture's name is never given twice in a thread, so the browser may keep it.
-        res.writeHead(200, { 'content-type': found.type, 'cache-control': 'private, max-age=86400', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'" });
+        // A picture's name is never given twice in a thread, so the browser may keep it. Nothing kept runs:
+        // text is plain text, and the policy lets nothing load or run in what is opened.
+        res.writeHead(200, {
+          'content-type': found.type,
+          'cache-control': 'private, max-age=86400',
+          'x-content-type-options': 'nosniff',
+          'content-security-policy': "default-src 'none'",
+          'content-disposition': `inline; filename="${path.basename(found.file)}"`,
+        });
         return void res.end(fs.readFileSync(found.file));
       }
       if (req.method === 'POST' && url.pathname === '/api/attach') {
@@ -432,9 +439,10 @@ export function startPage(
     }
   });
   /**
-   * A picture pasted or dropped on the page: the file's bytes as they are, the thread in the query.
-   * It is the one POST that is not JSON, and the one allowed more than 64,000 bytes. It is written to
-   * a file and handed to `spool attach`, as a person would, so it is held to the same rules.
+   * A picture or a file pasted, dropped or picked on the page: the file's bytes as they are, the thread
+   * and the file's own name in the query. It is the one POST that is not JSON, and the one allowed more
+   * than 64,000 bytes. It is written to a file of that name (made safe) and handed to `spool attach`, as
+   * a person would, so it is held to the same rules.
    */
   const attachFrom = (req: http.IncomingMessage, res: http.ServerResponse, url: URL): void => {
     const chunks: Buffer[] = [];
@@ -443,7 +451,7 @@ export function startPage(
     req.on('data', (chunk: Buffer) => {
       size += chunk.length;
       if (size <= MAX_BYTES) return void chunks.push(chunk);
-      if (!tooLong) send(res, 413, 'application/json', JSON.stringify({ ok: false, text: `That picture is too big: keep it under ${MAX_BYTES / 1024 / 1024} MB.` }));
+      if (!tooLong) send(res, 413, 'application/json', JSON.stringify({ ok: false, text: `That file is too big: keep it under ${MAX_BYTES / 1024 / 1024} MB.` }));
       tooLong = true;
     });
     req.on('end', () => {
@@ -464,10 +472,14 @@ export function startPage(
       if (stray.length) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: `${id} is another project's, not ${spool.name}'s` }));
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'spool-picture-'));
       try {
-        const file = path.join(dir, 'pasted');
+        // Only the name's last part, in plain characters: it names the file, and never reaches past the folder.
+        const given = (url.searchParams.get('name') ?? '').replace(/^.*[\\/]/, '').replace(/[^\w. -]+/g, '').replace(/^[.\s]+/, '').slice(-80);
+        const shown = given || 'pasted';
+        const file = path.join(dir, shown);
         fs.writeFileSync(file, Buffer.concat(chunks));
         const result = act(inProject(ws, spool), ['attach', id, file]);
-        send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify({ ok: result.ok, text: result.ok ? '' : result.text.replace(/^pasted /, 'That ') }));
+        const text = result.ok ? '' : result.text.replace(/^pasted /, 'That ');
+        send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify({ ok: result.ok, text }));
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }

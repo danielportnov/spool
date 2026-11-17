@@ -215,8 +215,11 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
     }
   }
   // What the human pasted to show what he means: the agent opens these to see it.
-  const pictures = picturesOf(task);
+  const kept = picturesOf(task);
+  const pictures = kept.filter((k) => k.kind === 'picture');
+  const files = kept.filter((k) => k.kind === 'file');
   if (pictures.length) out.push('', 'PICTURES — open each one: they show what is meant', ...pictures.map((pic) => `  ${pictureLine(pic)}`));
+  if (files.length) out.push('', 'FILES — read each one: they were added for this', ...files.map((f) => `  ${pictureLine(f)}`));
   if (log.length) out.push('', 'LOG', ...log.slice(-8).map((l) => `  ${l}`));
   if (type === 'change') out.push('', p.dim(`commit trailer  Spool: ${task.id}      finish  spool done ${task.id} -m "<what changed>"`));
   return out.join('\n');
@@ -672,7 +675,8 @@ export function showText(ws: Workspace, item: Item, p: Paint): string {
   if (item.steps.length) out.push('', 'TO CHECK', ...item.steps.map((s, i) => `  ${i + 1}. ${s}`));
   if (item.body) out.push('', item.body);
   const pictures = item.kind === 'task' ? picturesOf(item) : [];
-  if (pictures.length) out.push('', 'PICTURES', ...pictures.map((pic) => `  ${pictureLine(pic)}`));
+  const heading = pictures.some((k) => k.kind === 'file') ? 'PICTURES AND FILES' : 'PICTURES';
+  if (pictures.length) out.push('', heading, ...pictures.map((pic) => `  ${pictureLine(pic)}`));
   const held = dependents(ws, item);
   if (held.length) out.push('', p.dim(`needed by ${held.map((t) => t.id).join(', ')}`));
   const kids = item.kind === 'task' ? children(ws, item) : [];

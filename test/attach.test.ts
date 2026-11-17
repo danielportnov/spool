@@ -47,7 +47,7 @@ test('attach keeps a picture with its thread, by what is in the file, and says s
     assert.match(shown, /\S+\/5-after\.png {2}\(after · Claude · “outlined”\)/);
     const pictures = s.json('show', t).item.pictures;
     assert.deepEqual(pictures.map((p: { name: string }) => p.name), ['1.png', '2.jpg', '3.gif', '4.webp', '5-after.png']);
-    assert.deepEqual(pictures[4], { name: '5-after.png', path: path.join(folder, '5-after.png'), as: 'after', by: 'Claude', at: pictures[4].at, caption: 'outlined' });
+    assert.deepEqual(pictures[4], { name: '5-after.png', path: path.join(folder, '5-after.png'), as: 'after', kind: 'picture', by: 'Claude', at: pictures[4].at, caption: 'outlined' });
 
     // The brief the agent is handed names each by its absolute path, so it can open them.
     s.sp('build', t);
@@ -65,8 +65,18 @@ test('attach refuses what is not a picture, what is too big, and more than a thr
     const t = s.id('task', 'A thread', '-s', 'xs');
     s.write('notes.png', 'just words, called a picture');
     s.write('page.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>');
-    assert.match(s.fails('attach', t, 'notes.png'), /notes\.png is not a picture Spool keeps\n {2}It takes PNG, JPEG, GIF and WebP, told by what is in the file, not its name/);
-    assert.match(s.fails('attach', t, 'page.svg'), /page\.svg is not a picture Spool keeps/);
+    // Words in a file named as a picture are neither: text is kept only where its name says text.
+    assert.match(s.fails('attach', t, 'notes.png'), /notes\.png is not a picture or a file Spool keeps\n {2}It takes PNG, JPEG, GIF and WebP pictures, PDFs, and plain text \(\.txt \.md \.csv \.json \.log\), told by what is in the file/);
+    assert.match(s.fails('attach', t, 'page.svg'), /page\.svg is not a picture or a file Spool keeps/);
+    // A page, or a program, is never kept, whatever it is called.
+    s.write('page.html', '<script>alert(1)</script>');
+    s.write('words', 'a name that says nothing');
+    assert.match(s.fails('attach', t, 'words'), /words is not a picture or a file/);
+    assert.match(s.fails('attach', t, 'page.html'), /is not a picture or a file/);
+    fs.writeFileSync(path.join(s.dir, 'tool.txt'), Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0, 1, 2]));
+    assert.match(s.fails('attach', t, 'tool.txt'), /tool\.txt is not a picture or a file/);
+    fs.writeFileSync(path.join(s.dir, 'fake.pdf'), 'not really a pdf');
+    assert.match(s.fails('attach', t, 'fake.pdf'), /fake\.pdf is not a picture or a file/);
     assert.match(s.fails('attach', t, 'nowhere.png'), /there is no file nowhere\.png/);
     assert.match(s.fails('attach', t), /which picture\?/);
     assert.match(s.fails('attach'), /which thread\?/);
@@ -84,7 +94,7 @@ test('attach refuses what is not a picture, what is too big, and more than a thr
     // Twenty a thread.
     s.sp('attach', t, ...Array.from({ length: 19 }, () => 'good.png'));
     s.sp('attach', t, 'good.png');
-    assert.match(s.fails('attach', t, 'good.png'), /has 20 pictures, and a thread keeps 20 at most/);
+    assert.match(s.fails('attach', t, 'good.png'), /has 20 pictures and files, and a thread keeps 20 at most/);
 
     // Only a thread keeps them, and not one that was dropped.
     const note = s.id('capture', 'an idea');
@@ -92,6 +102,29 @@ test('attach refuses what is not a picture, what is too big, and more than a thr
     const gone = s.id('task', 'Gone', '-s', 'xs');
     s.sp('drop', gone, '-m', 'not wanted');
     assert.match(s.fails('attach', gone, 'good.png'), /was dropped/);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('attach keeps a PDF or plain text with its thread, under its own name, and the brief lists them as files', () => {
+  const s = spool();
+  try {
+    const t = s.id('task', 'The save file breaks on load', '-s', 's');
+    s.write('Crash Log (2).txt', 'TypeError: save is undefined\n  at load (save.ts:12)\n');
+    s.write('spec.pdf', '%PDF-1.4\n%fake but it starts right\n');
+    s.write('notes.md', '# Notes');
+    s.sp('attach', t, 'Crash Log (2).txt', 'spec.pdf', 'notes.md', '-m', 'what it printed', '--as', 'human');
+    const folder = path.join(s.dir, '.spool', 'runs', t, 'files');
+    assert.deepEqual(fs.readdirSync(folder).sort(), ['1.crash-log-2.txt', '2.spec.pdf', '3.notes.md']);
+    assert.match(s.item(t), /human: attached files 1\.crash-log-2\.txt, 2\.spec\.pdf, 3\.notes\.md: what it printed$/m);
+    const brief = s.sp('start', t);
+    assert.match(brief, /FILES — read each one: they were added for this\n {2}\S+\/1\.crash-log-2\.txt {2}\(human · “what it printed”\)/);
+    assert.doesNotMatch(brief, /PICTURES —/, 'no pictures, so no heading for them');
+    assert.match(s.sp('show', t), /PICTURES AND FILES\n {2}\S+\/1\.crash-log-2\.txt/);
+    // A big file is told as a file.
+    fs.writeFileSync(path.join(s.dir, 'big.log'), Buffer.alloc(5 * 1024 * 1024 + 10, 'a'));
+    assert.match(s.fails('attach', t, 'big.log'), /big\.log is 5\.1 MB: a file can be 5 MB at most\n {2}Attach the part that matters/);
   } finally {
     s.cleanup();
   }
