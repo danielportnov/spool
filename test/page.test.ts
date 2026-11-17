@@ -395,3 +395,26 @@ test('a card says what model it gets left to itself: its size’s, or one up whe
     s.cleanup();
   }
 });
+
+test('a thread shows every post in the order it was made, to the second, old minute-only lines included', async () => {
+  const { board } = await import('../src/page.ts');
+  const { Workspace } = await import('../src/store.ts');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop');
+  const id = s.id('task', 'Pause button under the score', '-s', 'xs');
+  // A call made now is stamped with its own time to the second.
+  s.sp('assume', 'Which font?', '--chose', 'Pixel', '--why', 'it fits', '--for', id);
+  const file = fs.readdirSync(path.join(s.root, '.spool/items')).find((f) => f.startsWith(id))!;
+  const at = path.join(s.root, '.spool/items', file);
+  const text = fs.readFileSync(at, 'utf8');
+  assert.match(text, /^- \d{4}-\d\d-\d\d \d\d:\d\d:\d\dZ .*assumed d-/m, 'log lines carry seconds');
+  // Out of order in the file: a late one, an old minute-only one, and an early one, all in one minute.
+  fs.writeFileSync(at, text.trimEnd() + '\n- 2030-01-01 00:05:30Z agent: third\n- 2030-01-01 00:05Z agent: first\n- 2030-01-01 00:05:10Z agent: second\n');
+  const b = board(Workspace.open(s.root, () => new Date('2030-01-02T00:00:00Z')));
+  const feed = Object.values(b.columns).flat().find((c) => c.id === id)!.thread.feed;
+  const order = feed.filter((p) => ['first', 'second', 'third'].includes(p.text)).map((p) => p.text);
+  assert.deepEqual(order, ['first', 'second', 'third']);
+  s.cleanup();
+});

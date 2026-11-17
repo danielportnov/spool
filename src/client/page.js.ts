@@ -814,7 +814,7 @@ function skillActs(skill) {
 
 // A call an agent made, as a post in its thread: what it chose, the question and the why under it.
 // Until he has looked at it, Fine and Overrule are right there.
-function decidedNode(who, at, ref, text, b, t) {
+function decidedNode(who, at, ref, text, b, t, exact) {
   const call = b.needs.calls.find((x) => x.id === ref);
   const d = t.questions.find((x) => x.id === ref);
   // The log line is "question → choice". Accepted, the decision still says the same choice; overruled, it says his.
@@ -823,7 +823,7 @@ function decidedNode(who, at, ref, text, b, t) {
   const question = call ? call.title : d ? d.title : cut > 0 ? text.slice(0, cut) : text;
   const why = call ? call.why : d ? d.why : '';
   return el('div', { class: 'post', 'data-call': ref }, avatar(who),
-    el('div', {}, byline(who, at),
+    el('div', {}, byline(who, at, exact),
       el('pre', {}, 'Decided: ' + chose),
       el('div', { class: 'note' }, question),
       why && el('div', { class: 'note' }, 'Why: ' + why),
@@ -902,9 +902,17 @@ function avatar(who) {
   else node.textContent = s.kind === 'you' ? 'You'.slice(0, 1) : '🤖';
   return node;
 }
-function byline(who, at) {
+// Marks each post that shares its minute with the one before or after, so its time is shown to the second.
+function sharing(feed) {
+  const minute = (p) => { const t = timeOf(p.at); return isNaN(t) ? null : Math.floor(t / 60000); };
+  return feed.map((p, i) => {
+    const m = minute(p);
+    return m != null && (minute(feed[i - 1] || {}) === m || minute(feed[i + 1] || {}) === m) ? { ...p, exact: true } : p;
+  });
+}
+function byline(who, at, exact) {
   const s = speaker(who);
-  return el('div', { class: 'byline' }, el('b', {}, s.name), s.model && el('span', { class: 'model' }, s.model), at && [el('span', { class: 'sep' }, '·'), stamp(at)]);
+  return el('div', { class: 'byline' }, el('b', {}, s.name), s.model && el('span', { class: 'model' }, s.model), at && [el('span', { class: 'sep' }, '·'), stamp(at, false, exact)]);
 }
 // When something happened, the way a person says it: "now", "4m", "3h", then the day. The exact time is on hover,
 // and the clock on the page keeps it current. Everywhere a time is shown, it is shown this way. Standing on its
@@ -921,8 +929,11 @@ function ago(at, alone) {
   const d = new Date(then);
   return MONTHS[d.getMonth()] + ' ' + d.getDate() + (d.getFullYear() === new Date().getFullYear() ? '' : ', ' + d.getFullYear());
 }
-const stamp = (at, alone) => (isNaN(timeOf(at)) ? null
-  : el('time', { class: 'at', 'data-at': at, 'data-alone': alone ? 'true' : null, datetime: new Date(timeOf(at)).toISOString(), title: new Date(timeOf(at)).toLocaleString() }, ago(at, alone)));
+// In a thread, posts made in the same minute show their clock time to the second (it is fixed, not counted from
+// now), so neighbours can be told apart and read in the order they happened.
+const clock = (at) => new Date(timeOf(at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+const stamp = (at, alone, exact) => (isNaN(timeOf(at)) ? null
+  : el('time', { class: 'at', 'data-at': exact ? null : at, 'data-alone': alone ? 'true' : null, datetime: new Date(timeOf(at)).toISOString(), title: new Date(timeOf(at)).toLocaleString() }, exact ? clock(at) : ago(at, alone)));
 // What agents write, shown as what it is: a small, safe part of Markdown. Code in backticks, fenced
 // blocks of code, bold, lists, and links to the web. Everything is built as nodes from the text;
 // nothing an agent wrote is ever read as HTML, and whatever is not recognised stays as it was written.
@@ -1296,7 +1307,7 @@ function threadNode(c, b) {
 
     // The thread itself: a conversation, oldest first. You said, Claude answered, and the moves in between.
     el('div', { class: 'feed' },
-      folded(c.id, t.feed).map((p) => {
+      sharing(folded(c.id, t.feed)).map((p) => {
         if (p.kind === 'fold') {
           return el('div', { class: 'event' }, el('div', { class: 'dot' }),
             el('button', { class: 'fold', onclick: () => { unfolded.add(c.id); redraw(); } }, p.text));
@@ -1304,12 +1315,12 @@ function threadNode(c, b) {
         if (p.kind === 'event') {
           const s = speaker(p.who);
           const who = s.model ? s.name + ' ' + s.model : s.name;
-          return el('div', { class: 'event' }, el('div', { class: 'dot' }), el('div', {}, who + ' ', rich(p.text), p.at && [el('span', { class: 'sep' }, '·'), stamp(p.at)]));
+          return el('div', { class: 'event' }, el('div', { class: 'dot' }), el('div', {}, who + ' ', rich(p.text), p.at && [el('span', { class: 'sep' }, '·'), stamp(p.at, false, p.exact)]));
         }
-        if (p.kind === 'decided') return decidedNode(p.who, p.at, p.ref, p.text, b, t);
+        if (p.kind === 'decided') return decidedNode(p.who, p.at, p.ref, p.text, b, t, p.exact);
         const asking = p.kind === 'asked' && c.question && c.question.title === p.text;
         return el('div', { class: 'post' }, avatar(p.who),
-          el('div', {}, byline(p.who, p.at),
+          el('div', {}, byline(p.who, p.at, p.exact),
             p.kind === 'shipped' && el('span', { class: 'badge' }, '✓ Shipped'),
             p.kind === 'asked' && el('span', { class: 'badge ask' }, '❓ Needs a call from you'),
             (p.text || !p.pictures) && el('pre', {}, rich(p.text)),

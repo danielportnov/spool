@@ -150,8 +150,8 @@ interface Note {
 function logOf(item: Item): Note[] {
   const out: Note[] = [];
   for (const line of splitBody(item.body).log) {
-    const m = /^- (\d{4}-\d\d-\d\d) (\d\d:\d\d)Z ([^:]+): (.*)$/.exec(line);
-    if (m) out.push({ at: Date.parse(`${m[1]}T${m[2]}Z`), minute: `${m[1]}T${m[2]}`, actor: m[3]!, text: m[4]! });
+    const m = /^- (\d{4}-\d\d-\d\d) (\d\d:\d\d(?::\d\d)?)Z ([^:]+): (.*)$/.exec(line);
+    if (m) out.push({ at: Date.parse(`${m[1]}T${m[2]}Z`), minute: `${m[1]}T${m[2]!.slice(0, 5)}`, actor: m[3]!, text: m[4]! });
   }
   return out;
 }

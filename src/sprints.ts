@@ -21,14 +21,14 @@ export function sprintAbout(sprint: Item): { goal: string; why: string; doneWhen
   return { goal: goal || lines.join(' '), why, doneWhen, serves, vision: visionOf(sprint), version: sprint.version ?? '' };
 }
 
-const LOG = /^- (\d{4}-\d\d-\d\d) (\d\d:\d\d)Z ([^:]+): (.*)$/;
+const LOG = /^- (\d{4}-\d\d-\d\d) (\d\d:\d\d(?::\d\d)?)Z ([^:]+): (.*)$/;
 
 /** An item's log, a line at a time: when, who, and what. */
 export function logOf(item: Item): { at: string; who: string; what: string }[] {
   return splitBody(item.body)
     .log.map((line) => LOG.exec(line))
     .filter((m): m is RegExpExecArray => !!m)
-    .map((m) => ({ at: `${m[1]}T${m[2]}:00Z`, who: m[3]!, what: m[4]! }));
+    .map((m) => ({ at: `${m[1]}T${m[2]!.padEnd(8, ':00')}Z`, who: m[3]!, what: m[4]! }));
 }
 
 /** When a sprint was pressed play on, and when its last thread was done: from its own log. */

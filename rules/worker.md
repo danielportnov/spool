@@ -131,6 +131,7 @@ Check it wasn't settled already: `spool list -k decision --search "<topic>"`
       spool assume "<the question>" --chose "<what you did>" --why "<reason>" --for <task-id>
 
   With `--for`, the call is a post in that thread, where they accept or overrule it.
+  Record a call the moment you make it, not in a batch at the end: the thread shows posts in the order they happened.
 
 - **Hard to undo, costly, a matter of taste, or the policy says ask.**
 

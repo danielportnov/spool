@@ -202,13 +202,18 @@ interface Post {
 /** The queue's own log lines: what moved where. Anything else an agent logged is something it had to say. */
 const BOOKKEEPING = /^(started|builder model: |built on |check passed|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |session |transcript |reverted|put the work back|reopened|dropped|agreed|filed |placed )/;
 
+/** An ISO time as the log writes it, to the second: "2026-11-17 02:35:12Z". */
+function feedTime(iso: string | undefined): string {
+  return iso ? iso.slice(0, 19).replace('T', ' ') + 'Z' : '';
+}
+
 function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['steps']): Post[] {
-  const opening: Post[] = task.suggested ? [{ at: task.created.slice(0, 16).replace('T', ' ') + 'Z', who: task.suggestedBy ?? 'agent', kind: 'post', text: task.suggested }] : [];
+  const opening: Post[] = task.suggested ? [{ at: feedTime(task.created), who: task.suggestedBy ?? 'agent', kind: 'post', text: task.suggested }] : [];
   const words: Post[] = said.map((s) => {
     const note = ws.find(s.note);
     const who = note?.by ?? 'human';
     return {
-      at: (note?.created ?? task.created).slice(0, 16).replace('T', ' ') + 'Z',
+      at: feedTime(note?.created ?? task.created),
       who,
       kind: who === 'human' ? 'said' : 'post',
       text: s.text,
@@ -221,11 +226,13 @@ function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['
     const asked = /^waiting on d-[a-z0-9]+: (.*)$/.exec(s.what);
     if (asked) return { at: s.at, who: s.who, kind: 'asked', text: asked[1]! };
     const decided = /^assumed (d-[a-z0-9]+): (.*)$/.exec(s.what);
-    if (decided) return { at: s.at, who: s.who, kind: 'decided', text: decided[2]!, ref: decided[1]! };
+    // A call is stamped with when it was made, not when it was written on the thread.
+    if (decided) return { at: feedTime(ws.find(decided[1]!)?.created) || s.at, who: s.who, kind: 'decided', text: decided[2]!, ref: decided[1]! };
     return { at: s.at, who: s.who, kind: BOOKKEEPING.test(s.what) || s.who === 'human' ? 'event' : 'post', text: s.what };
   });
-  // Stable: things said in the same minute keep the order they were written in, words first.
-  const story = [...words, ...rest].map((p, i) => ({ p, i })).sort((a, b) => a.p.at.localeCompare(b.p.at) || a.i - b.i).map((x) => x.p);
+  // Oldest first by the real time of each post; ties keep the order they were written in, words first.
+  const when = (p: Post): number => Date.parse(p.at.replace(' ', 'T')) || 0;
+  const story = [...words, ...rest].map((p, i) => ({ p, i })).sort((a, b) => when(a.p) - when(b.p) || a.i - b.i).map((x) => x.p);
   story.unshift(...opening);
   // Once it is finished, its before and after are shown together under the result, and not again where they were attached.
   if (story.some((p) => p.kind === 'shipped')) {
@@ -411,7 +418,7 @@ function readReport(task: Item): string {
 
 function threadOf(ws: Workspace, task: Item, main: string, log: string[]): Thread {
   const steps = log.map((line) => {
-    const parsed = /^- (\d{4}-\d\d-\d\d \d\d:\d\dZ) (.+?): (.*)$/.exec(line);
+    const parsed = /^- (\d{4}-\d\d-\d\d \d\d:\d\d(?::\d\d)?Z) (.+?): (.*)$/.exec(line);
     return parsed ? { at: parsed[1]!, who: parsed[2]!, what: parsed[3]! } : { at: '', who: '', what: line.replace(/^- /, '') };
   });
   const from = task.from.map((id) => ws.find(id)).filter((i): i is Item => !!i && i.kind !== 'note');
@@ -442,7 +449,7 @@ const CLAIM = /^(started|picked up after|handed to )/;
  * thread, and when it took it. A thread with no note yet is only starting.
  */
 export function liveNow(task: Item): Live {
-  const steps = splitBody(task.body).log.map((line) => /^- (\d{4}-\d\d-\d\d) (\d\d:\d\d)Z (.+?): (.*)$/.exec(line));
+  const steps = splitBody(task.body).log.map((line) => /^- (\d{4}-\d\d-\d\d) (\d\d:\d\d(?::\d\d)?)Z (.+?): (.*)$/.exec(line));
   let claimed = -1;
   steps.forEach((m, i) => {
     if (m && CLAIM.test(m[4]!)) claimed = i;
@@ -450,7 +457,7 @@ export function liveNow(task: Item): Live {
   const claim = steps[claimed];
   const said = steps.slice(claimed + 1).filter((m) => m && !BOOKKEEPING.test(m[4]!)).at(-1);
   return {
-    since: task.started ?? (claim ? `${claim[1]}T${claim[2]}:00Z` : task.updated),
+    since: task.started ?? (claim ? `${claim[1]}T${claim[2]!.padEnd(8, ':00')}Z` : task.updated),
     note: said ? oneLine(said[4]!, 200) : '',
   };
 }

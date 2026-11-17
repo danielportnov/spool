@@ -65,7 +65,7 @@ interface Entry {
 function entries(item: Item): Entry[] {
   const out: Entry[] = [];
   for (const line of splitBody(item.body).log) {
-    const m = /^- (\d{4}-\d\d-\d\d) (\d\d:\d\d)Z ([^:]+): (.*)$/.exec(line);
+    const m = /^- (\d{4}-\d\d-\d\d) (\d\d:\d\d(?::\d\d)?)Z ([^:]+): (.*)$/.exec(line);
     if (m) out.push({ at: Date.parse(`${m[1]}T${m[2]}Z`), actor: m[3]!, text: m[4]! });
   }
   return out;

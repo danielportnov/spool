@@ -336,7 +336,7 @@ export function joinBody(main: string, log: string[]): string {
 
 export function addLog(item: Item, actor: string, text: string, now: Date): void {
   const { main, log } = splitBody(item.body);
-  const stamp = timestamp(now).replace('T', ' ').replace(/:\d\d\.\d+Z$/, 'Z');
+  const stamp = timestamp(now).replace('T', ' ').replace(/\.\d+Z$/, 'Z');
   log.push(`- ${stamp} ${actor}: ${text.replace(/\s+/g, ' ').trim()}`);
   item.body = joinBody(main, log);
 }

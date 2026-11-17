@@ -122,7 +122,7 @@ export function picturesOf(task: Item): Picture[] {
   if (!names.length) return [];
   const said = new Map<string, { by: string; at: string; caption: string }>();
   for (const line of splitBody(task.body).log) {
-    const m = /^- (\d{4}-\d\d-\d\d \d\d:\d\dZ) (.+?): (.*)$/.exec(line);
+    const m = /^- (\d{4}-\d\d-\d\d \d\d:\d\d(?::\d\d)?Z) (.+?): (.*)$/.exec(line);
     const read = m && attachLine(m[3]!);
     if (read) for (const name of read.names) said.set(name, { by: m[2]!, at: m[1]!, caption: read.caption });
   }

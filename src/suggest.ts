@@ -91,7 +91,7 @@ const BOOKKEEPING =
 
 function notes(task: Item): string[] {
   return splitBody(task.body)
-    .log.map((line) => /^- \d{4}-\d\d-\d\d \d\d:\d\dZ .*?: (.*)$/.exec(line)?.[1] ?? line)
+    .log.map((line) => /^- \d{4}-\d\d-\d\d \d\d:\d\d(?::\d\d)?Z .*?: (.*)$/.exec(line)?.[1] ?? line)
     .filter((text) => !BOOKKEEPING.test(text));
 }
 
