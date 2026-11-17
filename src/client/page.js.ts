@@ -340,10 +340,38 @@ function cardNode(c, b) {
     liveLine(c, b),
     b && liveOf(c, b) && liveOf(c, b).asking && permitNode(c, liveOf(c, b).asking, false),
     el('div', { class: 'meta' },
-      el('span', { class: 'key', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id),
+      el('span', { class: 'key', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id), newMark(c),
       el('span', { class: 'push' }), facts(c), archiveNode(c), moves(c, b)));
   dragOf(node, c, c.column);
   return opensOn(node, c.id);
+}
+
+// ---- what is new on a thread since you last opened it, remembered by this browser
+// A thread first met here counts as read, so a fresh board is not lit up all over. What you did
+// yourself is not news to you; opening the thread, or having it open, reads it.
+let seenKey = '';
+let seen = {};
+function noteSeen(b) {
+  const key = 'spool-seen:' + b.project;
+  if (key !== seenKey) {
+    seenKey = key;
+    try { seen = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (e) { seen = {}; }
+  }
+  let changed = false;
+  for (const c of everyCard(b)) {
+    const n = c.thread.steps.length;
+    if (seen[c.id] === undefined || seen[c.id] > n || (c.id === openId && seen[c.id] !== n)) { seen[c.id] = n; changed = true; }
+  }
+  if (changed) try { localStorage.setItem(key, JSON.stringify(seen)); } catch (e) {}
+}
+function newOn(c) {
+  return c.thread.steps.slice(seen[c.id] === undefined ? c.thread.steps.length : seen[c.id]).filter((s) => s.who !== 'human' && s.who !== YOU);
+}
+function newMark(c) {
+  const fresh = newOn(c);
+  if (!fresh.length) return null;
+  const last = fresh[fresh.length - 1];
+  return el('span', { class: 'new', title: 'New since you last opened it. Latest: ' + (last.who ? last.who + ': ' : '') + last.what }, fresh.length + ' new');
 }
 
 function rowNode(c, b) {
@@ -1441,6 +1469,7 @@ function draw(b) {
   document.getElementById('project').textContent = b.project;
   // A page over several projects: the switcher, and the home view of them all when it is up.
   if (drawProjects(b)) return;
+  noteSeen(b);
   drawTab(b);
   document.getElementById('where').textContent = b.version ? 'v' + b.version : '';
   // Two things are still worth a line: a project where the gate is off, because there the board

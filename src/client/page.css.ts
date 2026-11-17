@@ -185,6 +185,8 @@ export const CSS = String.raw`  :root {
   .meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--soft); }
   .key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; }
   .meta .push { margin-left: auto; }
+  .meta .new { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--blue) 12%, var(--panel)); color: var(--blue); font-weight: 650; white-space: nowrap; }
+  .meta .new::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
   .prio { font-weight: 800; letter-spacing: -1px; }
   .prio.p0 { color: var(--hot); } .prio.p1 { color: var(--accent); } .prio.p3 { color: var(--blue); }
   .size { border-radius: 999px; background: var(--chip); padding: 0 7px; font-weight: 600; }
