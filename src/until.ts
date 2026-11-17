@@ -1,13 +1,13 @@
 /**
  * A time to work: how long the agents build, or until when, alongside the usage target.
  *
- * The human says `spool for 2h` or `spool until 1:00`, in the chat or under Settings on the page.
+ * The user says `spool for 2h` or `spool until 1:00`, in the chat or under Settings on the page.
  * It is a budget like the usage (usage.ts, `headroomOf`): the share of the window gone takes the
  * same headroom steps, so as the end nears the chat that builds starts only threads small enough to
  * finish, lands or hands off what it has in flight, and takes nothing new once the end has passed. It is a soft end, an estimate to finish by: nothing is
  * stopped at it, and an agent that needs a minute or two past it to land cleanly does so.
  *
- * Like the usage target, it is the human's for every project, kept in their own settings
+ * Like the usage target, it is the user's for every project, kept in their own settings
  * (`workUntil` in `~/.config/spool/config.json`): when it was set, and the end.
  */
 
@@ -139,7 +139,7 @@ export type TimeResult = { text: string; data: { time: TimeView | null } };
 
 /**
  * `spool until <time>|none`: the time to be done by, or none to take it off. With nothing after it,
- * says what is set. `guard` is the lock: it throws where the gate leaves this to the human.
+ * says what is set. `guard` is the lock: it throws where the gate leaves this to the user.
  */
 export function untilCommand(ctx: Ctx, typed: string | undefined, guard: () => void): TimeResult {
   if (typed !== undefined) {

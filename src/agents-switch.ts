@@ -21,7 +21,7 @@ const NO_PAGE = 'No Spool page is up for this project. spool page -d --run start
 
 /**
  * `word` is on, off, or nothing to only say. `guard` is the lock: it throws where the project's
- * gate leaves starting work to the human, and is asked only for `on`. Stopping is always safe.
+ * gate leaves starting work to the user, and is asked only for `on`. Stopping is always safe.
  */
 export function agentsCommand(ctx: Ctx, project: { name: string; root: string }, word: string | undefined, guard: () => void): AgentsResult {
   if (word !== undefined && word !== 'on' && word !== 'off') {

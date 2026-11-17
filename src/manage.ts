@@ -13,7 +13,7 @@
  *   3  threads gone cold
  *   4  threads with no size, and with no Why
  *   5  threads too big to build in one go
- *   6  the order as it stands, and every priority the human set
+ *   6  the order as it stands, and every priority the user set
  *
  * `spool manage --start` opens a run (journal.ts) on a thread of its own and prints the worksheet.
  * The agent then works through it with ordinary commands, each one journaled under the run.
@@ -57,11 +57,11 @@ import { agentOf } from './usage.ts';
 export const MANAGE = {
   /** Proposed, and untouched this many days, is cold. */
   coldDays: COLD_DAYS,
-  /** A thread the human wrote on this lately is theirs to move. */
+  /** A thread the user wrote on this lately is theirs to move. */
   handsOffDays: 7,
   /** New ideas a run may file. */
   proposals: 5,
-  /** With this many earlier ideas still unanswered, a run files none: the human has enough to answer. */
+  /** With this many earlier ideas still unanswered, a run files none: the user has enough to answer. */
   waiting: 10,
   /** Earlier runs a new one reads the outcome of. */
   runsRead: 3,
@@ -82,7 +82,7 @@ const DAY = 86_400_000;
 const WAITING = ['proposed', 'ready', 'blocked', 'stale', 'held'];
 
 const SPEC = `What: one pass over the backlog. What has shipped is marked, what has no size is sized, what is doubled or cold is named, the order is set and a few ideas are proposed.
-Why: so the backlog is in order without the human sorting it.
+Why: so the backlog is in order without the user sorting it.
 Done when: the report is on this thread, and undoing this thread takes back everything the pass changed.`;
 
 // -------------------------------------------------------------------- facts
@@ -113,7 +113,7 @@ export interface Worksheet {
   project: string;
   /** Open threads read: everything waiting, in the backlog or in Build. */
   open: number;
-  /** The leave the run is under: how far the human said it may go. Null: it tidies only. */
+  /** The leave the run is under: how far the user said it may go. Null: it tidies only. */
   leave: Leave | null;
   /** The chat that builds ran this pass itself, taking over the backlog: it sizes and orders, and proposes every drop and archive. */
   tidy?: boolean;
@@ -134,7 +134,7 @@ export interface Worksheet {
   order: {
     /** The backlog as it ranks now: most urgent first, then the smallest, then the oldest. */
     backlog: Ref[];
-    /** Every priority the human set, read from the threads' logs. */
+    /** Every priority the user set, read from the threads' logs. */
     humanSet: { id: string; title: string; set: number; now: number; when: string }[];
     /** Build's line, in the order it will be built. Never the manager's to change. */
     build: Ref[];
@@ -165,7 +165,7 @@ function since(at: number | string, now: Date): string {
   return span === 'now' ? 'just now' : `${span} ago`;
 }
 
-/** Why the manager leaves a thread as it is: it is in Build, on hold, or the human has just had a hand on it. */
+/** Why the manager leaves a thread as it is: it is in Build, on hold, or the user has just had a hand on it. */
 function handsOff(ws: Workspace, t: Item): string | null {
   const state = taskState(ws, t);
   const now = ws.now();
@@ -177,7 +177,7 @@ function handsOff(ws: Workspace, t: Item): string | null {
   const lately = (at: number) => now.getTime() - at < MANAGE.handsOffDays * DAY;
   const theirs = logOf(t).filter((n) => n.actor === 'human');
   const changed = theirs.at(-1);
-  if (changed && lately(changed.at)) return `the human changed it ${since(changed.at, now)}`;
+  if (changed && lately(changed.at)) return `the user changed it ${since(changed.at, now)}`;
   // What they say on a thread arrives as a note filed into it, with no line in the log.
   const said = t.from
     .map((id) => ws.find(id))
@@ -185,8 +185,8 @@ function handsOff(ws: Workspace, t: Item): string | null {
     .map((n) => Date.parse(n.created))
     .sort((a, b) => a - b)
     .at(-1);
-  if (said !== undefined && lately(said)) return `the human wrote on it ${since(said, now)}`;
-  if (t.sprint && theirs.some((n) => /^edited: .*\bsprint /.test(n.text))) return 'the human put it in a sprint';
+  if (said !== undefined && lately(said)) return `the user wrote on it ${since(said, now)}`;
+  if (t.sprint && theirs.some((n) => /^edited: .*\bsprint /.test(n.text))) return 'the user put it in a sprint';
   return null;
 }
 
@@ -198,7 +198,7 @@ export function handsOffIn(ws: Workspace, spool: Spool): { id: string; title: st
     .filter((h): h is { id: string; title: string; why: string } => !!h.why);
 }
 
-/** The priority the human last set on a thread, from its log. */
+/** The priority the user last set on a thread, from its log. */
 function humanSet(t: Item): { priority: number; at: number } | null {
   for (const note of logOf(t).reverse()) {
     const m = note.actor === 'human' ? /^edited: .*\bpriority p([0-3])\b/.exec(note.text) : null;
@@ -314,7 +314,7 @@ function testsOf(spool: Spool): { file: string; name: string; words: Set<string>
   return out;
 }
 
-/** What became of an idea an earlier run filed: the human's answer to it, or that there is none yet. */
+/** What became of an idea an earlier run filed: the user's answer to it, or that there is none yet. */
 function outcome(ws: Workspace, item: Item | undefined): string {
   if (!item) return 'gone';
   const state = taskState(ws, item);
@@ -420,7 +420,7 @@ export function gather(ws: Workspace, spool: Spool, run: Item, leave?: Leave): W
     project: spool.name,
     open: open.length,
     leave: leave ?? null,
-    // The human's own number for tonight stands, whatever is waiting.
+    // The user's own number for tonight stands, whatever is waiting.
     proposals: { cap: leave?.allows.proposals ?? (unanswered >= MANAGE.waiting ? 0 : MANAGE.proposals), unanswered },
     saidNo: {
       dropped,
@@ -455,8 +455,8 @@ function handsOffLine(left: { why: string }[]): string {
     [count(/^in Build$/), 'in Build'],
     [count(/^being built$/), 'being built'],
     [count(/^on hold$/), 'on hold'],
-    [count(/^the human (changed|wrote on) it /), `the human had a hand on in the last ${MANAGE.handsOffDays} days`],
-    [count(/^the human put it in a sprint$/), 'the human put in a sprint'],
+    [count(/^the user (changed|wrote on) it /), `the user had a hand on in the last ${MANAGE.handsOffDays} days`],
+    [count(/^the user put it in a sprint$/), 'the user put in a sprint'],
   ];
   return groups
     .filter(([n]) => n)
@@ -489,21 +489,21 @@ export function worksheetText(ws: Workspace, w: Worksheet, p: Paint): string {
   if (w.tidy) {
     out.push(p.bold(TIDY_RULE), '');
   }
-  // How far this run may go: the human's leave, in their words, or none.
+  // How far this run may go: the user's leave, in their words, or none.
   if (w.leave) {
     const a = w.leave.allows;
     out.push(`${p.bold('Under the leave')} ${leaveLine(w.leave, now)}`);
     if (a.build) out.push(`  to move a thread to build under it   spool build <t-id> --leave${p.dim(`      ${w.leave.used.build} of ${a.build} used`)}`);
     if (a.dropShipped) out.push('  to drop one that has shipped         spool drop <t-id> --leave -m "Shipped in <sha>: <what makes its Done-when true>"');
-    if (!a.build && !a.dropShipped) out.push('  It moves nothing to build and drops nothing: what you would build or drop goes in the report, for the human to answer.');
-  } else out.push('No leave is live: this run tidies only. What you would build or drop goes in the report, for the human to answer.');
+    if (!a.build && !a.dropShipped) out.push('  It moves nothing to build and drops nothing: what you would build or drop goes in the report, for the user to answer.');
+  } else out.push('No leave is live: this run tidies only. What you would build or drop goes in the report, for the user to answer.');
   out.push(
     '',
     `${p.bold(`The backlog of ${w.project}`)}${p.dim(`  ${plural(w.open, 'open thread')}`)}`,
     'What follows are facts, gathered the same way every time. The judgment is yours.',
     ideas.cap
       ? `New ideas: ${ideas.cap} at most this run${w.leave?.allows.proposals ? ', by the leave' : ''}. ${ideas.unanswered ? `${plural(ideas.unanswered, 'earlier one')} still ${ideas.unanswered === 1 ? 'waits' : 'wait'} for an answer.` : 'No earlier one is waiting for an answer.'}`
-      : `New ideas: none this run. ${ideas.unanswered} earlier ones still wait for an answer, and at ${MANAGE.waiting} the human has enough to read.`,
+      : `New ideas: none this run. ${ideas.unanswered} earlier ones still wait for an answer, and at ${MANAGE.waiting} the user has enough to read.`,
     '',
   );
 
@@ -565,13 +565,13 @@ export function worksheetText(ws: Workspace, w: Worksheet, p: Paint): string {
   out.push('', head(6, 'THE ORDER'), counted('The backlog as it ranks now', order.backlog.length));
   order.backlog.forEach((t, i) => {
     const h = set.get(t.id);
-    out.push(`  ${String(i + 1).padStart(3)}. ${thread(t, h ? `the human set p${h.set} ${since(h.when, now)}` : '')}`);
+    out.push(`  ${String(i + 1).padStart(3)}. ${thread(t, h ? `the user set p${h.set} ${since(h.when, now)}` : '')}`);
   });
-  out.push(counted('Priorities the human set, each to be left as it is', order.humanSet.length));
+  out.push(counted('Priorities the user set, each to be left as it is', order.humanSet.length));
   for (const h of order.humanSet) out.push(`    ${h.id}  p${h.set}  ${oneLine(h.title, 60)}${p.dim(`  · ${since(h.when, now)}${h.now === h.set ? '' : `, and it is p${h.now} now`}`)}`);
   out.push(`  In Build, in the order it will be built, ${order.build.length}${order.build.length ? `: ${order.build.map((t) => t.id).join(', ')}` : ''}. Never yours to reorder.`);
 
-  out.push('', p.bold('HANDS OFF'), `  ${handsOffLine(w.handsOff) || 'No thread is in Build, on hold, or freshly the human\'s.'}`);
+  out.push('', p.bold('HANDS OFF'), `  ${handsOffLine(w.handsOff) || 'No thread is in Build, on hold, or freshly the user\'s.'}`);
   out.push('', `When the pass is done:  spool manage --end -m "<the headline>" --report - <<'EOF' … EOF`, p.dim(`To take the whole run back:  spool revert ${w.run}`));
   return out.join('\n');
 }
@@ -737,7 +737,7 @@ function reportText(run: Item, headline: string, said: string, entries: Entry[],
 
 // ------------------------------------------------------------------ command
 
-/** `spool manage --propose <verb> <id> -m <why>`: put what the run would do on its thread, for the human's yes or no. */
+/** `spool manage --propose <verb> <id> -m <why>`: put what the run would do on its thread, for the user's yes or no. */
 function propose(call: Call, open: Item | undefined): Result {
   const { ws, ctx, opts, actor, p } = call;
   const named = ctx.env.SPOOL_RUN?.trim();
@@ -753,22 +753,22 @@ function propose(call: Call, open: Item | undefined): Result {
   if (verb === 'goals' || verb === 'sprint' || verb === 'order') {
     // What an overview of the whole project proposes: the goals, a sprint, an order. See direction.ts.
     made = { n: 0, ...proposeWhole(call, run, verb, call.args.slice(1)), reason };
-    if (!reason) throw new SpoolError('a proposal needs its reason', `spool manage --propose ${verb} … -m "<why>": it is what the human reads`);
+    if (!reason) throw new SpoolError('a proposal needs its reason', `spool manage --propose ${verb} … -m "<why>": it is what the user reads`);
   } else {
     if (!ref || extra.length) throw new SpoolError(`a ${verb} is proposed on one thread`, `spool manage --propose ${verb} <id> -m "<why>"`);
     const item = ws.get(ref);
     if (item.kind !== 'task' || isRun(item)) throw new SpoolError(`${item.id} is not a thread a run can propose on`);
     if (item.status === 'dropped' || item.status === 'done') throw new SpoolError(`${item.id} is already ${item.status}`);
-    if (!reason) throw new SpoolError('a proposal needs its reason', `spool manage --propose ${verb} ${item.id} -m "<why>": it is what the human reads, and what a drop is given`);
+    if (!reason) throw new SpoolError('a proposal needs its reason', `spool manage --propose ${verb} ${item.id} -m "<why>": it is what the user reads, and what a drop is given`);
     made = { n: 0, verb: verb as Verb, id: item.id, title: item.title, reason };
   }
   if (unanswered(all).some((x) => proposalKey(x) === proposalKey(made))) {
-    throw new SpoolError(`${made.verb === 'goals' ? 'new goals are' : `${proposalKey(made)} is`} already proposed`, 'The human answers the one on the run\'s thread first');
+    throw new SpoolError(`${made.verb === 'goals' ? 'new goals are' : `${proposalKey(made)} is`} already proposed`, 'The user answers the one on the run\'s thread first');
   }
   made.n = Math.max(0, ...all.map((x) => x.n)) + 1;
   writeProposals(run, [...all, made]);
   return {
-    text: `${p.bold(`${run.id} proposal ${made.n}`)}  ${proposalLine(made)}\n${p.dim(`  The human says yes or no on the run's ticket, or:  spool manage --answer yes ${made.n}`)}`,
+    text: `${p.bold(`${run.id} proposal ${made.n}`)}  ${proposalLine(made)}\n${p.dim(`  The user says yes or no on the run's ticket, or:  spool manage --answer yes ${made.n}`)}`,
     data: { run: run.id, proposal: made },
   };
 }
@@ -889,7 +889,7 @@ export function manage(call: Call): Result {
     // A leave that ran out while the run worked is cleared now, so the run's thread says when.
     settle(ws, run.spool);
     const headline = (typeof opts.message === 'string' ? opts.message : call.args.join(' ')).replace(/\s+/g, ' ').trim();
-    if (!headline) throw new SpoolError('the headline is missing', 'The human reads it first: spool manage --end -m "Tidied the backlog: 9 sized, 2 new ideas" --report -');
+    if (!headline) throw new SpoolError('the headline is missing', 'The user reads it first: spool manage --end -m "Tidied the backlog: 9 sized, 2 new ideas" --report -');
     let said = '';
     if (typeof opts.report === 'string' && opts.report) {
       try {

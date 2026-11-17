@@ -40,7 +40,7 @@ test('the pick is kept, a fresh project is Headless, and saying so again is refu
     assert.equal(s.json('builder').builder, 'headless');
     assert.match(s.sp('builder', 'headless'), /^The page builds skyhop, headless/);
     // Chat is a change, so where they chose the lock it is theirs to pick: on the board, or at their terminal.
-    assert.match(s.fails('builder', 'chat'), /human's alone.*locked/s);
+    assert.match(s.fails('builder', 'chat'), /user's alone.*locked/s);
     assert.match(s.exec(['builder', 'chat'], { tty: true }).out, /^A chat builds skyhop/);
     // The doctor then says what the pick still needs.
     const builder = (JSON.parse(s.exec(['doctor', '--json']).out).checks as { id: string; status: string; label: string }[]).find((c) => c.id === 'builder')!;

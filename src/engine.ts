@@ -3,16 +3,16 @@
  *
  * The `Runner` takes the next thread that can be built, gives it a folder to be built in (a git
  * worktree of its own, where the project can have one), starts an agent on it through
- * `session.ts`, and settles the thread when the agent has gone: done, waiting on the human, or
+ * `session.ts`, and settles the thread when the agent has gone: done, waiting on the user, or
  * back in Build. It stops an agent, undoes what one changed, and puts back what a page that died
  * left handed out. As many threads at once as the user's config says.
  *
  * A thread a run left unfinished (stopped, given up, or cut off with its page) is not started from
  * nothing the next time: where its agent is `claude -p`, the run was in a session Spool chose, and
  * the next run picks that session up, told only what has changed since (`leftOff`, `carryOn`).
- * Such a session can also be spoken to while it works: a note the human writes on a thread being
+ * Such a session can also be spoken to while it works: a note the user writes on a thread being
  * built is said to its agent within a second (`attend`), and Stop asks it to stop before ending it.
- * And a tool call it needs a yes for comes here as a question (`asked`): held for the human where
+ * And a tool call it needs a yes for comes here as a question (`asked`): held for the user where
  * one is looking, to answer with `permit`, and refused at once where nobody is. A thread a page
  * that died left handed out is carried on the same way when the next page starts (`recover`).
  *
@@ -44,18 +44,18 @@ import { closeWorktree, openWorktree, workDir } from './worktree.ts';
 
 /** Whether the last claim on a thread was a page handing it to an agent, not someone starting it. */
 export function handedByPage(task: Item): boolean {
-  // Opened in Claude Code (`spool open`), it is the human's, not a page's, until they give it back.
+  // Opened in Claude Code (`spool open`), it is the user's, not a page's, until they give it back.
   const claims = splitBody(task.body).log.filter((line) => /^- \S+ \S+ (page: handed to |[^:]+: (started|picked up after|opened in Claude Code))/.test(line));
   return / page: handed to /.test(claims.at(-1) ?? '');
 }
 
 /** A log line that says how a thread came to wait in Build, or that someone took it from there. */
 const STANDS = /^(moved to build|released from hold|reverted |started$|picked up after |handed to |agent .* without finishing|.*; back in build$)/;
-/** The human stopping a thread that was being built: Stop on the page, or the thread moved back to Build. */
+/** The user stopping a thread that was being built: Stop on the page, or the thread moved back to Build. */
 const STOP = /^stopped (from the page|while .* was building it|in Claude Code); back in build$/;
 
 /**
- * Whether the human stopped this thread while it was being built, and has not set it going
+ * Whether the user stopped this thread while it was being built, and has not set it going
  * since. The page's runner leaves such a thread in Build until they carry on with it. It is read
  * from the thread's own log, so it holds on every page and across a restart: of the lines that
  * say how the thread came to wait in Build, the last is a stop. A note or an edit since changes
@@ -72,7 +72,7 @@ export const DEFAULT_AGENT = 'claude -p';
 
 /** What an agent is told first: it works one thread, and nobody reads its chat. */
 export const PREAMBLE = `You are working one task from a Spool queue, unattended. Nobody is reading your
-replies, so nothing you say in chat reaches the human: a question goes through
+replies, so nothing you say in chat reaches the user: a question goes through
 \`spool ask\`, a call you make yourself goes through \`spool assume\`. The task
 below is already claimed for you. Finish it with \`spool done\`, or leave it
 waiting on a question — then stop.
@@ -96,23 +96,23 @@ export function leftByAgent(task: Item): boolean {
 
 /**
  * What an agent whose session can be spoken to is told first. It is `PREAMBLE` with one thing
- * changed: the human can reach it while it works, though they may still not be reading what it says.
+ * changed: the user can reach it while it works, though they may still not be reading what it says.
  */
-const PREAMBLE_HEARD = `You are working one task from a Spool queue. The human may write to you while you
+const PREAMBLE_HEARD = `You are working one task from a Spool queue. The user may write to you while you
 work: what they say arrives as a message, so read it and adjust. They may not be
 reading what you say in chat, so a question still goes through \`spool ask\`, and a
 call you make yourself through \`spool assume\`. The task below is already claimed
 for you. Finish it with \`spool done\`, or leave it waiting on a question, then stop.
 `;
 
-/** How long a session that ended its turn with its thread unfinished is kept for the human's next word, after their last. */
+/** How long a session that ended its turn with its thread unfinished is kept for the user's next word, after their last. */
 const REPLY_WINDOW_MS = 5 * 60_000;
 /** How long "Typing…" shows for an agent spoken to that says nothing back: it may be deep in a tool call. */
 const TYPING_MS = 3 * 60_000;
 
 /** A face that asked for the board this recently has someone looking at it. */
 const LOOKING_MS = 30_000;
-/** How long an agent's question waits for the human where someone is looking, before it is refused. */
+/** How long an agent's question waits for the user where someone is looking, before it is refused. */
 const ASK_WAIT_MS = 10 * 60_000;
 
 /** What an agent is told with a no that nobody gave: how to go on without the call. */
@@ -120,9 +120,9 @@ const GO_ON = 'Do not look for another way to do the same thing. If the thread c
 
 /** How a page's run of a thread ended with the thread put back in Build: by the line that put it back. */
 type Left = 'stopped' | 'unfinished' | 'cut off' | 'handed back';
-/** How `spool open` puts a thread back in Build for its agent, once the human has quit Claude Code. */
+/** How `spool open` puts a thread back in Build for its agent, once the user has quit Claude Code. */
 export const HANDED_BACK = 'handed back from Claude Code; back in build';
-/** How `spool open` puts a thread back in Build for the human to carry on with later. */
+/** How `spool open` puts a thread back in Build for the user to carry on with later. */
 export const STOPPED_OPEN = 'stopped in Claude Code; back in build';
 const LEFT: [RegExp, Left][] = [
   [STOP, 'stopped'],
@@ -166,22 +166,22 @@ function asItRan(task: Item): Picked {
 
 /**
  * What a session picked up again is told. It has the rules and the brief already, so it is given
- * only what has changed since it left off: how it came to stop, and what the human has written
+ * only what has changed since it left off: how it came to stop, and what the user has written
  * on the thread that it has not been given.
  */
 function carryOn(task: Item, how: Left, notes: Item[], heard: boolean): string {
   const why = {
-    stopped: 'The human stopped you, and has now set you going again.',
+    stopped: 'The user stopped you, and has now set you going again.',
     unfinished: 'Your last run ended with the thread neither finished nor waiting on a question.',
     'cut off': 'Spool was stopped while you were working, and is back.',
-    'handed back': 'The human opened this session in Claude Code and worked in it with you, and has now handed the thread back to you to finish.',
+    'handed back': 'The user opened this session in Claude Code and worked in it with you, and has now handed the thread back to you to finish.',
   }[how];
   const said = notes.map((note) => splitBody(note.body).main.split('\n').map((line) => `> ${line}`.trimEnd()).join('\n'));
   return `${[
     `You were working this thread of a Spool queue earlier in this session, and it is yours again: ${task.id} ${task.title}`,
     why,
-    said.length ? `Since you were last given the thread, the human has written on it:\n\n${said.join('\n\n')}` : '',
-    heard ? 'The human may write to you while you work: what they say arrives as a message, so read it and adjust.' : '',
+    said.length ? `Since you were last given the thread, the user has written on it:\n\n${said.join('\n\n')}` : '',
+    heard ? 'The user may write to you while you work: what they say arrives as a message, so read it and adjust.' : '',
     `Carry on from where you were. \`spool show ${task.id}\` gives the thread as it stands now. The rules have not changed: finish it with \`spool done\`, or leave it waiting on a question with \`spool ask\`, then stop.`,
   ]
     .filter(Boolean)
@@ -230,9 +230,9 @@ interface Run {
   shared?: boolean;
   /** Its worktree, by its folder from the project, and the branch it is on: none where it works in the project's own folder. */
   worktree?: { folder: string; branch: string };
-  /** The human's notes on the thread that its agent has been given, by id. */
+  /** The user's notes on the thread that its agent has been given, by id. */
   told: string[];
-  /** When the human last said something to its agent. A session that ends its turn unfinished is kept a while after for what they say next. */
+  /** When the user last said something to its agent. A session that ends its turn unfinished is kept a while after for what they say next. */
   spoke?: number;
   /** Its agent has been given a failed check to fix: once a run, so a second failure ends it. */
   retried?: boolean;
@@ -327,18 +327,18 @@ export interface Picking {
  *
  * `spool loop` holds one too, and prints what it is told (`Face`). For both,
  * a thread the agent finished is done, one it asked a question on waits for
- * the human, and one it walked away from is put back and not tried again
+ * the user, and one it walked away from is put back and not tried again
  * until something about it changes.
  * The agent command comes from the user's machine, never from the project.
  *
- * That is building headless. The human can pick a chat to build instead, on the
+ * That is building headless. The user can pick a chat to build instead, on the
  * page: a Claude Code session running the loop. Then the runner starts nothing,
  * whether it is on or not, and an agent it had already started is left to finish.
  */
 export class Runner {
   on: boolean;
   readonly agent: string;
-  /** The folder of the project this page shows: the human's pick of who builds is kept by it. */
+  /** The folder of the project this page shows: the user's pick of who builds is kept by it. */
   private root = '';
   /** What is being built now, by thread, in the order each was started. */
   readonly runs = new Map<string, Run>();
@@ -353,16 +353,16 @@ export class Runner {
   private held = false;
   /** How many threads it has handed out. Upkeep reads it: one taken and finished between two of its looks was work all the same. */
   handedOut = 0;
-  /** How long a session that ended its turn with its thread unfinished is kept for the human's next word, after their last. */
+  /** How long a session that ended its turn with its thread unfinished is kept for the user's next word, after their last. */
   replyWindow = REPLY_WINDOW_MS;
-  /** How long an agent's question waits for the human's answer before it is refused. */
+  /** How long an agent's question waits for the user's answer before it is refused. */
   askWait = ASK_WAIT_MS;
   /** When a face last asked what there is to show. */
   private seen = 0;
   /** How the last few threads it ran turned out, newest first. */
   recent: { id: string; title: string; outcome: string }[] = [];
   private gaveUp = new Map<string, string>();
-  /** The page answering the human on a thread nobody is building (quick.ts). */
+  /** The page answering the user on a thread nobody is building (quick.ts). */
   readonly quick: QuickReplies;
   private timer: NodeJS.Timeout;
   private ctx: Ctx;
@@ -550,7 +550,7 @@ export class Runner {
   /**
    * How to pick a thread's session up again: the command that does, and what its agent is told,
    * which is only what has changed since it was last given the thread. `unheard` is how many of
-   * the human's notes that is. Nothing where the agent command cannot pick a session up.
+   * the user's notes that is. Nothing where the agent command cannot pick a session up.
    */
   private pickUp(task: Item, left: { session: string; how: Left }, notes: Item[]): (Start & { unheard: number }) | undefined {
     const command = inSession(this.command(pickFor(task, this.leaned(task), asItRan(task), fableCap(this.ctx))), left.session, true);
@@ -568,7 +568,7 @@ export class Runner {
 
   /**
    * Stop the agent on one thread, at once. Its thread goes back to Build as stopped, and is left
-   * there until the human carries on with it. The runner stays on, and its other agents work on.
+   * there until the user carries on with it. The runner stays on, and its other agents work on.
    * False if no agent of this page's is on the thread.
    */
   stop(id: string): boolean {
@@ -583,14 +583,14 @@ export class Runner {
 
   /**
    * Tell the agent on one thread to stop what it is doing and wait. It is not ended: its session
-   * is kept for what the human says next, as after any word of theirs. False where no agent of
+   * is kept for what the user says next, as after any word of theirs. False where no agent of
    * this page's that can be spoken to is on the thread.
    */
   interrupt(id: string): boolean {
     const run = this.runs.get(id);
     if (!run?.session?.interrupt()) return false;
     run.spoke = Date.now();
-    (run.unsaid ??= []).push('told by the human to stop what it was doing; it waits for their word');
+    (run.unsaid ??= []).push('told by the user to stop what it was doing; it waits for their word');
     this.attend();
     return true;
   }
@@ -622,7 +622,7 @@ export class Runner {
   }
 
   /**
-   * The human wrote on a thread. Where this page is building it, its agent is told within a second
+   * The user wrote on a thread. Where this page is building it, its agent is told within a second
    * (`attend`), and nothing more is done: "Typing…" shows until that agent is heard. Where nobody
    * is, the page answers itself with a quick reply. Says which: 'agent', 'quick', or 'none' where
    * neither will answer. `elsewhere` is a thread being built by someone else, a chat say.
@@ -634,7 +634,7 @@ export class Runner {
 
   /**
    * The threads showing "Typing…": each with a quick reply being written, and each whose agent the
-   * human spoke to and that has not been heard since, for a few minutes at most. `who` is empty
+   * user spoke to and that has not been heard since, for a few minutes at most. `who` is empty
    * where it is the thread's own agent.
    */
   typing(): Typing[] {
@@ -652,7 +652,7 @@ export class Runner {
   /**
    * An agent needs a yes for a tool call. With someone looking it waits for them, and the notifier
    * is told. With nobody looking it is refused at once, as an agent with nobody to ask always
-   * was, so that a sprint the human walked away from never stops on a question.
+   * was, so that a sprint the user walked away from never stops on a question.
    */
   private asked(run: Run, task: Item, ask: Ask): void {
     if (Date.now() - this.seen >= LOOKING_MS) {
@@ -664,7 +664,7 @@ export class Runner {
   }
 
   /**
-   * The human's answer to an agent's question: yes for this call (`once`), yes for the rest of
+   * The user's answer to an agent's question: yes for this call (`once`), yes for the rest of
    * the run (`run`), or `no`, with a reason the agent is told. It goes back to the agent, which
    * has been waiting, and onto the thread's log.
    */
@@ -674,14 +674,14 @@ export class Runner {
     if (!run?.session || !ask) return { ok: false, text: 'That question is no longer open.' };
     const rest = how === 'run' ? keeps(ask) : '';
     const reason = oneLine(why, 300);
-    const told = reason ? `The human refused this, and said: ${reason}` : `The human refused this. ${GO_ON}`;
+    const told = reason ? `The user refused this, and said: ${reason}` : `The user refused this. ${GO_ON}`;
     if (!run.session.answer(ask.id, how, told, true)) return { ok: false, text: 'That question is no longer open.' };
     const said =
       how === 'no'
-        ? `refused by the human: ${ask.call}${reason ? `. They said: ${reason}` : ''}`
+        ? `refused by the user: ${ask.call}${reason ? `. They said: ${reason}` : ''}`
         : rest
-          ? `allowed by the human for the rest of this run: ${ask.call} (not asked again: ${rest})`
-          : `allowed once by the human: ${ask.call}`;
+          ? `allowed by the user for the rest of this run: ${ask.call} (not asked again: ${rest})`
+          : `allowed once by the user: ${ask.call}`;
     (run.unsaid ??= []).push(said);
     // They are there: if its turn ends with the thread unfinished, it is kept a while for what they say next.
     run.spoke = Date.now();
@@ -699,7 +699,7 @@ export class Runner {
   }
 
   /**
-   * The thread was moved by the human while it was being built: if an agent of this page's is
+   * The thread was moved by the user while it was being built: if an agent of this page's is
    * on it, end that agent. Moved back to the backlog, what the agent changed is undone once it has gone.
    */
   abort(id: string, undo = false): boolean {
@@ -718,7 +718,7 @@ export class Runner {
     return this.runs.has(id);
   }
 
-  /** Whether the human has asked for this thread next, and it waits only for room. */
+  /** Whether the user has asked for this thread next, and it waits only for room. */
   isNext(id: string): boolean {
     return this.first.includes(id);
   }
@@ -732,7 +732,7 @@ export class Runner {
    * Undo what an agent this page ran changed on a thread moved back to the
    * backlog, once the agent is gone: files it changed and did not commit go
    * back to how they were, then the commits with its trailer are reverted.
-   * Files that were already changed when it began are left alone: they may be the human's.
+   * Files that were already changed when it began are left alone: they may be the user's.
    */
   private undoEdits(run: Run): string {
     if (run.worktree) return this.undoWorktree(run, run.worktree);
@@ -851,10 +851,10 @@ export class Runner {
   }
 
   /**
-   * Look at every agent that can be spoken to. What the human has written on its thread since it
+   * Look at every agent that can be spoken to. What the user has written on its thread since it
    * was last given the thread is said to it, once, and the thread's log says so. And one that has
    * ended its turn is not left waiting: its input is closed, on which it goes, as an agent
-   * always did. The one exception is a thread still unfinished whose human wrote to the agent
+   * always did. The one exception is a thread still unfinished whose user wrote to the agent
    * in the last few minutes: that session is kept for their next word, until those minutes are up.
    * A page waiting to restart onto new code keeps none.
    */
@@ -954,7 +954,7 @@ export class Runner {
           if (!chat.has(t.spool.root)) chat.set(t.spool.root, this.chatBuilds(t.spool.root));
           return chat.get(t.spool.root)!;
         };
-        // Nor one another page, or the human in Claude Code (`spool open`), has an agent on.
+        // Nor one another page, or the user in Claude Code (`spool open`), has an agent on.
         const waiting = ready(ws, this.project).filter((t) => !this.runs.has(t.id) && !chatBuilds(t) && !pageRunning(t.id));
         // What was dragged into Building and still waits comes first; the rest of Build follows, top first.
         this.first = this.first.filter((id) => waiting.some((t) => t.id === id));
@@ -969,7 +969,7 @@ export class Runner {
         const atOnce = (root: string): number => most.get(root) ?? most.set(root, atOnceIn(this.ctx, root)).get(root)!;
         const out = (root: string): number => [...this.runs.values()].filter((r) => ws.find(r.id)?.spool.root === root).length;
         const free = waiting.filter((t) => out(t.spool.root) < atOnce(t.spool.root));
-        // Left where they are: a thread whose agent walked away, until something about it changes, and one the human stopped.
+        // Left where they are: a thread whose agent walked away, until something about it changes, and one the user stopped.
         task =
           this.first.map((id) => free.find((t) => t.id === id)).find(Boolean) ??
           free.find((t) => this.gaveUp.get(t.id) !== t.updated && (this.gaveUp.has(t.id) || !leftByAgent(t)) && !stoppedInBuild(t));
@@ -998,7 +998,7 @@ export class Runner {
         // In a worktree of its own, nothing there is anyone else's: it is the run's to keep or lose whole.
         const root = task.worktree ? null : repoRoot(folder);
         const dirty = root ? dirtyPaths(root, task.spool.dir) : null;
-        // What the human has said on the thread: the brief gives all of it, and a session picked up again is given what is new to it.
+        // What the user has said on the thread: the brief gives all of it, and a session picked up again is given what is new to it.
         const notes = task.from.map((id) => ws.find(id)).filter((n): n is Item => n?.kind === 'note');
         handed = {
           id: task.id,
@@ -1093,10 +1093,10 @@ export class Runner {
     }
     this.face.started?.(task, how.command);
     const run: Run = { ...handed, child: session.child, lines: session.lines, began: session.began, session, afresh, stopped: false };
-    // Which session it is, and what of the human's words it has now been given: kept for the run after this one.
+    // Which session it is, and what of the user's words it has now been given: kept for the run after this one.
     if (session.id) remember(task, { session: session.id, told: handed.told, pid: session.child.pid });
     this.keep(run);
-    // Not for one picked up again: it was started before. Quiet unless the human picked it.
+    // Not for one picked up again: it was started before. Quiet unless the user picked it.
     if (!afresh) setImmediate(() => notify(this.ctx, 'started', `Started: ${task.title}`, task));
   }
 
@@ -1177,7 +1177,7 @@ export class Runner {
         else if (now?.status === 'proposed') outcome = 'aborted: back in the backlog';
         else if (now?.status === 'active') {
           // The agent left without finishing or asking, or was stopped. Put the thread back, and do not spin on it:
-          // what the human stopped waits for them, as its log now says, and the rest waits for something to change.
+          // what the user stopped waits for them, as its log now says, and the rest waits for something to change.
           now.status = 'open';
           now.by = undefined;
           // A check that refused it and was still failing when it left: the output stays on the thread for whoever picks it up.
@@ -1197,7 +1197,7 @@ export class Runner {
       outcome = 'unknown: the spool could not be read';
     }
     if (run.undo) outcome = `back in the backlog; ${this.undoEdits(run)}`;
-    // Each tells the human where they picked it: a thread done, or an agent that left it unfinished.
+    // Each tells the user where they picked it: a thread done, or an agent that left it unfinished.
     if (outcome === 'done') setImmediate(() => notify(this.ctx, 'done', `Done: ${run.title}`));
     else if (outcome.startsWith('unfinished')) setImmediate(() => notify(this.ctx, 'stuck', `Stuck: ${run.title}`));
     this.recent.unshift({ id: run.id, title: run.title, outcome });

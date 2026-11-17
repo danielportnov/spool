@@ -46,7 +46,7 @@ test('a thread being built shows its model and its stream live; finished, its ru
     [
       'hear',
       'say work',
-      // It goes on talking while it waits for what the human says next.
+      // It goes on talking while it waits for what the user says next.
       '( i=1; while [ $i -le 400 ]; do sleep 0.3; printf \'%s\\n\' "{\\"type\\":\\"assistant\\",\\"message\\":{\\"content\\":[{\\"type\\":\\"text\\",\\"text\\":\\"Trying a gravity of 0.$i\\"}]}}"; i=$((i+1)); done ) &',
       'talk=$!',
       'while hear; do',

@@ -88,7 +88,7 @@ test('where the gate is locked, an agent cannot put back AFK or take-over on; a 
     assert.equal(s.exec(['afk', 'on'], { tty: true }).code, 0);
     s.sp('mode', 'hands-on');
     assert.equal(s.json('afk').afk, false, 'switching off is anyone\'s');
-    assert.match(s.fails('mode', 'off'), /spool afk on is the human's alone in skyhop/);
+    assert.match(s.fails('mode', 'off'), /spool afk on is the user's alone in skyhop/);
     assert.equal(s.json('afk').afk, false, 'refused, nothing moved');
     assert.equal(s.exec(['mode', 'off'], { tty: true }).code, 0);
     assert.equal(s.json('afk').afk, true);

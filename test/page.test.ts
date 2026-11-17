@@ -32,7 +32,7 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.deepEqual(b.columns.build.map((c: any) => [c.n, c.id]), [[1, coins]]);
     assert.deepEqual(b.columns.build[0].question, { id: question, title: 'Outline the coins, or turn them teal?', options: ['Outline', 'Teal'], recommend: 1 });
 
-    // Pressing play is the human moving it to build, and it is on the record as theirs.
+    // Pressing play is the user moving it to build, and it is on the record as theirs.
     assert.equal((await post('move', { id: jump, to: 'build' })).status, 200);
     assert.equal(s.json('show', jump).item.state, 'ready');
     assert.match(s.item(jump), /human: moved to build/);
@@ -90,7 +90,7 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.equal((await post('edit', { id: jump, size: 'enormous' })).status, 400);
     assert.equal((await post('edit', { id: jump })).status, 400);
 
-    // Finished work shows who built it, and "Mark as complete" is the human approving it.
+    // Finished work shows who built it, and "Mark as complete" is the user approving it.
     s.sp('start', coins, '--as', 'Claude Fable 5.2');
     s.sp('done', coins, '-m', 'Coins have a teal rim at sunset', '--as', 'Claude Fable 5.2');
     b = await board();
@@ -117,7 +117,7 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.ok(feed.indexOf('Claude Fable 5.2 · event · started') < feed.indexOf('Claude Fable 5.2 · shipped · Coins have a teal rim at sunset'));
     assert.match(html, /const CLAUDE = '<svg viewBox="0 0 24 24" fill="#D97757" role="img" aria-label="Claude"><path d="m4\.7144 15\.9555/, 'Claude is shown by its own mark');
     assert.equal((await post('complete', { id: coins })).status, 200);
-    assert.ok(s.json('show', coins).item.reviewed, 'approved, as the human');
+    assert.ok(s.json('show', coins).item.reviewed, 'approved, as the user');
     assert.equal((await board()).columns.done.find((c: any) => c.id === coins).complete, true);
     assert.equal((await post('complete', { id: jump })).status, 400, 'only finished work can be marked complete');
 
@@ -173,7 +173,7 @@ test('the page shows the spool as a board, and what is done on it is saved to th
     assert.match(html, /\[hidden\] \{ display: none !important; \}/, 'the view that is not up is really gone, not left above the other');
     assert.match(html, /id="search"/);
 
-    // What waits on the human besides building, with what each is holding up: shown on its thread, or in the backlog's strip.
+    // What waits on the user besides building, with what each is holding up: shown on its thread, or in the backlog's strip.
     b = await board();
     assert.deepEqual(b.needs.calls.map((c: any) => [c.title, c.choice, c.why]), [['Where does mute live?', 'Settings', 'it is where sound is']]);
     assert.deepEqual([b.needs.questions.length, b.needs.plans.length, b.needs.skills.length], [0, 0, 0]);
@@ -287,7 +287,7 @@ test('where the gate is locked, the page is where work is moved to build', async
       fetch(`${url}api/${action}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': token }, body: JSON.stringify(body) });
     assert.equal(((await (await fetch(`${url}api/board`)).json()) as { locked: boolean }).locked, true);
 
-    // A click on the page is the human: play on a thread, and play on a sprint, both go through.
+    // A click on the page is the user: play on a thread, and play on a sprint, both go through.
     assert.equal((await post('move', { id: jump, to: 'build' })).status, 200);
     assert.equal(s.json('show', jump).item.state, 'ready');
     s.sp('propose', jump);
@@ -355,7 +355,7 @@ test('a Building card says what the agent is doing now, and since when', async (
   s.cleanup();
 });
 
-test('what waits on the human says which thread it is about, and a call reads as a post there', async () => {
+test('what waits on the user says which thread it is about, and a call reads as a post there', async () => {
   const { board } = await import('../src/page.ts');
   const { Workspace } = await import('../src/store.ts');
   const s = new Sandbox();
@@ -400,7 +400,7 @@ test('a card says what model it gets left to itself: its size’s, or one up whe
     const b = (await (await fetch(`${url}api/board`)).json()) as Record<string, any>;
     const card = (id: string) => b.columns.build.find((c: any) => c.id === id);
     assert.deepEqual(card(coins).suggest, { model: 'sonnet', effort: 'medium', why: 'stepped up from haiku: its last run was undone' });
-    // The human's pick is theirs; the box left to itself still says what leaving it would give.
+    // The user's pick is theirs; the box left to itself still says what leaving it would give.
     assert.deepEqual([card(typo).model, card(typo).suggest], ['opus', { model: 'haiku', effort: 'medium', why: 'by its size' }]);
   } finally {
     await stop();

@@ -3,7 +3,7 @@
  *
  * `board()` reads the whole of it fresh from disk: every open thread as a card in its column
  * (backlog, build, building, done), in the order and with the numbers the loop's list gives
- * them; each card's thread as a conversation; what waits on the human; the sprints; the morning
+ * them; each card's thread as a conversation; what waits on the user; the sprints; the morning
  * brief; and, where a runner is building, what each of its agents is saying. `diffOf` is what a
  * finished thread changed, for its ticket. It is plain data, sent as JSON: the page draws it,
  * and anything else that shows the spool can draw the same.
@@ -45,18 +45,18 @@ export interface Card {
   priority: string;
   urgent: boolean;
   type: string;
-  /** What the human needs to know about it right now, if anything. */
+  /** What the user needs to know about it right now, if anything. */
   note: string;
-  /** Why it exists: the Why line of its spec, shown on the card so the human can agree to it unopened. */
+  /** Why it exists: the Why line of its spec, shown on the card so the user can agree to it unopened. */
   why: string;
   suggested: string;
-  /** The fields a ticket shows and the human can change. */
+  /** The fields a ticket shows and the user can change. */
   size: string;
-  /** The model and effort the human chose for it, if they did. */
+  /** The model and effort the user chose for it, if they did. */
   model: string;
   effort: string;
   /**
-   * What it is built with where the human does not choose, and why: "by its size", or
+   * What it is built with where the user does not choose, and why: "by its size", or
    * "stepped up from haiku: its last run was undone".
    */
   suggest: { model: string; effort: string; why: string };
@@ -70,14 +70,14 @@ export interface Card {
   updated: string;
   /** When it was put out of sight, if it was. */
   archived: string;
-  /** Shipped, and whether the human has marked it complete. */
+  /** Shipped, and whether the user has marked it complete. */
   done: boolean;
   complete: boolean;
   /** Finished: the steps a person follows to see it working, as the agent wrote them. */
   steps: string[];
   thread: Thread;
   question: { id: string; title: string; options: string[]; recommend: number | null } | null;
-  /** A manager's run: what it proposes, numbered, each waiting for the human's yes or no on its thread. */
+  /** A manager's run: what it proposes, numbered, each waiting for the user's yes or no on its thread. */
   proposals: { n: number; verb: string; id: string; text: string; detail: string; answer: 'yes' | 'no' | null }[];
   /** While it is being built: when the agent took it, and the latest thing it said it was doing. */
   live: Live | null;
@@ -97,8 +97,8 @@ export interface Card {
 }
 
 /**
- * What a thread is waiting on: an answer from the human (`you`), another thread (`thread`), the
- * human's hold (`hold`), or nothing but a word from them after its agent gave up (`stuck`).
+ * What a thread is waiting on: an answer from the user (`you`), another thread (`thread`), the
+ * user's hold (`hold`), or nothing but a word from them after its agent gave up (`stuck`).
  */
 interface Waiting {
   kind: 'you' | 'thread' | 'hold' | 'stuck';
@@ -118,7 +118,7 @@ interface Live {
 
 /** A card opened up: what was asked, what was done about it and by whom, and where it came from. */
 interface Thread {
-  /** The human's own words, each as they said it. */
+  /** The user's own words, each as they said it. */
   said: { text: string; note: string; on: string }[];
   spec: string;
   /** The spec read as plain parts, each under a heading the page can mark: what it is, why, when it is done. */
@@ -126,7 +126,7 @@ interface Thread {
   /** Everything that happened to it, oldest first. */
   steps: { at: string; who: string; what: string }[];
   /**
-   * The same story told as a conversation, oldest first: what the human said, what an agent
+   * The same story told as a conversation, oldest first: what the user said, what an agent
    * answered, and the small events in between.
    */
   feed: Post[];
@@ -154,7 +154,7 @@ interface About {
 }
 
 /**
- * What waits on the human besides building: the decisions the page puts in front of them.
+ * What waits on the user besides building: the decisions the page puts in front of them.
  * `threads` says which threads each is about, so the page shows it there; one about no thread
  * is shown at the top of the backlog.
  */
@@ -195,7 +195,7 @@ interface Post {
   at: string;
   who: string;
   /**
-   * said: the human's words · post: an agent's note · shipped: it finished · asked: it needs a call ·
+   * said: the user's words · post: an agent's note · shipped: it finished · asked: it needs a call ·
    * decided: an agent made a call itself · event: bookkeeping · picture: pictures attached, with
    * their caption as the text.
    */
@@ -273,27 +273,27 @@ function withPictures(story: Post[]): Post[] {
 
 export interface Board {
   project: string;
-  /** The human's mark in this project: an identicon drawn from its name, so each spool has its own. */
+  /** The user's mark in this project: an identicon drawn from its name, so each spool has its own. */
   you: string;
   version: string;
   /** Which build of Spool's own code this page is served by. The open page reloads itself when it changes. */
   build: string;
-  /** Something about the page itself the human should know: it is rebuilding, or a rebuild failed. */
+  /** Something about the page itself the user should know: it is rebuilding, or a rebuild failed. */
   notice: string;
   gate: boolean;
   /** Only a person can move work to build: an agent is refused. */
   locked: boolean;
-  /** Every tag and version in use, to offer when the human types one. */
+  /** Every tag and version in use, to offer when the user types one. */
   tags: string[];
   versions: string[];
-  /** How many finished threads the human has marked complete, shown or not. */
+  /** How many finished threads the user has marked complete, shown or not. */
   history: number;
-  /** Everything waiting on the human that is not a thread to build. */
+  /** Everything waiting on the user that is not a thread to build. */
   needs: Needs;
-  /** How many things wait on the human in this project, as the brief and the list of projects count them: the tab shows it. */
+  /** How many things wait on the user in this project, as the brief and the list of projects count them: the tab shows it. */
   waitsOnYou: number;
   /**
-   * Who builds, and how it is going. `builder` is the human's pick: `headless`, the page's own
+   * Who builds, and how it is going. `builder` is the user's pick: `headless`, the page's own
    * runner starting the agent command, or `chat`, a Claude Code chat running the loop, where the
    * page starts nothing and `watching` says whether a chat is listening for work. The rest is the
    * page's own runner: whether it is on, with what command, how many threads it builds at once,
@@ -308,20 +308,20 @@ export interface Board {
     agent: string;
     parallel: number;
     running: Running[];
-    /** Threads the human stopped while they were being built: the runner leaves them in Build until they carry on. */
+    /** Threads the user stopped while they were being built: the runner leaves them in Build until they carry on. */
     stopped: string[];
     recent: { id: string; title: string; outcome: string }[];
-    /** The threads showing "Typing…": a quick reply being written (quick.ts), or an agent the human just spoke to. `who` is empty for the thread's own agent. */
+    /** The threads showing "Typing…": a quick reply being written (quick.ts), or an agent the user just spoke to. `who` is empty for the thread's own agent. */
     typing: Typing[];
   };
   /**
-   * The human's usage target, and the plan's usage the chat that builds last read: the page shows it
+   * The user's usage target, and the plan's usage the chat that builds last read: the page shows it
    * in the header in Chat mode, where the chat works up to it. Empty where the page did not say.
    * It is Claude's, the chat that always built; `all` is the target for every agent with none of its
    * own. Each agent's own is on `runner.agents`.
    */
   usage: Usage & { all?: Figures };
-  /** What tells the human (notices.ts): the page shows it in its own box, and changes it there. */
+  /** What tells the user (notices.ts): the page shows it in its own box, and changes it there. */
   notices: Notices;
   /**
    * The sprints, oldest first: what is in each and how far along it is. `serves` is the goal it is
@@ -359,7 +359,7 @@ const URGENCY = ['Urgent', 'High', 'Normal', 'Someday'] as const;
 /** Finished work is kept for good. The page carries what is still to check, and the most recent of the rest as history. */
 const HISTORY_SHOWN = 60;
 
-/** Which column a thread sits in. On hold is the human saying not yet, so it sits with what is not in build. */
+/** Which column a thread sits in. On hold is the user saying not yet, so it sits with what is not in build. */
 export function columnOf(state: string): Column | null {
   // An archived thread is off the board, but it is still the backlog's: moved anywhere, it moves from there.
   if (state === 'proposed' || state === 'held' || state === 'archived') return 'proposed';
@@ -369,7 +369,7 @@ export function columnOf(state: string): Column | null {
   return null;
 }
 
-/** A thread's body is the human's words, quoted and signed, around whatever spec was written for it. */
+/** A thread's body is the user's words, quoted and signed, around whatever spec was written for it. */
 function readBody(main: string): { said: Thread['said']; spec: string } {
   const said: Thread['said'] = [];
   const spec: string[] = [];
@@ -506,7 +506,7 @@ function waitingOf(ws: Workspace, task: Item, steps: Thread['steps'], asked: Ite
 }
 
 function card(ws: Workspace, task: Item, n: number | null, note: string, column: Column, routing?: Picking): Card {
-  // What it gets left to itself: the human's pick is set aside, so the boxes can say what leaving them gives.
+  // What it gets left to itself: the user's pick is set aside, so the boxes can say what leaving them gives.
   const suggest = pickFor({ ...task, model: undefined, effort: undefined }, routing?.of ? routing.of(task.spool.root) : routing?.models);
   const { main, log } = splitBody(task.body);
   const asked = blockers(ws, task).find((b) => b.kind === 'decision' && b.status === 'open');
@@ -603,10 +603,10 @@ export function identicon(seed: string): string {
 /**
  * The whole board for one project, read fresh from disk. `builder` is who builds this project,
  * where the page knows it better than the runner does: a page showing several projects keeps
- * the human's pick for each one, by its folder. `atOnce` is how many of this project's threads the
+ * the user's pick for each one, by its folder. `atOnce` is how many of this project's threads the
  * runner builds at once (slots.ts `atOnceIn`), as the page works it out from the user's settings, and
- * `usage` the human's usage target and the last reading (usage.ts), read from them too, and
- * `notices` what tells the human (notices.ts).
+ * `usage` the user's usage target and the last reading (usage.ts), read from them too, and
+ * `notices` what tells the user (notices.ts).
  */
 export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?: Upkeep, builder?: Builder, atOnce?: number, usage?: Usage & { all?: Figures }, notices?: Notices, agents?: AgentView[]): Board {
   const spool = project ? ws.project(project) : ws.home;
@@ -622,7 +622,7 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
   const done = tasks(ws, spool)
     .filter((t) => t.status === 'done')
     .sort((a, b) => b.updated.localeCompare(a.updated));
-  // What the human has not looked at yet comes first, all of it; what they marked complete is history.
+  // What the user has not looked at yet comes first, all of it; what they marked complete is history.
   const shown = [...done.filter((t) => !t.reviewed), ...done.filter((t) => t.reviewed).slice(0, HISTORY_SHOWN)];
   for (const t of shown) {
     columns.done.push(card(ws, t, null, `${age(t.updated, ws.now())} ago${t.summary ? ` · ${oneLine(t.summary, 160)}` : ''}`, 'done', routing));

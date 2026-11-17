@@ -223,7 +223,7 @@ test('a failing check lands nothing, loose work is not left behind, and the chec
   const head = s.git('rev-parse', 'HEAD');
   const nothingLanded = () => assert.deepEqual([s.git('rev-parse', 'HEAD'), s.exists('jump.txt'), w.read('jump.txt'), s.json('show', id).item.state], [head, false, 'snappy\n', 'active']);
 
-  // The file the check wants is in the checkout, the human's own and not committed. The check runs in the worktree, so it fails.
+  // The file the check wants is in the checkout, the user's own and not committed. The check runs in the worktree, so it fails.
   s.write('passed.txt', 'mine\n');
   assert.match(w.fails('done', id, '-m', 'Snappier'), /the check failed \(exit 1\): test -f passed\.txt[\s\S]*It has to pass before this can be finished/);
   nothingLanded();
@@ -236,7 +236,7 @@ test('a failing check lands nothing, loose work is not left behind, and the chec
   fs.rmSync(path.join(w.dir, 'notes'), { recursive: true });
   w.commitAll(`Pass the check\n\nSpool: ${id}`);
 
-  // Now it would land on top of the human's file. That is refused before the check is even run.
+  // Now it would land on top of the user's file. That is refused before the check is even run.
   const refused = w.fails('done', id, '-m', 'Snappier');
   assert.match(refused, new RegExp(`the checkout has uncommitted changes to files ${id} changed:\\n  passed\\.txt\\n  Nothing was landed\\. Those changes are not this thread's: leave them`));
   nothingLanded();

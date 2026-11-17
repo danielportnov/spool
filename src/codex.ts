@@ -1,12 +1,12 @@
 /**
  * Codex's own usage, read from its session logs.
  *
- * Codex runs on the human's ChatGPT plan, whose limits are its own: a 5-hour window and a weekly
+ * Codex runs on the user's ChatGPT plan, whose limits are its own: a 5-hour window and a weekly
  * one, apart from Claude's. With each turn Codex writes the plan's rate limits into the session it
  * is in (`$CODEX_HOME/sessions/<year>/<month>/<day>/rollout-*.jsonl`): an event whose payload has
  * `rate_limits`, with a `primary` and a `secondary` window, each the percent used, the window's
  * length in minutes and when it resets. Spool reads only those figures and the time of the line,
- * the newest there is, and never anything else in the log: the rest is the human's conversation.
+ * the newest there is, and never anything else in the log: the rest is the user's conversation.
  *
  * The shorter window (300 minutes on the plans seen) is the 5-hour limit, the longer (10080) the
  * weekly one. A window that has reset since the line was written is at 0 again.

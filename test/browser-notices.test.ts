@@ -1,5 +1,5 @@
 /**
- * The bell on the board, in a real browser: what notifies the human, each event on or off, and how
+ * The bell on the board, in a real browser: what notifies the user, each event on or off, and how
  * it is sent. It uses the Chrome already on the machine, and is skipped where there is none.
  */
 

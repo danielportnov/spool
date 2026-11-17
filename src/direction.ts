@@ -5,7 +5,7 @@
  * A tidy (manage.ts) looks at threads one by one. An overview looks at all of it at once: the goals,
  * what shipped, the sprints and the backlog. It is a manager's run like a tidy, opened with
  * `spool manage --start --overview`, but it changes nothing itself. Everything it would do goes on
- * its thread as a numbered proposal (proposals.ts), for the human's yes or no:
+ * its thread as a numbered proposal (proposals.ts), for the user's yes or no:
  *
  *   goals    a new goals page                    a yes keeps it, as `spool goals --edit`
  *   sprint   a sprint drafted, with its threads   a yes makes it, planned, as `spool sprint`
@@ -41,7 +41,7 @@ export const OVERVIEW = {
 const DAY = 86_400_000;
 
 export const OVERVIEW_SPEC = `What: an overview of the whole project. From the code, the goals, what shipped, the sprints and the backlog, it proposes where the project goes next, drafts sprints, and suggests the order of each running sprint.
-Why: so the direction is set from the whole picture, and the human only says yes or no.
+Why: so the direction is set from the whole picture, and the user only says yes or no.
 Done when: its proposals are on this thread, each answered yes or no, and undoing this thread takes back what the run itself changed.`;
 
 interface Ref {
@@ -137,11 +137,11 @@ export function gatherDirection(ws: Workspace, spool: Spool, run: Item): Directi
 
 /** What an overview may propose, and how: printed at the top of its worksheet. */
 export const OVERVIEW_RULES = [
-  'An overview proposes, and changes nothing itself. Read the code and the README as well as what follows, then put each proposal on this thread for the human\'s yes or no:',
+  'An overview proposes, and changes nothing itself. Read the code and the README as well as what follows, then put each proposal on this thread for the user\'s yes or no:',
   '  Direction  at most one:   spool manage --propose goals --edit - -m "<why>"          the whole goals page on stdin: what it is for, and what it heads towards next',
   `  Sprints    up to ${OVERVIEW.sprints}:      spool manage --propose sprint "<name>" --goal "<goal>" --why "<why now>" --done-when "<what will be true>" --add <t-id…> -m "<why>"`,
   '  Order      one for each running sprint with two or more threads in Build:   spool manage --propose order <sprint> <t-id…> -m "<why>"   first built first',
-  'Draft a sprint only from threads in no sprint, and never one hands off. Each proposal names what it builds on: a goal, a thread, what shipped. A yes runs it as the human; a no leaves things as they are.',
+  'Draft a sprint only from threads in no sprint, and never one hands off. Each proposal names what it builds on: a goal, a thread, what shipped. A yes runs it as the user; a no leaves things as they are.',
   'End with: spool manage --end -m "<the headline: what you propose, in numbers>" --report -',
 ];
 

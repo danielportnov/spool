@@ -125,8 +125,8 @@ export const UNDO: Command = {
       if (config.gate === 'locked' && !ctx.tty && !ctx.human &&
         (entry.target === 'config' || restoresBuild(spool, entry))) {
         throw new SpoolError(
-          `spool undo is the human's alone in ${spool.name}: its gate is locked`,
-          'The human can undo this entry at their terminal.',
+          `spool undo is the user's alone in ${spool.name}: its gate is locked`,
+          'The user can undo this entry at their terminal.',
         );
       }
       if (entry.before === null && QUEUE_ITEM.test(entry.target)) {

@@ -23,7 +23,7 @@ test('an archived thread is out of sight, not dropped: off the lists and the cou
   const shown = s.json('show', grand).item;
   assert.deepEqual([shown.status, shown.state, typeof shown.archived], ['proposed', 'archived', 'string']);
   assert.equal(s.json('show', idea).item.hold, 'just an idea');
-  assert.match(s.item(grand), /human: archived/, 'acting for the human unless told otherwise');
+  assert.match(s.item(grand), /human: archived/, 'acting for the user unless told otherwise');
 
   // Gone from the loop's list, the brief one, the overview's counts and the plain list.
   const table = s.sp('overview', '--table');

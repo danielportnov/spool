@@ -161,7 +161,7 @@ test('a report can be handed in as a file', () => {
   s.cleanup();
 });
 
-test('a plan holds its parts until the human gives the go-ahead', () => {
+test('a plan holds its parts until the user gives the go-ahead', () => {
   const s = spool();
   const plan = s.id('plan', 'Add online multiplayer', '-s', 'xl', '-p', '1');
   const brief = s.sp('next', '--claim');
@@ -181,7 +181,7 @@ test('a plan holds its parts until the human gives the go-ahead', () => {
     env: { SPOOL_NOTIFY: `echo "$SPOOL_EVENT $SPOOL_ID" > "${marker}"` },
   });
   assert.equal(done.code, 0, done.err);
-  assert.match(done.out, /3 part\(s\) filed from it\n\s+2 of them wait for the human's go-ahead, and the human was notified: spool approve/);
+  assert.match(done.out, /3 part\(s\) filed from it\n\s+2 of them wait for the user's go-ahead, and the user was notified: spool approve/);
   assert.equal(fs.readFileSync(marker, 'utf8').trim(), `plan ${plan}`);
 
   // The ungated part is free; the gated ones wait, and say on whom.
@@ -191,7 +191,7 @@ test('a plan holds its parts until the human gives the go-ahead', () => {
   assert.match(status, /for you: 1 plan awaiting your go-ahead/);
   assert.match(status, new RegExp(`◧ ${plan}  XL  Add online multiplayer  · 3 parts awaiting your go-ahead`));
   s.sp('done', spike, '-m', '80ms on wifi');
-  assert.match(s.sp('next'), /Nothing is ready\.\n {2}2 tasks waiting on the human — spool review/);
+  assert.match(s.sp('next'), /Nothing is ready\.\n {2}2 tasks waiting on the user — spool review/);
 
   const review = s.sp('review');
   assert.match(review, new RegExp(`PLANS  the parts wait for your go-ahead\\n  ${plan}  Add online multiplayer  · 3 parts`));
@@ -270,7 +270,7 @@ test('the protocols teach sizing, audits and plans to both roles', () => {
   s.cleanup();
 });
 
-test('work on hold is never handed out, and only the human releases it', () => {
+test('work on hold is never handed out, and only the user releases it', () => {
   const s = spool();
   const idea = s.id('plan', 'A Grand Prix mode', '-s', 'l', '--hold', 'just an idea; try it on its own branch when I say');
   const parked = s.id('task', 'Rivals lean in', '-s', 'm');
@@ -288,10 +288,10 @@ test('work on hold is never handed out, and only the human releases it', () => {
   assert.deepEqual(picks(s, 1), [normal]);
   assert.equal(s.json('next').task, null);
   assert.match(s.sp('next'), /2 tasks on hold — spool list -s held/);
-  assert.match(s.fails('start', idea), /is on hold: just an idea[\s\S]*Only the human releases it: spool release/);
+  assert.match(s.fails('start', idea), /is on hold: just an idea[\s\S]*Only the user releases it: spool release/);
   assert.match(s.sp('status'), /2 on hold/);
   assert.match(s.sp('list', '-s', 'held'), /⏸ .*Rivals lean in  · on hold: the launch comes first/);
-  assert.equal(s.sp('review'), 'Nothing is waiting on you.', 'parked work asks nothing of the human');
+  assert.equal(s.sp('review'), 'Nothing is waiting on you.', 'parked work asks nothing of the user');
 
   // A dependant of parked work waits for it like any other.
   const after = s.id('task', 'Tune the leaning', '--needs', parked);

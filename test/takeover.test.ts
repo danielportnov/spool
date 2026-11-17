@@ -16,13 +16,13 @@ function chatProject(gate = '--gate'): { s: Sandbox; top: string; suggested: str
   typed('target', '--weekly', '80');
   const suggested = s.id('task', 'An idea of the agent', '--suggested', 'it would help', '-p', '0');
   const held = s.id('task', 'Parked until the launch', '-p', '0', '--hold', 'after the launch');
-  // The human's own, filed from what they said.
+  // The user's own, filed from what they said.
   const top = s.id('task', 'Tighten the jump', '-p', '1', '-s', 'xs', '--from', s.id('capture', 'the jump feels floaty'));
   const next = s.id('task', 'Add a mute button', '-s', 's', '--from', s.id('capture', 'I want a mute button'));
   return { s, top, suggested, held, next };
 }
 
-test('with taking over off, an agent moves nothing to build; on, it moves the top thread the human filed first, signed, up to the target', () => {
+test('with taking over off, an agent moves nothing to build; on, it moves the top thread the user filed first, signed, up to the target', () => {
   const { s, top, suggested, held, next } = chatProject();
   try {
     s.sp('usage', '--weekly', '40');
@@ -31,8 +31,8 @@ test('with taking over off, an agent moves nothing to build; on, it moves the to
 
     assert.match(s.sp('takeover', 'on'), /^The chat takes over skyhop's backlog[\s\S]*Next: t-\w+ Tighten the jump/);
     assert.equal(s.json('takeover').next.id, top);
-    // An agent's idea waits behind the human's own, whatever its priority, and a parked thread is not its to take.
-    assert.match(s.fails('build', suggested, '--takeover', '--as', 'Claude'), /an agent's idea, and the human's own t-\w+ comes first/);
+    // An agent's idea waits behind the user's own, whatever its priority, and a parked thread is not its to take.
+    assert.match(s.fails('build', suggested, '--takeover', '--as', 'Claude'), /an agent's idea, and the user's own t-\w+ comes first/);
     assert.match(s.fails('build', held, '--takeover', '--as', 'Claude'), /on hold/);
 
     // The reading must be fresh: an hour on, it reads the usage again first.
@@ -81,10 +81,10 @@ test('taking over needs Chat mode and a usage target', () => {
   }
 });
 
-test('where the gate is locked, only the human switches taking over on; anyone switches it off', () => {
+test('where the gate is locked, only the user switches taking over on; anyone switches it off', () => {
   const { s, top } = chatProject('--lock');
   try {
-    assert.match(s.fails('takeover', 'on'), /human's alone.*locked/s);
+    assert.match(s.fails('takeover', 'on'), /user's alone.*locked/s);
     assert.match(s.exec(['takeover', 'on'], { tty: true }).out, /The chat takes over/);
     // Once they did, the chat moves a thread under it, as under a leave they gave.
     s.sp('usage', '--weekly', '10');
@@ -119,7 +119,7 @@ test('the board says whether the chat takes over, and its switch is the command'
   }
 });
 
-test('a thread the human undid waits for them: taking over does not move it', () => {
+test('a thread the user undid waits for them: taking over does not move it', () => {
   const { s, top } = chatProject();
   try {
     s.sp('usage', '--weekly', '40');
@@ -129,7 +129,7 @@ test('a thread the human undid waits for them: taking over does not move it', ()
     s.sp('done', top, '-m', 'Tighter', '--as', 'Claude');
     s.sp('revert', top, '-m', 'too tight');
     assert.equal(s.json('show', top).item.status, 'proposed');
-    assert.match(s.fails('build', top, '--takeover', '--as', 'Claude'), /was undone: it waits for the human/);
+    assert.match(s.fails('build', top, '--takeover', '--as', 'Claude'), /was undone: it waits for the user/);
     assert.notEqual(s.json('takeover').next?.id, top);
     // Once they move it to Build, it is theirs to have built.
     s.sp('build', top);
@@ -199,11 +199,11 @@ test('the watch tells the chat once when a tidy comes due', () => {
   assert.deepEqual(changes(seen(['skyhop']), seen(['skyhop']), () => '', () => ''), []);
 });
 
-test('taking over builds to the target: the human\'s threads first, then the agents\' ideas, marked or not', () => {
+test('taking over builds to the target: the user\'s threads first, then the agents\' ideas, marked or not', () => {
   const { s, top, suggested, held, next } = chatProject();
   try {
     s.exec(['target', '--weekly', '100'], { tty: true });
-    // An agent filed this one without marking it AI suggested: it still waits behind the human's own.
+    // An agent filed this one without marking it AI suggested: it still waits behind the user's own.
     const unmarked = s.id('task', 'A follow-up an agent found', '-p', '0', '-s', 'xs');
     s.sp('takeover', 'on');
     const take = (): string => {
@@ -217,7 +217,7 @@ test('taking over builds to the target: the human\'s threads first, then the age
     assert.deepEqual([take(), take()], [top, next]);
     // Only agents' ideas are left, and the target is not reached: it keeps on taking them.
     assert.deepEqual([take(), take()].sort(), [suggested, unmarked].sort());
-    // The held one is the human's not yet: left, and nothing more is taken.
+    // The held one is the user's not yet: left, and nothing more is taken.
     assert.match(s.fails('build', '--takeover', '--as', 'Claude'), /nothing in the backlog the chat may take/);
     assert.equal(s.json('show', held).item.status, 'proposed');
   } finally {
@@ -247,7 +247,7 @@ test('with every thread left proposed for drop or archive by a tidy, taking over
   }
 });
 
-test('a thread the human moved back from Build waits for them: taking over leaves it', () => {
+test('a thread the user moved back from Build waits for them: taking over leaves it', () => {
   const { s, top, next } = chatProject();
   try {
     s.sp('usage', '--weekly', '40');
@@ -255,7 +255,7 @@ test('a thread the human moved back from Build waits for them: taking over leave
     s.exec(['build', top], { tty: true });
     s.exec(['propose', top], { tty: true });
     assert.equal(s.json('show', top).item.status, 'proposed');
-    assert.match(s.fails('build', top, '--takeover', '--as', 'Claude'), /moved back from Build: it waits for the human/);
+    assert.match(s.fails('build', top, '--takeover', '--as', 'Claude'), /moved back from Build: it waits for the user/);
     assert.equal(s.json('takeover').next?.id, next);
   } finally {
     s.cleanup();

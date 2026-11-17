@@ -13,7 +13,7 @@
  * from one run to the next (`recall`, `remember`) is kept beside the thread's transcripts.
  *
  * Such a session is started with its input left open (`listening`), and then it can be spoken to
- * while it works: `say` writes it a message from the human, `interrupt` tells it to stop what it
+ * while it works: `say` writes it a message from the user, `interrupt` tells it to stop what it
  * is doing, and `leave` closes its input, on which it finishes its turn and goes. A tool call it
  * needs a yes for is put to it as a question (`asking`), which waits until `answer` is given. Any
  * other agent is given its prompt and watched, as it always was.
@@ -94,7 +94,7 @@ export function endAgent(child: ChildProcess): void {
 
 /**
  * What Spool remembers of a thread's session from one run to the next: which session it is, and
- * which of the human's notes on the thread it has been given, so that each is given to it once.
+ * which of the user's notes on the thread it has been given, so that each is given to it once.
  * And the process that last ran it, so that one whose page died under it can be ended before the
  * session is picked up again. It is kept beside the thread's transcripts, on this machine only,
  * as the session itself is.
@@ -184,11 +184,11 @@ export interface Session {
   asking: (Ask & { since: number })[];
   /**
    * Answer one of those: yes for this call, yes for the rest of the run, or no with the reason
-   * the agent is given. `person` says a human gave the answer, and not Spool for want of one.
+   * the agent is given. `person` says a person gave the answer, and not Spool for want of one.
    * False where it is not waiting on that question.
    */
   answer(id: string, how: 'once' | 'run' | 'no', reason?: string, person?: boolean): boolean;
-  /** Say the human's words to it. They are read at its next step. False where it cannot be spoken to. */
+  /** Say the user's words to it. They are read at its next step. False where it cannot be spoken to. */
   say(text: string): boolean;
   /** Tell it to stop what it is doing. Its turn ends, and it waits for what is said next. */
   interrupt(): boolean;

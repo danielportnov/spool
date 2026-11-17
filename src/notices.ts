@@ -1,9 +1,9 @@
 /**
- * What tells the human, and how: the events they picked to hear of, for every project.
+ * What tells the user, and how: the events they picked to hear of, for every project.
  *
- * The human leaves and comes back. The right few notifications replace checking in, and the rest
+ * The user leaves and comes back. The right few notifications replace checking in, and the rest
  * are quiet. They pick the events on the board, or say so in a chat that runs `spool notify`. The
- * pick is the human's, not a project's, so it is kept in their own settings
+ * pick is the user's, not a project's, so it is kept in their own settings
  * (`~/.config/spool/config.json`, under `notifyOn`) and holds wherever they work.
  *
  * How each is sent depends on who builds. In Chat mode the chat that builds sends it, as one short
@@ -15,7 +15,7 @@
 import { type Ctx, saveUserConfig, userConfig } from './context.ts';
 import { SpoolError } from './model.ts';
 
-/** Every event that can tell the human, in the order the board and the command list them. */
+/** Every event that can tell the user, in the order the board and the command list them. */
 export const EVENTS = ['started', 'done', 'question', 'sprint', 'empty', 'stuck', 'budget'] as const;
 export type NoticeEvent = (typeof EVENTS)[number];
 

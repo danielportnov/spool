@@ -75,7 +75,7 @@ test('the details of a ticket and a card', async (t) => {
   s.sp('log', coins, 'Outlined the coins in `src/coins.ts`: **two pixels**, see https://example.com/mock.', '--as', 'Claude Fable 5.2');
   const hostile = '<script>window.hacked = 1</script> [click](javascript:alert(1)) [ok](data:text/html,hi) `unbalanced <img src=x onerror="window.hacked = 2"> **open';
   s.sp('log', coins, hostile, '--as', 'Claude Fable 5.2');
-  // The human's own words can run to many lines: a fence never closed among them.
+  // The user's own words can run to many lines: a fence never closed among them.
   const note = s.id('capture', 'One more thing:\n```\nno end to this');
   s.sp('file', note, '--into', coins);
 

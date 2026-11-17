@@ -124,7 +124,7 @@ function headOf(root: string): string {
 export class Upkeep {
   /** The name of the code this process loaded. */
   readonly build: string;
-  /** What the human should know about the page itself, shown on it: it is rebuilding, or a rebuild failed. */
+  /** What the user should know about the page itself, shown on it: it is rebuilding, or a rebuild failed. */
   notice = '';
   /** The code on disk as it was when this process loaded it, or as it was last found to be the same. */
   private loaded: string;

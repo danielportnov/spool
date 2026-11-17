@@ -24,7 +24,7 @@ function startWatch(s: Sandbox): { child: ChildProcess; lines: string[]; until: 
 
 const settle = (): Promise<void> => pause(250);
 
-test('the watcher prints a line the moment the human gives the loop something to do, and nothing otherwise', async () => {
+test('the watcher prints a line the moment the user gives the loop something to do, and nothing otherwise', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop', '--gate');
   const jump = s.id('task', 'Tighten the jump arc', '-s', 's');
@@ -45,7 +45,7 @@ test('the watcher prints a line the moment the human gives the loop something to
     await until(1);
     assert.equal(lines[0], `build: ${jump} Tighten the jump arc`);
 
-    // A reply on a thread, in the human's words.
+    // A reply on a thread, in the user's words.
     const note = s.id('capture', 'snappy, not heavy');
     await until(2);
     assert.equal(lines[1], `unfiled: ${note} "snappy, not heavy"`);
@@ -53,7 +53,7 @@ test('the watcher prints a line the moment the human gives the loop something to
     await until(3);
     assert.equal(lines[2], `reply: ${jump} Tighten the jump arc — "snappy, not heavy"`);
 
-    // A question an agent asks is news: the chat that builds puts it to the human. The thread it stops is not.
+    // A question an agent asks is news: the chat that builds puts it to the user. The thread it stops is not.
     s.sp('build', coins);
     await until(4);
     s.sp('ask', 'Outline, or teal?', '--option', 'Outline', '--option', 'Teal', '--for', coins);
@@ -124,7 +124,7 @@ test('the watcher says so where there is no spool, and checks its interval', () 
   s.cleanup();
 });
 
-test('a picture or a file the human adds to an open thread wakes the chat with its path; not what an agent adds', async () => {
+test('a picture or a file the user adds to an open thread wakes the chat with its path; not what an agent adds', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop');
   const coins = s.id('task', 'Make coins readable at sunset', '-s', 'xs');

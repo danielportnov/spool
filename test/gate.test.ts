@@ -4,19 +4,19 @@ import * as path from 'node:path';
 import { test } from 'node:test';
 import { Sandbox, spool } from './helpers.ts';
 
-test('with the gate on, new work is proposed and nothing builds it until the human moves it to build', () => {
+test('with the gate on, new work is proposed and nothing builds it until the user moves it to build', () => {
   const s = new Sandbox();
   assert.match(s.sp('init', '--name', 'demo', '--gate'), /The build gate is on: new work starts as proposed/);
   assert.equal(JSON.parse(s.read('.spool/config.json')).gate, true);
 
   const filed = s.sp('task', 'Tighten the jump arc', '-s', 's');
-  assert.match(filed, /^Proposed in demo:\n {2}◇ t-\w+ {2}p2 S {2}Tighten the jump arc {2}· proposed\n {2}It is built only once the human moves it to build: spool build t-/);
+  assert.match(filed, /^Proposed in demo:\n {2}◇ t-\w+ {2}p2 S {2}Tighten the jump arc {2}· proposed\n {2}It is built only once the user moves it to build: spool build t-/);
   const jump = s.json('list').items[0].id;
   const idea = s.id('task', 'Remember the last level played', '-s', 's', '--suggested', 'the game always opens on level one');
 
   // No agent can take either: not by asking for the next one, not by name.
-  assert.match(s.sp('next', '--claim'), /Nothing is ready\.\n {2}2 tasks proposed — nothing builds them until the human moves them to build/);
-  assert.match(s.fails('start', jump), /is proposed, not in build[\s\S]*Only the human moves it to build: spool build/);
+  assert.match(s.sp('next', '--claim'), /Nothing is ready\.\n {2}2 tasks proposed — nothing builds them until the user moves them to build/);
+  assert.match(s.fails('start', jump), /is proposed, not in build[\s\S]*Only the user moves it to build: spool build/);
   assert.match(s.sp('next'), /Nothing is ready/);
   assert.equal(s.json('show', idea).item.hold, undefined, 'an idea needs no hold where everything waits anyway');
 
@@ -28,7 +28,7 @@ test('with the gate on, new work is proposed and nothing builds it until the hum
   assert.deepEqual(s.sp('overview', '--table').split('\n').slice(0, 1), ['**🧶 demo** · 0 threads in build · 2 proposed · 0 done']);
   assert.match(s.sp('overview', '--table'), /\| 1 \| \*\*Tighten the jump arc\*\* \| Small \| Normal \| 🟠 Proposed \|\n\| 2 \| \*\*Remember the last level played\*\* \| Small \| Normal \| 🟠 Proposed · ✨ AI suggested: the game always opens on level one \|/);
 
-  // The human moves one to build: now it can be built, and it says who decided.
+  // The user moves one to build: now it can be built, and it says who decided.
   assert.match(s.sp('build', jump), new RegExp(`^In build:\\n {2}○ ${jump} {2}p2 S {2}Tighten the jump arc$`));
   assert.match(s.item(jump), /human: moved to build/);
   assert.ok(s.sp('next', '--claim').startsWith(jump));
@@ -61,7 +61,7 @@ test('the gate is a choice: off unless a project turns it on, and it can be turn
   assert.equal(s.json('show', before).item.state, 'ready', 'what was in build stays in build');
   assert.equal(s.json('show', s.id('task', 'Filed after')).item.state, 'proposed');
 
-  // build also takes something off hold: it is the human saying start.
+  // build also takes something off hold: it is the user saying start.
   const parked = s.id('task', 'A Grand Prix mode', '--hold', 'just an idea');
   s.sp('build', parked);
   assert.equal(s.json('show', parked).item.state, 'ready');
@@ -118,7 +118,7 @@ test('a sprint is a named set of work with no dates: fill it, play it, and it en
   assert.match(s.sp('overview', '--table'), /\| \*\*Tighten the jump arc\*\* \| Small \| Normal \| 🟠 Proposed · in Polish \|/);
   assert.match(s.sp('next'), /Nothing is ready/, 'being in a sprint does not start anything');
 
-  // Playing it is the human moving everything in it to build, in one word.
+  // Playing it is the user moving everything in it to build, in one word.
   const played = s.sp('play', 'Polish');
   assert.match(played, /^Polish is running: 2 moved to build\./);
   assert.match(s.item(jump), /human: moved to build with the sprint Polish/);
@@ -154,14 +154,14 @@ test('a locked gate: an agent cannot move work to build; a person at a terminal 
   assert.equal(s.json('show', jump).item.state, 'proposed', 'locked is the gate, and more');
 
   // Every command that starts work is refused when a program runs it, whatever it calls itself.
-  const refused = /spool build is the human's alone in skyhop: its gate is locked[\s\S]*do not look for a way round/;
+  const refused = /spool build is the user's alone in skyhop: its gate is locked[\s\S]*do not look for a way round/;
   assert.match(s.fails('build', jump), refused);
   assert.match(s.fails('build', jump, '--as', 'human'), refused);
   assert.match(s.exec(['build', jump], { env: { SPOOL_ACTOR: 'human' } }).err, refused);
-  assert.match(s.fails('release', parked), /spool release is the human's alone/);
+  assert.match(s.fails('release', parked), /spool release is the user's alone/);
   s.sp('sprint', 'Polish');
   s.sp('edit', jump, '--sprint', 'Polish');
-  assert.match(s.fails('play', 'Polish'), /spool play is the human's alone/);
+  assert.match(s.fails('play', 'Polish'), /spool play is the user's alone/);
   assert.equal(s.json('show', jump).item.state, 'proposed', 'nothing moved');
 
   // An agent can still do everything that does not start work: file, size, sort, take things out of build.
@@ -183,7 +183,7 @@ test('a locked gate: an agent cannot move work to build; a person at a terminal 
 test('locking is one step up from the gate, and init --gate never undoes it', () => {
   const s = spool();
   const open = s.id('task', 'Queued before any gate');
-  assert.match(s.sp('build', open), /^In build:/, 'with no lock, an agent passes on the human\'s word as before');
+  assert.match(s.sp('build', open), /^In build:/, 'with no lock, an agent passes on the user\'s word as before');
   assert.match(s.sp('init', '--lock'), /It is locked/);
   assert.deepEqual(JSON.parse(s.read('.spool/config.json')), { version: 1, name: 'demo', gate: 'locked' });
   s.sp('init', '--gate');
@@ -198,7 +198,7 @@ test('done means checked: the project’s own check runs first, and a failure re
   const jump = s.id('task', 'Tighten the jump arc');
   s.sp('start', jump);
 
-  // The human names the check. It is kept on their machine, never in the project.
+  // The user names the check. It is kept on their machine, never in the project.
   assert.match(s.sp('checks'), /demo has no check: a change is done when the agent says so/);
   const set = s.sp('checks', 'test -f passed.txt');
   assert.match(set, /^demo is now checked with: test -f passed\.txt\n {2}Kept in .*\.config\/spool\/config\.json, on this machine, not in the project\./);
@@ -207,7 +207,7 @@ test('done means checked: the project’s own check runs first, and a failure re
 
   // It fails: the thread is not finished, and the agent is told what to do and what not to.
   const refused = s.fails('done', jump, '-m', 'Snappier');
-  assert.match(refused, /the check failed \(exit 1\): test -f passed\.txt[\s\S]*It has to pass before this can be finished[\s\S]*that is the human's to change/);
+  assert.match(refused, /the check failed \(exit 1\): test -f passed\.txt[\s\S]*It has to pass before this can be finished[\s\S]*that is the user's to change/);
   assert.equal(s.json('show', jump).item.state, 'active');
 
   // It passes: finished, and the thread says what was run.
@@ -223,9 +223,9 @@ test('done means checked: the project’s own check runs first, and a failure re
   s.sp('start', audit);
   assert.equal(s.exec(['done', audit, '-m', 'Two things', '--report', '-'], { stdin: 'The jump, and the coins.' }).code, 0);
 
-  // An agent cannot switch the check off or swap it for an easier one; the human, at their terminal, can.
-  assert.match(s.fails('checks', '--none'), /the check for demo is the human's to change[\s\S]*do not work round it/);
-  assert.match(s.fails('checks', 'true'), /the check for demo is the human's to change/);
+  // An agent cannot switch the check off or swap it for an easier one; the user, at their terminal, can.
+  assert.match(s.fails('checks', '--none'), /the check for demo is the user's to change[\s\S]*do not work round it/);
+  assert.match(s.fails('checks', 'true'), /the check for demo is the user's to change/);
   assert.match(s.exec(['checks', '--none'], { tty: true }).out, /demo has no check any more/);
   const coins = s.id('task', 'Coins');
   s.sp('start', coins);

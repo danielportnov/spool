@@ -49,7 +49,7 @@ export function sprintOf(ws: Workspace, task: Item): Item | undefined {
   return sprint && sprint.kind === 'sprint' && sprint.status !== 'dropped' ? sprint : undefined;
 }
 
-/** Whether a task is in a sprint the human has pressed play on and that is not finished yet. */
+/** Whether a task is in a sprint the user has pressed play on and that is not finished yet. */
 export function inPlayingSprint(ws: Workspace, task: Item): boolean {
   return sprintOf(ws, task)?.status === 'running';
 }
@@ -117,13 +117,13 @@ export function isLarge(ws: Workspace, task: Item): boolean {
 /**
  * Tasks a worker could pick up now, in the order they will be picked.
  *
- * A place in line the human gave comes before everything: they dragged it
+ * A place in line the user gave comes before everything: they dragged it
  * there, so it is what they want next. The rest follow by the usual rule.
- * Priority comes first: it is the human's urgency. Within a priority the
+ * Priority comes first: it is the user's urgency. Within a priority the
  * smallest goes first, because quick wins are the cheapest progress there is —
  * except that one pick in `largeEvery` goes to large work, so a flood of small
  * things can never starve it. Within the same priority and the same lane, a
- * sprint the human pressed play on goes ahead of everything else: they made it
+ * sprint the user pressed play on goes ahead of everything else: they made it
  * the plan, so its threads are what they mean by next. It sits under the lane
  * so the turn for large work still holds while a sprint is full of small things.
  * Whose turn it is comes from the `started` stamps
@@ -190,15 +190,15 @@ export interface Review {
   plans: Item[];
   /** Calls an agent made and acted on. */
   assumptions: Item[];
-  /** Finished work the human has not acknowledged, newest first. */
+  /** Finished work the user has not acknowledged, newest first. */
   shipped: Item[];
-  /** Skills agents wrote that the human has not seen. */
+  /** Skills agents wrote that the user has not seen. */
   skills: Item[];
   /** Feedback nobody has filed yet. */
   inbox: Item[];
 }
 
-/** Everything waiting on the human, most blocking first. */
+/** Everything waiting on the user, most blocking first. */
 export function review(ws: Workspace, project?: Scope): Review {
   const spool = scoped(ws, project);
   const items = ws.items.filter((i) => !spool || i.spool === spool);
@@ -226,7 +226,7 @@ export function review(ws: Workspace, project?: Scope): Review {
 
 export interface Docket {
   spool: Spool;
-  /** Open questions, and plans whose parts wait for a go-ahead: only the human can move these. */
+  /** Open questions, and plans whose parts wait for a go-ahead: only the user can move these. */
   needsYou: Item[];
   /** Too big to build in one go: plans not yet written, and anything sized xl. */
   breakDown: Item[];
@@ -234,19 +234,19 @@ export interface Docket {
   active: Item[];
   /** In the order it will be picked. */
   ready: Item[];
-  /** Not in build: waiting for the human to move them there. Most urgent first. */
+  /** Not in build: waiting for the user to move them there. Most urgent first. */
   proposed: Item[];
-  /** Ideas agents added by themselves: on hold until the human says yes. */
+  /** Ideas agents added by themselves: on hold until the user says yes. */
   suggested: Item[];
   held: Item[];
   done: number;
-  /** Waiting on the human without holding anything up. */
+  /** Waiting on the user without holding anything up. */
   also: { assumptions: number; shipped: number; skills: number; inbox: number };
 }
 
 /**
  * Everything open in one project, each task in exactly one place, ordered by
- * who has to move next: the human first, then what needs thought, then what
+ * who has to move next: the user first, then what needs thought, then what
  * is waiting, then what is simply underway.
  */
 export function docket(ws: Workspace, spool: Spool): Docket {

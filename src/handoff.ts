@@ -2,7 +2,7 @@
  * Handing a thread off: an agent that runs out of usage mid-thread gives it to one that has some.
  *
  * `spool handoff <t-id> -m "<where it stopped>" [--to <agent or model>]` is what the agent building
- * a thread runs when its usage is spent, or nearly (the plan's limit, or the target the human set).
+ * a thread runs when its usage is spent, or nearly (the plan's limit, or the target the user set).
  * It checkpoints the work: anything not committed in the thread's worktree is committed there, with
  * the thread's trailer, so nothing is lost. It logs the note, says who it is for, and puts the thread
  * back in Build with its worktree kept. The next claim goes back into that worktree, and its brief
@@ -15,7 +15,7 @@
  *
  * A hand-off is not a failed run: the model that ran it did nothing wrong, it ran out. So it never
  * counts toward a step up (agent.ts): its log line is none of the lines a step up reads as a setback.
- * The page's runner does not hold it either: only the human stopping a thread does that.
+ * The page's runner does not hold it either: only the user stopping a thread does that.
  */
 
 import type { Command } from './commands.ts';

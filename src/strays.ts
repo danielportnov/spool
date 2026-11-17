@@ -26,7 +26,7 @@ const DEPTH = 500;
 export const SHOWN = 3;
 /**
  * Top-level folders an agent harness or an editor keeps its own settings and skills in. They are
- * the human's tooling, not work, so an untracked one is left out.
+ * the user's tooling, not work, so an untracked one is left out.
  */
 export const TOOLING = ['.claude', '.codex', '.cursor', '.gemini', '.agents', '.vscode', '.idea', '.zed', '.fleet'];
 

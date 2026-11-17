@@ -87,7 +87,7 @@ test('the page restarts onto new code once no agent of its own is running, and t
     assert.deepEqual([next.runner.on, next.runner.running, next.notice], [true, [], '']);
     assert.ok((await (await fetch(page.url)).text()).includes(`const BUILD = '${next.build}';`), 'a page loaded now is the new one');
     await until('the page that took over says where it is', async () => /Restarted on the new build: http/.test(page.out()));
-    // The page the human had open is the new one too, and nobody reloaded it.
+    // The page the user had open is the new one too, and nobody reloaded it.
     if (tab) {
       await until('the open page reloads itself onto the new build', async () => (await tab.evaluate('BUILD')) === next.build);
       await tab.locator('#board [data-column="done"] .card', { hasText: 'Tighten the jump arc' }).waitFor();

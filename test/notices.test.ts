@@ -10,7 +10,7 @@ import { type Sandbox, spool } from './helpers.ts';
 const configFile = (s: Sandbox): string => path.join(s.root, '.home', '.config', 'spool', 'config.json');
 const config = (s: Sandbox): Record<string, any> => JSON.parse(fs.readFileSync(configFile(s), 'utf8'));
 
-test('spool notify says what tells the human, changes it, and goes back to the defaults', () => {
+test('spool notify says what tells the user, changes it, and goes back to the defaults', () => {
   const s = spool();
   try {
     // With nothing said: what always told them, and never progress.

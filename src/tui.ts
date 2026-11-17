@@ -1,5 +1,5 @@
 /**
- * Spool in the terminal: the queue, full-screen, where the human already is.
+ * Spool in the terminal: the queue, full-screen, where the user already is.
  *
  * Typing `spool` in a real terminal opens it. It is a third face on the one engine, beside the
  * page and the plain lines: a client of the page's server, over the same 127.0.0.1 API the
@@ -945,7 +945,7 @@ export interface Watching {
 }
 
 /**
- * Draw the queue, and act on keys, until the human leaves. The board is asked for about once a
+ * Draw the queue, and act on keys, until the user leaves. The board is asked for about once a
  * second, and again the moment an action has been taken. Resolves with where the page is and how
  * many agents it has at work, for the words said on the way out.
  */
@@ -1074,7 +1074,7 @@ export function watchQueue(w: Watching): Promise<{ url: string; building: number
       const { state: next, action } = key(state, k, board);
       state = next;
       if (action?.do === 'open') {
-        // The terminal is the human's again while Claude Code has it, and this screen is drawn afresh after.
+        // The terminal is the user's again while Claude Code has it, and this screen is drawn afresh after.
         term.close();
         try {
           (w.openIn ?? openThread)(action.id);
@@ -1125,7 +1125,7 @@ export function watchQueue(w: Watching): Promise<{ url: string; building: number
 /**
  * The queue for the project at `ctx.cwd`, on the terminal given: over the page that is up for it,
  * or, with none up, over one started in the background as `spool page -d` starts it, with agents
- * off unless asked for. It resolves when the human leaves, with the page still running; it rejects,
+ * off unless asked for. It resolves when the user leaves, with the page still running; it rejects,
  * with the words to say, where no page could be started.
  */
 export function queueFor(

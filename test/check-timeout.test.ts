@@ -79,7 +79,7 @@ test('--timeout is set beside the check and shown, and the default is ten minute
   const s = repo();
   s.sp('checks', 'true');
   assert.match(s.sp('checks'), /ended after 10 minutes/);
-  assert.match(s.fails('checks', '--timeout', '2'), /the human's to change/);
+  assert.match(s.fails('checks', '--timeout', '2'), /the user's to change/);
   s.exec(['checks', '--timeout', '2'], { tty: true });
   assert.equal(s.json('checks').timeoutMinutes, 2);
   assert.match(s.exec(['checks', '--timeout', 'soon'], { tty: true }).err, /not a number of minutes/);

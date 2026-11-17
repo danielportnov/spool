@@ -45,13 +45,13 @@ test('a bad word and a bad number are refused in words', () => {
   }
 });
 
-test('where the gate is locked, an agent may read but not set; the human may', () => {
+test('where the gate is locked, an agent may read but not set; the user may', () => {
   const s = new Sandbox();
   try {
     s.sp('init', '--name', 'skyhop', '--lock');
     assert.match(s.sp('builder'), /headless/);
-    assert.match(s.fails('builder', 'chat'), /human's alone.*locked/s);
-    assert.match(s.fails('builder', '--at-once', '2'), /human's alone/);
+    assert.match(s.fails('builder', 'chat'), /user's alone.*locked/s);
+    assert.match(s.fails('builder', '--at-once', '2'), /user's alone/);
     assert.equal(s.json('builder').builder, 'headless');
     assert.match(s.exec(['builder', 'chat'], { tty: true }).out, /A chat builds skyhop/);
   } finally {

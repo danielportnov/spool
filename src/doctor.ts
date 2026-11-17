@@ -138,7 +138,7 @@ export function diagnose({ ctx }: Bare): Finding[] {
       add('strays', 'ok', `every commit since the first on a thread is on one${strays.versions ? `, but for ${strays.versions === 1 ? 'a version commit' : `${strays.versions} version commits`}, which are on none by design` : ''}`);
     }
 
-    // The notes that carry each landed commit's thread in words. They stay here until the human says otherwise.
+    // The notes that carry each landed commit's thread in words. They stay here until the user says otherwise.
     const repo = repoRoot(root);
     if (repo) {
       const count = noteCount(repo);

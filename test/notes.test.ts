@@ -10,7 +10,7 @@ test('done writes a short note on each landed commit, revert and put back rewrit
   t.after(() => s.cleanup());
   s.gitInit();
   s.sp('init');
-  const words = 'The private words of the human, never in a note';
+  const words = 'The private words of the user, never in a note';
   const heard = s.id('capture', words, '--as', 'Riley');
   const thread = s.id('task', 'Mark the short trail', '--from', heard);
   s.sp('start', thread, '--as', 'Builder');

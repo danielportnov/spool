@@ -157,7 +157,7 @@ test('every command a skill tells an agent to run exists', () => {
 // and the worker's rules in test/worker-rules.test.ts.
 test('the skills agree on the gate, the check and the spec', () => {
   const worker = workerRules();
-  // A check is the human's: offered at set-up, run by spool done, never worked round.
+  // A check is the user's: offered at set-up, run by spool done, never worked round.
   assert.match(shipped('spool-init'), /\*\*Offer a check\.\*\*[\s\S]*On their yes: `spool checks "<command>"`/);
   assert.match(worker, /`spool done` runs it first and refuses if it fails[\s\S]*never switch it off or work round it\./);
   // The gate is turned on at set-up, and the lock is theirs to choose.
@@ -167,8 +167,8 @@ test('the skills agree on the gate, the check and the spec', () => {
   assert.match(shipped('spool-record'), /\*\*Give each thread its spec\*\*[\s\S]*What: [^\n]*\n {7}Why: [^\n]*\n {7}Done when: /);
   assert.match(shipped('spool-record'), /A new thread is proposed, not started\./);
   // A procedure that keeps recurring is offered by whoever just did it, and what shipped gets a version.
-  assert.match(worker, /### Skills[\s\S]*`spool done` says when the steps\nyou just took match earlier finished threads with no skill for them[\s\S]*is the human's call:\n`spool skills --suggest` prints the line that offers it/);
-  assert.match(worker, /## A version for what shipped[\s\S]*Once per run[\s\S]*minor, 0\.3\.2 → 0\.4\.0[\s\S]*A major, or the first 1\.0,\n {3}is the human's call[\s\S]*`CHANGELOG\.md`[\s\S]*`git tag -a v<x\.y\.z>[\s\S]*The tag stays on this machine/);
+  assert.match(worker, /### Skills[\s\S]*`spool done` says when the steps\nyou just took match earlier finished threads with no skill for them[\s\S]*is the user's call:\n`spool skills --suggest` prints the line that offers it/);
+  assert.match(worker, /## A version for what shipped[\s\S]*Once per run[\s\S]*minor, 0\.3\.2 → 0\.4\.0[\s\S]*A major, or the first 1\.0,\n {3}is the user's call[\s\S]*`CHANGELOG\.md`[\s\S]*`git tag -a v<x\.y\.z>[\s\S]*The tag stays on this machine/);
   assert.match(worker, /5\. \*\*Stamp the threads\.\*\* `spool edit <t-id> --version <x\.y\.z>`/);
 });
 

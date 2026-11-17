@@ -13,7 +13,7 @@
  *
  * The stream goes both ways. With `--input-format stream-json` a session reads
  * a message a line from its input for as long as that is open, so what the
- * human writes on a thread can be said to the agent building it, and it can be
+ * user writes on a thread can be said to the agent building it, and it can be
  * told to stop what it is doing. With `--permission-prompt-tool stdio` a tool
  * call that needs a yes is put to Spool as a line on that stream, and waits
  * for the answer. The lines Spool writes are made here too.
@@ -69,7 +69,7 @@ export function asking(command: string): string {
   return `${command.trim()} --permission-prompt-tool stdio`;
 }
 
-/** What the human says to a session, as the line written to its input. */
+/** What the user says to a session, as the line written to its input. */
 export function userLine(text: string): string {
   return JSON.stringify({ type: 'user', message: { role: 'user', content: text } });
 }
@@ -257,7 +257,7 @@ export function hearLine(line: string): Heard {
     }
   } else if (e.type === 'spool') {
     // What Spool itself said to the session. It is kept in the transcript between the agent's own lines, so that a
-    // run reads back as it was shown: the human's words, their answer to a question, and being told to stop.
+    // run reads back as it was shown: the user's words, their answer to a question, and being told to stop.
     if (e.event === 'said' && typeof e.text === 'string') lines.push(`you: ${short(e.text, 300)}`);
     else if (e.event === 'interrupt') lines.push('told to stop what it is doing');
     else if (e.event === 'answered' && typeof e.call === 'string') lines.push(`${e.answer === 'no' ? 'refused' : 'allowed'} → ${e.call}`);

@@ -1,7 +1,7 @@
 /**
  * Priming: what an agent is told before it works.
  *
- * Spool has two roles. A recorder files one thing the human said, when they
+ * Spool has two roles. A recorder files one thing the user said, when they
  * ask for it to be recorded. A worker takes tasks off the queue and does them. Each role's rules
  * are written once, in a file Spool ships: the recorder's are the record
  * skill (`skills/spool-record`), the worker's are `rules/worker.md`, which no
@@ -31,8 +31,8 @@ export type Role = 'worker' | 'recorder' | 'manager';
 
 const WORKER = `# Spool · worker protocol
 
-Spool is this project's work queue. The human drops feedback in; agents turn it
-into tasks, work them, and go back to the human only for calls that are theirs
+Spool is this project's work queue. The user drops feedback in; agents turn it
+into tasks, work them, and go back to the user only for calls that are theirs
 to make. State is markdown in .spool/. Use the \`spool\` CLI; never edit it by hand.
 
 \`spool next --claim\` hands you the task to do now, with all its context.
@@ -43,14 +43,14 @@ const MANAGER = `# Spool · manager protocol
 You keep this project's backlog in order, in one pass that one undo takes back.
 Spool is the work queue: state is markdown in .spool/, and you use the \`spool\`
 CLI; never edit it by hand. You do not build, and the calls that are the
-human's you propose, and do not make.
+user's you propose, and do not make.
 
 \`spool manage --start\` opens the pass and hands you the facts.
 `;
 
 const RECORDER = `# Spool · recorder protocol
 
-You record what the human said into the queue: one message at a time, the one
+You record what the user said into the queue: one message at a time, the one
 they asked you to record. They say what they want added, and where; you make
 sure every idea in it lands in the right place. You do not do the work;
 workers do. Recording one message does not make the rest of the conversation
@@ -85,7 +85,7 @@ Stop that task and use \`spool ask\`, with options and a recommendation:
 ## Never
 
 - Answer your own question, or approve your own assumption or plan.
-- Push, deploy or release unless a task says to in the human's own words.
+- Push, deploy or release unless a task says to in the user's own words.
 `;
 
 const BLOCK_START = '<!-- spool:start -->';
@@ -95,14 +95,14 @@ const BLOCK = `${BLOCK_START}
 ## Spool
 
 This project's work queue lives in \`.spool/\`. It is the project's spool 🧶, and each piece of work
-in it is a thread 🧵; the commands call a thread a task. The human drives it by talking to you,
+in it is a thread 🧵; the commands call a thread a task. The user drives it by talking to you,
 through five skills: \`/spool-init\` sets a project up, \`/spool\` steers the spool,
 \`/spool-steer\` steers how you work without recording anything, \`/spool-loop\` makes a chat the builder,
 and \`/spool-record\` files an idea. The \`spool\` CLI is
-your tool for it: never edit those files by hand, and never ask the human to run a command you
+your tool for it: never edit those files by hand, and never ask the user to run a command you
 can run.
 
-- The human gives an idea, a wish, feedback or a bug about the project, even in passing:
+- The user gives an idea, a wish, feedback or a bug about the project, even in passing:
   \`spool capture "<their exact words>"\`, then file it with \`spool task "<title>" --from <note-id>\`.
   The \`spool-record\` skill has the rules.
 - Not everything they say is a note. An instruction to you about the work ("work the backlog
@@ -189,7 +189,7 @@ function map(ws: Workspace): string {
   }
   const queue = review(ws);
   if (queue.questions.length) {
-    lines.push('', 'WAITING ON THE HUMAN');
+    lines.push('', 'WAITING ON THE USER');
     for (const d of queue.questions) {
       const options = d.options.map((o, i) => `${i + 1}) ${o}`).join('  ');
       lines.push(`  ${d.id}  ${oneLine(d.title, 90)}${options ? `\n          ${options}` : ''}`);
@@ -216,7 +216,7 @@ export function prime(ws: Workspace, role: Role, contextOnly = false): string {
   const policy = path.join(ws.home.dir, 'policy.md');
   const text = fs.existsSync(policy) ? fs.readFileSync(policy, 'utf8').trim() : DEFAULT_POLICY.trim();
   parts.push(`POLICY (${path.relative(ws.home.root, policy) || policy})\n\n${withoutLessons(text)}\n`);
-  // What the human undid, and why: kept in the policy files, printed on its own, newest first.
+  // What the user undid, and why: kept in the policy files, printed on its own, newest first.
   const undone = lessonsSection(ws);
   if (undone) parts.push(undone);
   const others = ws.spools.filter((s) => !s.home && fs.existsSync(path.join(s.dir, 'policy.md')));
@@ -231,6 +231,6 @@ export function prime(ws: Workspace, role: Role, contextOnly = false): string {
   const research = role === 'worker' ? researchSection(ws) : '';
   if (research) parts.push(research);
   const queue = review(ws);
-  parts.push(`NOW  ${ready(ws).length} ready · ${queue.questions.length} waiting on the human · ${queue.inbox.length} unfiled`);
+  parts.push(`NOW  ${ready(ws).length} ready · ${queue.questions.length} waiting on the user · ${queue.inbox.length} unfiled`);
   return parts.join('\n');
 }

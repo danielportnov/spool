@@ -1,5 +1,5 @@
 /**
- * Output, written for two readers: an agent paying per token and a human
+ * Output, written for two readers: an agent paying per token and a person
  * glancing at a phone. Both want the same thing — the one screen that matters,
  * with the next command spelled out. Every view has a `--json` twin.
  */
@@ -93,7 +93,7 @@ export function progress(ws: Workspace, item: Item): { done: number; total: numb
   return { done, total: kids.length, text: `${done}/${kids.length} ${item.type === 'plan' ? 'parts' : 'findings'} done` };
 }
 
-/** A plan that is written and waiting on the human before its parts may start. */
+/** A plan that is written and waiting on the user before its parts may start. */
 function awaitsGoAhead(ws: Workspace, item: Item): boolean {
   return isPlan(item) && item.status === 'done' && !item.reviewed && dependents(ws, item).some((t) => t.status === 'open');
 }
@@ -151,8 +151,8 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
   if (task.worktree) {
     out.push(`WORKTREE — this thread has a checkout of its own there, on the branch ${task.branch}. Work and commit only in it; spool done lands it on the project's branch.`);
   }
-  if (task.status === 'proposed') out.push(p.yellow('PROPOSED — not in build. Do not start it; only the human moves it to build.'));
-  if (task.hold) out.push(p.yellow(`ON HOLD — ${task.hold}. Do not start it; only the human releases it.`));
+  if (task.status === 'proposed') out.push(p.yellow('PROPOSED — not in build. Do not start it; only the user moves it to build.'));
+  if (task.hold) out.push(p.yellow(`ON HOLD — ${task.hold}. Do not start it; only the user releases it.`));
   // Handed off by an agent that ran out of usage: the one carrying it on reads where it stopped first.
   out.push(...handoffBrief(task).map((line) => p.yellow(line)));
   if (main) out.push('', main);
@@ -171,7 +171,7 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
       'THIS IS A PLAN — work out how. Do not build it here.',
       `  each part        spool task "<the part>" --from ${task.id} --size <xs|s|m|l> [--needs <an earlier part>]`,
       '                   Smallest pieces that can ship on their own, in the order they should land.',
-      `                   If the policy says the human should see this first, add --needs ${task.id} to every part.`,
+      `                   If the policy says the user should see this first, add --needs ${task.id} to every part.`,
       `  then the plan    spool done ${task.id} -m "<the approach, in a sentence>" --report - <<'EOF' … EOF`,
     );
   } else if (type === 'research') {
@@ -197,7 +197,7 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
     if (report) out.push(p.dim(`      read ${path.relative(task.spool.root, path.join(source.spool.root, report))}`));
   }
 
-  // The human undid this work, or the work it came from, and said why: the brief says it again.
+  // The user undid this work, or the work it came from, and said why: the brief says it again.
   const undone = lessonsFor(ws, task);
   if (undone.length) {
     out.push('', 'UNDONE BEFORE, AND WHY — do not do it again');
@@ -211,7 +211,7 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
     for (const d of decisions) {
       if (d.status === 'open') out.push(`  ${d.id}  ${d.title}  — unanswered; this task waits on it`);
       else if (d.status === 'assumed') {
-        out.push(`  ${d.id}  ${d.title}  → ${d.choice}  (an agent's call; the human may still overrule it)`);
+        out.push(`  ${d.id}  ${d.title}  → ${d.choice}  (an agent's call; the user may still overrule it)`);
       } else if (d.status === 'decided') out.push(`  ${d.id}  ${d.title}  → ${d.choice}`);
     }
   }
@@ -236,7 +236,7 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
       out.push(p.dim(`      ${path.join(path.relative(task.spool.root, s.dir), 'SKILL.md')}`));
     }
   }
-  // What the human pasted to show what he means: the agent opens these to see it.
+  // What the user pasted to show what he means: the agent opens these to see it.
   const kept = picturesOf(task);
   const pictures = kept.filter((k) => k.kind === 'picture');
   const files = kept.filter((k) => k.kind === 'file');
@@ -326,7 +326,7 @@ const OVERVIEW_MAX = 8;
  * this prints. The dots and marks are emoji on purpose: an agent relaying this
  * into a chat gets no terminal colours, and the colour is what lets a person
  * read the list at a glance. A question is not a thread, and is marked ❓.
- * Threads an agent thought of by itself sit apart, under ✨, until the human
+ * Threads an agent thought of by itself sit apart, under ✨, until the user
  * says yes to them.
  */
 function docketText(ws: Workspace, d: Docket, p: Paint): string {
@@ -339,7 +339,7 @@ function docketText(ws: Workspace, d: Docket, p: Paint): string {
     `${d.done} done`,
   ];
   const out = [`🧶 ${p.bold(d.spool.name)}  ${p.dim(facts.join(' · '))}`];
-  // A thread an agent thought of keeps saying so after the human takes it up.
+  // A thread an agent thought of keeps saying so after the user takes it up.
   const tagOf = (t: Item) => (t.kind === 'task' ? [...(t.suggested && !t.hold ? ['✨ AI suggested'] : []), tag(t)] : []);
   const row = (item: Item, notes: string[], lead = '') =>
     `  ${lead}${item.kind === 'task' ? '🧵' : '❓'} ${item.kind === 'task' && item.type ? `${item.type}: ` : ''}${oneLine(item.title, 84)}${p.dim(`  · ${[...notes, ...tagOf(item), item.id].join(' · ')}`)}`;
@@ -399,7 +399,7 @@ export interface TableRow {
   note: string;
 }
 
-/** Why a thread cannot move, said to the human: the question with its options, or what it waits on. */
+/** Why a thread cannot move, said to the user: the question with its options, or what it waits on. */
 function waitNote(ws: Workspace, task: Item): { mark: string; note: string } {
   const [first] = blockers(ws, task);
   if (!first) return { mark: '🟡', note: 'Blocked' };
@@ -421,7 +421,7 @@ function waitNote(ws: Workspace, task: Item): { mark: string; note: string } {
 /**
  * Every open thread of one project as numbered rows: what is being built, then
  * what comes next in the order it will be taken, then what cannot move and why.
- * Every row has a number, so the human can point at any of them: "do 6 first".
+ * Every row has a number, so the user can point at any of them: "do 6 first".
  */
 export function tableRows(ws: Workspace, d: Docket): TableRow[] {
   const mine = tasks(ws, d.spool);
@@ -468,11 +468,11 @@ function standing(d: Docket, rows: TableRow[]): string {
 
 /**
  * The spool in a few lines, for a chat: where it stands, what is being built, what is next, and
- * what needs the human, each on a line. Everything longer belongs on the page.
+ * what needs the user, each on a line. Everything longer belongs on the page.
  */
 function briefText(ws: Workspace, d: Docket): string {
   const rows = tableRows(ws, d);
-  // Each name carries why the thread exists, so the human can agree to it without opening it.
+  // Each name carries why the thread exists, so the user can agree to it without opening it.
   const named = (t: Item) => `${oneLine(t.title, 60)}${whyOf(t) ? ` (${oneLine(whyOf(t), 60)})` : ''}`;
   const names = (list: TableRow[], most: number): string =>
     list.slice(0, most).map((r) => named(r.item)).join(' · ') + (list.length > most ? ` · +${list.length - most} more` : '');
@@ -502,7 +502,7 @@ function openSprints(ws: Workspace, spool: Spool): Item[] {
 function sprintLine(ws: Workspace, s: Item): string {
   const inIt = sprintTasks(ws, s);
   const { goal, vision, serves } = sprintAbout(s);
-  // With no goal written yet, the human's own words say what it is for.
+  // With no goal written yet, the user's own words say what it is for.
   const what = goal ? oneLine(goal, 140) : vision ? `“${oneLine(vision, 140)}”` : '';
   const facts = [
     s.status,
@@ -560,7 +560,7 @@ function tableText(ws: Workspace, d: Docket): string {
     for (const r of list) {
       const t = r.item;
       const name = `${t.type === 'plan' ? 'Plan: ' : t.type === 'audit' ? 'Audit: ' : t.type === 'research' ? 'Research: ' : ''}${oneLine(t.title, 70)}`;
-      // Why it exists rides with its name, in one line, so the human can agree to it without opening it.
+      // Why it exists rides with its name, in one line, so the user can agree to it without opening it.
       const why = whyOf(t) ? ` — ${cell(oneLine(whyOf(t), 90))}` : '';
       const difficulty = t.size ? DIFFICULTY[t.size] : '—';
       out.push(`| ${r.n} | **${cell(name)}**${why} | ${difficulty} | ${URGENCY[t.priority ?? 2] ?? 'Normal'} | ${cell(`${r.mark} ${r.note}`.trim())} |`);
@@ -804,13 +804,13 @@ export function nothingReady(ws: Workspace, project?: string): string {
   const active = all.filter((t) => taskState(ws, t) === 'active');
   const onHuman = blocked.filter((t) => blockers(ws, t).some((b) => b.kind === 'decision' || (isPlan(b) && b.status === 'done')));
   const out = ['Nothing is ready.'];
-  if (onHuman.length) out.push(`  ${plural(onHuman.length, 'task')} waiting on the human — spool review`);
+  if (onHuman.length) out.push(`  ${plural(onHuman.length, 'task')} waiting on the user — spool review`);
   if (blocked.length - onHuman.length) out.push(`  ${plural(blocked.length - onHuman.length, 'task')} waiting on other tasks`);
   if (active.length) out.push(`  ${plural(active.length, 'task')} being worked`);
   const held = all.filter((t) => taskState(ws, t) === 'held').length;
   if (held) out.push(`  ${plural(held, 'task')} on hold — spool list -s held`);
   const proposed = all.filter((t) => taskState(ws, t) === 'proposed').length;
-  if (proposed) out.push(`  ${plural(proposed, 'task')} proposed — nothing builds them until the human moves them to build`);
+  if (proposed) out.push(`  ${plural(proposed, 'task')} proposed — nothing builds them until the user moves them to build`);
   const inbox = review(ws, project).inbox.length;
   if (inbox) out.push(`  ${inbox} unfiled in the inbox — spool inbox`);
   if (out.length === 1 && !ready(ws, project).length) out.push('  The queue is empty.');

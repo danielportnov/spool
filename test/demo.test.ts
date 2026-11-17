@@ -58,7 +58,7 @@ test('spool demo makes a sample project with a full board, and its sample runs',
     assert.deepEqual([b.sprints.length, sprint?.name, sprint?.total, sprint?.waiting], [1, 'First round', 3, 3]);
     assert.match(sprint?.goal ?? '', /never prints nonsense/);
 
-    // Every thread has its spec, and a few carry the human's own words.
+    // Every thread has its spec, and a few carry the user's own words.
     const listed = s.json('-C', dir, 'list', '--all', '-k', 'task').items;
     assert.equal(listed.length, 10);
     for (const t of listed) assert.match(s.json('-C', dir, 'show', t.id).item.body, /What: .+\nWhy: .+\nDone when: .+/, t.title);

@@ -136,7 +136,7 @@ test('the queue is a face of the running page: its keys press the page\'s button
     assert.equal(s.json('show', coins).item.state, 'ready');
     await term.shows('nothing needing him', /NEEDS YOU {2}0/);
 
-    // Down to the backlog, open it, and b sends its thread to Build: on the record as the human's.
+    // Down to the backlog, open it, and b sends its thread to Build: on the record as the user's.
     term.input.type('j');
     term.input.type('\r');
     await term.shows('the open backlog', new RegExp(`^ {2}- ${jump} {2}Tighten the jump arc`, 'm'));

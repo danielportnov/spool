@@ -2,9 +2,9 @@
  * The page's server, and the `spool page` command that starts it.
  *
  * `startPage` is a small HTTP server: it sends the page (`client/`), the board as JSON
- * (`board.ts`) and what an agent said on a run (`heard.ts`), and takes what the human does on
+ * (`board.ts`) and what an agent said on a run (`heard.ts`), and takes what the user does on
  * the page as POSTs. Each of those is an ordinary
- * command run as the human (`act.ts`), or a word to the runner it holds (`engine.ts`): on, off,
+ * command run as the user (`act.ts`), or a word to the runner it holds (`engine.ts`): on, off,
  * stop, interrupt, and the answer to an agent's question. A thread moved between columns is both, so `moveThread` is here, beside the runner it
  * tells. `servePage` is the command: it points at the page already up for a project, or starts
  * one, in the background if asked, and stays up to start it again when the page restarts onto
@@ -64,7 +64,7 @@ interface Started {
  *     page runs is ended first, then the files it changed and its commits are put back.
  *   - Build: it waits there. One being built is stopped with its work kept, and stays stopped until carried on; one done is reverted.
  *   - Building: this page builds it next, with agents switched on: now, if there is room. Where a chat builds, it waits in Build for the chat.
- *   - Done: the human marking it done; an agent of this page's on it is ended.
+ *   - Done: the user marking it done; an agent of this page's on it is ended.
  */
 function moveThread(ctx: Ctx, runner: Runner, id: string, to: string, who: Who): { ok: boolean; text: string; data?: unknown } {
   if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
@@ -98,7 +98,7 @@ function moveThread(ctx: Ctx, runner: Runner, id: string, to: string, who: Who):
   if (to === 'build') {
     if (from === 'proposed') {
       const built = act(ctx, ['build', id]);
-      // In Build is the human saying start: with room for it, its agent starts now.
+      // In Build is the user saying start: with room for it, its agent starts now.
       if (built.ok) runner.wake();
       return built;
     }
@@ -135,7 +135,7 @@ function moveThread(ctx: Ctx, runner: Runner, id: string, to: string, who: Who):
     return { ok: true, text: runner.take(id) ? `Building now: ${title}` : `Next up, once an agent is free: ${title}` };
   }
 
-  // Done: the human saying it is finished. A thread still in the backlog goes through build, as any start does.
+  // Done: the user saying it is finished. A thread still in the backlog goes through build, as any start does.
   if (from === 'proposed') {
     const built = act(ctx, ['build', id]);
     if (!built.ok) return built;
@@ -256,7 +256,7 @@ export function startPage(
           };
           // Whether the chat takes over this project's backlog, and what it would take next, for the header's switch and its menu.
           const takeOver = takeOverState(ctx, ws, spool);
-          // Whether the human is AFK: agents take their own recommendation instead of asking.
+          // Whether the user is AFK: agents take their own recommendation instead of asking.
           // And every setting the Settings panel shows that the board does not carry already.
           const settings = settingsOf(ctx, ws, spool);
           return send(res, 200, 'application/json', JSON.stringify({ ...shown, takeOver, afk: afkOf(ctx), mode: currentMode(ctx, spool.root), time: timeLeftOf(ctx), settings, workspace, landing: landingWords(landingState(spool.root)) ?? null }));
@@ -393,7 +393,7 @@ export function startPage(
                 : `This page builds now, headless. ${runner.on ? 'Agents are on.' : 'Switch Agents on to start.'}`;
             return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: words }));
           }
-          // One agent's thread count, from its − and + in the header: the human's click, as spool builder --agent sets it.
+          // One agent's thread count, from its − and + in the header: the user's click, as spool builder --agent sets it.
           if (action === 'roster') {
             const name = text(body.agent).trim();
             // Its slider, usage to development: what each size is built on, as spool builder --agent --lean sets it.
@@ -469,7 +469,7 @@ export function startPage(
             return send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify(result));
           }
           if (action === 'interrupt') {
-            // Not a stop: the agent ends what it is doing and waits for what the human says next.
+            // Not a stop: the agent ends what it is doing and waits for what the user says next.
             const told = runner.interrupt(text(body.id));
             const words = told ? 'Told to stop what it is doing. It waits for your reply.' : 'No agent of this page that can be spoken to is building that thread.';
             return send(res, told ? 200 : 400, 'application/json', JSON.stringify({ ok: told, text: words }));

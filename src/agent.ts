@@ -2,7 +2,7 @@
  * Which model works a thread, and how hard it thinks.
  *
  * The agent command is the user's, from their own machine. A thread can say
- * which model and which effort it wants, as two plain words: the human's pick,
+ * which model and which effort it wants, as two plain words: the user's pick,
  * which always wins. Where it says nothing, its size does: the smallest model
  * that can do work of that size, to spare the plan's usage when several are
  * built at once. A thread whose last run did not work (its work was undone, or
@@ -35,10 +35,10 @@ export interface Pick {
 }
 
 /**
- * What each size gets when the human does not say: the smallest model that can do it. Unsized
+ * What each size gets when the user does not say: the smallest model that can do it. Unsized
  * work is treated as medium. A tiny thread is a line or a value, and Haiku does it; a small one is
  * one function or screen, for Sonnet; from several files up it is Opus, thinking harder the more
- * the work cuts across. Fable is left for a thread Opus could not do (`stepUp`), or the human's pick.
+ * the work cuts across. Fable is left for a thread Opus could not do (`stepUp`), or the user's pick.
  */
 export const SUGGESTED: Record<Size, Required<Pick>> = {
   xs: { model: 'haiku', effort: 'medium' },
@@ -57,7 +57,7 @@ export const LADDER = ['haiku', 'sonnet', 'opus', 'fable'] as const;
  * How hard a brand leans on its big models, set per agent on the roster: `usage` spares the plan,
  * so small work goes to the smallest model and every size to the cheapest that can do it;
  * `development` gives each size a bigger model and more effort; `balanced` is between, and is
- * what a brand gets before the human says. The lean moves the size table; a thread's own Model
+ * what a brand gets before the user says. The lean moves the size table; a thread's own Model
  * and Effort still win, and the step up and Fable's cap still apply on top.
  */
 export const LEANS = ['usage', 'balanced', 'development'] as const;
@@ -179,7 +179,7 @@ export interface Step {
 export type Picked = Pick & { suggested: Pick; stepped?: Step; why: string; /** Set where Fable was the pick and its weekly usage kept the thread off it: the line that says so. */ capped?: string };
 
 /**
- * What will run the thread: what the human picked, then, where its last run did not work, the
+ * What will run the thread: what the user picked, then, where its last run did not work, the
  * model one up from that run's, then the size's suggestion for whatever is still open. A run
  * picked up again in its own session is given `ran`, the pick it was started with: it carries on
  * as it ran, and does not step up.
@@ -260,7 +260,7 @@ export function ranWith(task: Item): Pick | undefined {
  * Why the last run did not work, read from what happened to the thread after it was given out,
  * or nothing where it did. Two things count: its work was undone (reverted, or taken back from
  * done), and it ended without finishing (its agent left, whether or not its check had failed).
- * The human stopping or aborting a run does not: that is their call, and a stopped run carries
+ * The user stopping or aborting a run does not: that is their call, and a stopped run carries
  * on as it ran. Nor does a question: the thread waits on them, not on a better model.
  */
 function setback(after: string[]): string | undefined {
@@ -360,7 +360,7 @@ export function signer(name: string): { agent: string; model?: string } {
   return { agent: words.slice(0, at).join(' '), model: safeModel(model) };
 }
 
-/** Names that are not an agent's: the human, Spool's own page and loop, and nobody. */
+/** Names that are not an agent's: the user, Spool's own page and loop, and nobody. */
 export const NOT_AGENTS = new Set(['human', 'page', 'loop', 'agent', '']);
 
 /**

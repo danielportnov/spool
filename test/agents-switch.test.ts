@@ -50,10 +50,10 @@ test('where the gate is locked, an agent is refused on, but may always switch th
   const { url, stop } = await startPage(s);
   const board = async () => (await (await fetch(`${url}api/board`)).json()) as { runner: { on: boolean } };
   try {
-    assert.match(s.fails('agents', 'on'), /spool agents on is the human's alone in skyhop: its gate is locked/);
+    assert.match(s.fails('agents', 'on'), /spool agents on is the user's alone in skyhop: its gate is locked/);
     assert.equal((await board()).runner.on, false);
     assert.equal(s.sp('agents', 'off'), 'Agents are off.');
-    // The human, at their own terminal, may.
+    // The user, at their own terminal, may.
     assert.equal(s.exec(['agents', 'on'], { tty: true }).out, 'Agents are on: this page builds what is in Build.');
     assert.equal((await board()).runner.on, true);
     assert.equal(s.sp('agents', 'off'), 'Agents are off.');

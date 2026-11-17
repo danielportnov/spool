@@ -1,9 +1,9 @@
 /**
- * What a manager's run proposes, and what the human said to each.
+ * What a manager's run proposes, and what the user said to each.
  *
  * A run may not drop what it thinks has shipped, or build, without a leave. What it would do
  * goes on its thread as a numbered proposal: a verb, the thread it is about, and the run's own
- * reason. The human says yes or no to each, on the run's ticket or with `spool manage --answer`,
+ * reason. The user says yes or no to each, on the run's ticket or with `spool manage --answer`,
  * and a yes runs that verb as them, with the run's reason. Questions are not asked here: a
  * question lives on its own thread. This is the one place a run's changes wait for a word.
  *
@@ -21,7 +21,7 @@ import { type Item, oneLine } from './model.ts';
 export const PROPOSABLE = ['drop', 'archive', 'build', 'goals', 'sprint', 'order'] as const;
 export type Verb = (typeof PROPOSABLE)[number];
 
-/** A sprint as an overview drafts it: made, planned and never played, only on the human's yes. */
+/** A sprint as an overview drafts it: made, planned and never played, only on the user's yes. */
 export interface SprintDraft {
   name: string;
   goal: string;
@@ -36,7 +36,7 @@ export interface Proposal {
   /** The thread it is about; for an order, the sprint; for goals or a new sprint, nothing. */
   id: string;
   title: string;
-  /** The run's reason: what the thread is dropped with, if the human says yes. */
+  /** The run's reason: what the thread is dropped with, if the user says yes. */
   reason: string;
   /** For goals: the whole page, as it would be kept. */
   goals?: string;
@@ -44,7 +44,7 @@ export interface Proposal {
   sprint?: SprintDraft;
   /** For an order: the sprint's threads, first built first. */
   order?: string[];
-  /** What the human said, and when. Absent: not answered yet. */
+  /** What the user said, and when. Absent: not answered yet. */
   answer?: { by: string; at: string; said: 'yes' | 'no' };
 }
 
@@ -90,7 +90,7 @@ export function proposalKey(p: Pick<Proposal, 'verb' | 'id' | 'sprint'>): string
   return `${p.verb} ${p.id}`;
 }
 
-/** What a proposal from an overview holds beyond its line, for the human to read before a yes: the page, the sprint, the order. */
+/** What a proposal from an overview holds beyond its line, for the user to read before a yes: the page, the sprint, the order. */
 export function proposalDetail(p: Proposal, titleOf: (id: string) => string | undefined): string | null {
   const named = (id: string) => `${id} ${oneLine(titleOf(id) ?? '', 80)}`.trim();
   if (p.verb === 'goals') return p.goals?.trim() || null;

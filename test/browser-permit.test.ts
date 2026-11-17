@@ -80,8 +80,8 @@ test('an agent’s question is answered from its card, and from its ticket with 
     await shot(page, 'permit-ticket');
     await question.locator('.say input').fill('not in this folder');
     await question.getByRole('button', { name: 'No, because' }).click();
-    await until('the agent is told no, and why', () => fake.heard(1)[1]?.response?.response?.message === 'The human refused this, and said: not in this folder');
-    await until('the log says who refused what', () => /page: refused by the human: Bash: touch k1\.txt\. They said: not in this folder/.test(s.item(jump)));
+    await until('the agent is told no, and why', () => fake.heard(1)[1]?.response?.response?.message === 'The user refused this, and said: not in this folder');
+    await until('the log says who refused what', () => /page: refused by the user: Bash: touch k1\.txt\. They said: not in this folder/.test(s.item(jump)));
     await until('the question is gone', async () => (await ticket.locator('.livepost .q').count()) === 0);
 
     // They reply, as on any thread; the agent hears it, tries again, and this time is let.
@@ -91,7 +91,7 @@ test('an agent’s question is answered from its card, and from its ticket with 
     await card.locator('.q').waitFor();
     await card.getByRole('button', { name: 'Allow once' }).click();
     await until('the thread is finished', () => s.json('show', jump).item.status === 'done');
-    assert.match(s.item(jump), /page: allowed once by the human: Bash: touch k1\.txt/);
+    assert.match(s.item(jump), /page: allowed once by the user: Bash: touch k1\.txt/);
 
     await page.emulateMedia({ colorScheme: 'dark' });
     assert.deepEqual(problems, []);

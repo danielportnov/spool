@@ -42,7 +42,7 @@ test('the commit trailer ties work to its task, and revert takes it all back', (
   assert.ok(message.includes(`This reverts commit ${first}.`) && message.includes(`Spool-Revert: ${task}`));
   assert.ok(!message.includes(unrelated));
 
-  // Back in the queue, bumped up, with the reason in the human's words.
+  // Back in the queue, bumped up, with the reason in the user's words.
   const item = s.json('show', task).item;
   // Undoing is saying no: it waits in the backlog, nothing builds it, until it is moved to Build.
   assert.equal(item.status, 'proposed');
@@ -72,7 +72,7 @@ test('the queue is never part of what gets undone', () => {
   const later = s.id('task', 'Something queued afterwards');
   s.commitAll('more queue state');
 
-  // A live repository: the human has just answered something (uncommitted queue change) and
+  // A live repository: the user has just answered something (uncommitted queue change) and
   // an agent is halfway through an unrelated file. Neither is in the way, and neither is touched.
   const question = s.id('ask', 'Unrelated question?', '--option', 'Yes', '--option', 'No');
   s.commitAll('a question');
@@ -185,11 +185,11 @@ test('reverting also drops the unconfirmed assumptions the work was built on', (
   const reverted = s.json('revert', task, '-m', 'too heavy');
   assert.deepEqual(reverted.voided, [own]);
   assert.equal(s.json('show', own).item.status, 'dropped');
-  assert.equal(s.json('show', approved).item.status, 'decided', 'what the human confirmed stands');
+  assert.equal(s.json('show', approved).item.status, 'decided', 'what the user confirmed stands');
   assert.equal(s.json('show', shared).item.status, 'assumed', 'and so does a call other work relies on');
   assert.deepEqual(s.json('show', task).item.needs.sort(), [approved, shared].sort());
 
-  // The next attempt is briefed with the human's reason, not with the call that was rejected.
+  // The next attempt is briefed with the user's reason, not with the call that was rejected.
   s.sp('build', task);
   const brief = s.sp('next');
   assert.ok(brief.includes('> too heavy'));

@@ -1,7 +1,7 @@
 /**
- * A usage target: how much of their Claude plan the human wants used while a chat builds.
+ * A usage target: how much of their Claude plan the user wants used while a chat builds.
  *
- * In Chat mode a Claude Code chat running /spool-loop builds what is in Build. The human sets a
+ * In Chat mode a Claude Code chat running /spool-loop builds what is in Build. The user sets a
  * target, in the page's header or with `spool target`: a percent of the plan's weekly limit, of its
  * 5-hour limit, or of both. The chat works up to it. Before it takes each thread it reads the plan's
  * usage with its own harness's tool and reports it with `spool usage`, which says whether to keep
@@ -233,7 +233,7 @@ export function refuseOverTarget(ctx: Ctx, actor: string): void {
   const against = reached.map((l) => `${NAMES[l]} ${read.used[l]}% of ${target[l]}%`).join(', ');
   throw new SpoolError(
     `${usage.agent}'s usage target is reached, ${against}`,
-    `Claim no new thread: let what is being built land. Read the usage again when one lands, and carry on once it is under. Raising it is the human's: spool target --agent ${usage.agent} --weekly <n>`,
+    `Claim no new thread: let what is being built land. Read the usage again when one lands, and carry on once it is under. Raising it is the user's: spool target --agent ${usage.agent} --weekly <n>`,
   );
 }
 
@@ -241,7 +241,7 @@ export function refuseOverTarget(ctx: Ctx, actor: string): void {
  * Headroom: as a budget runs low, the largest thread worth starting shrinks, so nothing is begun
  * that cannot be finished before it runs out. A budget is anything with a fraction used: the plan's
  * usage against the target (here), or a time budget. Each step says the largest size from that
- * percent of the budget used. The human sets the steps; these are the default.
+ * percent of the budget used. The user sets the steps; these are the default.
  */
 export const HEADROOM_DEFAULT: Readonly<Record<number, Size>> = { 80: 'm', 90: 's', 97: 'xs' };
 /** A reading older than this says nothing about the headroom: the 5-hour limit has reset since. */
@@ -334,8 +334,8 @@ export function refuseOverHeadroom(ctx: Ctx, task: Item, agent?: string): void {
   throw new SpoolError(
     `${task.id} is ${(task.size ?? 'm').toUpperCase()}, and the chat is ${headroomText(h!)}`,
     h!.over
-      ? 'Finish and land what you are building, or hand it off: spool handoff <id> -m "<where it stopped>". The end is the human\'s: spool until'
-      : 'Take one that fits what is left: spool next. Wrap up what you are building. How near is near is the human\'s: spool target --headroom',
+      ? 'Finish and land what you are building, or hand it off: spool handoff <id> -m "<where it stopped>". The end is the user\'s: spool until'
+      : 'Take one that fits what is left: spool next. Wrap up what you are building. How near is near is the user\'s: spool target --headroom',
   );
 }
 
@@ -436,7 +436,7 @@ function targetText(usage: Usage, now: Date, own: string[] = []): string {
 
 /**
  * `spool target`: set the target, take one off with `none`, or with nothing typed only say what is
- * set. `guard` is the lock: it throws where the gate leaves this to the human, asked only for a change.
+ * set. `guard` is the lock: it throws where the gate leaves this to the user, asked only for a change.
  */
 /** Read `--headroom`: "80:m,90:s,97:xs", or default. Null is the default. */
 function parseHeadroom(typed: string): Record<string, Size> | null {

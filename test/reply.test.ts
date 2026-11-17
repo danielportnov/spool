@@ -1,6 +1,6 @@
 /**
  * A reply on a thread being built reaches its agent: a `claude -p` session is started with its
- * input open, and what the human writes on the thread is said to it.
+ * input open, and what the user writes on the thread is said to it.
  *
  * The stand-in agent speaks lines recorded from Claude Code (see test/claude.ts).
  */
@@ -52,7 +52,7 @@ test('a claude -p command is run with its input open, and the lines Spool writes
   assert.deepEqual(JSON.parse(interruptLine(interrupt.request_id)), interrupt);
 });
 
-test('what the human writes on a thread being built is said to its agent, once, and the log says so', async () => {
+test('what the user writes on a thread being built is said to its agent, once, and the log says so', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop');
   const jump = s.id('task', 'Tighten the jump arc');
@@ -64,8 +64,8 @@ test('what the human writes on a thread being built is said to its agent, once, 
     runner.wake();
     await until('the agent is heard', () => runner.runs.get(jump)?.lines.includes('apple'));
     assert.deepEqual(runner.live().map((run) => [run.id, run.listens]), [[jump, true]]);
-    // It is told what is true: the human can reach it.
-    assert.match(fake.prompt(1), /^You are working one task from a Spool queue\. The human may write to you while you\nwork: what they say arrives as a message, so read it and adjust\.[\s\S]*spool ask[\s\S]*## Working a thread[\s\S]*YOUR TASK[\s\S]*Tighten the jump arc/);
+    // It is told what is true: the user can reach it.
+    assert.match(fake.prompt(1), /^You are working one task from a Spool queue\. The user may write to you while you\nwork: what they say arrives as a message, so read it and adjust\.[\s\S]*spool ask[\s\S]*## Working a thread[\s\S]*YOUR TASK[\s\S]*Tighten the jump arc/);
     assert.doesNotMatch(fake.prompt(1), /unattended|Nobody is reading/);
 
     const note = s.id('capture', 'keep gravity at 34');
@@ -132,7 +132,7 @@ test('Stop asks the agent to stop before it ends it, and ends one that does not 
   }
 });
 
-test('a session that ends its turn unfinished is ended as before, unless the human has just written; then it is kept for their next word, for a while', async () => {
+test('a session that ends its turn unfinished is ended as before, unless the user has just written; then it is kept for their next word, for a while', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop');
   const jump = s.id('task', 'Tighten the jump arc');
@@ -146,7 +146,7 @@ test('a session that ends its turn unfinished is ended as before, unless the hum
     await unfinished(1);
     assert.equal(fake.heard(1).length, 1);
 
-    // The human writes. Picked up with their words, it ends its turn unfinished again, and this time is kept for what they say next.
+    // The user writes. Picked up with their words, it ends its turn unfinished again, and this time is kept for what they say next.
     s.sp('file', s.id('capture', 'what about the small platform?'), '--into', jump);
     runner.wake();
     await until('it is picked up, and its turn is over', () => runner.runs.get(jump)?.session?.waiting);
@@ -192,7 +192,7 @@ test('an agent that is not claude is only watched, as before: nothing is said to
     s.sp('file', s.id('capture', 'keep gravity at 34'), '--into', jump);
     assert.equal(runner.interrupt(jump), false);
     await pause(1500);
-    assert.doesNotMatch(s.item(jump), /passed on|told by the human/);
+    assert.doesNotMatch(s.item(jump), /passed on|told by the user/);
     fs.writeFileSync(go, '');
     await until('the thread is finished', () => s.json('show', jump).item.status === 'done');
     await until('the agent has gone', () => !runner.runs.size);
@@ -235,7 +235,7 @@ test('from the page: a reply posted on a building thread reaches its agent, and 
     await until('its turn is over', async () => (await board()).runner.running[0]?.lines.some((line: string) => line.startsWith('ended: error_during_execution')));
     await pause(1300);
     assert.deepEqual([(await board()).runner.running.length, s.json('show', jump).item.state], [1, 'active'], 'still its thread, a tick later');
-    assert.match(s.item(jump), /page: told by the human to stop what it was doing; it waits for their word/);
+    assert.match(s.item(jump), /page: told by the user to stop what it was doing; it waits for their word/);
     assert.equal((await post('interrupt', { id: idle })).status, 400, 'nothing is building that one');
 
     assert.equal((await post('note', { id: jump, text: 'finish now' })).status, 200);

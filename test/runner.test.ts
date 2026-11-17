@@ -30,7 +30,7 @@ test('with the runner on, the page builds what is moved to Build, with no chat a
     await pause(1300);
     assert.equal(s.json('show', jump).item.state, 'proposed');
 
-    // The human presses play. Nobody types anything, and the thread ends up done.
+    // The user presses play. Nobody types anything, and the thread ends up done.
     assert.equal((await post('move', { id: jump, to: 'build' })).status, 200);
     await until('the thread is built', async () => s.json('show', jump).item.status === 'done');
     const built = s.json('show', jump).item;
@@ -140,7 +140,7 @@ test('a card dragged to any column: to the backlog, the agent is ended and every
   s.sp('init', '--name', 'skyhop', '--gate');
   fs.writeFileSync(path.join(s.root, 'physics.txt'), 'gravity 9\n');
   fs.writeFileSync(path.join(s.root, 'sound.txt'), 'quiet\n');
-  fs.writeFileSync(path.join(s.root, 'mine.txt'), 'the human\'s\n');
+  fs.writeFileSync(path.join(s.root, 'mine.txt'), 'the user\'s\n');
   const hard = s.id('task', 'Tighten the jump arc');
   const easy = s.id('task', 'Make coins shine');
   const worker = agent(
@@ -156,8 +156,8 @@ test('a card dragged to any column: to the backlog, the agent is ended and every
     ].join('\n'),
   );
   s.commitAll('start');
-  // The human was already in the middle of something: it is not the agent's to undo.
-  fs.writeFileSync(path.join(s.root, 'mine.txt'), 'the human, half way\n');
+  // The user was already in the middle of something: it is not the agent's to undo.
+  fs.writeFileSync(path.join(s.root, 'mine.txt'), 'the user, half way\n');
   s.sp('build', hard);
 
   const page = await startPage(s, '--run', '--agent', worker);
@@ -178,7 +178,7 @@ test('a card dragged to any column: to the backlog, the agent is ended and every
     assert.equal(after.runner.recent[0].outcome, 'back in the backlog; edits undone: its worktree and branch are gone, with the 1 commit(s) made there; nothing had reached the checkout');
     assert.equal(s.json('show', hard).item.state, 'proposed');
     assert.deepEqual([s.read('physics.txt'), s.read('sound.txt'), s.exists('new.txt'), s.exists(`.spool/worktrees/${hard}`)], ['gravity 9\n', 'quiet\n', false, false]);
-    assert.equal(s.read('mine.txt'), 'the human, half way\n', 'what was changed before the agent began is left alone');
+    assert.equal(s.read('mine.txt'), 'the user, half way\n', 'what was changed before the agent began is left alone');
     assert.equal(s.git('rev-parse', 'HEAD'), start, 'the checkout never had any of it');
 
     // The backlog, dragged straight to Building: it is built next.
@@ -186,7 +186,7 @@ test('a card dragged to any column: to the backlog, the agent is ended and every
     const now = await move(easy, 'building');
     assert.equal(now.status, 200, now.text);
     await until('it is picked up and at work', async () => { const c = (await board()).runner.running[0]; return c?.id === easy && c.lines.includes('changing things'); });
-    // Building, dragged to Done: the human says it is finished, and the agent is ended. Done lands the worktree's
+    // Building, dragged to Done: the user says it is finished, and the agent is ended. Done lands the worktree's
     // commits on the checkout, and a landing refuses what is not committed, so the rest is committed first.
     s.cd(`.spool/worktrees/${easy}`).commitAll(`Make the coins loud\n\nSpool: ${easy}`);
     const done = await move(easy, 'done');
@@ -345,7 +345,7 @@ test('with Chat picked, the page starts no agent: a chat builds, the pick is kep
     fetch(`${page.url}api/${action}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': page.token }, body: JSON.stringify(body) });
   let watch: ChildProcess | undefined;
   try {
-    // Headless until the human says otherwise, with the runner on as asked.
+    // Headless until the user says otherwise, with the runner on as asked.
     assert.deepEqual([(await board()).runner.builder, (await board()).runner.watching, (await board()).runner.on], ['headless', false, true]);
     assert.equal((await post('builder', { builder: 'a robot' })).status, 400, 'only the two picks there are');
 

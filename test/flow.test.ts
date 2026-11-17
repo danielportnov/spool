@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { test } from 'node:test';
 import { CLI, spool } from './helpers.ts';
 
-test('feedback becomes a task that carries the human’s exact words', () => {
+test('feedback becomes a task that carries the user’s exact words', () => {
   const s = spool();
   const words = 'the jump feels floaty, like I\'m on the moon: fix "it"';
   const note = s.id('capture', words);
@@ -70,7 +70,7 @@ test('next hands out the most urgent ready task, oldest first', () => {
   s.cleanup();
 });
 
-test('a question stops its task, tells the human, and lets everything else carry on', () => {
+test('a question stops its task, tells the user, and lets everything else carry on', () => {
   const s = spool();
   const logo = s.id('task', 'Refresh the logo', '-p', '1');
   const other = s.id('task', 'Fix the typo');
@@ -109,7 +109,7 @@ test('a question stops its task, tells the human, and lets everything else carry
   s.cleanup();
 });
 
-test('an assumption does not block; the human can approve it', () => {
+test('an assumption does not block; the user can approve it', () => {
   const s = spool();
   const task = s.id('task', 'Tighten the jump');
   s.sp('start', task);

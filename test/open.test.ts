@@ -2,8 +2,8 @@
  * `spool open`: a thread's Claude session, lent to the terminal and given back.
  *
  * The stand-in `claude` (test/claude.ts) is the page's agent when it runs with `-p`, and Claude
- * Code at the human's terminal when it runs without: then it notes the session it was opened in,
- * and does what the test says the human did there.
+ * Code at the user's terminal when it runs without: then it notes the session it was opened in,
+ * and does what the test says the user did there.
  */
 
 import assert from 'node:assert/strict';
@@ -18,7 +18,7 @@ const turns = { first: [init, said[0]!], over: [init, said[1]!, results[1]!] };
 
 /**
  * Opened at the terminal (no -p): note the session and the folder, and finish the thread if the
- * test said the human did. As the page's agent: the first run works until it is stopped; a run
+ * test said the user did. As the page's agent: the first run works until it is stopped; a run
  * that picks the session up finishes the thread.
  */
 const AGENT = [
@@ -81,7 +81,7 @@ test('done in Claude Code is done; left stopped, the page does not take it; a th
     assert.equal(stopped.code, 0, stopped.err);
     const [sid, how] = fake.read('opened.txt').trim().split(' ');
     assert.equal(how, 'new', 'a new session, as nobody had one');
-    assert.match(fake.args()[0]!, new RegExp(`^--session-id ${sid} You are working one task from a Spool queue, with the human at the keyboard`));
+    assert.match(fake.args()[0]!, new RegExp(`^--session-id ${sid} You are working one task from a Spool queue, with the user at the keyboard`));
     assert.match(fake.read('args.txt'), /YOUR TASK\n\n.*Outline the coins/);
     assert.match(stopped.out, /Left stopped in Build/);
     assert.equal(s.json('show', coins).item.state, 'ready');

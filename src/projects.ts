@@ -19,13 +19,13 @@ export interface Project {
   name: string;
   /** Its folder from the top of the workspace: empty for the top itself. */
   folder: string;
-  /** `needs` is what waits on the human, as the brief counts it (`waitingOnYou`). */
+  /** `needs` is what waits on the user, as the brief counts it (`waitingOnYou`). */
   counts: { backlog: number; build: number; building: number; check: number; needs: number };
   /** Whether the runner of this page builds its threads. Where it does not, its own page or a chat does. */
   built: boolean;
   /** What is being built right now, with the last thing its agent said. */
   building: { id: string; title: string; said: string }[];
-  /** The plans waiting on the human's go-ahead, a line each. A question is not here: the page asks it on its thread alone. */
+  /** The plans waiting on the user's go-ahead, a line each. A question is not here: the page asks it on its thread alone. */
   needs: { id: string; title: string }[];
   /** The sprint being played, if one is, and how far along it is. */
   sprint: { id: string; name: string; done: number; total: number } | null;

@@ -39,15 +39,15 @@ export interface Ctx {
   tty?: boolean;
   /** How many columns wide the terminal is, where that is known. */
   columns?: number;
-  /** The command comes from the Spool page, on a click the human made there. */
+  /** The command comes from the Spool page, on a click the user made there. */
   human?: boolean;
 }
 
 export interface UserConfig {
-  /** Shell command run when something needs the human. See `notify`. */
+  /** Shell command run when something needs the user. See `notify`. */
   notify?: string;
   /**
-   * The events that tell the human, for every project: `["started", "question"]`. Not set: the
+   * The events that tell the user, for every project: `["started", "question"]`. Not set: the
    * defaults. The rest are quiet, whoever builds. Set on the page, or with `spool notify`. See notices.ts.
    */
   notifyOn?: string[];
@@ -98,12 +98,12 @@ export interface UserConfig {
    */
   quietStopMinutes?: number;
   /**
-   * The quick reply: where nobody is building a thread, a small model answers what the human
+   * The quick reply: where nobody is building a thread, a small model answers what the user
    * writes on it within seconds (quick.ts). On unless this is `false`.
    */
   quickReply?: boolean;
   /**
-   * How much of their Claude plan the human wants used while a chat builds, in percent of each
+   * How much of their Claude plan the user wants used while a chat builds, in percent of each
    * limit: `{ "weekly": 80, "fiveHour": 90 }`. The plan is the account's, so one target holds in
    * every project. A chat building in Chat mode works up to it. Set on the page. See usage.ts.
    */
@@ -133,7 +133,7 @@ export interface UserConfig {
   /** Caveman mode: the chat that steers or builds answers in the fewest words. One setting for every project and chat. */
   caveman?: boolean;
   /**
-   * AFK: the human is away. An agent's question is not put to them: `spool ask` takes its
+   * AFK: the user is away. An agent's question is not put to them: `spool ask` takes its
    * recommended option and records it as a call, unless the agent marks it `--human`. One setting
    * for every project and agent.
    */
@@ -221,7 +221,7 @@ export function userConfig(ctx: Ctx): UserConfig {
   }
 }
 
-/** What the notifier is told it is, and the event the human picks it by (notices.ts). */
+/** What the notifier is told it is, and the event the user picks it by (notices.ts). */
 export type NotifierEvent = 'ask' | 'plan' | 'idle' | 'permission' | 'started' | 'done' | 'stuck' | 'sprint';
 const PICKED_BY: Record<NotifierEvent, NoticeEvent> = {
   ask: 'question',
@@ -235,7 +235,7 @@ const PICKED_BY: Record<NotifierEvent, NoticeEvent> = {
 };
 
 /**
- * Tell the human something. Runs the user's notifier with the details in SPOOL_*
+ * Tell the user something. Runs the user's notifier with the details in SPOOL_*
  * variables, for the events they picked and no others; a missing or failing
  * notifier is never an error.
  */

@@ -1,5 +1,5 @@
 /**
- * Pictures kept with a thread: what the human pasted to show what he means, and the before and
+ * Pictures kept with a thread: what the user pasted to show what he means, and the before and
  * after an agent took as proof of a change anyone can see.
  *
  * They live beside the thread's run transcripts, under `.spool/runs/<id>/files/`, so they stay on
@@ -153,7 +153,7 @@ export function pictureFile(task: Item, name: string): { file: string; type: str
 
 /**
  * A file keeps what it was called, made safe: `Server Log (2).txt` is kept as `<n>.server-log-2.txt`,
- * so the human and the agent both know which it is. A picture needs no name; one pasted has none.
+ * so the user and the agent both know which it is. A picture needs no name; one pasted has none.
  */
 function stem(shown: string): string {
   const base = path.basename(shown).replace(/\.[^.]*$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');

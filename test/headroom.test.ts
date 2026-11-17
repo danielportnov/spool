@@ -80,7 +80,7 @@ test('taking over, the chat passes by what does not fit, with the line on the bu
   }
 });
 
-test('the human sets how near is near, and default brings the default back', () => {
+test('the user sets how near is near, and default brings the default back', () => {
   const s = new Sandbox();
   try {
     s.sp('init', '--name', 'skyhop');

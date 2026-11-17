@@ -128,7 +128,7 @@ export const CSS = String.raw`  :root {
   .flag { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; font-size: 12px; font-weight: 650; color: var(--soft); }
   .flag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
   .flag.you { color: var(--warn); } .flag.thread { color: var(--blue); } .flag.stuck { color: var(--hot); }
-  /* Only what waits on the human gets an edge: an answer, or a word after an agent gave up. */
+  /* Only what waits on the user gets an edge: an answer, or a word after an agent gave up. */
   .card:has(> .flag.you) { box-shadow: inset 3px 0 0 var(--warn), var(--shadow); }
   .card:has(> .flag.stuck) { box-shadow: inset 3px 0 0 var(--hot), var(--shadow); }
   .livelog { max-height: 220px; overflow: auto; margin-top: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; color: var(--soft); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -237,7 +237,7 @@ export const CSS = String.raw`  :root {
   .aboutform { padding: 0 6px 10px; display: grid; gap: 6px; max-width: 720px; }
   .aboutform input { padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 
-  /* what waits on the human: on its thread, or in the strip at the top of the backlog when it has none */
+  /* what waits on the user: on its thread, or in the strip at the top of the backlog when it has none */
   .need { background: var(--panel); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; box-shadow: var(--shadow); }
   .need .what { font-weight: 600; overflow-wrap: anywhere; }
   .need .more { color: var(--soft); font-size: 13px; margin-top: 4px; overflow-wrap: anywhere; }

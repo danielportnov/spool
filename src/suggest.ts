@@ -9,7 +9,7 @@
  *
  * It finds repetition and nothing more. It cannot know the steps, so it never
  * writes a skill: it names the tasks and the words they share. An agent reads
- * that and, where it agrees, offers it to the human as an AI-suggested thread,
+ * that and, where it agrees, offers it to the user as an AI-suggested thread,
  * the way anything nobody asked for is offered. On their yes an agent writes
  * the steps down. Their no is a dropped thread, and it is not raised again.
  *
@@ -85,7 +85,7 @@ function stems(text: string): Set<string> {
   return new Set(text.split(' ').map(stem).filter((s): s is string => !!s));
 }
 
-/** Log lines Spool writes itself, and the human's words it quotes. Only what an agent noted about the work counts. */
+/** Log lines Spool writes itself, and the user's words it quotes. Only what an agent noted about the work counts. */
 const BOOKKEEPING =
   /^(started$|builder model: |built on |picked up after the last claim|done: |edited: |put on hold: |released from hold|approved|dropped|reverted \d+ commit|put the work back|waiting on d-|assumed d-|d-\w+ changed: )/;
 
@@ -104,7 +104,7 @@ interface Doc {
 
 /**
  * What a finished task says about how it was done: its title, its summary and
- * the notes left in its log. Not its body: that is the human's request, and
+ * the notes left in its log. Not its body: that is the user's request, and
  * tasks cut from one piece of feedback share its words without sharing steps.
  */
 function read(task: Item): Doc {
@@ -221,7 +221,7 @@ function target(c: Candidate): string {
 }
 
 /**
- * The line that offers a candidate to the human: an AI-suggested thread, which
+ * The line that offers a candidate to the user: an AI-suggested thread, which
  * waits for their yes like any other idea an agent has. The name and the steps
  * are left for the agent, who can read the tasks; the reason is filled in.
  */

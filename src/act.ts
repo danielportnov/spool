@@ -1,7 +1,7 @@
 /**
- * One command, run in-process as the human.
+ * One command, run in-process as the user.
  *
- * Whatever a face of Spool does for the human is an ordinary command, the same one a person
+ * Whatever a face of Spool does for the user is an ordinary command, the same one a person
  * would type: so it can do nothing the command line cannot, and every rule the commands enforce
  * holds for it too. `act` runs one and says whether it worked. `change` is everything the page
  * can ask for, each as its command.
@@ -14,11 +14,11 @@ import { sprintReview } from './review.ts';
 import { review } from './schedule.ts';
 import { Workspace } from './store.ts';
 
-/** Run one command as the human, in-process, and say whether it worked. `as` signs it as an agent the page started instead. */
+/** Run one command as the user, in-process, and say whether it worked. `as` signs it as an agent the page started instead. */
 export function act(ctx: Ctx, argv: string[], as?: string): { ok: boolean; text: string; data: unknown } {
   const out: string[] = [];
   const err: string[] = [];
-  // --json goes first: after a `--`, everything is the human's words.
+  // --json goes first: after a `--`, everything is the user's words.
   const code = run(['--json', ...argv], {
     ...ctx,
     env: { ...ctx.env, SPOOL_ACTOR: as ?? 'human' },
@@ -82,7 +82,7 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     const filed = act(ctx, ['task', '--from', note, ...extra, '--', oneLine(name, 110)]);
     const task = (filed.data as { task?: { id?: string; status?: string } } | null)?.task;
     if (!filed.ok || !task?.id) return { ok: false, text: filed.text || 'it could not be filed' };
-    // Adding it under Build is the human putting it in build; under Proposed it waits, gate or no gate.
+    // Adding it under Build is the user putting it in build; under Proposed it waits, gate or no gate.
     // The new thread's id goes back with it: pictures pasted into the box are attached to it next.
     if (to === 'build' && task.status === 'proposed') return { ...act(ctx, ['build', task.id]), id: task.id };
     if (to === 'proposed' && task.status !== 'proposed') return { ...act(ctx, ['propose', task.id]), id: task.id };
@@ -140,7 +140,7 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     if (typeof body.priority === 'number') argv.push(`--priority=${body.priority}`);
     if (typeof body.size === 'string' && body.size) argv.push(`--size=${body.size}`);
     if (typeof body.type === 'string' && body.type) argv.push(`--type=${body.type}`);
-    // An empty model or effort is the human handing the choice back to the thread's size.
+    // An empty model or effort is the user handing the choice back to the thread's size.
     if (typeof body.model === 'string') argv.push(`--model=${body.model.trim() || 'none'}`);
     if (typeof body.effort === 'string') argv.push(`--effort=${body.effort.trim() || 'none'}`);
     if (Array.isArray(body.tags)) argv.push(...(body.tags.length ? body.tags.map((t) => `--tag=${String(t)}`) : ['--tag=none']));
@@ -149,7 +149,7 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     return act(ctx, argv);
   }
   if (action === 'approve') {
-    // "Fine", on a call an agent made, a plan, or a new skill: the human accepting it.
+    // "Fine", on a call an agent made, a plan, or a new skill: the user accepting it.
     return /^[dts]-[a-z0-9]+$/.test(id) ? act(ctx, ['approve', id]) : { ok: false, text: 'which one?' };
   }
   if (action === 'approve-calls') {
@@ -198,7 +198,7 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     return act(ctx, ['archive', ...(action === 'unarchive' ? ['--undo'] : []), id]);
   }
   if (action === 'complete') {
-    // "Mark as complete" is the human saying the change is good: the same as approving it.
+    // "Mark as complete" is the user saying the change is good: the same as approving it.
     if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
     return act(ctx, ['approve', id]);
   }
@@ -228,7 +228,7 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     return act(ctx, ['takeover', body.on ? 'on' : 'off']);
   }
   if (action === 'afk') {
-    // The switch in the take-over menu: the human is away, so agents take their own recommendation.
+    // The switch in the take-over menu: the user is away, so agents take their own recommendation.
     if (typeof body.on !== 'boolean') return { ok: false, text: 'on, or off?' };
     return act(ctx, ['afk', body.on ? 'on' : 'off']);
   }

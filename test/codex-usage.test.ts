@@ -29,7 +29,7 @@ function limitsLine(at: string, fiveHour: number, weekly: number, resets = { fiv
   });
 }
 /** A line of the conversation itself, which Spool must never repeat. */
-const talk = (at: string) => JSON.stringify({ timestamp: at, type: 'response_item', payload: { type: 'message', content: [{ type: 'input_text', text: 'PRIVATE words of the human' }] } });
+const talk = (at: string) => JSON.stringify({ timestamp: at, type: 'response_item', payload: { type: 'message', content: [{ type: 'input_text', text: 'PRIVATE words of the user' }] } });
 
 /** Write a Codex session log in the sandbox's own home, never the real one. */
 function session(s: Sandbox, name: string, lines: string[], mtime?: string): string {

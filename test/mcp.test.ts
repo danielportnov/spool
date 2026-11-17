@@ -119,8 +119,8 @@ test('the tools are the command table, without the set-up verbs', () => {
     assert.equal(inputSchema.additionalProperties, false);
     for (const option of Object.keys(c.options ?? {})) assert.ok(inputSchema.properties[option], `${c.name} takes ${option}`);
     assert.ok(description.includes(c.summary) && description.includes(`spool ${c.usage}`));
-    // What acts in the human's name says so, in every such tool and in no other.
-    assert.equal(/acts for the human\. Call it only when the human says so/.test(description), !!c.human, c.name);
+    // What acts in the user's name says so, in every such tool and in no other.
+    assert.equal(/acts for the user\. Call it only when the user says so/.test(description), !!c.human, c.name);
     assert.deepEqual(annotations, c.write ? undefined : { readOnlyHint: true }, c.name);
   }
 
@@ -132,7 +132,7 @@ test('the tools are the command table, without the set-up verbs', () => {
   assert.equal(tool('approve').inputSchema.properties.args.description, 'In order: <id…>');
   assert.equal(tool('status').inputSchema.properties.args, undefined, 'a command with no positionals takes none');
   assert.match(tool('done').inputSchema.properties.report.description, /as text/);
-  assert.match(tool('review').description, /^For the human: /);
+  assert.match(tool('review').description, /^For the user: /);
   s.cleanup();
 });
 
@@ -153,7 +153,7 @@ test('feedback becomes finished, approved work without a shell', () => {
   assert.equal(next.task.id, task.id);
   assert.equal(s.json('show', task.id).item.by, 'phone');
 
-  // The agent reaches a call that is the human's. The task waits; the human answers through the same server.
+  // The agent reaches a call that is the user's. The task waits; the user answers through the same server.
   const asked = call(s, 'spool_ask', { args: ['Snappy or heavy?'], option: ['Snappy', 'Heavy'], recommend: '1', for: task.id }).data.decision;
   assert.equal(s.json('show', task.id).item.state, 'blocked');
   assert.equal(call(s, 'spool_next').data.task, null);

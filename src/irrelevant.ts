@@ -1,6 +1,6 @@
 /**
  * What a pass over the backlog marked potentially irrelevant: a drop or an archive a run proposed
- * that the human has not answered, or a thread its worksheet named gone cold. Taking over leaves
+ * that the user has not answered, or a thread its worksheet named gone cold. Taking over leaves
  * these (takeover.ts), and stops once nothing else is left; the worksheet (manage.ts) names the
  * cold by the same rule.
  */
@@ -51,7 +51,7 @@ export function coldDays(ws: Workspace, open: Item[], runs: Item[], journals: Ma
 
 /**
  * The threads a pass marked potentially irrelevant, and why: a drop or an archive a run proposed
- * that the human has not answered, or named gone cold on the last pass's worksheet. Touched since
+ * that the user has not answered, or named gone cold on the last pass's worksheet. Touched since
  * that pass, a thread is warm again. An undone run marks nothing.
  */
 export function potentiallyIrrelevant(ws: Workspace, spool: Spool): Map<string, string> {

@@ -4,8 +4,8 @@
  *
  * `.spool/` is private and stays off git, so from a clone the trailers carry ids and nothing more.
  * A note carries the chain in words, built from the same record as `spool why`. It holds only the
- * thread's title, its calls and who built it: never the human's notes, the activity log, summaries,
- * transcripts or anything under `.spool/`. Notes stay on this machine. Pushing them is the human's call.
+ * thread's title, its calls and who built it: never the user's notes, the activity log, summaries,
+ * transcripts or anything under `.spool/`. Notes stay on this machine. Pushing them is the user's call.
  */
 
 import { git, repoRoot } from './git.ts';

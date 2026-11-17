@@ -24,7 +24,7 @@ test('a claude command gets the smallest model the thread’s size can be built 
   s.cleanup();
 });
 
-test('the human picks a thread’s model and effort, and can hand it back', () => {
+test('the user picks a thread’s model and effort, and can hand it back', () => {
   const s = spool();
   const t = s.id('task', 'Fix a typo', '--size', 'xs');
   s.sp('edit', t, '--model', 'fable', '--effort', 'max');
@@ -81,7 +81,7 @@ test('the loop runs the thread with its pick put in the command', async () => {
 /** A pick, as its model and effort. */
 const pick = (p: { model?: string; effort?: string } | undefined): (string | undefined)[] => [p?.model, p?.effort];
 
-/** A thread as far as picking its model goes: its size, the human's pick, and a log. */
+/** A thread as far as picking its model goes: its size, the user's pick, and a log. */
 function thread(size: string | undefined, log: string[], chosen: { model?: string; effort?: string } = {}): Item {
   const lines = log.map((what, i) => `- 2026-01-01 00:${String(i).padStart(2, '0')}Z page: ${what}`);
   return { size, ...chosen, body: `Do it.\n\n## Log\n${lines.join('\n')}` } as unknown as Item;
@@ -113,7 +113,7 @@ test('a thread whose last run did not work goes one model up from the one that r
   // A run whose command named no model: the step is up from what its size gives.
   assert.equal(up(['handed to `./agent.sh`', 'agent exited 1 without finishing'], 's')?.model, 'opus');
 
-  // None where it worked, or the human stopped or aborted it, or it asked them something, or nothing has run.
+  // None where it worked, or the user stopped or aborted it, or it asked them something, or nothing has run.
   assert.equal(up([handed('haiku'), 'done: it works']), undefined);
   assert.equal(up([handed('haiku'), 'stopped from the page; back in build']), undefined);
   assert.equal(up([handed('haiku'), 'aborted while page was building it; moved back to proposed', 'moved to build']), undefined);
@@ -125,7 +125,7 @@ test('a thread whose last run did not work goes one model up from the one that r
   assert.equal(stepUp(thread('xs', [handed('haiku'), 'agent exited 1 without finishing']), false), undefined);
 });
 
-test('the human’s pick wins over a step up, and a run carried on in its session does not step', () => {
+test('the user’s pick wins over a step up, and a run carried on in its session does not step', () => {
   const log = ['handed to `claude -p --model haiku --effort medium`', 'agent exited 1 without finishing; back in build'];
   const stepped = pickFor(thread('xs', log), undefined);
   assert.deepEqual([stepped.model, stepped.effort, stepped.why], ['sonnet', 'medium', 'stepped up from haiku: its last run ended without finishing']);
@@ -184,7 +184,7 @@ test('a thread undone and moved back to build is built one model up from its las
   assert.equal(picked(), '-p --model opus --effort medium');
   assert.ok(runs().at(-1)!.endsWith(`--resume ${session}`), 'picked up where it left off');
 
-  // The human's pick wins over the step.
+  // The user's pick wins over the step.
   s.sp('revert', t);
   s.sp('build', t);
   s.sp('edit', t, '--model', 'haiku');

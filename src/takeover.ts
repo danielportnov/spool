@@ -1,7 +1,7 @@
 /**
  * Taking over the backlog: in Chat mode, the chat that builds may fill Build itself.
  *
- * Nothing is built until the human moves it to Build. Taking over is the human saying the chat may
+ * Nothing is built until the user moves it to Build. Taking over is the user saying the chat may
  * do that for them, within the usage target they set: with Build empty and the plan's usage under
  * the target, the chat moves the next thread to Build itself, with `spool build --takeover`, and
  * builds it. It keeps on until the target is reached: the chat never judges a thread not worth the
@@ -9,13 +9,13 @@
  * potentially irrelevant.
  *
  * It is one switch for each project, kept beside who builds it, in the user's own settings. The
- * human switches it on, on the board or by saying so in the chat (`spool takeover on`); where the
+ * user switches it on, on the board or by saying so in the chat (`spool takeover on`); where the
  * gate is locked only they can. Switching it off is anyone's: it only ever stops something.
  *
  * Which threads it may take is fixed here, not left to the chat: a thread in the backlog, not on
- * hold, not archived, waiting on nothing (no question, no plan's go-ahead), not one the human undid
+ * hold, not archived, waiting on nothing (no question, no plan's go-ahead), not one the user undid
  * or moved back from Build, and not one a pass marked potentially irrelevant (a drop or an archive
- * it proposed, or gone cold). The human's own threads first, then the agents' ideas, each in the
+ * it proposed, or gone cold). The user's own threads first, then the agents' ideas, each in the
  * order of the backlog as the board shows it. A thread an agent filed without marking it AI
  * suggested still counts as an agent's, so it cannot jump its own idea ahead. Each move is
  * signed by the agent and says so on the thread, the brief shows each one that lands, and
@@ -81,19 +81,19 @@ function backlogOf(ws: Workspace, spool: Spool): Backlog {
   const may = open.filter((t) => !marked.has(t.id));
   const human = humans(ws, spool, may);
   return {
-    // The human's own first, then the agents' ideas: a sort that keeps the backlog's order within each.
+    // The user's own first, then the agents' ideas: a sort that keeps the backlog's order within each.
     may: [...may.filter((t) => human.has(t.id)), ...may.filter((t) => !human.has(t.id))],
     irrelevant: open.filter((t) => marked.has(t.id)).map((t) => ({ t, why: marked.get(t.id)! })),
   };
 }
 
-/** The threads the chat may take, the human's first, then the agents' ideas, each top of the backlog first. */
+/** The threads the chat may take, the user's first, then the agents' ideas, each top of the backlog first. */
 export function reasonable(ws: Workspace, spool: Spool): Item[] {
   return backlogOf(ws, spool).may;
 }
 
 /**
- * Which of these threads are the human's own: filed from what they said (a note), touched by them
+ * Which of these threads are the user's own: filed from what they said (a note), touched by them
  * in its log, or made by them on the board. One an agent filed is not, marked AI suggested or not.
  */
 function humans(ws: Workspace, spool: Spool, all: Item[]): Set<string> {
@@ -112,7 +112,7 @@ function humans(ws: Workspace, spool: Spool, all: Item[]): Set<string> {
 /** Why taking over leaves a thread that is in the backlog, whatever a pass marked it; null where nothing does. */
 function leftFor(ws: Workspace, t: Item): string | null {
   if (t.archived) return `${t.id} is archived`;
-  // An agent's idea waits on hold for a yes where there is no gate: that hold is not the human's not yet.
+  // An agent's idea waits on hold for a yes where there is no gate: that hold is not the user's not yet.
   if (t.hold && !(t.suggested && t.hold === SUGGESTED_HOLD)) return `${t.id} is on hold: ${t.hold}`;
   if (isRun(t)) return `${t.id} is a pass over the backlog`;
   const waits = blockers(ws, t);
@@ -120,13 +120,13 @@ function leftFor(ws: Workspace, t: Item): string | null {
   return notNow(t);
 }
 
-/** Whether the human undid this thread, or moved it back from Build, and has not moved it to Build since: it waits for them, not for the chat. */
+/** Whether the user undid this thread, or moved it back from Build, and has not moved it to Build since: it waits for them, not for the chat. */
 function notNow(t: Item): string | null {
   const log = splitBody(t.body).log;
   const at = (re: RegExp): number => log.findLastIndex((l) => re.test(l.replace(/^- \S+ \S+ [^:]+: /, '')));
   const moved = at(/^moved to build/);
-  if (at(/^reverted \d+ commit/) > moved) return `${t.id} was undone: it waits for the human to move it to Build`;
-  if (at(/moved back to proposed/) > moved) return `${t.id} was moved back from Build: it waits for the human to move it there again`;
+  if (at(/^reverted \d+ commit/) > moved) return `${t.id} was undone: it waits for the user to move it to Build`;
+  if (at(/moved back to proposed/) > moved) return `${t.id} was moved back from Build: it waits for the user to move it there again`;
   return null;
 }
 
@@ -136,7 +136,7 @@ function notReasonable(ws: Workspace, spool: Spool, t: Item): string {
   const left = leftFor(ws, t);
   if (left) return left;
   const marked = potentiallyIrrelevant(ws, spool).get(t.id);
-  if (marked) return `${t.id} is marked potentially irrelevant: ${marked}. It waits for the human's word`;
+  if (marked) return `${t.id} is marked potentially irrelevant: ${marked}. It waits for the user's word`;
   return `${t.id} is not one the chat may take`;
 }
 
@@ -150,7 +150,7 @@ function allIrrelevant(left: Backlog['irrelevant']): string {
 function underTarget(ctx: Ctx, agent: string): { ok: true; against: string } | { ok: false; why: string; hint: string } {
   const { target, own, read, reached, cannotRead } = usageOf(ctx, agent);
   const set = STOPS.filter((l) => target[l] !== undefined);
-  if (!set.length) return { ok: false, why: 'no usage target is set, and taking over works up to one', hint: `The human sets one, on the board or: spool target --weekly 80, or spool target --agent ${agent} --weekly 80` };
+  if (!set.length) return { ok: false, why: 'no usage target is set, and taking over works up to one', hint: `The user sets one, on the board or: spool target --weekly 80, or spool target --agent ${agent} --weekly 80` };
   if (cannotRead && read && ctx.now().getTime() - Date.parse(read.at) <= FRESH_MS) {
     return { ok: false, why: `${agent} cannot read its usage, so it cannot be held to its target`, hint: 'Taking over works up to a target: build only what they move to Build.' };
   }
@@ -166,7 +166,7 @@ function underTarget(ctx: Ctx, agent: string): { ok: true; against: string } | {
 /** Why this agent may not move a thread to build in this project now, or null where it may. */
 function whyNot(ctx: Ctx, ws: Workspace, spool: Spool, agent: string): { why: string; hint: string } | null {
   if (!takeOverOf(ctx, spool.root)) {
-    return { why: `taking over the backlog is off in ${spool.name}`, hint: 'Only the human moves work to build. They switch taking over on, on the board or: spool takeover on' };
+    return { why: `taking over the backlog is off in ${spool.name}`, hint: 'Only the user moves work to build. They switch taking over on, on the board or: spool takeover on' };
   }
   if (builderOf(ctx, spool.root) !== 'chat') return { why: `${spool.name} is built headless: taking over is for a chat in Chat mode`, hint: 'spool builder chat, on their word' };
   const usage = underTarget(ctx, agent);
@@ -254,7 +254,7 @@ export function takeoverCommand(call: Call, spool: Spool, byHuman: () => void): 
   }
   const was = takeOverOf(ctx, spool.root);
   if (word !== undefined && (word === 'on') !== was) {
-    // Switching it on lets an agent move work to build: where the gate is locked, that takes the human. Off only stops something.
+    // Switching it on lets an agent move work to build: where the gate is locked, that takes the user. Off only stops something.
     if (word === 'on') byHuman();
     save(ctx, spool.root, word === 'on');
   }
@@ -297,10 +297,10 @@ export function buildUnderTakeOver(call: Call): { tasks: Item[]; line: string; p
   if (named && all.includes(named) && !sized.includes(named)) throw new SpoolError(`${named.id} is ${(named.size ?? 'm').toUpperCase()}, outside the sizes ${call.actor} takes`, 'Take the top one it may: spool build --takeover');
   if (named && sized.includes(named) && !may.includes(named) && room.headroom) throw new SpoolError(`${named.id} is ${(named.size ?? 'm').toUpperCase()}, and the chat is ${headroomText(room.headroom)}`, 'Take one that fits what is left: spool build --takeover');
   if (named && !may.includes(named)) throw new SpoolError(notReasonable(ws, spool, named), 'Take the top one it may: spool build --takeover');
-  // An agent's idea waits behind the human's own: naming it does not jump it ahead.
+  // An agent's idea waits behind the user's own: naming it does not jump it ahead.
   const human = named ? humans(ws, spool, [named, may[0]!]) : new Set<string>();
   if (named && named !== may[0] && !human.has(named.id) && human.has(may[0]!.id)) {
-    throw new SpoolError(`${named.id} is an agent's idea, and the human's own ${may[0]!.id} comes first`, 'Take the top one it may: spool build --takeover');
+    throw new SpoolError(`${named.id} is an agent's idea, and the user's own ${may[0]!.id} comes first`, 'Take the top one it may: spool build --takeover');
   }
   const task = named ?? may[0];
   // Nothing to take: a tidy of the backlog may be due instead, and the refusal says so.

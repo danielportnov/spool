@@ -1,7 +1,7 @@
 /**
- * A sprint's review: everything the human needs to judge a sprint as one piece of work, on one page.
+ * A sprint's review: everything the user needs to judge a sprint as one piece of work, on one page.
  *
- * The human says what a stretch of work is for, presses play and walks away; when he comes back he
+ * The user says what a stretch of work is for, presses play and walks away; when he comes back he
  * reviews the sprint, not thread by thread across the board. So this gathers, for one sprint: what
  * it was for, how long it took and how much it touched, each thread with the one line that says
  * what it did, the steps to see it working and the calls its agent made, and what was undone or

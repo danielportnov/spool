@@ -163,12 +163,12 @@ const shq = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
 
 /**
  * Make `git push` fail in a thread's worktree, with a line saying why. Git shares one hooks folder
- * between a repository's worktrees, so the hook cannot go there without also binding the human's own
+ * between a repository's worktrees, so the hook cannot go there without also binding the user's own
  * checkout. Instead the worktree alone gets `core.hooksPath` (git's per-worktree config), pointing at
  * a folder kept in the worktree's own admin folder, which goes when the worktree does. That folder
  * holds the refusing `pre-push`, and a forwarder for every other hook that runs the project's own
  * hook of that name, so a worktree is checked by the same hooks its checkout is. The checkout's
- * config gains only `extensions.worktreeConfig`, which changes nothing for it. A worktree the human
+ * config gains only `extensions.worktreeConfig`, which changes nothing for it. A worktree the user
  * makes by hand is not touched. Best effort: where git cannot, the policy still says it.
  */
 function guardPush(at: Place): void {
@@ -182,7 +182,7 @@ function guardPush(at: Place): void {
   write(
     'pre-push',
     [
-      'echo "spool: git push is refused here. Agents never push: this is a Spool thread worktree, and publishing is for the human to do." >&2',
+      'echo "spool: git push is refused here. Agents never push: this is a Spool thread worktree, and publishing is for the user to do." >&2',
       'echo "spool: if the work needs to go out, finish the thread (spool done) or put it to them (spool ask --human publish)." >&2',
       'exit 1',
     ].join('\n'),
@@ -491,7 +491,7 @@ export function land<T>(task: Item, check: (cwd: string) => T, trailers: Trailer
     if (inTheWay.length) {
       throw new SpoolError(
         `the checkout has uncommitted changes to files ${task.id} changed:\n  ${shown(inTheWay)}`,
-        `Nothing was landed. Those changes are not this thread's: leave them, and put it to the human (spool ask --for ${task.id}).\n` +
+        `Nothing was landed. Those changes are not this thread's: leave them, and put it to the user (spool ask --for ${task.id}).\n` +
           '  Once they are committed or gone, run spool done again.',
       );
     }
@@ -505,7 +505,7 @@ export function land<T>(task: Item, check: (cwd: string) => T, trailers: Trailer
     if (!merged.ok) {
       throw new SpoolError(
         `git would not fast-forward ${name} to ${at.branch}: ${merged.err}`,
-        'Nothing was landed. If the checkout\'s own uncommitted changes are in the way, they are the human\'s: put it to them with spool ask.',
+        'Nothing was landed. If the checkout\'s own uncommitted changes are in the way, they are the user\'s: put it to them with spool ask.',
       );
     }
     return { commits, onto: name, checked, release };

@@ -1,5 +1,5 @@
 /**
- * What waits on the human, done from the thread it is about, in a real browser.
+ * What waits on the user, done from the thread it is about, in a real browser.
  *
  * The page has no view of its own for it: a plan's go-ahead, a skill an agent
  * wrote and a question's answer in his own words are all on the thread's ticket.

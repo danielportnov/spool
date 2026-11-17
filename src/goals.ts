@@ -1,6 +1,6 @@
 /**
  * Goals: one short page on where a project is going, kept beside its policy in
- * `.spool/goals.md`. It is the human's in the end: agents write it on their word
+ * `.spool/goals.md`. It is the user's in the end: agents write it on their word
  * and keep it true, and every agent reads it before it works.
  *
  * The page is plain markdown. A `For:` line says what the project is for, and

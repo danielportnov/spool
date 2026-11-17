@@ -6,7 +6,7 @@ import { change } from '../src/act.ts';
 import { engineCtx } from './claude.ts';
 import { spool } from './helpers.ts';
 
-// AFK: the human is away. An agent's question that is not truly theirs is taken, on record, and the
+// AFK: the user is away. An agent's question that is not truly theirs is taken, on record, and the
 // thread goes on; one marked --human still waits for them.
 
 test('spool afk says and switches it, for every project', () => {
@@ -57,7 +57,7 @@ test('with AFK on, a question that is truly theirs still asks and waits; with it
     const asked = s.json('ask', 'Push the tag?', '--option', 'Push', '--option', 'Keep it local', '--recommend', '2', '--human', 'publish', '--for', t);
     assert.equal(asked.afk, undefined);
     assert.equal(asked.decision.status, 'open');
-    assert.match(s.sp('show', asked.decision.id), /Truly the human's: it publishes, pushes or sends something outside the repo\./);
+    assert.match(s.sp('show', asked.decision.id), /Truly the user's: it publishes, pushes or sends something outside the repo\./);
     assert.match(s.sp('show', t), /waiting on d-/);
     assert.match(s.fails('ask', 'Spend?', '--option', 'A', '--human', 'lunch'), /--human is one of money, publish, delete, account, product, machine/);
 
@@ -72,7 +72,7 @@ test('with AFK on, a question that is truly theirs still asks and waits; with it
   }
 });
 
-test('the page switches AFK, as the human', () => {
+test('the page switches AFK, as the user', () => {
   const s = spool();
   try {
     const ctx = engineCtx(s);

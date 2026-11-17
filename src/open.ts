@@ -3,7 +3,7 @@
  *
  * Every thread the page builds with `claude -p` runs in a Claude session Spool chose, and its log
  * says which. `spool open` lends this terminal to that session: the page's agent lets go of it
- * first (Stop, through the page), the thread is the human's while it is open, so no agent takes
+ * first (Stop, through the page), the thread is the user's while it is open, so no agent takes
  * it, and the terminal becomes `claude --resume <session>` in the thread's folder. Nothing is
  * drawn by Spool and no pseudo-terminal is needed: Claude Code gets the terminal as it is.
  *
@@ -60,11 +60,11 @@ export function claudeOf(ctx: Ctx): string {
   return path.basename(program) === 'claude' ? program : 'claude';
 }
 
-/** What a new session is told first: the human is at the keyboard, and the thread is claimed. */
-const OPENING = `You are working one task from a Spool queue, with the human at the keyboard: they
+/** What a new session is told first: the user is at the keyboard, and the thread is claimed. */
+const OPENING = `You are working one task from a Spool queue, with the user at the keyboard: they
 opened this session in Claude Code to work it with you, so talk to them here. The
 task below is already claimed. Follow the worker's rules: finish it with
-\`spool done\` when it is done. If the human quits first, they choose whether an
+\`spool done\` when it is done. If the user quits first, they choose whether an
 agent carries on with it.
 `;
 
@@ -85,7 +85,7 @@ function letGo(ctx: Ctx, task: Item): void {
   }
 }
 
-/** The human's answer to the one question, a line typed at the terminal, or the first line piped in. */
+/** The user's answer to the one question, a line typed at the terminal, or the first line piped in. */
 function answer(ctx: Ctx): string {
   if (!ctx.tty) return ctx.stdin().split('\n')[0] ?? '';
   const bytes: number[] = [];

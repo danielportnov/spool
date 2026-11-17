@@ -1,6 +1,6 @@
 /**
  * A sprint's words. What it is for is kept in its body as labelled lines (Goal, Why, Done when,
- * Serves), the same shape a thread's spec has. The human's own words for it, the vision it was
+ * Serves), the same shape a thread's spec has. The user's own words for it, the vision it was
  * made from, are quoted above them, the way a thread keeps the note it came from.
  */
 
@@ -8,7 +8,7 @@ import { type Item, setMain, splitBody } from './model.ts';
 
 /**
  * A sprint's goal, reason and done-when, read from the three lines of its body, the project goal
- * it serves, and the vision it was made from, in the human's words; and, once it is reached, the
+ * it serves, and the vision it was made from, in the user's words; and, once it is reached, the
  * version it became. Whatever else is in its body, and not quoted, is the goal.
  */
 export function sprintAbout(sprint: Item): { goal: string; why: string; doneWhen: string; serves: string; vision: string; version: string } {
@@ -58,7 +58,7 @@ export function addQuote(sprint: Item, quote: string): void {
   setMain(sprint, [quote, splitBody(sprint.body).main].filter(Boolean).join('\n\n'));
 }
 
-/** Words the human gave as they are, as a quote signed as the vision. */
+/** Words the user gave as they are, as a quote signed as the vision. */
 export function visionQuote(text: string, date: string): string {
   const quoted = text
     .trim()

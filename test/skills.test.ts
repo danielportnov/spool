@@ -5,7 +5,7 @@ import { Sandbox, spool } from './helpers.ts';
 
 const STEPS = '# Ship to TestFlight\n\n1. Bump the build number.\n2. Archive.\n3. Upload, then wait for processing.\n';
 
-test('an agent writes a procedure down and the human sees it', () => {
+test('an agent writes a procedure down and the user sees it', () => {
   const s = spool();
   const task = s.id('task', 'Get the beta out');
   const result = s.exec(
@@ -67,7 +67,7 @@ test('skills written by hand are listed, adopted on request, and tracked once us
   assert.deepEqual(s.json('show', task).item.skills, ['codex']);
   assert.ok(s.sp('graph').includes('-.->|uses|'));
 
-  // Adopting one an agent wrote itself puts it in front of the human.
+  // Adopting one an agent wrote itself puts it in front of the user.
   const adopted = s.json('skill', 'add', 'lint').skill;
   assert.equal(adopted.path, '.agents/skills/lint');
   assert.match(s.sp('review'), /NEW SKILLS[\s\S]*lint/);

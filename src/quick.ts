@@ -1,7 +1,7 @@
 /**
- * The quick reply: the page answering the human on a thread nobody is building.
+ * The quick reply: the page answering the user on a thread nobody is building.
  *
- * When the human writes on a thread, the thread shows "Typing…" at once. Where an agent of the
+ * When the user writes on a thread, the thread shows "Typing…" at once. Where an agent of the
  * page is building it, their words already reach that agent (engine.ts `attend`), and nothing
  * more is done here. Where nobody is, a small model answers on the thread within seconds: Sonnet,
  * or Haiku for a one-line message. It is one short `claude -p` call, given the thread's brief, its
@@ -63,12 +63,12 @@ export function quickArgs(model: string): string[] {
   ];
 }
 
-/** What it is told: who it is, the thread, and the human's words. */
+/** What it is told: who it is, the thread, and the user's words. */
 export function quickPrompt(task: Item, words: string, building: boolean): string {
   const { main, log } = splitBody(task.body);
   const brief = main.length > BRIEF_CHARS ? `${main.slice(0, BRIEF_CHARS)}\n…` : main;
   return [
-    'You answer the human on one thread of a Spool work queue, on its web page, in a few seconds.',
+    'You answer the user on one thread of a Spool work queue, on its web page, in a few seconds.',
     building
       ? 'An agent elsewhere (a chat) is building this thread; it reads the thread, so their words reach it there.'
       : 'Nobody is building this thread right now.',
@@ -127,7 +127,7 @@ export class QuickReplies {
   }
 
   /**
-   * Answer what the human wrote on a thread, with the `claude` the agent command runs. False where
+   * Answer what the user wrote on a thread, with the `claude` the agent command runs. False where
    * none is started: they are off, the agent is not `claude -p`, the thread is not there, or too
    * many are being written already.
    */

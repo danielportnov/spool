@@ -4,7 +4,7 @@
  * Several agents can build one project side by side in Chat mode: a Claude Code chat and a Codex
  * chat, each running the loop. Each is one entry here, by the name it signs with (`--as "Claude
  * Opus 5.5"` is Claude, `--as "Codex GPT-6"` is Codex), and builds up to its own number of threads
- * at once. A claim past that number is refused, so one agent never takes the room the human gave
+ * at once. A claim past that number is refused, so one agent never takes the room the user gave
  * another. The roster is kept with the other builder settings, on the user's machine, by the
  * project's folder. With nothing kept, it is Claude and Codex, each at the user's `parallel`.
  *
@@ -39,13 +39,13 @@ export interface RosterEntry {
   lean?: Lean;
 }
 
-/** The roster a project has before the human says anything: the two agents that build here. */
+/** The roster a project has before the user says anything: the two agents that build here. */
 export const ROSTER_DEFAULT: readonly RosterEntry[] = [
   { name: 'Claude', kind: 'chat' },
   { name: 'Codex', kind: 'chat' },
 ];
 
-/** The agents that build the project in `root`, in the human's order. */
+/** The agents that build the project in `root`, in the user's order. */
 export function rosterOf(ctx: Ctx, root: string): RosterEntry[] {
   const kept = userConfig(ctx).roster?.[root];
   const list = Array.isArray(kept) ? kept.filter((e) => e && typeof e.name === 'string' && e.name.trim()) : [];
@@ -78,7 +78,7 @@ export function sizesOf(entry: RosterEntry): [Size, Size] {
   return [lo, hi];
 }
 
-/** The sizes as the human says them: "all sizes", "up to M", "XS to M", "L and up", "only M". */
+/** The sizes as the user says them: "all sizes", "up to M", "XS to M", "L and up", "only M". */
 export function sizesText(entry: RosterEntry): string {
   const [lo, hi] = sizesOf(entry);
   const L = (s: Size) => s.toUpperCase();
@@ -111,7 +111,7 @@ export function refuseOutsideSizes(ctx: Ctx, task: Item, actor: string): void {
   if (!entry || takesSize(entry, task)) return;
   throw new SpoolError(
     `${task.id} is ${(task.size ?? 'm').toUpperCase()}${task.size ? '' : ' (no size counts as M)'}, and ${entry.name} takes ${sizesText(entry)}`,
-    `Leave it for an agent that takes it: spool next. The sizes are the human's to set: spool builder --agent ${entry.name} --sizes xs-xl`,
+    `Leave it for an agent that takes it: spool next. The sizes are the user's to set: spool builder --agent ${entry.name} --sizes xs-xl`,
   );
 }
 
@@ -201,7 +201,7 @@ export function refuseOverCount(ctx: Ctx, ws: Workspace, task: Item, actor: stri
   if (held.length < n) return;
   throw new SpoolError(
     `${entry.name} is at its ${n === 1 ? '1 thread' : `${n} threads`}: ${held.map((t) => t.id).join(', ')}`,
-    `Land one first. More is the human's to give: spool builder --agent ${entry.name} --at-once ${n + 1}`,
+    `Land one first. More is the user's to give: spool builder --agent ${entry.name} --at-once ${n + 1}`,
   );
 }
 

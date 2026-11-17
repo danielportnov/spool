@@ -243,7 +243,7 @@ The second needs the first. Neither needs anything installed.
   }, '--from', percent);
   spool(['build', sign]);
 
-  // In Build, and waiting on a call that is the human's.
+  // In Build, and waiting on a call that is the user's.
   const cent = task({
     title: 'Make the shares add up to the bill',
     size: 's',

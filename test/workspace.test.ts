@@ -79,13 +79,13 @@ test('the recorder is briefed with the projects and what is waiting', () => {
   assert.match(brief, /# Spool · recorder protocol/);
   assert.match(brief, /apps\/tidy_up +0 open {2}· A chore tracker/);
   assert.match(brief, /games\/sky_hop +1 open {2}· A platformer about hopping between clouds\./);
-  assert.match(brief, /WAITING ON THE HUMAN\n.*Ship on Friday\?\n\s+1\) Yes {2}2\) No/);
+  assert.match(brief, /WAITING ON THE USER\n.*Ship on Friday\?\n\s+1\) Yes {2}2\) No/);
   assert.match(brief, /INBOX {2}1 unfiled/);
 
   // A recorder that has the rules from its skill asks only for what is true here.
   const context = s.sp('prime', 'recorder', '--context');
   assert.match(context, /^PROJECTS\n/);
-  assert.match(context, /WAITING ON THE HUMAN\n.*Ship on Friday\?/);
+  assert.match(context, /WAITING ON THE USER\n.*Ship on Friday\?/);
   assert.doesNotMatch(context, /recorder protocol|## Recording it/);
 
   const worker = s.sp('prime');

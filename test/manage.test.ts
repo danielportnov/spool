@@ -98,14 +98,14 @@ test('the worksheet names what may have shipped, what looks alike, what has no s
   assert.match(bare.split('No Why: line')[1]!, new RegExp(`◇ ${parked} {2}p2 M {2}A Grand Prix mode {2}· proposed · hands off: on hold\\n`));
   assert.match(step(sheet, 5), new RegExp(`^5 {2}TOO BIG {2}large or huge, and not a plan\\n {2}◇ ${big} {2}p2 L {2}Rebuild the level editor {2}· proposed$`));
 
-  // 6. The order as it stands, the priority the human set, and Build, which is not the manager's.
+  // 6. The order as it stands, the priority the user set, and Build, which is not the manager's.
   const order = step(sheet, 6);
-  assert.match(order, new RegExp(`\\n {2}The backlog as it ranks now, 8:\\n {4}1\\. ◇ ${coins} {2}p1 XS {2}Make coins readable at sunset {2}· proposed · the human set p1 \\d+m ago · hands off: the human changed it \\d+m ago\\n {4}2\\. ◇ ${idea} `));
+  assert.match(order, new RegExp(`\\n {2}The backlog as it ranks now, 8:\\n {4}1\\. ◇ ${coins} {2}p1 XS {2}Make coins readable at sunset {2}· proposed · the user set p1 \\d+m ago · hands off: the user changed it \\d+m ago\\n {4}2\\. ◇ ${idea} `));
   assert.match(order, new RegExp(`\\n {4}7\\. ◇ ${parked} .* · hands off: on hold\\n {4}8\\. ◇ ${big} `), 'most urgent first, then the smallest, then the oldest');
-  assert.match(order, new RegExp(`\\n {2}Priorities the human set, each to be left as it is, 1:\\n {4}${coins} {2}p1 {2}Make coins readable at sunset`));
+  assert.match(order, new RegExp(`\\n {2}Priorities the user set, each to be left as it is, 1:\\n {4}${coins} {2}p1 {2}Make coins readable at sunset`));
   assert.match(order, new RegExp(`\\n {2}In Build, in the order it will be built, 1: ${music}\\. Never yours to reorder\\.$`));
   assert.doesNotMatch(order.split('In Build')[0]!, new RegExp(music), 'what is in Build is not in the backlog’s ranking');
-  assert.match(sheet, /\nHANDS OFF\n {2}1 in Build · 1 on hold · 3 the human had a hand on in the last 7 days\n/);
+  assert.match(sheet, /\nHANDS OFF\n {2}1 in Build · 1 on hold · 3 the user had a hand on in the last 7 days\n/);
   assert.match(sheet, new RegExp(`\\nWhen the pass is done: {2}spool manage --end -m "<the headline>" --report - <<'EOF' … EOF\\nTo take the whole run back: {2}spool revert ${run}$`));
 
   // The pass, with ordinary commands, each under the run.
@@ -158,12 +158,12 @@ test('the worksheet names what may have shipped, what looks alike, what has no s
       'Also changed  1',
       `  ${b}  Jump still feels floaty on long gaps · title`,
       '',
-      'Left alone  1 in Build · 1 on hold · 3 the human had a hand on in the last 7 days',
+      'Left alone  1 in Build · 1 on hold · 3 the user had a hand on in the last 7 days',
       '',
     ].join('\n'),
   );
 
-  // It is finished like any audit: on its ticket, in the brief, and in the human's review.
+  // It is finished like any audit: on its ticket, in the brief, and in the user's review.
   const done = s.json('show', run).item;
   assert.deepEqual([done.state, done.summary, done.report], ['done', 'Tidied the backlog: 1 sized, 1 new idea, a sprint drafted', `.spool/reports/${run}.md`]);
   assert.ok(s.sp('show', run, '--report').startsWith('Tidied the backlog: 1 sized'));
@@ -308,14 +308,14 @@ test('a thread is cold by when someone other than a run last touched it, and a n
   assert.match(no, new RegExp(`\\n {2}Earlier runs, and what became of the ideas each filed, 1:\\n {4}${first.run} {2}2026-02-01 {2}Sized one, two ideas {2}· spool show ${first.run} --report\\n {6}${kept} {2}Show the sprint on the card {2}· not answered yet\\n {6}${refused} {2}Sort Done by when it shipped {2}· dropped: I like it as it is$`));
   assert.match(second.sheet, /\nNew ideas: 5 at most this run\. 1 earlier one still waits for an answer\.\n/);
 
-  // The human writes on the old thread: it is theirs again, and warm.
+  // The user writes on the old thread: it is theirs again, and warm.
   s.sp('manage', '--end', '-m', 'Nothing new');
   const note = s.id('capture', 'yes, CSV, for the accountant');
   s.sp('file', note, '--into', old);
   s.sp('revert', second.run, '-m', 'stop filing ideas about Done');
   const third = start(s);
   assert.match(step(third.sheet, 3), /Nothing\./);
-  assert.match(step(third.sheet, 4), new RegExp(`${old} .* · hands off: the human wrote on it \\d+m ago`));
+  assert.match(step(third.sheet, 4), new RegExp(`${old} .* · hands off: the user wrote on it \\d+m ago`));
   const again = step(third.sheet, 0);
   assert.match(again, new RegExp(`\\n {2}Undone, and why, 1:\\n {4}"stop filing ideas about Done" {2}\\(${second.run}, 2026-02-03\\)\\n`));
   assert.match(again, new RegExp(`\\n {4}${second.run} {2}2026-02-03 {2}undone: stop filing ideas about Done\\n {4}${first.run} `));
@@ -326,7 +326,7 @@ test('with ten ideas still unanswered a run files none, and says so', () => {
   const s = project();
   for (let i = 1; i <= 10; i++) s.id('task', `Idea number ${i} about something of its own`, '--suggested', `reason ${i}`, '-s', 's');
   const sheet = s.sp('manage', '--start');
-  assert.match(sheet, /\nNew ideas: none this run\. 10 earlier ones still wait for an answer, and at 10 the human has enough to read\.\n/);
+  assert.match(sheet, /\nNew ideas: none this run\. 10 earlier ones still wait for an answer, and at 10 the user has enough to read\.\n/);
   assert.deepEqual(s.json('manage').open.tags, ['manage']);
   s.cleanup();
 });

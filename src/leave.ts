@@ -1,10 +1,10 @@
 /**
- * A leave: how far agents may go while the human is away, and until when.
+ * A leave: how far agents may go while the user is away, and until when.
  *
  * "Work through whatever still seems relevant, I'll check in the morning" is a leave. Said in a
  * chat it is a sentence an agent remembers, or stretches. Given with `spool leave` it is a
  * record: `.spool/leave.json` holds their words, who gave it, when, until when, and what it
- * allows. With none, agents only tidy: nothing is moved to build but by the human.
+ * allows. With none, agents only tidy: nothing is moved to build but by the user.
  *
  * What a leave can allow, each asked for by name:
  *
@@ -18,7 +18,7 @@
  * one is removed by the first command that finds it. Nothing renews a leave or stretches one:
  * a leave that outlives the night is a gate left open.
  *
- * Giving one is the human's, like `spool build`: where the gate is locked an agent is refused.
+ * Giving one is the user's, like `spool build`: where the gate is locked an agent is refused.
  */
 
 import * as fs from 'node:fs';
@@ -37,7 +37,7 @@ const DAY = 86_400_000;
 const MORNING = 8;
 
 export interface Leave {
-  /** What the human said, as they said it. */
+  /** What the user said, as they said it. */
   words: string;
   by: string;
   given: string;
@@ -81,7 +81,7 @@ function write(spool: Spool, leave: Leave): void {
   fs.renameSync(temp, file);
 }
 
-/** A time of day as a clock shows it, where the human is. */
+/** A time of day as a clock shows it, where the user is. */
 function clock(iso: string): string {
   const at = new Date(iso);
   return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
@@ -149,7 +149,7 @@ export function endLeaveOf(ws: Workspace, run: Item): Leave | undefined {
 }
 
 /**
- * When a leave ends, from how the human said it: "midnight", "8am", "23:30", "3h", or a date and
+ * When a leave ends, from how the user said it: "midnight", "8am", "23:30", "3h", or a date and
  * time. A time of day is the next time the clock shows it. With nothing said, 8 the next morning.
  */
 export function untilOf(said: string | undefined, now: Date): Date {
@@ -221,10 +221,10 @@ export function leaveCommand(call: Call, spool: Spool, byHuman: () => void): Res
     };
   }
 
-  // Giving a leave opens the gate a little: where the gate is locked, that takes the human.
+  // Giving a leave opens the gate a little: where the gate is locked, that takes the user.
   byHuman();
   const words = args.join(' ').replace(/\s+/g, ' ').trim();
-  if (!words) throw new SpoolError('what the human said is missing', 'A leave is kept in their words: spool leave "work through the backlog, I will look in the morning" --until 8am');
+  if (!words) throw new SpoolError('what the user said is missing', 'A leave is kept in their words: spool leave "work through the backlog, I will look in the morning" --until 8am');
   if (live) {
     throw new SpoolError(`a leave is live already, until ${clock(live.until)}: "${live.words}"`, 'Nothing renews a leave or stretches one. End it first: spool leave --end');
   }
@@ -264,13 +264,13 @@ export function leaveCommand(call: Call, spool: Spool, byHuman: () => void): Res
 function refuse(found: { live?: Leave; expired?: Leave }, what: 'build' | 'drop'): Leave {
   const give = `spool leave "<their words>" --until <time> ${what === 'build' ? '--build <n>' : '--drop-shipped'}`;
   if (found.expired) {
-    throw new SpoolError(`the leave ran out at ${clock(found.expired.until)}: "${found.expired.words}"`, `Nothing renews a leave. Only the human gives another: ${give}`);
+    throw new SpoolError(`the leave ran out at ${clock(found.expired.until)}: "${found.expired.words}"`, `Nothing renews a leave. Only the user gives another: ${give}`);
   }
   const leave = found.live;
   if (!leave) {
     throw new SpoolError(
       'no leave is live',
-      `Without one, ${what === 'build' ? 'only the human moves work to build' : 'propose the drop in your report'}. They give a leave with: ${give}`,
+      `Without one, ${what === 'build' ? 'only the user moves work to build' : 'propose the drop in your report'}. They give a leave with: ${give}`,
     );
   }
   if (what === 'build' ? !leave.allows.build : !leave.allows.dropShipped) {
@@ -282,7 +282,7 @@ function refuse(found: { live?: Leave; expired?: Leave }, what: 'build' | 'drop'
   return leave;
 }
 
-/** A move under a leave is the agent's own doing, so unless a person is at the keys it is not signed as the human's. */
+/** A move under a leave is the agent's own doing, so unless a person is at the keys it is not signed as the user's. */
 export function signer(call: Call): string {
   return call.actor === 'human' && !call.ctx.tty && !call.ctx.human ? 'agent' : call.actor;
 }
@@ -298,17 +298,17 @@ export function buildUnderLeave(call: Call, tasks: Item[]): { actor: string; mov
   for (const spool of new Set(tasks.map((t) => t.spool))) {
     const leave = refuse(settle(ws, spool), 'build');
     const mine = tasks.filter((t) => t.spool === spool);
-    // A leave starts what is waiting for a yes. What the human parked or put away stays where they put it.
+    // A leave starts what is waiting for a yes. What the user parked or put away stays where they put it.
     for (const t of mine) {
-      if (t.hold) throw new SpoolError(`${t.id} is on hold: ${t.hold}`, `A leave does not lift a hold. Only the human releases it: spool release ${t.id}`);
-      if (t.archived) throw new SpoolError(`${t.id} is archived`, `A leave does not bring it back. Only the human does: spool archive --undo ${t.id}`);
+      if (t.hold) throw new SpoolError(`${t.id} is on hold: ${t.hold}`, `A leave does not lift a hold. Only the user releases it: spool release ${t.id}`);
+      if (t.archived) throw new SpoolError(`${t.id} is archived`, `A leave does not bring it back. Only the user does: spool archive --undo ${t.id}`);
     }
     const wanted = mine.filter((t) => t.status === 'proposed').length;
     const left = leave.allows.build! - leave.used.build;
     if (wanted > left) {
       throw new SpoolError(
         left > 0 ? `the leave allows ${left} more to be built, not ${wanted}: "${leave.words}"` : `the leave's ${leave.allows.build === 1 ? 'one build is' : `${leave.allows.build} builds are`} used up: "${leave.words}"`,
-        'Leave the rest proposed and say so in your report. Nothing renews a leave: only the human gives another.',
+        'Leave the rest proposed and say so in your report. Nothing renews a leave: only the user gives another.',
       );
     }
   }

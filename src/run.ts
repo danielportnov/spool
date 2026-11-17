@@ -22,7 +22,7 @@ export interface Run {
 // Plain words only: these come from a log anyone can write to, and end up on a page and in a command.
 const WORD = /^[a-z0-9][a-z0-9.\-[\]]{0,70}$/i;
 const SESSION = /^[\w-]{1,100}$/;
-/** The line `spool open` writes as the human takes a thread into Claude Code. */
+/** The line `spool open` writes as the user takes a thread into Claude Code. */
 export const OPENED = /^opened in Claude Code, in session ([\w-]+)/;
 
 const flag = (command: string, name: string): string => {
@@ -36,7 +36,7 @@ export function runOf(log: string[]): Run | null {
   const handed = said.findLastIndex((l) => l?.what.startsWith('handed to '));
   // Someone took it after the page last handed it on: that run is not the page's, and says nothing.
   const taken = said.findLastIndex((l) => !!l && /^(started|picked up after)/.test(l.what));
-  // The human opened it in Claude Code since (`spool open`): the session is the one they were in.
+  // The user opened it in Claude Code since (`spool open`): the session is the one they were in.
   const opened = said.findLastIndex((l) => !!l && OPENED.test(l.what));
   if (opened > taken && opened > handed) {
     const id = OPENED.exec(said[opened]!.what)![1]!;

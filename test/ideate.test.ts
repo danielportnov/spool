@@ -50,7 +50,7 @@ test('the ideation worksheet gathers the goals, what shipped, what is there, wha
   s.cleanup();
 });
 
-test('a pass files no idea while too many earlier ones wait, unless the human named a number', () => {
+test('a pass files no idea while too many earlier ones wait, unless the user named a number', () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'demo');
   for (let i = 0; i < 10; i++) s.sp('task', `An idea about thing number ${i}`, '-s', 'xs', '--suggested', 'why not');
@@ -63,6 +63,6 @@ test('a pass files no idea while too many earlier ones wait, unless the human na
 test('without goals, the worksheet says to ask for them', () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'demo');
-  assert.match(part(s.sp('ideate'), 1), /No goals yet\. Ask the human what it is for/);
+  assert.match(part(s.sp('ideate'), 1), /No goals yet\. Ask the user what it is for/);
   s.cleanup();
 });

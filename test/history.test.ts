@@ -233,7 +233,7 @@ test('restoring a thread to Build through history respects a locked gate', (t) =
   s.sp('init', '--lock');
   s.sp('propose', id);
   const entry = s.json('history', id).entries[0];
-  assert.match(s.fails('undo', entry.id, '--as', 'human'), /the human's alone.*its gate is locked/);
+  assert.match(s.fails('undo', entry.id, '--as', 'human'), /the user's alone.*its gate is locked/);
   assert.equal(s.json('show', id).item.state, 'proposed');
   assert.equal(s.exec(['undo', entry.id], { tty: true }).code, 0);
   assert.match(s.item(id), /^status: open$/m);
@@ -251,7 +251,7 @@ test('an unsigned write on a claimed thread is kept under the claimer, as its lo
   assert.equal(entry.actor, 'Claude Opus 5.5');
 });
 
-test('hold defaults to the human on a claimed thread, while log defaults to its claimer', (t) => {
+test('hold defaults to the user on a claimed thread, while log defaults to its claimer', (t) => {
   const s = spool();
   t.after(() => s.cleanup());
   const id = s.id('task', 'Claimed work');

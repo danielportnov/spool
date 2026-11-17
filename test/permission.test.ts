@@ -1,5 +1,5 @@
 /**
- * An agent's permission question comes to the human: a tool call a `claude -p` session needs a
+ * An agent's permission question comes to the user: a tool call a `claude -p` session needs a
  * yes for is held for them where someone is looking, and refused at once where nobody is.
  *
  * The stand-in agent speaks lines recorded from Claude Code (see test/claude.ts).
@@ -113,7 +113,7 @@ test('with someone looking, an agent’s question waits for them: allowed, it go
     assert.deepEqual(runner.permit(jump, asked.ask, 'once'), { ok: true, text: 'Allowed once.' });
     await until('the thread is finished', () => s.json('show', jump).item.status === 'done');
     assert.deepEqual(fake.heard(1)[1], to[0], 'the answer the real one was given');
-    assert.match(s.item(jump), new RegExp(`page: allowed once by the human: ${HELLO}\n`));
+    assert.match(s.item(jump), new RegExp(`page: allowed once by the user: ${HELLO}\n`));
     assert.doesNotMatch(s.item(jump), /permission denied/);
     await until('the agent has gone', () => !runner.runs.size);
     assert.deepEqual(spoolEvents(s, jump), [{ type: 'spool', event: 'answered', ask: asked.ask, call: HELLO, answer: 'once', by: 'human' }]);
@@ -124,7 +124,7 @@ test('with someone looking, an agent’s question waits for them: allowed, it go
   }
 });
 
-test('refused with a reason, the agent is told why, and the log says it once, in the human’s words', async () => {
+test('refused with a reason, the agent is told why, and the log says it once, in the user’s words', async () => {
   const s = new Sandbox();
   s.sp('init', '--name', 'skyhop');
   const jump = s.id('task', 'Tighten the jump arc');
@@ -136,13 +136,13 @@ test('refused with a reason, the agent is told why, and the log says it once, in
     const asked = await until('the agent asks', () => runner.live()[0]?.asking);
     assert.deepEqual(runner.permit(jump, asked.ask, 'no', 'one file is enough'), { ok: true, text: 'Refused. The agent is told.' });
     await until('the agent is told', () => fake.heard(1).length === 2);
-    assert.deepEqual(fake.heard(1)[1], { ...to[1], response: { ...to[1]!.response, response: { behavior: 'deny', message: 'The human refused this, and said: one file is enough' } } });
-    // Its turn ends with the thread unfinished. The human was just there, so it is kept for what they say next; here, they say nothing.
+    assert.deepEqual(fake.heard(1)[1], { ...to[1], response: { ...to[1]!.response, response: { behavior: 'deny', message: 'The user refused this, and said: one file is enough' } } });
+    // Its turn ends with the thread unfinished. The user was just there, so it is kept for what they say next; here, they say nothing.
     await until('its turn is over', () => runner.runs.get(jump)?.session?.waiting);
     runner.replyWindow = 1;
     await until('the agent has gone', () => !runner.runs.size);
     const item = s.item(jump);
-    assert.match(item, new RegExp(`page: refused by the human: ${SECOND}\\. They said: one file is enough\n`));
+    assert.match(item, new RegExp(`page: refused by the user: ${SECOND}\\. They said: one file is enough\n`));
     assert.doesNotMatch(item, /permission denied/, 'what they refused themselves is not said again as a denial');
     assert.ok(runner.recent[0]!.outcome.startsWith('unfinished'));
   } finally {
@@ -214,7 +214,7 @@ test('from the page: the board shows the question, and one action answers it, fo
     assert.deepEqual(await post('permit', { id: jump, ask: asked.ask, answer: 'run' }), { status: 200, ok: true, text: 'Allowed for the rest of this run.' });
     await until('the thread is finished', () => s.json('show', jump).item.status === 'done');
     assert.deepEqual(fake.heard(1)[1], recorded('allow-for-the-run').find((r) => r.dir === '>' && r.event?.type === 'control_response')!.event);
-    assert.match(s.item(jump), /page: allowed by the human for the rest of this run: Bash: touch k1\.txt \(not asked again: Bash: touch k1\.txt, files in \/work\/skyhop, every file edit\)/);
+    assert.match(s.item(jump), /page: allowed by the user for the rest of this run: Bash: touch k1\.txt \(not asked again: Bash: touch k1\.txt, files in \/work\/skyhop, every file edit\)/);
     await until('the question is gone from the board', async () => !(await board()).runner.running.length);
   } finally {
     await page.stop();

@@ -1,6 +1,6 @@
 /**
  * An agent that has printed nothing for the limit is marked quiet on the board and tells the
- * human once; past a longer limit, if one is set, it is stopped and its thread put back.
+ * user once; past a longer limit, if one is set, it is stopped and its thread put back.
  */
 
 import assert from 'node:assert/strict';
@@ -30,7 +30,7 @@ test('a quiet agent is marked on the board and notified once, and stopped at the
     await until('the agent is heard', async () => (await running())?.lines.includes('apple'));
     assert.equal((await running()).quiet, null, 'not quiet while it has just spoken');
     await until('it is marked quiet', async () => typeof (await running())?.quiet === 'number');
-    await until('the human is told', () => fs.existsSync(marker));
+    await until('the user is told', () => fs.existsSync(marker));
     assert.match(fs.readFileSync(marker, 'utf8'), /^stuck Quiet: Tighten the jump arc/);
     await until('it is stopped and the thread put back', () => s.json('show', jump).item.state !== 'active', { timeout: 20_000 });
     assert.match(s.item(jump), /its agent has printed nothing for/);

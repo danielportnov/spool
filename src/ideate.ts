@@ -9,12 +9,12 @@
  *   1  what the project is for: the goals page
  *   2  what shipped lately: finished threads, and the changelog's newest version
  *   3  what is already there: every open thread, so no idea repeats one
- *   4  what the human said: their notes, newest first, unfiled ones marked
+ *   4  what the user said: their notes, newest first, unfiled ones marked
  *   5  what was said no to: drops with their reasons, the lessons, and earlier AI ideas' fate
  *   6  where the code is: the folder, its README and docs
  *
  * `spool ideate` writes nothing. Each idea is filed by the agent with `spool task --suggested`, as
- * proposed and marked AI suggested, and waits there until the human moves it to Build. Dropping
+ * proposed and marked AI suggested, and waits there until the user moves it to Build. Dropping
  * one is all it takes to say no.
  */
 
@@ -32,13 +32,13 @@ import type { Workspace } from './store.ts';
 
 /** The numbers, in one place so they are easy to change. */
 export const IDEATE = {
-  /** New ideas a pass may file, unless the human named a number. */
+  /** New ideas a pass may file, unless the user named a number. */
   ideas: 5,
-  /** With this many AI ideas still unanswered, a pass files none: the human has enough to answer. */
+  /** With this many AI ideas still unanswered, a pass files none: the user has enough to answer. */
   waiting: 10,
   /** Finished threads shown, newest first. */
   shipped: 12,
-  /** The human's notes shown, newest first. */
+  /** The user's notes shown, newest first. */
   said: 12,
   /** Drops shown, newest first. */
   dropped: 12,
@@ -110,7 +110,7 @@ export function gatherIdeas(ws: Workspace, spool: Spool, max?: number): Ideas {
   const readme = ['README.md', 'readme.md', 'README'].find((f) => fs.existsSync(path.join(spool.root, f))) ?? null;
   return {
     project: spool.name,
-    // The human's own number stands, whatever is waiting.
+    // The user's own number stands, whatever is waiting.
     cap: max ?? (unanswered >= IDEATE.waiting ? 0 : IDEATE.ideas),
     unanswered,
     goals: goalsOf(spool) ? goalsText(spool) : '',
@@ -158,13 +158,13 @@ export function ideasText(ws: Workspace, w: Ideas, p: Paint): string {
     'What follows are facts, gathered the same way every time. The ideas are yours.',
     w.cap
       ? `New ideas: ${w.cap} at most this pass. ${w.unanswered ? `${plural(w.unanswered, 'earlier AI idea')} still ${w.unanswered === 1 ? 'waits' : 'wait'} for an answer.` : 'No earlier AI idea is waiting for an answer.'}`
-      : `New ideas: none this pass. ${w.unanswered} earlier AI ideas still wait for an answer, and at ${IDEATE.waiting} the human has enough to read. Say so, and file nothing.`,
+      : `New ideas: none this pass. ${w.unanswered} earlier AI ideas still wait for an answer, and at ${IDEATE.waiting} the user has enough to read. Say so, and file nothing.`,
     '',
   ];
 
   out.push(head(1, 'WHAT IT IS FOR', 'every idea serves one of these'));
   if (w.goals) out.push(...w.goals.split('\n').map((l) => `  ${l}`));
-  else out.push('  No goals yet. Ask the human what it is for and where it is heading, in one question, and keep it: spool goals --edit -');
+  else out.push('  No goals yet. Ask the user what it is for and where it is heading, in one question, and keep it: spool goals --edit -');
 
   out.push('', head(2, 'WHAT SHIPPED', w.shipped.length ? `the last ${plural(w.shipped.length, 'thread')}, newest first: the follow-ups they make obvious` : ''));
   if (!w.shipped.length) out.push('  Nothing finished yet.');
@@ -203,7 +203,7 @@ export function ideasText(ws: Workspace, w: Ideas, p: Paint): string {
     '',
     p.bold('FILE EACH'),
     '  spool task "<the idea>" --suggested "<why, in a line they would agree with>" --size <size> -b "What: …\\nWhy: …\\nDone when: …"',
-    p.dim('  It is proposed and marked AI suggested: nobody builds it, you included, until the human moves it to Build.'),
+    p.dim('  It is proposed and marked AI suggested: nobody builds it, you included, until the user moves it to Build.'),
     p.dim('  Says "This looks like a thread already there"? It is a repeat: spool drop <its id> -m "already there".'),
     p.dim('  Then say in a line how many you filed; the board shows them in the backlog.'),
   );

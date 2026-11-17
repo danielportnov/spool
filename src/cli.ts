@@ -31,7 +31,7 @@ const GLOBAL: Options = {
 
 const GROUPS: [Command['group'], string][] = [
   ['agents', 'Working the queue'],
-  ['you', 'The human\'s verbs — run these only on their word'],
+  ['you', 'The user\'s verbs — run these only on their word'],
   ['see', 'Seeing'],
   ['setup', 'Set up'],
 ];

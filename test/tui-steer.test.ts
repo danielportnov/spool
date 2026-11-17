@@ -171,7 +171,7 @@ test('played through by keys alone: an agent asks to run something, and a lets i
     view.input.type('a');
     await view.shows('what it did', /^ Allowed for the rest of this run\.$/m);
     await until('the thread is finished', () => s.json('show', jump).item.status === 'done');
-    assert.match(s.item(jump), /allowed by the human for the rest of this run: Bash: touch k1\.txt/);
+    assert.match(s.item(jump), /allowed by the user for the rest of this run: Bash: touch k1\.txt/);
     view.input.type('q');
     await view.left;
   } finally {

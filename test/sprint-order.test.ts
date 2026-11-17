@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { Sandbox } from './helpers.ts';
 
 /**
- * Two sprints the human made, one of them played, a third made after, and loose threads beside
+ * Two sprints the user made, one of them played, a third made after, and loose threads beside
  * them: a crash, a typo and an idea in no sprint.
  */
 function planned() {
@@ -98,7 +98,7 @@ test('next hands out the sprint being played ahead of loose work of the same pri
     s.sp('edit', coins, '-p', '3');
     assert.deepEqual(order(s), [crash, menu, typo, pause, grand, coins]);
 
-    // A place the human gave beats all of it.
+    // A place the user gave beats all of it.
     s.sp('order', grand, '--first');
     assert.deepEqual(order(s), [grand, crash, menu, typo, pause, coins]);
     assert.equal(s.json('next').task.id, grand);

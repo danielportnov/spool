@@ -22,7 +22,7 @@ const PAGE = '---\nname: spool-page\n---\n\n# Spool page\n';
 const OLD_BLOCK = `<!-- spool:start -->
 ## Spool
 
-This project's work queue lives in \`.spool/\`. The human drives it by talking to you, through the
+This project's work queue lives in \`.spool/\`. The user drives it by talking to you, through the
 Spool skills: \`/spool-init\`, \`/spool-loop\`, \`/spool-record\` and \`/spool-page\`.
 <!-- spool:end -->`;
 
@@ -122,7 +122,7 @@ test('the block names the skills as they are now, and owns the words every skill
   assert.doesNotMatch(block, /spool-page/);
   // The vocabulary, and the rule that the store is never edited by hand, are said here, once.
   assert.match(flat, /It is the project's spool 🧶, and each piece of work in it is a thread 🧵; the commands call a thread a task\./);
-  assert.match(flat, /never edit those files by hand, and never ask the human to run a command you can run\./);
+  assert.match(flat, /never edit those files by hand, and never ask the user to run a command you can run\./);
   assert.match(flat, /A go, a no or a choice is a verb: `spool build`, `spool propose`, `spool answer`; the `spool` skill has the table\./);
   assert.match(flat, /work it by the worker's rules \(`spool prime worker`\)/);
   // What it says of itself: current as written, other once anything in it differs, none without one.

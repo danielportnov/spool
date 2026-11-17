@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Sandbox } from './helpers.ts';
 
-/** A project whose gate is locked: starting work takes the human, at their own terminal or on the page. */
+/** A project whose gate is locked: starting work takes the user, at their own terminal or on the page. */
 function locked(): Sandbox {
   const s = new Sandbox();
   s.sp('init', '--name', 'demo', '--lock');
@@ -19,7 +19,7 @@ function project(): Sandbox {
   return s;
 }
 
-/** A command the human types at their own terminal. Everything else here is run as an agent runs it. */
+/** A command the user types at their own terminal. Everything else here is run as an agent runs it. */
 function typed(s: Sandbox, ...args: string[]): string {
   const result = s.exec(args, { tty: true });
   if (result.code !== 0) throw new Error(`spool ${args.join(' ')} failed at the terminal: ${result.err || result.out}`);
@@ -54,15 +54,15 @@ test('a build under a leave works up to its count, and is refused after', () => 
   const [a, b, c] = ['Tighten the jump arc', 'Make coins readable at sunset', 'Fade the music between levels'].map((title) => s.id('task', title, '-s', 's')) as [string, string, string];
 
   // With no leave, an agent moves nothing to build here, flag or no flag.
-  assert.match(s.fails('build', a), /spool build is the human's alone in demo: its gate is locked/);
-  assert.match(s.fails('build', a, '--leave'), /no leave is live\n {2}Without one, only the human moves work to build\. They give a leave with: spool leave "<their words>" --until <time> --build <n>/);
+  assert.match(s.fails('build', a), /spool build is the user's alone in demo: its gate is locked/);
+  assert.match(s.fails('build', a, '--leave'), /no leave is live\n {2}Without one, only the user moves work to build\. They give a leave with: spool leave "<their words>" --until <time> --build <n>/);
 
   const given = typed(s, 'leave', WORDS, '--until', '3h', '--build', '2');
   const leave = kept(s);
   assert.equal(given, `A leave is live: "${WORDS}", until ${clock(leave.until)} (3h more): build up to 2\n  It ends by itself then, and nothing renews it. Sooner: spool leave --end`);
   assert.deepEqual(leave, { words: WORDS, by: 'human', given: leave.given, until: new Date(Date.parse(leave.given) + 3 * HOUR).toISOString(), allows: { build: 2 }, used: { build: 0, dropped: 0 }, runs: [] });
 
-  // Each move is counted, logged in the human's words, and signed by the agent that made it.
+  // Each move is counted, logged in the user's words, and signed by the agent that made it.
   assert.match(s.sp('build', a, '--leave', '--as', 'Claude'), new RegExp(`^In build:\\n {2}○ ${a} `));
   assert.match(s.item(a), new RegExp(`Claude: moved to build under the leave: ${WORDS}$`, 'm'));
   assert.equal(s.json('show', a).item.state, 'ready');
@@ -74,10 +74,10 @@ test('a build under a leave works up to its count, and is refused after', () => 
   assert.match(s.fails('build', b, c, '--leave'), new RegExp(`the leave allows 1 more to be built, not 2: "${WORDS}"`));
   assert.deepEqual([b, c].map((id) => s.json('show', id).item.state), ['proposed', 'proposed']);
   s.sp('build', b, '--leave');
-  assert.match(s.item(b), /agent: moved to build under the leave: /, 'unsigned, it is still the agent’s move and not the human’s');
+  assert.match(s.item(b), /agent: moved to build under the leave: /, 'unsigned, it is still the agent’s move and not the user’s');
 
   // Used up, it is refused in the leave's own words, and the lock is as it was.
-  assert.match(s.fails('build', c, '--leave'), new RegExp(`the leave's 2 builds are used up: "${WORDS}"\\n {2}Leave the rest proposed and say so in your report\\. Nothing renews a leave: only the human gives another\\.`));
+  assert.match(s.fails('build', c, '--leave'), new RegExp(`the leave's 2 builds are used up: "${WORDS}"\\n {2}Leave the rest proposed and say so in your report\\. Nothing renews a leave: only the user gives another\\.`));
   assert.match(s.fails('build', c), /its gate is locked/);
   assert.equal(s.json('show', c).item.state, 'proposed');
   assert.match(s.sp('leave'), new RegExp(`^A leave is live: "${WORDS}", until ${clock(leave.until)} \\(\\dh more\\): build up to 2\\n {2}given by human at ${clock(leave.given)} · 2 of 2 builds used\\n`));
@@ -99,7 +99,7 @@ test('a build after --until is refused with the leave’s words, and the leave i
   assert.match(s.sp('manage'), new RegExp(`\\n {2}under the leave "manage this until midnight", until ${clock(until)} `));
 
   s.advance(2);
-  assert.match(s.fails('build', a, '--leave'), new RegExp(`the leave ran out at ${clock(until)}: "manage this until midnight"\\n {2}Nothing renews a leave\\. Only the human gives another: spool leave "<their words>" --until <time> --build <n>`));
+  assert.match(s.fails('build', a, '--leave'), new RegExp(`the leave ran out at ${clock(until)}: "manage this until midnight"\\n {2}Nothing renews a leave\\. Only the user gives another: spool leave "<their words>" --until <time> --build <n>`));
   assert.equal(s.json('show', a).item.state, 'proposed');
   assert.equal(s.exists('.spool/leave.json'), false, 'removed by the command that found it');
   assert.match(s.item(run), new RegExp(`spool: the leave ran out at ${clock(until)}: "manage this until midnight"`), 'and the open run’s thread says when');
@@ -112,9 +112,9 @@ test('a build after --until is refused with the leave’s words, and the leave i
   s.cleanup();
 });
 
-test('where the gate is locked an agent cannot give a leave; unlocked, it gives one on the human’s word', () => {
+test('where the gate is locked an agent cannot give a leave; unlocked, it gives one on the user’s word', () => {
   const s = locked();
-  assert.match(s.fails('leave', 'go ahead tonight', '--build', '3'), /spool leave is the human's alone in demo: its gate is locked/);
+  assert.match(s.fails('leave', 'go ahead tonight', '--build', '3'), /spool leave is the user's alone in demo: its gate is locked/);
   assert.equal(s.exists('.spool/leave.json'), false);
   // Asking what is live, and ending one, are never refused: neither opens anything.
   assert.match(s.sp('leave'), /^No leave is live/);
@@ -201,7 +201,7 @@ test('a leave ends at a time: 8 the next morning unless said, never more than a 
   assert.match(s.fails('leave', 'whenever', '--until', 'whenever'), /"whenever" is not a time for a leave to end\n {2}Say when: --until midnight/);
   assert.match(s.fails('leave', 'at 25', '--until', '25:00'), /is not a time for a leave to end/);
   assert.match(s.fails('leave', 'none', '--build', '0'), /--build must be a whole number above zero/);
-  assert.match(s.fails('leave', '--build', '2'), /what the human said is missing\n {2}A leave is kept in their words/);
+  assert.match(s.fails('leave', '--build', '2'), /what the user said is missing\n {2}A leave is kept in their words/);
   assert.match(s.fails('leave', 'stop', '--end'), /--end ends a leave; it gives none/);
   assert.equal(s.exists('.spool/leave.json'), false);
 
@@ -256,11 +256,11 @@ test('a run’s worksheet and report say what the leave allows; a hold is not li
 
   // With no leave the run tidies only, and with ten ideas waiting it files none.
   const plain = s.sp('manage', '--start');
-  assert.match(plain, /\n\nNo leave is live: this run tidies only\. What you would build or drop goes in the report, for the human to answer\.\n\nThe backlog of demo/);
+  assert.match(plain, /\n\nNo leave is live: this run tidies only\. What you would build or drop goes in the report, for the user to answer\.\n\nThe backlog of demo/);
   assert.match(plain, /\nNew ideas: none this run\./);
   s.sp('manage', '--end', '-m', 'Nothing to tidy');
 
-  // "Go crazy" is a leave too: the human's own number for tonight stands.
+  // "Go crazy" is a leave too: the user's own number for tonight stands.
   s.sp('leave', 'go crazy tonight', '--until', '6h', '--build', '3', '--drop-shipped', '--proposals', '50');
   const sheet = s.json('manage', '--start');
   const run = sheet.run as string;
@@ -268,8 +268,8 @@ test('a run’s worksheet and report say what the leave allows; a hold is not li
   const again = s.sp('manage');
   assert.match(again, /\n {2}under the leave "go crazy tonight", until \d\d:\d\d \(6h more\): build up to 3, drop what has shipped, file up to 50 new ideas\n/);
 
-  // A leave starts what waits for a yes. What the human parked stays parked, and a leave stops nothing.
-  assert.match(s.fails('build', parked, '--leave'), /is on hold: after the launch\n {2}A leave does not lift a hold\. Only the human releases it: spool release /);
+  // A leave starts what waits for a yes. What the user parked stays parked, and a leave stops nothing.
+  assert.match(s.fails('build', parked, '--leave'), /is on hold: after the launch\n {2}A leave does not lift a hold\. Only the user releases it: spool release /);
   assert.match(s.fails('build', a, '--abort', '--leave'), /--leave moves work to build; it stops nothing/);
   assert.equal(kept(s).used.build, 0);
 

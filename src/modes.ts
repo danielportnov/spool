@@ -5,9 +5,9 @@
  * the usage target, the lean, threads at once, caveman, what notifies) through the very writers
  * behind `spool afk`, `spool takeover`, `spool until`, `spool target`, `spool builder`,
  * `spool settings` and `spool notify`, so nothing new is there for an agent to obey. Where the gate
- * is locked, the same lock holds: a mode that switches AFK or take-over on is the human's.
+ * is locked, the same lock holds: a mode that switches AFK or take-over on is the user's.
  *
- * What a mode set, and what was there before it, are kept in the human's own settings (`mode` in
+ * What a mode set, and what was there before it, are kept in the user's own settings (`mode` in
  * `~/.config/spool/config.json`), so `spool mode` can say which is on, and "changed" once a switch
  * was moved by hand, and `spool mode off` can put back what was there.
  *
@@ -34,7 +34,7 @@ export type Value = boolean | number | string | null | string[] | { [key: string
 export interface ModeEnv {
   call: Call;
   spool: Spool;
-  /** Throws where the project's gate leaves this verb to the human. */
+  /** Throws where the project's gate leaves this verb to the user. */
   guard: (verb: string) => void;
 }
 
@@ -211,7 +211,7 @@ function saveRecord(ctx: Ctx, record: ModeRecord | null): void {
 
 /** Where the modes stand: which is on, and what was moved by hand since. */
 export interface ModeState {
-  /** The mode on, or null for the human's own settings. */
+  /** The mode on, or null for the user's own settings. */
   name: string | null;
   /** "Hands-on", "Overnight, changed", "your own settings". */
   label: string;

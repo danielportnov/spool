@@ -82,11 +82,11 @@ test('the chat reports the usage it read, and hears keep building until the targ
   }
 });
 
-test('where the gate is locked an agent may read the target and report usage, but only the human sets it', () => {
+test('where the gate is locked an agent may read the target and report usage, but only the user sets it', () => {
   const s = new Sandbox();
   try {
     s.sp('init', '--name', 'skyhop', '--lock');
-    assert.match(s.fails('target', '--weekly', '80'), /spool target is the human's alone in skyhop: its gate is locked/);
+    assert.match(s.fails('target', '--weekly', '80'), /spool target is the user's alone in skyhop: its gate is locked/);
     assert.match(s.exec(['target', '--weekly', '80'], { tty: true }).out, /^Usage target: weekly 80%/);
     // Saying what is already so changes nothing, so the lock has nothing to refuse.
     assert.match(s.sp('target', '--weekly', '80'), /^Usage target: weekly 80%/);

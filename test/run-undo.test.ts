@@ -148,7 +148,7 @@ test('what someone else did to an item while the run was on is never taken back 
   as('edit', jump, '--size', 's');
   as('build', coins);
 
-  // Meanwhile, with no run set: the human replies on one, and an agent starts building the other.
+  // Meanwhile, with no run set: the user replies on one, and an agent starts building the other.
   const note = s.id('capture', 'and make it snappier on the way down');
   s.sp('file', note, '--into', jump);
   s.sp('start', coins, '--as', 'Claude');
@@ -166,7 +166,7 @@ test('what someone else did to an item while the run was on is never taken back 
       'Put back only as far as what someone else did to them while the run was on, which is kept:\n' +
       `  ${jump}  Tighten the jump arc\n  ${coins}  Make coins readable at sunset`,
   );
-  assert.deepEqual([s.item(jump), s.item(coins)], meanwhile, 'as the human and the builder left them');
+  assert.deepEqual([s.item(jump), s.item(coins)], meanwhile, 'as the user and the builder left them');
   assert.match(s.item(jump), /and make it snappier on the way down/);
   assert.deepEqual([s.json('show', coins).item.state, s.json('show', coins).item.by], ['active', 'Claude'], 'the thread being built is not pulled from under its agent');
   s.cleanup();

@@ -1,13 +1,13 @@
 /**
- * Lessons: what the human undid, and why, kept so no agent has to be told twice.
+ * Lessons: what the user undid, and why, kept so no agent has to be told twice.
  *
- * When the human reverts a thread and says why, that reason is the plainest feedback there is.
+ * When the user reverts a thread and says why, that reason is the plainest feedback there is.
  * It is kept as a line in the project's own policy file (`.spool/policy.md`), under a heading of
  * its own, newest first: his words, the thread, the date. The policy is already what every worker
  * reads before it starts, and it is plain text he owns, so a lesson needs no new kind of item and
  * he can reword or delete one in any editor. `spool lessons --drop <n>` does it for him.
  *
- * Only the human's words become lessons. A revert with no reason keeps none, and nor does one an
+ * Only the user's words become lessons. A revert with no reason keeps none, and nor does one an
  * agent runs as itself (`--as`, or `SPOOL_ACTOR` as the loop and the page set it).
  */
 
@@ -18,7 +18,7 @@ import { DEFAULT_POLICY } from './prime.ts';
 import type { Workspace } from './store.ts';
 
 export const HEADING = '## What was undone here, and why';
-const INTRO = 'Each line is a thread the human took back, and why, in their words. Agents read these before they\nwork. Reword or delete a line freely, or forget one with `spool lessons --drop <n>`.';
+const INTRO = 'Each line is a thread the user took back, and why, in their words. Agents read these before they\nwork. Reword or delete a line freely, or forget one with `spool lessons --drop <n>`.';
 /** How many the worker's rules carry: the newest, since an old lesson may no longer hold. */
 export const SHOWN = 10;
 
@@ -92,7 +92,7 @@ export function withoutLessons(policy: string): string {
   return [...lines.slice(0, section[0]), ...lines.slice(section[1])].join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-/** Keep the human's reason for undoing a thread, at the top of its project's lessons. */
+/** Keep the user's reason for undoing a thread, at the top of its project's lessons. */
 function keepLesson(ws: Workspace, task: Item, words: string): Lesson {
   const file = policyFile(task.spool);
   const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : DEFAULT_POLICY;
@@ -120,7 +120,7 @@ function keepLesson(ws: Workspace, task: Item, words: string): Lesson {
 }
 
 /**
- * What an undo does with its reason: kept as a lesson where it is the human's own, with the line
+ * What an undo does with its reason: kept as a lesson where it is the user's own, with the line
  * that tells them so. An undo with no reason keeps none, and nor does one an agent runs as itself.
  */
 export function learn(ws: Workspace, task: Item, actor: string, why: string): { lesson?: Lesson; line?: string } {
@@ -160,7 +160,7 @@ export function lessonsSection(ws: Workspace): string {
   return [
     'What was undone here, and why',
     '',
-    'The human took these threads back and said why. Read them before you start, and do not do it again.',
+    'The user took these threads back and said why. Read them before you start, and do not do it again.',
     '',
     ...shown.map((l) => `- ${lessonLine(ws, l)}`),
     '',

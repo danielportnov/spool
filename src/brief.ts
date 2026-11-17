@@ -1,8 +1,8 @@
 /**
- * The morning brief: what shipped while the human was away, what is worth
+ * The morning brief: what shipped while the user was away, what is worth
  * checking, and what needs them, on one screen.
  *
- * Agents run overnight; the human reads this first, often on a phone. So it
+ * Agents run overnight; the user reads this first, often on a phone. So it
  * leads with one line that says whether anything needs them, then the few
  * finished threads most worth a look and why, then the rest a line each. It
  * reads only what is already on disk and in git: nothing is stored, so it is
@@ -152,7 +152,7 @@ function filesChanged(t: Item, root: string | null): number {
   return changedFiles(t, root).size;
 }
 
-/** Why a finished thread is worth a look, and how much: the reasons are said to the human as they are. */
+/** Why a finished thread is worth a look, and how much: the reasons are said to the user as they are. */
 function weigh(ws: Workspace, t: Item): { score: number; reasons: string[]; files: number } {
   const reasons: string[] = [];
   let score = 0;
@@ -169,7 +169,7 @@ function weigh(ws: Workspace, t: Item): { score: number; reasons: string[]; file
     score += 2 * Math.min(calls, 3);
     reasons.push(`${calls} ${calls === 1 ? 'call' : 'calls'} an agent made`);
   }
-  // Taking over the backlog, the chat moved it to Build itself: the human never said go on this one.
+  // Taking over the backlog, the chat moved it to Build itself: the user never said go on this one.
   if (entries(t).some((e) => e.text.startsWith(MOVED))) {
     score += 3;
     reasons.push('the chat moved it to Build itself, taking over the backlog');
@@ -222,7 +222,7 @@ export function pendingProposals(t: Item): Proposal[] {
 }
 
 /**
- * How many things wait on the human: an open question, a plan waiting for a go-ahead, and a thread
+ * How many things wait on the user: an open question, a plan waiting for a go-ahead, and a thread
  * an agent stopped on or walked away from. Each thread is counted once, so a stopped thread with a
  * question on it is one; a question on no thread counts by itself. This is the one number the
  * brief, the list of projects and the board all say, so none of them works out its own.

@@ -24,12 +24,12 @@ function threads(n: number): string {
 
 /**
  * The line the page and the command say, in the page's own words. `shared` is why its threads would
- * share one folder; `target` is the human's usage target in words, empty where there is none.
+ * share one folder; `target` is the user's usage target in words, empty where there is none.
  */
 function sayWho(name: string, builder: Builder, n: number, shared: string, target: string, takeOver: boolean, agents: AgentView[]): string {
   const why = shared ? `: ${shared}, so its threads cannot have a worktree each` : ', each in a worktree of its own';
   const atOnce = `${threads(n)} at once${n > 1 || shared ? why : ''}`;
-  // The loop reads its number here, and its target: a chat builds as many at once as the page would, and up to the human's line.
+  // The loop reads its number here, and its target: a chat builds as many at once as the page would, and up to the user's line.
   const upTo = target ? ` It works up to the usage target, ${target}: spool usage says when to stop.` : '';
   const takes = takeOver ? ' It takes over the backlog: with Build empty and the usage under the target, spool build --takeover moves the next thread to Build.' : '';
   // Each agent on the roster builds up to its own count; the line under it names them, and what each is on.
@@ -61,7 +61,7 @@ function count(typed: string): number {
 }
 
 /**
- * `guard` is the lock: it throws where the project's gate leaves this to the human, and is asked
+ * `guard` is the lock: it throws where the project's gate leaves this to the user, and is asked
  * only when something changes. `actor` is who asks: an agent on the roster is told its own count.
  */
 export function builderCommand(

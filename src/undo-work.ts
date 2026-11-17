@@ -38,7 +38,7 @@ export function withUndoLock<T>(task: Item, undo: () => T): T {
   }
 }
 
-/** Calls made for this thread alone, and never confirmed by the human, go with its work. */
+/** Calls made for this thread alone, and never confirmed by the user, go with its work. */
 function recordUndo(ws: Workspace, task: Item, actor: string, reverted: string[], commit?: string): Item[] {
   const voided = task.needs
     .map((id) => ws.find(id))

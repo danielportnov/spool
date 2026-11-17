@@ -148,7 +148,7 @@ export interface Command {
   group: 'you' | 'agents' | 'see' | 'setup';
   usage: string;
   summary: string;
-  /** Acts for the human unless told otherwise with --as. */
+  /** Acts for the user unless told otherwise with --as. */
   human?: boolean;
   /** Changes the store, so it runs under the lock. */
   write?: boolean;
@@ -176,7 +176,7 @@ export interface Command {
 
 /**
  * `.spool/.gitignore`. The queue is working state for agents, and it holds what
- * the human said word for word, so by default git ignores all of it: the `*`
+ * the user said word for word, so by default git ignores all of it: the `*`
  * covers every file in the directory, this one included. Sharing the queue is
  * a choice someone makes on purpose, by deleting that line or with `--share`, which commits only the
  * record (threads, decisions, reports, policy, goals, config) and keeps what is private ignored.
@@ -206,7 +206,7 @@ const BODY: Options = { body: { type: 'string', short: 'b' } };
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
 
-/** An agent as the human typed it, "codex" or "Codex GPT-6", by its name on the roster where it is on it. */
+/** An agent as the user typed it, "codex" or "Codex GPT-6", by its name on the roster where it is on it. */
 function agentName(call: Call, typed: string | undefined): string | undefined {
   if (typed === undefined) return undefined;
   return rosterAgent(rosterOf(call.ctx, call.ws.home.root), typed)?.name ?? agentOf(typed);
@@ -345,7 +345,7 @@ function runCheck(ctx: Ctx, command: string, cwd: string, minutes = CHECK_MINUTE
   const how = !result || ran.error ? `could not run (${ran.error?.message ?? 'no answer'})` : result.error ? `could not run (${result.error})` : result.signal ? `was stopped (${result.signal})` : `failed (exit ${result.status})`;
   throw new SpoolError(
     `the check ${how}: ${command}`,
-    hint(`It has to pass before this can be finished. Fix what it found and run spool done again.\n  If the check itself is wrong, that is the human's to change: put it to them with spool ask.`),
+    hint(`It has to pass before this can be finished. Fix what it found and run spool done again.\n  If the check itself is wrong, that is the user's to change: put it to them with spool ask.`),
   );
 }
 
@@ -434,15 +434,15 @@ function beforeDone(call: Bare): Finishing | undefined {
 
 /**
  * The lock. Where a project's gate is locked, the commands that start work are
- * the human's in fact and not only by convention: they run from a terminal a
+ * the user's in fact and not only by convention: they run from a terminal a
  * person is sitting at, or from the Spool page on a click, and nowhere else.
  *
  * It stops an agent starting work by mistake, or on its own reading of what
- * the human meant. It is not a security boundary: a program running as the
+ * the user meant. It is not a security boundary: a program running as the
  * user can do whatever the user can. What it changes is that getting past it
  * takes a deliberate act, where before it took none.
  */
-/** What only the human can decide, even while they are AFK: the policy's Ask first, and what is theirs. */
+/** What only the user can decide, even while they are AFK: the policy's Ask first, and what is theirs. */
 export const HUMAN_KINDS = ['money', 'publish', 'delete', 'account', 'product', 'machine'] as const;
 type HumanKind = (typeof HUMAN_KINDS)[number];
 const HUMAN_KINDS_SAID: Record<HumanKind, string> = {
@@ -454,7 +454,7 @@ const HUMAN_KINDS_SAID: Record<HumanKind, string> = {
   machine: 'their own accounts or machine',
 };
 
-/** A call an agent made itself, on record for the human's review, and on its thread. */
+/** A call an agent made itself, on record for the user's review, and on its thread. */
 function assumed(call: Call, question: string, chose: string, why: string | undefined, task: Item | undefined): Item {
   const { ws, actor } = call;
   const spool = task?.spool ?? ws.project(str(call.opts.project));
@@ -478,7 +478,7 @@ function byTheHuman(call: Call, spools: Spool[], verb: string): void {
   const locked = spools.find((s) => s.config.gate === 'locked');
   if (!locked) return;
   throw new SpoolError(
-    `spool ${verb} is the human's alone in ${locked.name}: its gate is locked`,
+    `spool ${verb} is the user's alone in ${locked.name}: its gate is locked`,
     'They do it on the Spool page (spool page), or type it in their own terminal. Give them the thread\'s link and stop; do not look for a way round.',
   );
 }
@@ -571,7 +571,7 @@ function fileWork(call: Call, preset?: WorkType): Result {
     size,
     type: type === 'change' ? undefined : type,
     // An agent's own idea waits for a yes. Where the gate is on, everything does: it starts proposed.
-    // Where it is off, the idea goes on hold, like anything else the human has not asked to start.
+    // Where it is off, the idea goes on hold, like anything else the user has not asked to start.
     hold: str(call.opts.hold)?.replace(/\s+/g, ' ').trim() ?? (suggested && !spool.config.gate ? SUGGESTED_HOLD : undefined),
     suggested,
     suggestedBy: suggested ? call.actor : undefined,
@@ -593,7 +593,7 @@ function fileWork(call: Call, preset?: WorkType): Result {
     }
   }
   const out = [`${spool.config.gate ? 'Proposed' : 'Queued'} in ${spool.name}:`, `  ${itemLine(ws, task, p, false)}`];
-  if (spool.config.gate) out.push(p.dim(`  It is built only once the human moves it to build: spool build ${task.id}`));
+  if (spool.config.gate) out.push(p.dim(`  It is built only once the user moves it to build: spool build ${task.id}`));
   if (promoted) out.push('Extra-large work starts as a plan, so this was queued as one: it gets split into parts, and the parts get built.');
   const similar = similarTo(ws, task);
   out.push(...similarLines(ws, task, similar, p));
@@ -620,7 +620,7 @@ function first(call: Call, what: string, kind?: Kind): Item {
   return call.ws.get(ref, kind);
 }
 
-/** The human's words as a blockquote, signed with where they came from. */
+/** The user's words as a blockquote, signed with where they came from. */
 function quoteNote(note: Item): string {
   const text = splitBody(note.body).main;
   const quoted = text
@@ -678,13 +678,13 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
   const state = taskState(ws, task);
   if (state === 'done' || state === 'dropped') throw new SpoolError(`${task.id} is already ${state}`);
   if (state === 'proposed') {
-    throw new SpoolError(`${task.id} is proposed, not in build`, `Only the human moves it to build: spool build ${task.id}`);
+    throw new SpoolError(`${task.id} is proposed, not in build`, `Only the user moves it to build: spool build ${task.id}`);
   }
   if (state === 'held') {
-    throw new SpoolError(`${task.id} is on hold: ${task.hold}`, `Only the human releases it: spool release ${task.id}`);
+    throw new SpoolError(`${task.id} is on hold: ${task.hold}`, `Only the user releases it: spool release ${task.id}`);
   }
   if (state === 'archived') {
-    throw new SpoolError(`${task.id} is archived`, `Only the human brings it back: spool archive --undo ${task.id}`);
+    throw new SpoolError(`${task.id} is archived`, `Only the user brings it back: spool archive --undo ${task.id}`);
   }
   if (state === 'blocked') {
     throw new SpoolError(
@@ -736,7 +736,7 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
 
 /**
  * What a start or a claim says about the model, under the brief: the one the size gives, or one up
- * where the last run did not work, or the human's. A chat that builds starts the thread's subagent on it.
+ * where the last run did not work, or the user's. A chat that builds starts the thread's subagent on it.
  */
 function modelNote(pick: Picked, p: Paint, ran?: string): string | undefined {
   if (ran) return `${p.bold('MODEL')} — built on ${ran}, as the claim says${pick.model ? ` (Spool would pick ${pickLabel(pick)}, ${pick.why})` : ''}.`;
@@ -765,7 +765,7 @@ function removeWorktree(task: Item): string {
 // ----------------------------------------------------------------- commands
 
 export const COMMANDS: Command[] = [
-  // ---- the human's side ----------------------------------------------------
+  // ---- the user's side ----------------------------------------------------
   {
     name: 'capture',
     aliases: ['note'],
@@ -869,7 +869,7 @@ export const COMMANDS: Command[] = [
         return { text: `${p.bold(d.id)} approved: ${choice}`, data: { decision: itemJson(ws, d) } };
       }
 
-      // The human wants something other than what was assumed. Work may already stand on the old answer.
+      // The user wants something other than what was assumed. Work may already stand on the old answer.
       d.by = actor;
       addLog(d, actor, `overruled "${old ?? ''}" → ${choice}`, ws.now());
       ws.save(d);
@@ -891,7 +891,7 @@ export const COMMANDS: Command[] = [
           from: [d.id],
           needs: [d.id],
           body: [
-            `The human overruled an agent's assumption ([[${d.id}]]).`,
+            `The user overruled an agent's assumption ([[${d.id}]]).`,
             `**Question:** ${d.title}\n**Was:** ${old ?? '—'}\n**Now:** ${choice}`,
             lines.length ? `Built on the old answer:\n${lines.join('\n')}` : 'Find what was built on the old answer and bring it in line.',
           ].join('\n\n'),
@@ -1010,12 +1010,12 @@ export const COMMANDS: Command[] = [
               : `It waits in the backlog at p${t.priority}${why ? ' with your reason attached' : ''}. Nothing builds it until you move it to Build: spool build ${t.id}`,
           );
         }
-        // The later threads were not what the human said no to: they wait in the backlog, whatever --now or --drop said.
+        // The later threads were not what the user said no to: they wait in the backlog, whatever --now or --drop said.
         if (later.length) {
           const ids = later.map(({ task }) => task.id).join(' ');
           out.push(`${later.length === 1 ? 'The later thread waits' : 'The later threads wait'} in the backlog, each with why on its log: spool build ${ids}`);
         }
-        // The human's reason outlives the thread: every agent here reads it from now on. An agent's own revert keeps none.
+        // The user's reason outlives the thread: every agent here reads it from now on. An agent's own revert keeps none.
         const { lesson, line } = learn(ws, t, actor, why);
         if (line) out.push(line);
         return {
@@ -1147,7 +1147,7 @@ export const COMMANDS: Command[] = [
     group: 'you',
     usage: 'build <t-id…> [--abort] [--leave] | --takeover [<t-id>] [-P <project>]',
     summary:
-      'Move proposed work to build: it may be built now, in its turn. --abort takes it off whoever is building it, back to waiting in build. --leave is how an agent moves it there itself, under a leave the human gave. --takeover is how the chat that builds moves the next thread there itself, where the human switched taking over on and the usage is under their target',
+      'Move proposed work to build: it may be built now, in its turn. --abort takes it off whoever is building it, back to waiting in build. --leave is how an agent moves it there itself, under a leave the user gave. --takeover is how the chat that builds moves the next thread there itself, where the user switched taking over on and the usage is under their target',
     human: true,
     write: true,
     options: { abort: { type: 'boolean' }, leave: { type: 'boolean' }, takeover: { type: 'boolean' }, ...PROJECT },
@@ -1157,7 +1157,7 @@ export const COMMANDS: Command[] = [
       const taking = call.opts.takeover ? buildUnderTakeOver(call) : undefined;
       if (!args.length && !taking) throw new SpoolError('what to build is missing', 'spool build <t-id>');
       const tasks = taking?.tasks ?? args.map((ref) => ws.get(ref, 'task'));
-      // Under a leave the human gave, an agent moves work to build itself, up to the leave's count. See leave.ts.
+      // Under a leave the user gave, an agent moves work to build itself, up to the leave's count. See leave.ts.
       const leave = call.opts.leave ? buildUnderLeave(call, tasks) : undefined;
       if (!leave && !taking) byTheHuman(call, tasks.map((t) => t.spool), 'build');
       const actor = taking ? signer(call) : (leave?.actor ?? call.actor);
@@ -1175,7 +1175,7 @@ export const COMMANDS: Command[] = [
           ws.save(t);
           continue;
         }
-        // Moving something to build is the human saying start: it clears a hold as well, and brings back an archived thread.
+        // Moving something to build is the user saying start: it clears a hold as well, and brings back an archived thread.
         if (t.status !== 'proposed' && !t.hold && !t.archived) continue;
         addLog(t, actor, taking ? taking.line : leave ? leave.moved(t) : t.hold ? `moved to build (was on hold: ${t.hold})` : t.archived ? 'moved to build (was archived)' : 'moved to build', ws.now());
         if (t.status === 'proposed') t.status = 'open';
@@ -1251,7 +1251,7 @@ export const COMMANDS: Command[] = [
       if (existing?.status === 'done') throw new SpoolError(`${existing.title} is finished`, 'Put the work in another sprint, or make one: spool sprint "<name>"');
       const sprint = existing ?? ws.create(spool, 'sprint', { title: name });
       const changed: string[] = [];
-      // The human's words for it come first, quoted and signed, the way a thread keeps its note.
+      // The user's words for it come first, quoted and signed, the way a thread keeps its note.
       if (note) {
         addQuote(sprint, quoteNote(note));
         sprint.from = uniq([...sprint.from, note.id]);
@@ -1290,10 +1290,10 @@ export const COMMANDS: Command[] = [
       for (const t of added) out.push(`    ${itemLine(ws, t, p, false)}`);
       if (!about.goal) out.push(p.dim(`  say what it is for: spool sprint "${sprint.title}" --goal "…" --why "…" --done-when "…"`));
       if (!sprintTasks(ws, sprint).length) out.push(p.dim(`  put work in it: spool sprint "${sprint.title}" --add <t-id…>`));
-      // A sprint being played takes in new work, and the human's play is still what starts it.
+      // A sprint being played takes in new work, and the user's play is still what starts it.
       if (sprint.status === 'running' && added.some((t) => t.status === 'proposed' || t.hold)) {
-        out.push(p.dim(`  it is running: what was added waits in the backlog until the human presses play again (spool play ${sprint.id})`));
-      } else if (sprint.status === 'planned') out.push(p.dim(`  the human starts it: spool play ${sprint.id}`));
+        out.push(p.dim(`  it is running: what was added waits in the backlog until the user presses play again (spool play ${sprint.id})`));
+      } else if (sprint.status === 'planned') out.push(p.dim(`  the user starts it: spool play ${sprint.id}`));
       return { text: out.join('\n'), data: { sprint: itemJson(ws, sprint), added: added.map((t) => t.id), made: !existing } };
     },
   },
@@ -1314,7 +1314,7 @@ export const COMMANDS: Command[] = [
       if (!inIt.length) throw new SpoolError(`${sprint.title} is empty`, `Put work in it first: spool edit <t-id> --sprint ${sprint.id}`);
       const moved: Item[] = [];
       for (const t of inIt) {
-        // Playing a sprint is the human saying start, for each thing in it: the same as moving each to build.
+        // Playing a sprint is the user saying start, for each thing in it: the same as moving each to build.
         if (t.status !== 'proposed' && !t.hold) continue;
         addLog(t, actor, `moved to build with the sprint ${sprint.title}`, ws.now());
         if (t.status === 'proposed') t.status = 'open';
@@ -1358,11 +1358,11 @@ export const COMMANDS: Command[] = [
           data: { project: spool.name, check: now ?? null, timeoutMinutes: limit },
         };
       }
-      // An agent may name a check where there is none, on the human's word. Changing or removing one is
-      // the human's alone: a check an agent can switch off proves nothing, and nor is its limit theirs.
+      // An agent may name a check where there is none, on the user's word. Changing or removing one is
+      // the user's alone: a check an agent can switch off proves nothing, and nor is its limit theirs.
       if ((now || minutes !== undefined) && !ctx.tty && !ctx.human) {
         throw new SpoolError(
-          `the check for ${spool.name} is the human's to change`,
+          `the check for ${spool.name} is the user's to change`,
           'They type it in their own terminal. If the check is wrong, put it to them with spool ask; do not work round it.',
         );
       }
@@ -1413,7 +1413,7 @@ export const COMMANDS: Command[] = [
     name: 'agents',
     group: 'setup',
     usage: 'agents [on | off] [-P <project>]',
-    summary: 'Switch the page\'s agents on or off, the same switch as the one on the page. With nothing after it, says whether a page is up and its agents are on. The human\'s, like spool build',
+    summary: 'Switch the page\'s agents on or off, the same switch as the one on the page. With nothing after it, says whether a page is up and its agents are on. The user\'s, like spool build',
     human: true,
     options: { ...PROJECT },
     run(call) {
@@ -1753,7 +1753,7 @@ export const COMMANDS: Command[] = [
     name: 'ask',
     group: 'agents',
     usage: 'ask <question…> --option <A> --option <B> [--recommend <n>] [--why <reason>] [--for <t-id>] [--human <kind>]',
-    summary: `Put a call to the human; the task waits, you move on. While they are AFK, your recommendation is taken and recorded as a call instead, unless --human says it is truly theirs: ${HUMAN_KINDS.join(', ')}`,
+    summary: `Put a call to the user; the task waits, you move on. While they are AFK, your recommendation is taken and recorded as a call instead, unless --human says it is truly theirs: ${HUMAN_KINDS.join(', ')}`,
     write: true,
     options: {
       option: { type: 'string', short: 'o', multiple: true },
@@ -1781,18 +1781,18 @@ export const COMMANDS: Command[] = [
       const task = str(call.opts.for) ? ws.get(str(call.opts.for)!, 'task') : undefined;
       if (task && isClosed(task)) throw new SpoolError(`${task.id} is already ${task.status}`);
       if (afkOf(call.ctx) && !human) {
-        // The human is away: a call that is not truly theirs is not put to them. The agent's own pick is taken, on record, and the thread goes on.
+        // The user is away: a call that is not truly theirs is not put to them. The agent's own pick is taken, on record, and the thread goes on.
         const pick = recommend ?? (options.length === 1 ? 1 : undefined);
         if (!pick) {
           throw new SpoolError(
-            'AFK is on: the human is away, so this is not put to them',
+            'AFK is on: the user is away, so this is not put to them',
             `Give your recommendation (--recommend <n>) and it is taken and recorded. Truly theirs? Add --human <kind>: ${HUMAN_KINDS.join(', ')}`,
           );
         }
         const chose = options[pick - 1]!;
         const d = assumed(call, question, chose, [str(call.opts.why), 'Taken while you were AFK: the agent would have asked you.'].filter(Boolean).join('\n\n'), task);
         return {
-          text: `AFK: took your recommendation, "${chose}", recorded as ${p.bold(d.id)}. Carry on${task ? ` with ${task.id}` : ''}: the human will see it in their review.`,
+          text: `AFK: took your recommendation, "${chose}", recorded as ${p.bold(d.id)}. Carry on${task ? ` with ${task.id}` : ''}: the user will see it in their review.`,
           data: { decision: itemJson(ws, d, true), afk: true, notified: false },
         };
       }
@@ -1802,7 +1802,7 @@ export const COMMANDS: Command[] = [
         options,
         recommend,
         by: actor,
-        body: [str(call.opts.why), human ? `Truly the human's: ${HUMAN_KINDS_SAID[human as HumanKind]}.` : '', task ? `For [[${task.id}]] — ${task.title}` : ''].filter(Boolean).join('\n\n'),
+        body: [str(call.opts.why), human ? `Truly the user's: ${HUMAN_KINDS_SAID[human as HumanKind]}.` : '', task ? `For [[${task.id}]] — ${task.title}` : ''].filter(Boolean).join('\n\n'),
       });
       if (task) {
         task.needs = uniq([...task.needs, d.id]);
@@ -1814,7 +1814,7 @@ export const COMMANDS: Command[] = [
         ws.save(task);
       }
       const told = notify(call.ctx, 'ask', question, d);
-      const out = [`${p.bold(d.id)} asked${told ? ', and the human was notified' : ''}.`];
+      const out = [`${p.bold(d.id)} asked${told ? ', and the user was notified' : ''}.`];
       if (task) out.push(`${task.id} waits until it is answered. Don't wait with it: spool next`);
       return { text: out.join('\n'), data: { decision: itemJson(ws, d, true), notified: told } };
     },
@@ -1834,7 +1834,7 @@ export const COMMANDS: Command[] = [
       const task = str(call.opts.for) ? ws.get(str(call.opts.for)!, 'task') : undefined;
       const d = assumed(call, question, chose, str(call.opts.why), task);
       return {
-        text: `${p.bold(d.id)} recorded — carry on. The human will see it in their review.`,
+        text: `${p.bold(d.id)} recorded — carry on. The user will see it in their review.`,
         data: { decision: itemJson(ws, d, true) },
       };
     },
@@ -1860,8 +1860,8 @@ export const COMMANDS: Command[] = [
       const { checked, landing } = (call.before as Finishing | undefined) ?? {};
       const t = first(call, 'which task', 'task');
       if (isClosed(t)) throw new SpoolError(`${t.id} is already ${t.status}`);
-      // Taken back to the backlog while it was being built: the human said stop, so it is not finished by whoever was on it.
-      if (t.status === 'proposed') throw new SpoolError(`${t.id} was moved back to the backlog`, 'Leave it: nothing builds it until the human moves it to build again');
+      // Taken back to the backlog while it was being built: the user said stop, so it is not finished by whoever was on it.
+      if (t.status === 'proposed') throw new SpoolError(`${t.id} was moved back to the backlog`, 'Leave it: nothing builds it until the user moves it to build again');
       const type = t.type ?? 'change';
       // `spool done <id> --steps "a" fixed it` could be a step or what changed: it is not guessed at.
       const loose = moreSteps(call);
@@ -1875,13 +1875,13 @@ export const COMMANDS: Command[] = [
       if (!summary) {
         throw new SpoolError(
           'the summary is missing',
-          `The human reads it in their review: spool done ${t.id} -m "<what changed, and how to see it>"`,
+          `The user reads it in their review: spool done ${t.id} -m "<what changed, and how to see it>"`,
         );
       }
       // Its work is in a worktree, and was not landed a moment ago: finishing now would throw it away.
       if (t.worktree && !landing) throw new SpoolError(`${t.id} changed while it was being finished`, 'Run spool done again');
 
-      // An audit or a plan is finished by what it found, written down where the human can read it.
+      // An audit or a plan is finished by what it found, written down where the user can read it.
       const reportPath = reportFile(t);
       const reportArg = str(call.opts.report);
       let report: string | undefined;
@@ -1977,7 +1977,7 @@ export const COMMANDS: Command[] = [
         else out.push(p.dim(`  ${kids.length} part(s) filed from it`));
         if (gated.length) {
           told = notify(call.ctx, 'plan', `A plan is waiting for your go-ahead: ${t.title}`, t);
-          out.push(`  ${gated.length} of them wait for the human's go-ahead${told ? ', and the human was notified' : ''}: spool approve ${t.id}`);
+          out.push(`  ${gated.length} of them wait for the user's go-ahead${told ? ', and the user was notified' : ''}: spool approve ${t.id}`);
         }
       }
       if (type === 'change' && !t.steps.length) out.push(p.yellow(noSteps(t.id)));
@@ -2215,7 +2215,7 @@ export const COMMANDS: Command[] = [
     name: 'drop',
     group: 'agents',
     usage: 'drop <id…> [-m <why>] [--leave]',
-    summary: 'Abandon an item (a skill is deleted from disk); --leave drops a thread as shipped under a leave the human gave, with the commit named in -m',
+    summary: 'Abandon an item (a skill is deleted from disk); --leave drops a thread as shipped under a leave the user gave, with the commit named in -m',
     write: true,
     options: { ...MESSAGE, leave: { type: 'boolean' } },
     run(call) {
@@ -2256,7 +2256,7 @@ export const COMMANDS: Command[] = [
     name: 'hold',
     group: 'agents',
     usage: 'hold <t-id…> -m <why>',
-    summary: 'Park work the human does not want started yet; only they release it',
+    summary: 'Park work the user does not want started yet; only they release it',
     human: true,
     write: true,
     options: { ...MESSAGE },
@@ -2264,7 +2264,7 @@ export const COMMANDS: Command[] = [
       const { ws, p, actor } = call;
       const why = str(call.opts.message)?.replace(/\s+/g, ' ').trim();
       if (!call.args.length) throw new SpoolError('what to hold is missing');
-      if (!why) throw new SpoolError('the reason is missing', 'Say why, in the human\'s words if you can: spool hold <id> -m "<why>"');
+      if (!why) throw new SpoolError('the reason is missing', 'Say why, in the user\'s words if you can: spool hold <id> -m "<why>"');
       const tasks = call.args.map((ref) => ws.get(ref, 'task'));
       for (const t of tasks) if (isClosed(t)) throw new SpoolError(`${t.id} is already ${t.status}`);
       for (const t of tasks) {
@@ -2331,7 +2331,7 @@ export const COMMANDS: Command[] = [
         body: description ?? existing?.description ?? '',
       });
       return {
-        text: `${p.bold(ledger.id)} skill "${name}" ${existing ? 'adopted' : 'written'} in ${spool.name} — ${rel}/SKILL.md\nIt is live now, and the human will see it in their review.`,
+        text: `${p.bold(ledger.id)} skill "${name}" ${existing ? 'adopted' : 'written'} in ${spool.name} — ${rel}/SKILL.md\nIt is live now, and the user will see it in their review.`,
         data: { skill: itemJson(ws, ledger, true) },
       };
     },
@@ -2369,7 +2369,7 @@ export const COMMANDS: Command[] = [
     group: 'agents',
     usage: 'ideate [--max <n>] [-P <project>]',
     summary:
-      'A pass of new ideas for the project: prints the worksheet to work from (its goals, what shipped, what is already there, what the human said and what they said no to) and how to file each idea as AI suggested; it writes nothing',
+      'A pass of new ideas for the project: prints the worksheet to work from (its goals, what shipped, what is already there, what the user said and what they said no to) and how to file each idea as AI suggested; it writes nothing',
     options: { max: { type: 'string' }, ...PROJECT },
     run: (call) => ideate(call),
   },
@@ -2559,7 +2559,7 @@ export const COMMANDS: Command[] = [
     summary: `The git notes (${NOTES_REF}) that carry each landed commit's thread, calls and builder: how many there are, what one thread's say, or --backfill to write them for threads already landed. They stay on this machine`,
     options: { backfill: { type: 'boolean' } },
     run({ args, opts, ws, p }) {
-      const hint = `They stay on this machine. Pushing them publishes thread titles and calls, so it is the human's call: ${PUSH_NOTES}`;
+      const hint = `They stay on this machine. Pushing them publishes thread titles and calls, so it is the user's call: ${PUSH_NOTES}`;
       if (opts.backfill) {
         if (args.length) throw new SpoolError('--backfill writes the notes for every landed thread', 'Leave out the thread id');
         const threads = landedThreads(ws);
@@ -2690,7 +2690,7 @@ export const COMMANDS: Command[] = [
         }
         if (item.kind === 'task') {
           if (item.status === 'done' && !item.summary) warnings.push(`${item.id} is done with no summary`);
-          // The human agrees to work by its reason, so an open thread with none is worth a word. An idea an agent
+          // The user agrees to work by its reason, so an open thread with none is worth a word. An idea an agent
           // suggested carries its reason with it.
           if (!isClosed(item) && !item.archived && !whyOf(item) && !item.suggested) {
             warnings.push(`${item.id} has no Why: line in its spec, so nobody can see why it exists`);
@@ -2905,7 +2905,7 @@ export const COMMANDS: Command[] = [
     name: 'page',
     group: 'setup',
     usage: 'page [-d | --status | --stop] [--run] [--agent <command>] [--port <n>] [--no-open] [-P <project>]',
-    summary: 'Open the Spool page: the board where the human moves work to build; --run has the page build it too, with no chat; -d runs it in the background',
+    summary: 'Open the Spool page: the board where the user moves work to build; --run has the page build it too, with no chat; -d runs it in the background',
     options: {
       port: { type: 'string' },
       'no-open': { type: 'boolean' },
@@ -2924,7 +2924,7 @@ export const COMMANDS: Command[] = [
     name: 'watch',
     group: 'setup',
     usage: 'watch [--as <agent>] [--interval <ms>] [-P <project>]',
-    summary: 'Stay up and print a line when work lands in build, the human replies on a thread, an agent asks the human something, or a note arrives; --as says which agent is watching, for the board',
+    summary: 'Stay up and print a line when work lands in build, the user replies on a thread, an agent asks the user something, or a note arrives; --as says which agent is watching, for the board',
     options: { interval: { type: 'string' }, ...PROJECT },
     refusedWhenOff: true,
     bare: (call) => watch(call),

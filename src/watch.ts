@@ -1,15 +1,15 @@
 /**
- * Watching: tell an agent the moment the human has given it something to do.
+ * Watching: tell an agent the moment the user has given it something to do.
  *
  * `spool watch` stays up and prints one line whenever something the loop
  * should act on changes: a thread that can now be built (moved to build on the
- * page, or freed by an answer), words, a picture or a file the human added to a thread, a question
- * an agent has just put to the human, or a note nobody has filed. It prints
+ * page, or freed by an answer), words, a picture or a file the user added to a thread, a question
+ * an agent has just put to the user, or a note nobody has filed. It prints
  * nothing else, so every line is worth waking for.
  *
  * It is what makes the loop reactive. A harness that can listen to a command's
  * output (Claude Code's Monitor) runs this and is woken by each line, so the
- * human presses play on the page and the build starts, with no timer and
+ * user presses play on the page and the build starts, with no timer and
  * nobody typing. It reads the same files every other command reads; there is
  * no daemon behind it and nothing to keep in step.
  */
@@ -32,13 +32,13 @@ const NOT_WATCHERS = new Set(['agent', 'human', '']);
 interface Seen {
   /** Threads that could be claimed right now. */
   ready: Map<string, string>;
-  /** For each open thread, the notes of the human's that are on it. */
+  /** For each open thread, the notes of the user's that are on it. */
   said: Map<string, Set<string>>;
-  /** For each open thread, the pictures and files the human added to it, each with the line that tells of it. */
+  /** For each open thread, the pictures and files the user added to it, each with the line that tells of it. */
   added?: Map<string, Map<string, string>>;
   /** Notes nobody has filed. */
   inbox: Set<string>;
-  /** Questions waiting on the human, each with the line that tells of it. */
+  /** Questions waiting on the user, each with the line that tells of it. */
   asks: Map<string, string>;
   /** Projects whose backlog the chat takes over, by name. */
   takeOver?: Set<string>;
@@ -114,7 +114,7 @@ export function watched(root: string): boolean {
 
 /**
  * The line for a question an agent asked: its id, the thread it holds up, the question and its options,
- * so a chat that builds can put it to the human without looking anything up.
+ * so a chat that builds can put it to the user without looking anything up.
  */
 function asked(ws: Workspace, d: Item): string {
   const thread = dependents(ws, d).find((t) => !isSettled(t));
@@ -157,7 +157,7 @@ function look(
 }
 
 /**
- * What the human added to a thread from the page or the command line, by name, each as the reply it
+ * What the user added to a thread from the page or the command line, by name, each as the reply it
  * is: with its path, so the chat that builds opens it. An agent's own, and a before or an after, are not news.
  */
 function addedBy(t: Item): Map<string, string> {

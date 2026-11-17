@@ -21,7 +21,7 @@ test('disable takes the Spool block out, keeps the queue, and every command then
   for (const args of [['status'], ['capture', 'the jump is floaty'], ['list'], ['loop', '--dry-run'], ['watch']]) {
     const said = s.exec(args);
     assert.equal(said.code, 1, `spool ${args.join(' ')} is refused`);
-    assert.match(said.err, /^spool: Spool is off in demo\n {2}Nothing here goes through it: work as you would without Spool\. spool enable turns it back on, on the human's word\.$/);
+    assert.match(said.err, /^spool: Spool is off in demo\n {2}Nothing here goes through it: work as you would without Spool\. spool enable turns it back on, on the user's word\.$/);
   }
   assert.match(s.sp('page', '--status'), /No Spool page is up/);
   assert.match(s.sp('disable'), /^Spool is already off in demo\.$/);

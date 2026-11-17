@@ -76,7 +76,7 @@ test('a stopped thread is carried on in the session it was in, told only what is
     assert.match(s.item(jump), new RegExp(`page: handed to \`[^\`]*claude -p --model opus --effort medium --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool stdio --session-id ${session}\``));
     assert.equal(leftOff(s.json('show', jump).item), undefined, 'nothing to carry on while it is being built');
 
-    // Stopped, it waits. The human writes on it, and carries on.
+    // Stopped, it waits. The user writes on it, and carries on.
     assert.equal(runner.stop(jump), true);
     await until('the agent is gone', () => !runner.runs.size);
     assert.match(s.item(jump), /page: stopped from the page; back in build/);
@@ -89,7 +89,7 @@ test('a stopped thread is carried on in the session it was in, told only what is
     assert.match(s.item(jump), new RegExp(`page: handed to \`[^\`]*claude -p --model opus --effort medium --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool stdio --resume ${session}\``));
     assert.match(fake.prompt(1), /## Working a thread[\s\S]*YOUR TASK[\s\S]*the jump feels floaty/);
     const again = fake.prompt(2);
-    assert.match(again, new RegExp(`earlier in this session, and it is yours again: ${jump} Tighten the jump arc\n\nThe human stopped you, and has now set you going again\\.\n\nSince you were last given the thread, the human has written on it:\n\n> keep gravity at 34\n\nThe human may write to you while you work[^\n]*\n\nCarry on from where you were\\.[^\n]*spool done`));
+    assert.match(again, new RegExp(`earlier in this session, and it is yours again: ${jump} Tighten the jump arc\n\nThe user stopped you, and has now set you going again\\.\n\nSince you were last given the thread, the user has written on it:\n\n> keep gravity at 34\n\nThe user may write to you while you work[^\n]*\n\nCarry on from where you were\\.[^\n]*spool done`));
     assert.doesNotMatch(again, /Working a thread|the jump feels floaty/, 'not the rules and the brief a second time');
     const kept = transcripts(s, jump);
     assert.deepEqual(kept.map((events) => [...new Set(events.filter((e) => e.type !== 'spool').map((e) => e.session_id))]), [[session], [session]], 'two runs, one session');
@@ -124,7 +124,7 @@ test('a session Claude no longer has is not waited on: the thread starts afresh,
     const lost = sessionOf(`claude -p ${fake.args()[0]}`)!.id;
     assert.deepEqual(leftOff(s.json('show', jump).item), { session: lost, how: 'unfinished' });
 
-    // It is not tried again until something about it changes: the human's word does that.
+    // It is not tried again until something about it changes: the user's word does that.
     s.sp('file', s.id('capture', 'try the other way'), '--into', jump);
     runner.wake();
     await until('the thread is finished', () => s.json('show', jump).item.status === 'done');

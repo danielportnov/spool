@@ -127,7 +127,7 @@ test('once a skill is written from its tasks, the procedure is not suggested aga
   const d = s.id('task', FOURTH[0]);
   assert.doesNotMatch(s.sp('done', d, '-m', FOURTH[1]), /The same steps as/);
   assert.deepEqual(candidates(s), []);
-  // …and nor does the human dropping the skill: that was a no.
+  // …and nor does the user dropping the skill: that was a no.
   s.sp('drop', skill, '-m', 'we release by hand');
   assert.deepEqual(candidates(s), []);
   s.cleanup();
@@ -141,7 +141,7 @@ test('a skill written from just one of the tasks settles it too', () => {
   s.cleanup();
 });
 
-test('offered to the human, it is a row in their list to say yes or no to, and a no is remembered', () => {
+test('offered to the user, it is a row in their list to say yes or no to, and a no is remembered', () => {
   const s = spool();
   const [a, b, c] = RELEASES.map((r) => finish(s, r));
   s.sp('task', 'Tighten the jump arc', '-s', 's');

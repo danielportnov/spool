@@ -60,8 +60,8 @@ function spelled(c: Command, name: string, short?: string): string | undefined {
 }
 
 function describe(c: Command): string {
-  const lines = [`${c.group === 'you' ? 'For the human: ' : ''}${c.summary}.`];
-  if (c.human) lines.push('This acts for the human. Call it only when the human says so, never on your own judgment.');
+  const lines = [`${c.group === 'you' ? 'For the user: ' : ''}${c.summary}.`];
+  if (c.human) lines.push('This acts for the user. Call it only when the user says so, never on your own judgment.');
   lines.push(`The command: spool ${c.usage}`);
   return lines.join('\n');
 }
@@ -175,8 +175,8 @@ const INSTRUCTIONS = [
   "Spool is this project's work queue. Each tool is one `spool` command and answers with the JSON that command prints: `spool next --claim` is spool_next with {\"claim\": true}.",
   'Positional arguments go in `args`, in order. Each option is a property of the same name.',
   'An error says what to do instead, written as a command: read `spool answer d-x7k2 1` as spool_answer with {"args": ["d-x7k2", "1"]}.',
-  'Start with spool_prime. It returns the rules for working the queue, or with {"args": ["recorder"]} the rules for filing what the human says.',
-  'The tools that say they act for the human are theirs. Call one only when the human says so.',
+  'Start with spool_prime. It returns the rules for working the queue, or with {"args": ["recorder"]} the rules for filing what the user says.',
+  'The tools that say they act for the user are theirs. Call one only when the user says so.',
 ].join('\n');
 
 class RpcError extends Error {

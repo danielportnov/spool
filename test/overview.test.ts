@@ -24,7 +24,7 @@ test('the overview shows a whole spool as threads under six colours, by who has 
   assert.match(out, /⚪ ON HOLD {2}1\n {2}🧵 A Grand Prix mode {2}· “just an idea”/);
   assert.match(out, /also for you to look over: 1 unfiled/);
   const order = ['🔴', '🟣', '🟡', '🔵', '🟢', '⚪'].map((dot) => out.indexOf(dot));
-  assert.deepEqual(order, [...order].sort((a, b) => a - b), 'the human first, what is merely underway last');
+  assert.deepEqual(order, [...order].sort((a, b) => a - b), 'the user first, what is merely underway last');
   for (const id of [jump, coins, typo, online]) assert.equal(out.split(id).length, 2, `${id} is listed once`);
   assert.equal(out.split('🧵').length - 1, 5, 'every thread is marked as one, the one on hold too');
   assert.equal(out.split('❓').length - 1, 1, 'a question is not a thread');
@@ -37,7 +37,7 @@ test('the overview shows a whole spool as threads under six colours, by who has 
   );
   assert.deepEqual(data.also, { assumptions: 0, shipped: 0, skills: 0, inbox: 1 });
 
-  // A plan whose parts wait for a go-ahead is the human's move too.
+  // A plan whose parts wait for a go-ahead is the user's move too.
   s.sp('start', online);
   const part = s.id('task', 'Relay server', '--from', online, '--needs', online, '-s', 'm');
   assert.equal(s.exec(['done', online, '-m', 'Races over a relay server', '--report', '-'], { stdin: 'Relay first.' }).code, 0);
@@ -56,16 +56,16 @@ test('a thread an agent suggests waits under ✨ for a yes, and keeps saying whe
   const out = s.sp('overview');
   assert.match(out, /^🧶 demo {2}1 thread open · 1 suggested · 0 done\n/);
   assert.match(out, new RegExp(`✨ AI SUGGESTED {2}1\\n {2}🧵 Remember the last level played {2}· “the game always opens on level one, and players come back mid-way” · say yes and it joins the list · p2 S · ${idea}`));
-  assert.doesNotMatch(out, /ON HOLD/, 'an idea is not something the human parked');
+  assert.doesNotMatch(out, /ON HOLD/, 'an idea is not something the user parked');
   const [data] = s.json('overview').projects;
   assert.deepEqual([data.ready.length, data.suggested.length, data.held.length], [1, 1, 0]);
 
   // Nobody asked for it, so it is never handed out: not to an agent, and not by an agent's own release.
   assert.ok(s.sp('next', '--claim').startsWith(asked));
   assert.match(s.sp('next'), /Nothing is ready\./);
-  assert.match(s.fails('start', idea), /is on hold: AI suggested: waiting for your yes[\s\S]*Only the human releases it/);
+  assert.match(s.fails('start', idea), /is on hold: AI suggested: waiting for your yes[\s\S]*Only the user releases it/);
 
-  // The human says yes: it joins the list, still marked as the agent's idea.
+  // The user says yes: it joins the list, still marked as the agent's idea.
   s.sp('release', idea);
   assert.match(s.sp('overview'), new RegExp(`🟢 READY {2}1\\n {2}1\\. 🧵 Remember the last level played {2}· ✨ AI suggested · p2 S · ${idea}`));
   assert.equal(s.json('show', idea).item.suggested, 'the game always opens on level one, and players come back mid-way');
@@ -103,7 +103,7 @@ test('--table prints the loop’s list: every open thread numbered, in the order
     "❓ Outline the coins, or turn them teal? **a** Outline · **b** Teal. I'd pick **a**.",
   ]);
 
-  // The same rows as data, and an idea the human took up keeps its mark in the order.
+  // The same rows as data, and an idea the user took up keeps its mark in the order.
   assert.deepEqual(s.json('overview').projects[0].rows.map((r: { id: string }) => r.id).slice(0, 4), [jump, online, typo, coins]);
   s.sp('release', s.json('overview').projects[0].rows[4].id);
   assert.match(s.sp('overview', '--table'), /\| 3 \| \*\*Remember the last level played\*\* \| Small \| Normal \| ✨ AI suggested \|/);

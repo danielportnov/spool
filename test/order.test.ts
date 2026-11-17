@@ -27,7 +27,7 @@ const buildColumn = (s: Sandbox): string[] => {
 };
 const nextUp = (s: Sandbox): string => s.json('next').task.id;
 
-test('the order the human sets is the order next hands work out, and the order Build is drawn in', () => {
+test('the order the user sets is the order next hands work out, and the order Build is drawn in', () => {
   const { s, jump, coins, pause } = three();
   try {
     assert.deepEqual(buildColumn(s), [coins, pause, jump], 'the usual rule, before anyone says otherwise');

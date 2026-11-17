@@ -167,7 +167,7 @@ export function readConfig(root: string): Config {
 export function offError(name: string): SpoolError {
   return new SpoolError(
     `Spool is off in ${name}`,
-    "Nothing here goes through it: work as you would without Spool. spool enable turns it back on, on the human's word.",
+    "Nothing here goes through it: work as you would without Spool. spool enable turns it back on, on the user's word.",
   );
 }
 

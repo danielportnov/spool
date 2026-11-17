@@ -33,7 +33,7 @@ test('a sprint is made and filled in one go, and keeps the vision in his words',
     // An existing sprint is filled by name: a thread is added, nothing else changes.
     const filled = s.sp('sprint', 'first five minutes', '--add', pause);
     assert.match(filled, /^Sprint First five minutes: 1 added\./);
-    assert.match(filled, /the human starts it: spool play/);
+    assert.match(filled, /the user starts it: spool play/);
     assert.equal(s.json('list', '-k', 'sprint').items.length, 1, 'no second sprint of the same name');
     assert.equal(s.json('show', sprint.id).item.threads.length, 3);
     assert.match(s.sp('overview', '--table'), /🏁 \*\*First five minutes\*\* · planned · 0 of 3 done — A stranger finishes level one alone/);
@@ -76,12 +76,12 @@ test('filling a sprint says no to what cannot go in it', () => {
     assert.equal(s.json('list', '-k', 'sprint').items.length, 0, 'refused, nothing is made');
     assert.match(s.fails('sprint', 'Polish', '--vision', 'a', '--from', 'n-xxxx'), /give the vision once/);
     assert.match(s.fails('sprint', 'Polish', '--add', 'n-nope'), /no item "n-nope"/);
-    // A thread in a running sprint waits for the human's play: adding it starts nothing.
+    // A thread in a running sprint waits for the user's play: adding it starts nothing.
     s.sp('sprint', 'Polish', '--add', open);
     const other = s.id('task', 'One more', '-s', 'xs');
     s.exec(['play', 'Polish'], { tty: true });
     const added = s.sp('sprint', 'Polish', '--add', other);
-    assert.match(added, /it is running: what was added waits in the backlog until the human presses play again/);
+    assert.match(added, /it is running: what was added waits in the backlog until the user presses play again/);
     assert.equal(s.json('show', other).item.state, 'proposed');
   } finally {
     s.cleanup();

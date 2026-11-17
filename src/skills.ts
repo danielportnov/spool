@@ -5,7 +5,7 @@
  * harness (Claude Code and friends) loads it natively. Spool adds what the
  * format lacks: a ledger. When an agent writes a skill down, a `skill` item
  * records where it came from, who wrote it and how often it gets used, and
- * the human sees it in `spool review` like any other thing done on their
+ * the user sees it in `spool review` like any other thing done on their
  * behalf. Skills Spool did not write are listed too; they are simply untracked
  * until the first task reports using one.
  */

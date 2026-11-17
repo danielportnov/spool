@@ -5,7 +5,7 @@
  * whole of that surface, and there are five: one to set a project up, one to
  * steer the spool and the board from a chat, the loop that makes a chat the
  * builder, lazy dev, the loop with the questions taken away, and one to record
- * what the human says. The CLI is what those skills run.
+ * what the user says. The CLI is what those skills run.
  *
  * They are ordinary Agent Skills, plain SKILL.md files, so they can be read on
  * GitHub and edited in place. `spool install` copies them to where the harness

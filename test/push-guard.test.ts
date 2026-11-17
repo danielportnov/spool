@@ -34,7 +34,7 @@ test('git push is refused in a thread worktree with a line naming the policy, an
     assert.notEqual(refused.status, 0);
     assert.match(refused.stderr, /Agents never push/);
     assert.equal(spawnSync('git', ['--git-dir', remote, 'rev-parse', '--verify', '-q', 'refs/heads/probe']).status, 1);
-    // The human's own folder is unchanged.
+    // The user's own folder is unchanged.
     const ok = push(s.dir);
     assert.equal(ok.status, 0, ok.stderr);
     assert.notEqual(spawnSync('git', ['config', '--get', 'core.hooksPath'], { cwd: s.dir }).status, 0);

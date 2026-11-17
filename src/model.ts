@@ -1,7 +1,7 @@
 /**
  * The schema. Four kinds of item, each a markdown file with typed frontmatter.
  *
- *   note      what the human said, verbatim            new → filed | dropped
+ *   note      what the user said, verbatim            new → filed | dropped
  *   task      something to do                           open → active → done | dropped
  *   decision  a question and, eventually, its answer    open | assumed → decided | dropped
  *   skill     a procedure an agent wrote down           active | dropped
@@ -25,10 +25,10 @@
  * cannot go stale: answer a question and everything behind it is ready.
  *
  * "Proposed" is a status, and it is the gate. In a project that has the gate
- * on, every new task starts proposed and no agent can claim it: only the human
+ * on, every new task starts proposed and no agent can claim it: only the user
  * moves it to build. That is how they decide what gets built.
  *
- * "On hold" is different: it is the human saying not yet. An idea to keep but
+ * "On hold" is different: it is the user saying not yet. An idea to keep but
  * not start, work parked behind a launch. It waits for their word and asks
  * nothing of them in the meantime.
  */
@@ -42,7 +42,7 @@ export const KINDS: Record<Kind, { prefix: string; statuses: readonly string[]; 
   task: { prefix: 't', statuses: ['proposed', 'open', 'active', 'done', 'dropped'], initial: 'open' },
   decision: { prefix: 'd', statuses: ['open', 'assumed', 'decided', 'dropped'], initial: 'open' },
   skill: { prefix: 's', statuses: ['active', 'dropped'], initial: 'active' },
-  // A sprint is a named set of tasks the human means to build together. It has no dates: agents
+  // A sprint is a named set of tasks the user means to build together. It has no dates: agents
   // work in hours, so a sprint is over when its tasks are done, not when a fortnight is.
   sprint: { prefix: 'r', statuses: ['planned', 'running', 'done', 'dropped'], initial: 'planned' },
 };
@@ -86,12 +86,12 @@ export interface Config {
   largeEvery?: number;
   /**
    * The build gate. When on, every new task starts proposed, and nothing is
-   * built until the human moves it to build. `spool init --gate` turns it on.
+   * built until the user moves it to build. `spool init --gate` turns it on.
    *
    * 'locked' goes one step further (`spool init --lock`): the commands that
    * start work are refused unless a person ran them, at their own terminal or
    * from the Spool page. An agent told "build that" in a chat can no longer do
-   * it itself; it hands the human the page.
+   * it itself; it hands the user the page.
    */
   gate?: boolean | 'locked';
   /**
@@ -111,7 +111,7 @@ export interface Item {
   /** Tasks: 0 (drop everything) to 3 (someday). */
   priority?: number;
   /**
-   * Tasks in build: the place in line the human gave it, 1 first. Placed work is built before
+   * Tasks in build: the place in line the user gave it, 1 first. Placed work is built before
    * anything the usual rule orders. Leaving build clears it.
    */
   place?: number;
@@ -119,7 +119,7 @@ export interface Item {
   size?: Size;
   /** Tasks: what finishing produces. Absent means a change. */
   type?: WorkType;
-  /** Tasks: the model the human chose to work it, over what its size suggests. See agent.ts. */
+  /** Tasks: the model the user chose to work it, over what its size suggests. See agent.ts. */
   model?: string;
   /** Tasks: how hard that model thinks: low, medium, high, xhigh or max. */
   effort?: string;
@@ -136,7 +136,7 @@ export interface Item {
   worktree?: string;
   /** Tasks: the branch that worktree is on, `spool/<id>`, until its work lands. */
   branch?: string;
-  /** Tasks: why this is parked. A task on hold is never handed out; only the human releases it. */
+  /** Tasks: why this is parked. A task on hold is never handed out; only the user releases it. */
   hold?: string;
   /**
    * Tasks: when it was put out of sight. An archived thread is not dropped: it keeps its status,
@@ -146,7 +146,7 @@ export interface Item {
   archived?: string;
   /**
    * Tasks: an agent's own idea, and why it suggests it. Nobody asked for it, so it starts on hold
-   * and joins the work only when the human says yes. The reason stays, as where the thread came from.
+   * and joins the work only when the user says yes. The reason stays, as where the thread came from.
    */
   suggested?: string;
   /** The agent that suggested the task, independent of whoever builds it. */
@@ -161,7 +161,7 @@ export interface Item {
   recommend?: number;
   /** Decisions: the answer. */
   choice?: string;
-  /** Tasks: what changed, in a sentence, for the human's review. */
+  /** Tasks: what changed, in a sentence, for the user's review. */
   summary?: string;
   /**
    * Tasks: how a person sees the change working, as two or three short steps they can follow in a
@@ -175,7 +175,7 @@ export interface Item {
   reverted: string[];
   /** Tasks: the commit that took them back; reverting it puts the work back. */
   revert?: string;
-  /** Tasks: labels the human or an agent put on it, to group and find work by. */
+  /** Tasks: labels the user or an agent put on it, to group and find work by. */
   tags: string[];
   /** Tasks: the version it is meant for, or shipped in. */
   version?: string;
@@ -185,7 +185,7 @@ export interface Item {
   checked?: string;
   /** Tasks: names of the skills used. */
   skills: string[];
-  /** When the human acknowledged a finished task, an assumption or a new skill. */
+  /** When the user acknowledged a finished task, an assumption or a new skill. */
   reviewed?: string;
   /** Skills: the skill's directory, relative to the project. */
   path?: string;
@@ -370,7 +370,7 @@ export const RUN_TAG = 'manage';
  * put in order, holds the report afterwards, and is the id the whole run is undone by. It is
  * the manager's own, so it is never handed to a worker, and is no part of the backlog it tidies.
  */
-/** The hold an agent's own idea starts under where there is no gate: waiting for a yes, not the human's not yet. */
+/** The hold an agent's own idea starts under where there is no gate: waiting for a yes, not the user's not yet. */
 export const SUGGESTED_HOLD = 'AI suggested: waiting for your yes';
 
 export function isRun(item: Item): boolean {
@@ -379,7 +379,7 @@ export function isRun(item: Item): boolean {
 
 /**
  * Settled items no longer hold anything up. A plan is the exception that makes
- * plans useful: work that `needs` one waits until the human has approved it.
+ * plans useful: work that `needs` one waits until the user has approved it.
  */
 export function isSettled(item: Item): boolean {
   if (isPlan(item) && item.status === 'done') return !!item.reviewed;
@@ -406,9 +406,9 @@ export function oneLine(text: string, max = 72): string {
 }
 
 /**
- * The `Why:` line of a thread's spec: the reason it exists, so the human can agree to it without
+ * The `Why:` line of a thread's spec: the reason it exists, so the user can agree to it without
  * opening it. It reads the same labels the page's description does (`aboutOf` in board.ts). The
- * human's own words are quoted (`>`) and never read as the spec, and a reason that runs on over
+ * user's own words are quoted (`>`) and never read as the spec, and a reason that runs on over
  * a few lines is taken whole, up to the next blank line or the next label.
  */
 export function whyOf(item: Item): string {

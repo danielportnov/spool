@@ -23,13 +23,13 @@ test('each open thread says why it exists, in the loop\'s list and the brief one
   s.cleanup();
 });
 
-test('a Why is read from the spec only: never from the human\'s quoted words, and a thread with none shows nothing', () => {
+test('a Why is read from the spec only: never from the user\'s quoted words, and a thread with none shows nothing', () => {
   const s = spool();
   const note = s.id('capture', 'Why: is the sky so pale at night?');
   const quoted = s.id('task', 'Darker night sky', '--from', note);
   const plain = s.id('task', 'Bare thread');
   const table = s.sp('overview', '--table');
-  assert.match(table, /\*\*Darker night sky\*\* \|/, 'the human\'s words are not the spec');
+  assert.match(table, /\*\*Darker night sky\*\* \|/, 'the user\'s words are not the spec');
   assert.match(table, /\*\*Bare thread\*\* \|/);
 
   // spool check names every open thread with no reason, and is quiet once one is given.
