@@ -291,7 +291,7 @@ reached. Switched off, nothing moves to Build without you. Where the gate is loc
 switch it on.
 
 **It reacts; it does not wait on a clock.** `spool watch` stays up and prints a line when a thread
-can be built, when you reply on one, when an agent asks you something, or when a note stays unfiled for a few seconds. In Claude Code the loop listens to that
+can be built, when you reply on one, when an agent asks you something, when you press Clean Up on the board, or when a note stays unfiled for a few seconds. In Claude Code the loop listens to that
 with the Monitor tool, so pressing ▶ starts the build within seconds. Where a harness cannot listen,
 it sets one recurring check instead, every three hours, or `/spool-loop <hours>`.
 
@@ -531,6 +531,18 @@ for a thumb; a Yes runs that verb as you, with the run's reason, and a No leaves
 `spool manage --answer yes 3` (or `no all`) does the same from a chat. The brief has one line for
 it, "The manager proposes 12 changes", which opens the run's thread; the proposals are not listed
 in the brief, and a question stays on its own thread.
+
+**Clean Up, on the board.** The backlog has a 🧹 Clean Up button, on the board's Backlog column
+and in the Backlog view. Pressed, it asks for a pass, with your words for it if you write any (they
+are given as a leave for tonight that allows tidying only). Headless, the page starts an agent on
+the pass at once, with the manager's rules, whether Agents are on or not: you asked for it. In Chat
+mode the page starts nothing: it leaves the request in `.spool/cleanup.json`, `spool watch` prints a
+`cleanup: <project>` line, and the chat that builds runs the pass and replies with the run's link.
+`spool manage --start` takes the request up, and its worksheet then says what such a pass must do:
+every drop and every archive goes on the run's thread as a proposal, its own suggestions too, so
+nothing is dropped or archived without your yes. Sizes and the order it sets itself, and one undo
+takes the pass back. With a pass open the button opens its thread instead, and while a pass's
+proposals still wait for you, "2 proposals wait" beside it takes you there.
 
 **A leave.** By itself the manager only tidies. How far it may go beyond that is yours to say,
 in your own words, for one night at a time:

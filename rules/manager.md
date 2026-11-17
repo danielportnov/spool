@@ -90,7 +90,9 @@ renew: when it has run out, you tidy only again.
 
 1. `spool manage --start` opens the run and prints the worksheet. Set
    `SPOOL_RUN=<id>` on every command that follows, as it says: that is what
-   makes one undo take the pass back.
+   makes one undo take the pass back. Asked for with Clean Up on the board?
+   The worksheet says so first: then every drop and every archive, your own
+   suggestions too, goes on the run's thread as a proposal for their yes.
 2. Work the worksheet in order. Read each thread's Done-when against the code
    before you judge it.
    - **0 · Said no to before.** Read it first and hold every later idea against it.

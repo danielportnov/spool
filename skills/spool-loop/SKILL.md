@@ -89,6 +89,7 @@ do, and nothing otherwise:
 | `unfiled: n-9wxa "add a mute button"` | A note nobody has filed. File it, by the `spool-record` skill |
 | `ask: d-3kq2 for t-4kq7 Tighter jump — "Outline, or teal?"`, and its options | An agent needs their call. Ask them in the chat, below |
 | `takeover: skyhop`, and how | They switched taking over on. Build empty? Take the next, below |
+| `cleanup: skyhop`, and their words | They pressed Clean Up. Run the pass by `spool prime manager`, every drop and archive a proposal, and reply with the run's link |
 
 - **In Claude Code:** start the `Monitor` tool with the command `spool watch
   --as "<your model>"` (the board shows who watches) and the longest timeout it allows. Then end your turn: each line wakes you.
