@@ -95,13 +95,14 @@ test('the worksheet names what may have shipped, what looks alike, what has no s
   const bare = step(sheet, 4);
   assert.match(bare, new RegExp(`\\n {2}No size, 1:\\n {4}◇ ${unsized} {2}p2 {2}Remember the last level played {2}· proposed\\n {2}No Why: line, `));
   assert.doesNotMatch(bare.split('No Why: line')[1]!, new RegExp(`${unsized}|${stop}|${big}|${idea}`), 'a thread with a Why, or an idea with its reason, is not named');
-  assert.match(bare.split('No Why: line')[1]!, new RegExp(`◇ ${parked} {2}p2 M {2}A Grand Prix mode {2}· proposed · hands off: on hold\\n`));
+  assert.match(bare.split('No Why: line')[1]!, new RegExp(`⏸ ${parked} {2}p2 M {2}A Grand Prix mode {2}· on hold: after the launch · hands off: on hold\\n`));
   assert.match(step(sheet, 5), new RegExp(`^5 {2}TOO BIG {2}large or huge, and not a plan\\n {2}◇ ${big} {2}p2 L {2}Rebuild the level editor {2}· proposed$`));
 
   // 6. The order as it stands, the priority the user set, and Build, which is not the manager's.
   const order = step(sheet, 6);
-  assert.match(order, new RegExp(`\\n {2}The backlog as it ranks now, 8:\\n {4}1\\. ◇ ${coins} {2}p1 XS {2}Make coins readable at sunset {2}· proposed · the user set p1 \\d+m ago · hands off: the user changed it \\d+m ago\\n {4}2\\. ◇ ${idea} `));
-  assert.match(order, new RegExp(`\\n {4}7\\. ◇ ${parked} .* · hands off: on hold\\n {4}8\\. ◇ ${big} `), 'most urgent first, then the smallest, then the oldest');
+  assert.match(order, new RegExp(`\\n {2}The backlog as it ranks now, 7:\\n {4}1\\. ◇ ${coins} {2}p1 XS {2}Make coins readable at sunset {2}· proposed · the user set p1 \\d+m ago · hands off: the user changed it \\d+m ago\\n {4}2\\. ◇ ${idea} `));
+  assert.match(order, new RegExp(`\\n {4}7\\. ◇ ${big} `), 'on hold work is left out of the backlog ranking');
+  assert.doesNotMatch(order, new RegExp(`${parked}`), 'on hold work is not offered to the manager');
   assert.match(order, new RegExp(`\\n {2}Priorities the user set, each to be left as it is, 1:\\n {4}${coins} {2}p1 {2}Make coins readable at sunset`));
   assert.match(order, new RegExp(`\\n {2}In Build, in the order it will be built, 1: ${music}\\. Never yours to reorder\\.$`));
   assert.doesNotMatch(order.split('In Build')[0]!, new RegExp(music), 'what is in Build is not in the backlog’s ranking');

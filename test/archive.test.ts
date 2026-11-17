@@ -44,10 +44,10 @@ test('an archived thread is out of sight, not dropped: off the lists and the cou
   assert.match(s.fails('start', grand), /is archived[\s\S]*spool archive --undo/);
   s.write(`.spool/items/${grand}.md`, raw.replace('status: open', 'status: proposed'));
 
-  // Brought back just as it was: proposed, or still on hold.
+  // Brought back just as it was: proposed, or on hold.
   s.sp('archive', '--undo', grand, idea);
   assert.equal(s.json('show', grand).item.state, 'proposed');
-  assert.deepEqual([s.json('show', idea).item.state, s.json('show', idea).item.hold], ['proposed', 'just an idea']);
+  assert.deepEqual([s.json('show', idea).item.state, s.json('show', idea).item.hold], ['held', 'just an idea']);
   assert.match(s.item(grand), /human: brought back from the archive/);
   assert.match(s.fails('archive', '--undo', grand), /is not archived/);
   s.cleanup();
