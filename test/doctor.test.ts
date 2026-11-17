@@ -52,6 +52,8 @@ test('with a check named, git started and an agent that exists, those lines turn
   s.sp('init', '--name', 'demo', '--gate');
   s.gitInit();
   s.write('README.md', 'hi\n');
+  // The sandbox's own home and the stand-in agent are not the project's work.
+  s.write('.gitignore', '.home/\nbin/\n');
   s.commitAll('First commit');
   s.sp('checks', 'npm test');
   const agent = agentScript(s);

@@ -184,6 +184,7 @@ export function briefFixture(): Brief {
       { sprint: null, threads: [{ id: 't-0b2c', title: 'Fix wall clip', summary: 'The player no longer slides through the left wall.', project: 'skyhop' }] },
       { sprint: { id: 'r-f331', title: 'Feel' }, threads: [{ id: 't-61fa', title: 'Faster respawn', summary: null, project: 'skyhop' }] },
     ],
+    noThread: [],
     calls: [{ id: 'd-71c0', question: 'Coyote time: how long?', chose: '90ms, as most platformers do', for: ['t-5aa1'], project: 'skyhop' }],
     approve: 'spool approve --all',
     board: 'spool page',
