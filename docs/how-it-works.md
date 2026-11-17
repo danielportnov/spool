@@ -583,6 +583,29 @@ left them.
 A run is undone once. After that, or once its thread is done, a command that still carries its
 `SPOOL_RUN` is refused, so nothing is changed in the belief that it is on record.
 
+## Every edit, with its before
+
+Outside a run too, every write Spool makes to the queue is kept: a thread, note, question, sprint
+or skill record, a report, and the project's `policy.md`, `goals.md` and `config.json`. Each entry
+says who, when, by which command, and holds the file as it was and as it was left, in
+`.spool/history/`, on this machine only (it has its own `.gitignore`, so even a queue kept in git
+never carries it).
+
+    spool history t-4kq7        the edits to one thread, newest first, each with its entry id
+    spool history policy        the same for policy, goals or config
+    spool undo j-t-4kq7-…       put the file back as it was before that entry
+
+An undo goes through only while the file is still exactly as that entry left it. Anyone's later
+change, yours or an agent's, or an edit by hand, and it refuses and says so, so nobody's change is
+taken back with it. Undo the later entry first, or leave it. An undo is an entry too, and can
+itself be undone. Some writes do more than change a file: switching Spool off or on, landing
+commits, a claim or a worktree, removing a skill from disk. Their entries say which command takes
+them back (`spool enable`, `spool revert`, …), and undo leaves them to it. Where the gate is
+locked, an undo that changes the config or puts a thread back in Build is yours alone.
+
+The history is kept in check: once a day, the first write drops entries older than 90 days, and
+all but the newest 50 for each item or file. It starts with the first write after the upgrade.
+
 ## Skills that compound
 
 When an agent works out a multi-step procedure it will need again — shipping a beta, regenerating
@@ -605,6 +628,7 @@ AI-suggested thread. It matches words, not meaning.
   reports/       what audits and plans handed in
   runs/          per thread: what its agent printed, its pictures (files/), and for a run, its journal and the copies an undo puts back; never in git
   worktrees/     a git worktree for each thread being built in one of its own; never in git
+  history/       every write to the queue, with who, when and the before-copy, for spool history and spool undo; never in git
 ```
 
 A thread is a file a person can read:
@@ -887,6 +911,7 @@ ones marked 🔒:
 | `spool capture <words>` | Drop feedback in, exactly as said |
 | `spool answer <d-id> <choice>` | Answer a question, or overrule a call an agent made |
 | `spool approve <id…>` | Accept a call, finished work or a new skill; give a plan its go-ahead |
+| `spool history <id \| policy \| config \| goals>` · `undo <entry>` | Every edit to an item or a project file, newest first, with who and the lines it changed; undo one, if nothing has changed the file since. An entry with effects beyond the file (a switch, commits, a claim) names the command that takes it back instead |
 | `spool why <commit \| file:line \| thread>` | See what led to a change, from the original feedback through the calls, commits and reverts. File paths are relative to your current folder and line numbers refer to HEAD |
 | `spool revert <t-id> [-m why] [--now]` | Undo a thread's commits and put it back in the backlog with your reason, for you to move to Build (`--now`: straight back to Build). The reason is kept as a lesson every agent reads first. Given a run's thread, it puts back every item the run changed and touches no code |
 | `spool goals [--edit <text> \| -]` | Where the project is going: what it is for and the two or three things it is heading towards, as every agent reads it first (kept in `.spool/goals.md`); `--edit` replaces it |

@@ -47,6 +47,12 @@ those comments are the detail.
   `record` gives the workspace a recorder: `save` tells it of every item written, and it keeps
   the item's file as it was and a line in the run's journal under `.spool/runs/<id>/`. `undoRun`
   puts each item back, and leaves alone any that changed since.
+- `queue-journal.ts` is the history of every queue write, run or not. `writeQueue` is the one
+  way a queue file (an item, a report, policy, goals, config) is written: under the lock it stages
+  a receipt with the before and after copies, writes the file, then renames the receipt into
+  `.spool/history/`; `recover` settles a write a crash cut short by the file's hash. `undoQueue`
+  writes the before back only while the file still hashes to what the entry left, and `prune`
+  keeps the folder in check once a day. `history.ts` is `spool history` and `spool undo` over it.
 - `manage.ts` is `spool manage`, the manager's worksheet. `gather` reads the spool, the git log,
   the changelog and the tests into the facts a pass over the backlog starts from, with no model
   and no judgment; `worksheetText` prints them. `changesOf` folds a run's journal into the report
