@@ -26,6 +26,7 @@ import { buildUnderLeave, dropUnderLeave, leaveCommand, signer } from './leave.t
 import { buildUnderTakeOver, takeoverCommand } from './takeover.ts';
 import { dropLesson, learn, lessonLine, lessons } from './lessons.ts';
 import { lineageText, why } from './lineage.ts';
+import { NOTES_REF, PUSH_NOTES, landedThreads, noteCount, noteThread, threadNotes } from './notes.ts';
 import { runLoop } from './loop.ts';
 import { ideate } from './ideate.ts';
 import { manage } from './manage.ts';
@@ -408,6 +409,7 @@ function putBack(call: Call, t: Item, why: string): Result {
     if (member !== t) out.push(`  also put back ${member.id} ${oneLine(member.title, 100)}`);
     if (gone) out.push(p.dim(`  ${gone}`));
   }
+  for (const member of members) noteThread(ws, member);
   const first = members[0]!;
   const lesson = lessons(ws).findIndex((l) => l.thread === first.id && l.spool === first.spool);
   if (lesson >= 0) {
@@ -854,6 +856,7 @@ export const COMMANDS: Command[] = [
         if (why) appendMain(t, `> ${why}\n> — on reverting the first attempt, ${timestamp(ws.now()).slice(0, 10)}`);
         addLog(t, actor, `reverted ${reverted.length} commit(s)${later.length ? ` with ${later.map(({ task }) => task.id).join(', ')}` : ''}${why ? `: ${why}` : ''}${gone ? `; ${gone}` : ''}`, ws.now());
         ws.save(t);
+        if (reverted.length) for (const each of [t, ...later.map((row) => row.task)]) noteThread(ws, each);
 
         const out: string[] = [];
         if (reverted.length) {
@@ -1350,6 +1353,7 @@ export const COMMANDS: Command[] = [
         const how = by ? `aborted while ${by} was building it; moved back to proposed` : was === 'proposed' ? 'still proposed' : 'moved back to proposed';
         addLog(t, actor, [reverted.length ? `${how}; reverted ${reverted.length} commit(s)` : how, gone].filter(Boolean).join('; '), ws.now());
         ws.save(t);
+        if (reverted.length) noteThread(ws, t);
       }
       const notes = Object.entries(undone)
         .filter(([, shas]) => shas.length)
@@ -1691,6 +1695,8 @@ export const COMMANDS: Command[] = [
       // Landed and on record, so the worktree holds nothing the checkout lacks: it goes, and its branch with it.
       const gone = landing ? removeWorktree(t) : '';
       if (gone) ws.save(t);
+      // Its commits are where they will stay now, so the note that travels with each can be written.
+      const noted = commits.size ? noteThread(ws, t) : 0;
       const finished = settleSprint(ws, t, actor);
 
       const kids = children(ws, t).filter((k) => k.status !== 'dropped');
@@ -1724,6 +1730,7 @@ export const COMMANDS: Command[] = [
       }
       // Only a worktree's commits are the thread's alone until they land. These may be pushed already: they are left as they are.
       if (commits.size && !landing) out.push(p.dim("  built in the project's folder, so its commits were not stamped with who built them"));
+      if (noted) out.push(p.dim(`  ${noted} git note(s) written in ${NOTES_REF}, kept on this machine`));
       if (finished) {
         // Headless, the user's notifier tells them, where they picked it. In Chat mode the chat that builds does.
         if (builderOf(call.ctx, t.spool.root) !== 'chat') notify(call.ctx, 'sprint', `Sprint finished: ${finished.title}`, finished);
@@ -2257,6 +2264,39 @@ export const COMMANDS: Command[] = [
       if (args.length !== 1) throw new SpoolError('give one commit, file:line, or thread id', 'See: spool help why');
       const lineage = why(ws, ctx.cwd, args[0]!);
       return { text: lineageText(lineage), data: lineage };
+    },
+  },
+  {
+    name: 'notes',
+    group: 'see',
+    usage: 'notes [<t-id>] [--backfill]',
+    summary: `The git notes (${NOTES_REF}) that carry each landed commit's thread, calls and builder: how many there are, what one thread's say, or --backfill to write them for threads already landed. They stay on this machine`,
+    options: { backfill: { type: 'boolean' } },
+    run({ args, opts, ws, p }) {
+      const hint = `They stay on this machine. Pushing them publishes thread titles and calls, so it is the human's call: ${PUSH_NOTES}`;
+      if (opts.backfill) {
+        if (args.length) throw new SpoolError('--backfill writes the notes for every landed thread', 'Leave out the thread id');
+        const threads = landedThreads(ws);
+        let written = 0;
+        for (const t of threads) written += noteThread(ws, t);
+        return {
+          text: [`${written} git note(s) written for ${threads.length} landed thread(s)${written ? '' : ': they were up to date'}.`, p.dim(`  ${hint}`)].join('\n'),
+          data: { threads: threads.length, written },
+        };
+      }
+      if (args.length > 1) throw new SpoolError('give one thread id, or none', 'See: spool help notes');
+      if (args[0]) {
+        const notes = threadNotes(ws, ws.get(args[0], 'task'));
+        if (!notes.length) return { text: `No commits on record for ${args[0]}, so it has no notes.`, data: { notes } };
+        return { text: notes.map((n) => `${p.bold(n.sha.slice(0, 12))}\n${n.note}`).join('\n\n'), data: { notes } };
+      }
+      const root = repoRoot(ws.home.root);
+      if (!root) throw new SpoolError('there is no Git repository here');
+      const count = noteCount(root);
+      return {
+        text: [`${count} commit(s) carry a Spool note in ${NOTES_REF}.`, p.dim(`  ${hint}`), p.dim('  Missing some? spool notes --backfill')].join('\n'),
+        data: { count, ref: NOTES_REF, push: PUSH_NOTES },
+      };
     },
   },
   {

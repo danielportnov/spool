@@ -19,6 +19,7 @@ import { HARNESSES, copies, installedFor, others } from './harness.ts';
 import { DEFAULT_AGENT } from './loop.ts';
 import { builderOf, userConfig } from './context.ts';
 import { git, repoRoot } from './git.ts';
+import { NOTES_REF, PUSH_NOTES, noteCount } from './notes.ts';
 import { blockIn } from './prime.ts';
 import { SPOOL_DIR, Workspace, findHome, isOff, readConfig, skillsDir } from './store.ts';
 import { strayFixes, strayLines, straysOf } from './strays.ts';
@@ -135,6 +136,15 @@ export function diagnose({ ctx }: Bare): Finding[] {
       add('strays', 'advice', [head, ...rest.map((l) => `  ${l}`)].join('\n'), strayFixes(strays));
     } else if (strays) {
       add('strays', 'ok', `every commit since the first on a thread is on one${strays.versions ? `, but for ${strays.versions === 1 ? 'a version commit' : `${strays.versions} version commits`}, which are on none by design` : ''}`);
+    }
+
+    // The notes that carry each landed commit's thread in words. They stay here until the human says otherwise.
+    const repo = repoRoot(root);
+    if (repo) {
+      const count = noteCount(repo);
+      add('notes', 'ok', `${count ? `${count} commit(s) carry` : 'no commit carries yet'} a Spool git note (${NOTES_REF}), kept on this machine`, [
+        `Pushing them publishes thread titles and calls, so it is your call: ${PUSH_NOTES}`,
+      ]);
     }
 
     if (config.checks?.[root]) add('check', 'ok', `a check runs before a change is done: ${config.checks[root]}`);
