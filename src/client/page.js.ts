@@ -1991,9 +1991,9 @@ function settingsSections() {
   const stop = settingNumber('Minutes before a silent agent is stopped', 0, 1440, (n) => sendSetting('setting', { name: 'stop-minutes', value: n }, ''));
   const stopRow = settingRow('Stop a silent agent', 'Minutes of silence after which this page stops the agent and puts its thread back in Build. 0 for never. Headless only.',
     'spool settings stop-minutes 30', el('span', { class: 'unit' }, stop, 'min'), (b, row) => { if (!leave(stop)) stop.value = String(settingsOf(b).stopMinutes); row.classList.toggle('dim', b.runner.builder === 'chat'); });
-  // Away from keyboard: shown once the board carries it (being built in its own thread).
-  const afk = settingSwitch('Away from keyboard', (on) => sendSetting('afk', { on }, ''));
-  const afkRow = settingRow('Away from keyboard', 'While you are away, the chat takes the recommended answer instead of waiting on you, and says so on the thread.',
+  // Away from keyboard: shown where the board carries it.
+  const afk = settingSwitch('Away from keyboard', (on) => sendSetting('afk', { on }, on ? 'AFK is on.' : 'AFK is off.'));
+  const afkRow = settingRow('Away from keyboard', 'While you are away, an agent’s question is not put to you: it takes its recommendation and records it as a call for your review. Only what is truly yours still asks.',
     'spool afk on', afk, (b, row) => {
       const a = b.afk;
       row.hidden = a === undefined || a === null;

@@ -61,6 +61,9 @@ test('the gear opens Settings, and each setting changed there is what its comman
     await panel.getByRole('switch', { name: 'Weekly target' }).click();
     await until('a weekly target is set', () => s.json('target').target.weekly === 80);
 
+    await panel.getByRole('switch', { name: 'Away from keyboard' }).click();
+    await until('AFK is on', () => s.json('afk').afk === true);
+
     // And the other way: a command's change shows in the panel.
     s.exec(['settings', 'rebuild', 'off'], { tty: true });
     await until('the panel shows rebuild off', async () => !(await panel.getByRole('switch', { name: 'Rebuild after each landing' }).isChecked()));
