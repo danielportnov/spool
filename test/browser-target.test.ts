@@ -114,7 +114,7 @@ test('in Chat mode each agent is a logo in a ring of its usage, and a click on i
     // Esc puts it away and gives the logo the focus back; a click elsewhere does too.
     await page.keyboard.press('Escape');
     await box.waitFor({ state: 'hidden' });
-    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-agent')), 'Claude');
+    assert.equal(await page.evaluate('document.activeElement && document.activeElement.getAttribute("data-agent")'), 'Claude');
     await codex.click();
     await box.waitFor();
     // Codex has no Fable; it cannot read its usage yet, and says so without a number.
@@ -173,13 +173,14 @@ test('the header is one tidy line at 1440px with two meters and a time set, and 
   s.sp('for', '3h');
   const { url, stop } = await startPage(s);
   // Every control in the bar that is shown: none past the edge, and the rows they sit on.
-  const rows = (page: Page) => page.evaluate(() => {
-    const bar = document.querySelector('.bar')!;
+  interface Rows { out: { id: string; left: number; right: number; mid: number }[]; mids: number[]; wide: number; view: number; deciders: number }
+  const rows = (page: Page): Promise<Rows> => page.evaluate(`(() => {
+    const bar = document.querySelector('.bar');
     const shown = [...bar.querySelectorAll('.brand, .tab, #search, #searchbtn, .agentchip, .clockchip, #notifier, #gear, #themer')]
-      .filter((n) => (n as HTMLElement).offsetParent !== null && getComputedStyle(n).display !== 'none');
+      .filter((n) => n.offsetParent !== null && getComputedStyle(n).display !== 'none');
     const out = shown.map((n) => { const r = n.getBoundingClientRect(); return { id: n.id || n.className, left: r.left, right: r.right, mid: Math.round(r.top + r.height / 2) }; });
     return { out, mids: [...new Set(out.map((o) => o.mid))], wide: document.documentElement.scrollWidth, view: innerWidth, deciders: bar.querySelectorAll('#builder, #roster, #target, #takeover').length };
-  });
+  })()`);
   try {
     for (const [name, width, most] of [['desktop', 1440, 1], ['phone', 390, 2]] as const) {
       const page = await browser.newPage({ viewport: { width, height: 800 } });
