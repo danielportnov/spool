@@ -70,6 +70,19 @@ export function stoppedInBuild(task: Item): boolean {
 }
 
 /**
+ * A thread whose last word is the page's own, that its agent walked away or it could not be started:
+ * read from the log, so a page that takes over after a restart leaves it where it is too. Anything
+ * after that line (a reply, an edit, a move, an answer) is something about it changing.
+ */
+const WALKED_AWAY = /^(agent .* without finishing; back in build|could not be started \(.*\); back in build|not started: it could not have a worktree)/;
+export function leftByAgent(task: Item): boolean {
+  if (task.status !== 'open') return false;
+  const last = splitBody(task.body).log.at(-1);
+  const m = last ? /^- \S+ \S+ page: (.*)$/s.exec(last) : null;
+  return !!m && WALKED_AWAY.test(m[1]);
+}
+
+/**
  * What an agent whose session can be spoken to is told first. It is `PREAMBLE` with one thing
  * changed: the human can reach it while it works, though they may still not be reading what it says.
  */
@@ -970,7 +983,7 @@ export class Runner {
         // Left where they are: a thread whose agent walked away, until something about it changes, and one the human stopped.
         task =
           this.first.map((id) => free.find((t) => t.id === id)).find(Boolean) ??
-          free.find((t) => this.gaveUp.get(t.id) !== t.updated && !stoppedInBuild(t));
+          free.find((t) => this.gaveUp.get(t.id) !== t.updated && !leftByAgent(t) && !stoppedInBuild(t));
         if (!task) return 'none';
         const taken = task.id;
         this.first = this.first.filter((id) => id !== taken);

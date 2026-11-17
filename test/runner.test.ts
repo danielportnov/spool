@@ -76,6 +76,8 @@ test('an agent that walks away has its thread put back once; one that hangs can 
     await first.stop();
   }
 
+  // A page that takes over leaves it alone until something about it changes: here, an edit.
+  s.sp('edit', hard, '--title', 'Too hard, still');
   const sleeper = agent(s, 'sleeper.sh', 'echo "thinking hard"; sleep 30');
   const second = await startPage(s, '--run', '--agent', sleeper);
   try {
@@ -384,6 +386,32 @@ test('with Chat picked, the page starts no agent: a chat builds, the pick is kep
   } finally {
     watch?.kill();
     await page.stop();
+    s.cleanup();
+  }
+});
+
+test('a thread its agent walked away from is not handed out again by the page that takes over', async () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop', '--gate');
+  const hard = s.id('task', 'Too hard');
+  s.sp('build', hard);
+  const runs = path.join(s.root, 'runs.txt');
+  const quitter = agent(s, 'quitter.sh', `echo run >> "${runs}"; exit 3`);
+  const first = await startPage(s, '--run', '--agent', quitter);
+  try {
+    await until('it is put back', async () => /without finishing; back in build/.test(s.item(hard)));
+  } finally {
+    await first.stop();
+  }
+  const second = await startPage(s, '--run', '--agent', quitter);
+  try {
+    await pause(2500);
+    assert.equal(fs.readFileSync(runs, 'utf8').trim().split('\n').length, 1, 'the new page leaves it alone');
+    // Something about it changes: it is picked up again.
+    s.sp('edit', hard, '--title', 'Too hard, reworded');
+    await until('it is tried again', async () => fs.readFileSync(runs, 'utf8').trim().split('\n').length > 1);
+  } finally {
+    await second.stop();
     s.cleanup();
   }
 });
