@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import type { ParseArgsConfig } from 'node:util';
 import { agentsCommand } from './agents-switch.ts';
 import { ATTACH } from './attach.ts';
+import { ADOPT, strayFixes, strayLines, straysOf } from './strays.ts';
 import { builderCommand } from './builder.ts';
 import { type Picked, builderLine, effortOf, modelOf, pickFor, pickLabel } from './agent.ts';
 import { morning, morningText } from './brief.ts';
@@ -1520,6 +1521,7 @@ export const COMMANDS: Command[] = [
     },
   },
   ATTACH,
+  ADOPT,
   {
     name: 'ask',
     group: 'agents',
@@ -2117,8 +2119,14 @@ export const COMMANDS: Command[] = [
       const spools = project ? [ws.project(project)] : ws.spools;
       const queue = review(ws, project);
       const standing = new Map(spools.map((spool) => [spool, standingOf(ctx, ws, spool)]));
+      // Work that landed on no thread is said under the project, with what puts it right.
+      const strays = new Map(spools.map((spool) => [spool, straysOf(ws, spool)]));
+      const strayed = (spool: Spool) => {
+        const lines = strayLines(strays.get(spool)!);
+        return lines.length ? [...lines, ...strayFixes(strays.get(spool)!).map((l) => `→ ${l}`)] : [];
+      };
       return {
-        text: statusText(ws, p, project, (spool) => standingLines(standing.get(spool)!)),
+        text: statusText(ws, p, project, (spool) => [...standingLines(standing.get(spool)!), ...strayed(spool)]),
         data: {
           workspace: ws.home.name,
           projects: spools.map((spool) => {
@@ -2132,6 +2140,7 @@ export const COMMANDS: Command[] = [
               blocked: count('blocked'),
               done: count('done'),
               board: standing.get(spool),
+              noThread: strays.get(spool),
             };
           }),
           waiting: Object.fromEntries(Object.entries(queue).map(([key, items]) => [key, (items as Item[]).length])),

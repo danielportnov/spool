@@ -267,7 +267,7 @@ export function statusText(ws: Workspace, p: Paint, project?: string, under: (sp
       `${count('done')} done`,
     ];
     out.push('', `${p.bold(spool.name)}  ${p.dim(counts.join(' · '))}`);
-    for (const line of under(spool)) out.push(`  ${line.startsWith('Build is not moving') ? p.yellow(line) : p.dim(line)}`);
+    for (const line of under(spool)) out.push(`  ${line.startsWith('Build is not moving') || line.includes('on no thread') ? p.yellow(line) : p.dim(line)}`);
     // Ready work is listed in the order it will be picked, so the top of the list is what happens next.
     const rank = (t: Item) => order.indexOf(taskState(ws, t).replace('stale', 'ready')) * 10_000 + (turn.get(t.id) ?? 9_999);
     const open = mine
