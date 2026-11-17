@@ -26,7 +26,7 @@ test('set-up asks who builds, ends with the doctor, and names the three skills t
   // What comes next: the skill for the chat, the one that builds, and the one that records.
   const next = init.slice(init.indexOf('End with what happens next'));
   assert.deepEqual([...next.matchAll(/^- `(\/[a-z-]+)`/gm)].map((m) => m[1]), ['/spool', '/spool-loop', '/spool-record']);
-  assert.match(next.replace(/\s+/g, ' '), /`\/spool-loop` to make a chat the builder, if they picked Chat\. With Headless, they switch \*\*Agents\*\* on at the top of the board instead/);
+  assert.match(next.replace(/\s+/g, ' '), /`\/spool-loop` to make a chat the builder, if they picked Chat\. Headless is then greyed on the board until \*\*Offer Headless\*\* is on in Settings, behind the gear\. With Headless, they switch \*\*Agents\*\* on there instead/);
 
   // Someone only trying it is offered the sample project, not a set-up of their own.
   assert.match(flat, /Only trying Spool, not setting this project up\? Offer `spool demo --open`: a throwaway project with threads in its spool, and its board in their browser\. None of their own code is touched\./);

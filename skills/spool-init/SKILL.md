@@ -94,7 +94,8 @@ End with what happens next, in one line each:
 
 - `/spool` to steer it from any chat: "open the board", "build that one",
   "catch me up", "why is nothing building"
-- `/spool-loop` to make a chat the builder, if they picked Chat. With
-  Headless, they switch **Agents** on at the top of the board instead
+- `/spool-loop` to make a chat the builder, if they picked Chat. Headless is
+  then greyed on the board until **Offer Headless** is on in Settings, behind
+  the gear. With Headless, they switch **Agents** on there instead
 - `/spool-record` in front of anything they type or say, in any chat, to
   have that message filed as threads
