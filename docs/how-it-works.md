@@ -941,9 +941,11 @@ server has gone says so in a line under the bar, with how long ago it last heard
 the board; it keeps trying, and the moment `spool page` answers at that address again the line goes,
 with nothing reloaded.
 
-**No chat at all, from a terminal.** `spool loop` is a runner of its own: it claims the next thread in Build, starts
-your agent command in that project with the rules and the brief on stdin, and looks again when it
-exits. `spool loop --watch 5` keeps looking. The agent command comes from your own machine
+**No chat at all, from a terminal.** `spool loop` builds with the page's own runner and prints
+what it does: it takes what is in Build, starts your agent command on each thread with the rules and
+the brief, several at once in worktrees of their own where the project is a git repository, prints
+what each agent says, and stops when nothing is left. Each run leaves its transcript, and with
+`claude -p` its session, on the thread, as a page's run does. `spool loop --watch 5` keeps looking. The agent command comes from your own machine
 (`SPOOL_AGENT`, or `agent` in `~/.config/spool/config.json`); the default is `claude -p`.
 
 **Which model, and how hard it thinks.** Each thread is built by the smallest model that can do
