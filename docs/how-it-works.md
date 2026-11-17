@@ -50,7 +50,7 @@ counted few threads to Build for one night (see "The manager"), is locked the sa
 Be clear about what the lock is. It stops an agent starting work by mistake, or on its own reading
 of what you meant. It is not a security boundary: a program running as you can do what you can.
 
-## The five skills
+## The six skills
 
 You use Spool by talking to your agent. The skills are plain [Agent Skills](https://agentskills.io)
 in [`skills/`](../skills): read them, edit them. `spool install` copies them to `~/.claude/skills`;
@@ -85,6 +85,9 @@ speaks rarely: a screenshot and a line or two when there is something to see, th
 reaction is captured in your words and filed as threads, and the chat keeps what it showed and what
 you said. It still builds only what you moved to Build: "do it" about something it showed is a go,
 anything else waits proposed. `/spool-lazy off` ends it.
+
+**`/spool-steer <instruction>`** is an instruction about how to handle the work (focus, pace,
+model, stopping), acted on and never recorded; one about a thread being built goes to its builder.
 
 **`/spool-record <what you want, and where>`** files one message. Your words are captured exactly,
 split into threads, each given a size and a short spec (what, why, done when), and put in the
@@ -282,7 +285,8 @@ things, and nothing else. Questions about the spool, and steering it, are `/spoo
 3. **Says when Build is empty**, or when something needs you. First it gives what shipped a
    version, adds up to three ideas of its own, marked AI suggested, and shows the morning brief.
 
-**It works up to your usage target,** where you set one in the board's header (`spool target`).
+**It works up to your usage target,** where you set one in Settings, under an agent's logo, or
+with `spool target`.
 Before it claims each thread it reads your plan's weekly and 5-hour usage with its own tool and
 reports it with `spool usage`, which says keep building or stop. Stopped, it claims nothing new and
 lets what is being built land. With no target it builds what is in Build, whatever the usage.
@@ -769,8 +773,8 @@ that one only, and the other boards say their agents are run by their own page o
 
 ## Other ways to run it
 
-**No chat at all, from the page.** `spool page --run`, or the **Agents** switch on the page, has the
-page build what is in Build: it starts your agent command on a thread the moment it lands there,
+**No chat at all, from the page.** `spool page --run`, or **Agents on** in Settings, has the page
+build what is in Build: it starts your agent command on a thread the moment it lands there,
 and shows what the agent prints on the card and in the ticket. A thread the agent finishes is done;
 one it asks a question on waits for you; one it walks away from is put back and not tried again
 until something about it changes. The page says what the agent last said, which is usually why. Use
@@ -816,7 +820,7 @@ when one waits (`SPOOL_EVENT` is `permission`).
 the agent started, and one that does not listen is killed two seconds later; a `claude -p` agent
 is asked to stop first, so that its session knows it was stopped, and ended three seconds later if
 it is still there. Agents on other
-threads work on, and the Agents switch stays on. The thread goes back to Build with its work kept,
+threads work on, and agents stay on. The thread goes back to Build with its work kept,
 and its card says **Stopped**. Nothing builds a stopped thread: not a note on it, not a change to
 it, not the page restarting. **▶ Carry on**, on the card, builds it next, as dragging it into
 Building does; so does moving it out of Build and in again. Dragging a card from Building to Build
@@ -866,7 +870,7 @@ worktree of its own, as `spool start --worktree` does (see "Several at once"), s
 edit one folder. Its agent is started there, its card and ticket say which folder, and its own
 `spool done` lands the work on your branch. `spool builder --at-once 5`, kept as `"parallel": 5` in
 `~/.config/spool/config.json`, sets the number; 1 builds one at a time, still in a worktree. Each
-card shows its own agent and the Agents switch says how many; the rest of Build waits for one to
+card shows its own agent and the header says how many; the rest of Build waits for one to
 finish, and a thread dragged into Building goes to the front. It is read fresh, so no restart is
 needed. A project that cannot have worktrees, because it is not a git repository or nothing of it
 is committed yet, is built in its own folder, one thread at a time whatever the number says, and
@@ -891,11 +895,12 @@ the same model: not a new run for the step-up, and a thread that lands after it 
 A second failure puts the thread back in Build, with the output on its log. In Chat the page starts
 no agent; the loop's subagents already retry by themselves under the worker's rules.
 
-**Which of the two, picked on the page.** Left of the Agents switch are two picks. **Headless** is
-the page's own runner, as above. **Chat** is a Claude Code chat running the loop: the page then
+**Which of the two, picked on the page.** **Who builds**, in Settings, has two picks. **Headless**
+is the page's own runner, as above; it is greyed out until **Offer Headless** is on
+(`spool settings headless on`). **Chat** is a Claude Code chat running the loop: the page then
 starts no agent, whether its runner is on or not, and a thread dragged into Building waits in Build
 for the chat. An agent the page had already started is left to finish its thread. With Chat picked
-the Agents switch is not a switch but a reading: **building** while a thread is being built,
+and no agent on the roster, the header's line is a reading: **building** while a thread is being built,
 **watching** while a `spool watch` is up for the project (it leaves a file named with its pid in
 the temp folder for as long as it runs), and **off** when nobody is listening, so nothing in Build
 would be built. The pick is kept on your machine, by the project's folder, under `builder` in
@@ -924,8 +929,7 @@ where each agent's other settings go.
 Claude can take every size and Codex up to medium. `spool next --claim` hands an agent only threads in
 its sizes, and says so when what is ready is all outside them; `spool start` and `spool build
 --takeover` refuse or pass over the rest, which waits for an agent that takes it. A thread with no
-size counts as medium. On the board, the chip after an agent's count (`≤ M`, or `all`) cycles its
-largest size. Only a chat in Chat mode is held to its sizes, by the agent part of its `--as` name.
+size counts as medium. On the board, a click on an agent's logo sets them. Only a chat in Chat mode is held to its sizes, by the agent part of its `--as` name.
 
 **In the background.** `spool page -d` starts the page as a process of its own and returns once it
 is listening, with its address. It opens no browser and outlives the terminal or chat that started
@@ -1100,10 +1104,10 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool init [folder] [--gate \| --lock] [--share]` | Start a spool; does nothing where one exists |
 | `spool disable [--all]` · `enable [--all]` | Switch Spool off in a project: its block comes out of `AGENTS.md` and `CLAUDE.md`, so no agent is sent to it, and its commands refuse; the queue is kept. On again puts the block back where it was. `--all` does every spool in this folder and below |
 | `spool demo [folder] [--open]` | A throwaway sample project with threads in its spool, to try the page and the loop on |
-| `spool install [--for claude\|codex\|cursor\|gemini\|all] [--here \| --dir path]` | Put the skills where your agent finds them: Claude Code unless `--for` names another; it also names the other agents it finds here |
+| `spool install [--for claude\|codex\|cursor\|gemini\|all] [--here \| --dir path] [--force]` | Put the skills where your agent finds them: Claude Code unless `--for` names another; it also names the other agents it finds here. `--force` overwrites copies you edited. To take them out, see [Remove Spool](../README.md#remove-spool) |
 | `spool checks [command \| --none] [--timeout minutes]` | Name the command that must pass before a change is done here, and how long it may run (10 minutes) |
 | `spool builder [headless \| chat] [--at-once n] [--agent <name> [--model m] [--lean usage\|balanced\|development]]` | Say who builds here, and how many threads at once, for every agent or, with `--agent`, for one on the roster (adding it), and how far it leans from saving usage to pushing development; with nothing after it, says what is set and lists the agents. The user's, like `spool build` |
-| `spool agents [on \| off]` | Switch the page's agents on or off, as its Agents button does; with nothing after it, says whether a page is up and its agents are on. On is the user's, like `spool build`, and refused while a chat builds; off is always allowed |
+| `spool agents [on \| off]` | Switch the page's agents on or off, as **Agents on** in Settings does; with nothing after it, says whether a page is up and its agents are on. On is the user's, like `spool build`, and refused while a chat builds; off is always allowed |
 | `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it. It names work that landed on no thread, as `spool status` does. After an upgrade it also names a retired skill that is still installed, for any agent, and a Spool block in `AGENTS.md` that is not the one this version writes; changes nothing |
 | `spool page [--run] [--agent cmd] [--port n] [--no-open] [-P project]` | The board; `--run` has it build what is in Build too. In a folder of projects it shows them all, one click apart |
 | `spool page -d \| --status \| --stop` | The board in the background, with no browser opened; whether it is up, and where; end it |
@@ -1113,17 +1117,6 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool mcp [-C dir]` | The commands as MCP tools |
 
 ## Develop
-
-```bash
-npm install
-npm test        # node --test, straight from the TypeScript sources
-npm run check   # tsc
-```
-
-The tests drive the real CLI in-process against temp directories, including real git repositories
-and stand-in agents. One drives the page in the Chrome on your machine, with a real mouse; it is
-skipped where there is no Chrome, and `SPOOL_SHOTS=<folder> npm test` keeps a picture of each view.
-There are no runtime dependencies.
 
 How to make a change and send it is in [CONTRIBUTING](../CONTRIBUTING.md); where each piece of the
 code lives, and how one thread moves through it, is in [a tour of the code](architecture.md).

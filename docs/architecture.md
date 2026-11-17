@@ -137,9 +137,10 @@ those comments are the detail.
 - `upkeep.ts` is `Upkeep`: it restarts the page when the code on disk changes, and, where the
   page runs from a checkout of Spool that is also the project it shows, runs `npm run build` there
   once Build and Building are empty (in Chat mode, a minute or less after each landing instead).
-- `client/` is the page the browser gets, as three strings: `page.html.ts` (the markup, and the
-  `PAGE` the three are joined into), `page.css.ts` and `page.js.ts`. One self-contained page,
-  with no build step.
+- `client/` is the page the browser gets, as strings: `page.html.ts` (the markup, and the `PAGE`
+  they are joined into), `page.css.ts` and `page.js.ts`, and a CSS and script pair for each view
+  of its own (`roadmap`, `review`, `projects`, `pictures`). One self-contained page, with no build
+  step.
 - `page.ts` is what is left of the one file these seven were: it passes their names on, for
   whatever still imports them from it.
 - `detach.ts` is `spool page -d`, `--status` and `--stop`, and the record every page leaves under
@@ -189,7 +190,7 @@ those comments are the detail.
 
 **Skills, and the rules agents are primed with**
 
-- `skills/` (beside `src/`) holds the four skills, and `rules/worker.md` the rules for building a
+- `skills/` (beside `src/`) holds the six skills, and `rules/worker.md` the rules for building a
   thread. Each rule is written in one of those files and nowhere else. The worker's rules are in
   no skill: everyone who builds reads them, and a chat that only steers never does.
 - `builtin.ts` reads those files: `rules` pulls the recorder's rules out of its skill,

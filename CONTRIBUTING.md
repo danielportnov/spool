@@ -1,6 +1,6 @@
 # Contributing to Spool
 
-Spool is a small TypeScript CLI, a page it serves, and four agent skills. This page gets you from a
+Spool is a small TypeScript CLI, a page it serves, and six agent skills. This page gets you from a
 clone to a tested change. For where things live in the code, read [the tour](docs/architecture.md).
 
 ## Get it running
@@ -46,8 +46,6 @@ node --test test/revert.test.ts                       # one file
 node --test --test-name-pattern "revert" test/*.test.ts   # tests whose name matches
 ```
 
-The whole suite takes about half a minute.
-
 Install it as a newcomer would, on a machine that has never seen Spool:
 
 ```bash
@@ -85,17 +83,17 @@ or `~/.config/spool/config.json`. Cloning someone's repo and running `spool` in 
 their code. Words that come from a project's files and go near a shell are checked first, as
 `src/agent.ts` does with model names.
 
-**The page is one page, and does only what a command can.** The whole client is three strings in
+**The page is one page, and does only what a command can.** The whole client is strings in
 `src/client/`: its HTML (`page.html.ts`), its CSS (`page.css.ts`) and its script (`page.js.ts`),
-joined into the one `PAGE` the server sends, with nothing else to load and no build step. Every
+with a CSS and script pair for each view of its own, joined into the one `PAGE` the server sends, with nothing else to load and no build step. Every
 change the page makes is an ordinary command run as the user (`change` and `act` in
 `src/act.ts`), so the page can do nothing the command line cannot. A new button starts as a
 command.
 
 **A command lives in one table.** `COMMANDS` in `src/commands.ts`. `spool help`, `--json` and the
 MCP tools are all made from it, so a new entry shows up in all three. An error is a `SpoolError`
-with a hint that says what to do instead. A test checks that every `spool <verb>` a skill names is
-a real command.
+with a hint that says what to do instead. Tests check that every `spool <verb>` a skill or a doc names
+is a real command.
 
 **Plain words.** In every message, error, comment and document: short sentences, the plain word,
 no jargon where a plain one will do. Output is read by an agent paying per token and by a person
@@ -163,7 +161,6 @@ Issues are welcome too: use the bug report or idea form to give us the context w
 
 ## Spool is built with Spool
 
-The repository carries its own `.spool/`, kept in git: the threads, notes and decisions Spool's own
-work came from. Commits made for a thread end with a trailer such as `Spool: t-4kq7`, which is how
-`spool revert` finds them. You do not need any of it to contribute. Leave `.spool/` out of your
-pull request, and never edit its files by hand: the `spool` commands are the only writers.
+Spool's own work is queued in a `.spool/` that stays on the maintainer's machine, out of git.
+Commits made for a thread end with a trailer such as `Spool: t-4kq7`, which is how `spool revert`
+finds them. You do not need any of it to contribute, and a pull request needs no trailer.

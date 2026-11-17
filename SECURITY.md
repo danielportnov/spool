@@ -13,7 +13,8 @@ You will get an answer there. Please give us a reasonable time to fix it before 
 ## Supported versions
 
 Spool is young and moves fast. Fixes go into the latest release only; if you are on an older one,
-update first (`npm install -g spool-ai@latest`).
+update first: `npm install -g github:danielportnov/spool` again, or, once Spool is published to
+npm, `npm install -g spool-ai@latest`.
 
 ## What Spool does on your machine, and what it does not
 
@@ -51,8 +52,9 @@ or notifier command, and is never executed.
 
 **Your queue stays local.** `.spool/` (items, transcripts, screenshots and notes, in your words)
 is ignored by git and is never committed or pushed by Spool, unless you choose to share it. The
-page's own record there is written readable by you alone (0600). Spool has no install scripts and
-no runtime dependencies.
+page's own record there is written readable by you alone (0600). Spool has no runtime dependencies,
+and the npm package has no install scripts. Installing from GitHub runs `prepare`, which only
+compiles the TypeScript.
 
 ## Out of scope
 
