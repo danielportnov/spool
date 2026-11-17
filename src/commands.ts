@@ -25,6 +25,7 @@ import { demo } from './demo.ts';
 import { buildUnderLeave, dropUnderLeave, leaveCommand, signer } from './leave.ts';
 import { buildUnderTakeOver, takeoverCommand } from './takeover.ts';
 import { dropLesson, learn, lessonLine, lessons } from './lessons.ts';
+import { lineageText, why } from './lineage.ts';
 import { runLoop } from './loop.ts';
 import { ideate } from './ideate.ts';
 import { manage } from './manage.ts';
@@ -2277,6 +2278,17 @@ export const COMMANDS: Command[] = [
         return { text: report, data: { id: item.id, report } };
       }
       return { text: showText(call.ws, item, call.p), data: { item: itemJson(call.ws, item, true) } };
+    },
+  },
+  {
+    name: 'why',
+    group: 'see',
+    usage: 'why <commit | file:line | thread>',
+    summary: 'Trace a commit, a line in HEAD, or a thread back to the words and calls behind it',
+    run({ args, ctx, ws }) {
+      if (args.length !== 1) throw new SpoolError('give one commit, file:line, or thread id', 'See: spool help why');
+      const lineage = why(ws, ctx.cwd, args[0]!);
+      return { text: lineageText(lineage), data: lineage };
     },
   },
   {

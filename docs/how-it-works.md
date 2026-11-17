@@ -177,7 +177,8 @@ on its card and gets it on its ticket; a new skill is kept or dropped on the thr
 **A ticket.** Click any card. On the left, the thread as a conversation: what you said, what the
 agent answered and which agent it was, the moves in between, and a box to reply. An audit's or a
 plan's report is there in full. What agents write shows as it was meant: code, lists, bold, and links to
-the web, which open in a new tab. On the right, its fields: status, priority, difficulty, tags,
+the web, which open in a new tab. Open **Lineage** to see the sources, calls and activity behind the
+thread alongside its commits, version, checks and reverts. On the right, its fields: status, priority, difficulty, tags,
 version, sprint. Everything is editable. A finished ticket shows **what changed** (the files, the lines, the patch)
 and ends with **Mark as complete** and **Undo this thread**, which takes back exactly that thread's
 commits with your reason. While the page's own agent builds a thread, its card says the model and
@@ -888,6 +889,7 @@ ones marked 🔒:
 | `spool capture <words>` | Drop feedback in, exactly as said |
 | `spool answer <d-id> <choice>` | Answer a question, or overrule a call an agent made |
 | `spool approve <id…>` | Accept a call, finished work or a new skill; give a plan its go-ahead |
+| `spool why <commit \| file:line \| thread>` | See what led to a change, from the original feedback through the calls, commits and reverts. File paths are relative to your current folder and line numbers refer to HEAD |
 | `spool revert <t-id> [-m why] [--now]` | Undo a thread's commits and put it back in the backlog with your reason, for you to move to Build (`--now`: straight back to Build). The reason is kept as a lesson every agent reads first. Given a run's thread, it puts back every item the run changed and touches no code |
 | `spool goals [--edit <text> \| -]` | Where the project is going: what it is for and the two or three things it is heading towards, as every agent reads it first (kept in `.spool/goals.md`); `--edit` replaces it |
 | `spool lessons [--drop <n>]` | What you undid and why, newest first, as agents read it (kept in `.spool/policy.md`, yours to edit); `--drop` forgets one |

@@ -30,6 +30,7 @@ import { type Ctx, builderOf, saveBuilder } from './context.ts';
 import { type PageRecord, detachPage, forgetPage, pageStatus, pageUp, realOf, rememberPage, startedAbove, stopPage } from './detach.ts';
 import { Runner } from './engine.ts';
 import { heardRun } from './heard.ts';
+import { lineageSections, threadLineage } from './lineage.ts';
 import { type Spool, SpoolError } from './model.ts';
 import { MAX_BYTES, pictureFile } from './pictures.ts';
 import { sprintReview } from './review.ts';
@@ -249,6 +250,18 @@ export function startPage(
         const ws = Workspace.open(ctx.cwd, ctx.now);
         try {
           return send(res, 200, 'application/json', JSON.stringify(diffOf(ws, id)));
+        } finally {
+          ws.close();
+        }
+      }
+      if (req.method === 'GET' && url.pathname === '/api/lineage') {
+        const id = url.searchParams.get('id') ?? '';
+        if (!/^t-[a-z0-9]+$/.test(id)) return send(res, 400, 'application/json', JSON.stringify({ text: 'which thread?' }));
+        const ws = Workspace.open(ctx.cwd, ctx.now);
+        try {
+          const task = ws.find(id);
+          if (task?.kind !== 'task') return send(res, 404, 'application/json', JSON.stringify({ text: 'no such thread' }));
+          return send(res, 200, 'application/json', JSON.stringify({ sections: lineageSections(threadLineage(ws, task)) }));
         } finally {
           ws.close();
         }

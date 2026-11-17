@@ -1081,7 +1081,12 @@ function showTyping(c, b) {
 
 // The open thread is in the address, so a ticket can be linked to and survives a reload.
 function openThread(id) { openId = id; history.replaceState(null, '', '#' + id); redraw(); }
-function closeThread() { openId = null; history.replaceState(null, '', location.pathname + location.search); redraw(); }
+function closeThread() {
+  openId = null;
+  lineageRequest = undefined;
+  history.replaceState(null, '', location.pathname + location.search);
+  redraw();
+}
 
 // What a thread changed, fetched when asked for and kept: the files, the lines, and the patch itself.
 const diffs = new Map();
@@ -1278,6 +1283,36 @@ function stoppedNode(c, b) {
     el('div', { class: 'what' }, 'You stopped the agent that was building this. Nothing builds it until you carry on.'), carryOnNode(c, 'go'));
 }
 
+// Only the open ticket asks Git for its history. Keep a request across redraws of the same ticket.
+let lineageRequest;
+function lineageNode(c) {
+  const content = el('div', { class: 'lineage-sections' });
+  const key = c.id + '/' + c.updated;
+  async function load(event) {
+    if (!event.target.open) return;
+    const loading = el('p', { class: 'note', role: 'status' }, 'Reading lineage…');
+    content.replaceChildren(loading);
+    if (lineageRequest?.key !== key) {
+      const promise = fetch('/api/lineage?' + new URLSearchParams({ id: c.id })).then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.text);
+        return data.sections;
+      });
+      lineageRequest = { key, promise };
+    }
+    const request = lineageRequest;
+    try {
+      const sections = await request.promise;
+      content.replaceChildren(...sections.map((section) =>
+        el('section', {}, el('h4', {}, section.title), section.groups.map((group) => el('pre', {}, group)))));
+    } catch (error) {
+      if (lineageRequest === request) lineageRequest = undefined;
+      content.replaceChildren(el('p', { class: 'note', role: 'status' }, error.message || 'Could not read lineage.'));
+    }
+  }
+  return el('details', { class: 'desc lineage', 'data-keep': 'lineage', ontoggle: load }, el('summary', {}, 'Lineage'), content);
+}
+
 // A ticket, the way a board has always shown one: the story on the left, its fields on the right.
 function threadNode(c, b) {
   const t = c.thread;
@@ -1300,7 +1335,7 @@ function threadNode(c, b) {
   box.value = drafts.get(c.id) || '';
   const send = el('button', { class: 'go', onclick: reply, disabled: !box.value.trim() && !pendingOf(c.id).length }, 'Reply');
   takePictures(box, c.id);
-  const lineage = [
+  const linked = [
     ...t.cameFrom.map((f) => 'Came out of: ' + f.title),
     ...t.parts.map((p) => 'Part: ' + p.title + ' (' + p.state + ')'),
     // A call an agent made is already a post in the conversation.
@@ -1320,6 +1355,7 @@ function threadNode(c, b) {
     stoppedNode(c, b),
     proposalsNode(c),
     describeNode(c, b),
+    lineageNode(c),
 
     // The thread itself: a conversation, oldest first. You said, Claude answered, and the moves in between.
     el('div', { class: 'feed' },
@@ -1360,7 +1396,7 @@ function threadNode(c, b) {
 
     t.report && el('details', { class: 'desc', open: true, 'data-keep': 'report' }, el('summary', {}, c.type === 'plan' ? 'The plan' : 'The report'), el('pre', {}, rich(t.report))),
 
-    lineage.length > 0 && [el('h3', {}, 'Linked'), lineage.map((l) => el('div', { class: 'note' }, l))],
+    linked.length > 0 && [el('h3', {}, 'Linked'), linked.map((l) => el('div', { class: 'note' }, l))],
 
     el('div', { class: 'compose' }, avatar('human'),
       el('div', {}, box, trayNode(c.id, ready),

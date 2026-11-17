@@ -31,18 +31,25 @@ export interface GitResult {
   err: string;
 }
 
-export function git(cwd: string, args: string[], input?: Buffer, env?: Record<string, string>): GitResult {
+export function git(
+  cwd: string,
+  args: string[],
+  input?: Buffer,
+  env?: Record<string, string>,
+  limits?: { maxBuffer: number; timeout: number },
+): GitResult {
   const result = spawnSync('git', args, {
     cwd,
     input,
-    maxBuffer: MAX_BUFFER,
+    maxBuffer: limits?.maxBuffer ?? MAX_BUFFER,
+    timeout: limits?.timeout,
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...env },
   });
   return {
     ok: result.status === 0,
     out: (result.stdout?.toString('utf8') ?? '').trim(),
     raw: result.stdout?.toString('utf8') ?? '',
-    err: (result.stderr?.toString('utf8') ?? '').trim(),
+    err: (result.stderr?.toString('utf8') ?? '').trim() || result.error?.message || '',
   };
 }
 

@@ -372,6 +372,9 @@ export const CSS = String.raw`  :root {
   details.desc .part pre { margin: 2px 0 0; }
   details.desc .part.why .label { color: var(--go); }
   details.desc .part.done .label { color: var(--blue); }
+  .lineage-sections section { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .lineage-sections h4 { font-size: 12px; color: var(--soft); margin: 0; }
+  .lineage-sections pre { line-height: 1.45; }
   .changes { margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
   .plus { color: var(--go); } .minus { color: var(--hot); }
   .changes .sum { margin-top: 10px; font-size: 13px; display: flex; gap: 8px; align-items: baseline; }
