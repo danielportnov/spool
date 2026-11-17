@@ -150,6 +150,11 @@ function carryOn(task: Item, how: Left, notes: Item[], heard: boolean): string {
     .join('\n\n')}\n`;
 }
 
+/** What an agent is told when the project's check refused its `spool done`: the output, and one more go. */
+function retryWords(output: string): string {
+  return `The check failed, so spool done refused to finish the thread. Its output:\n\n${output}\n\nFix it and run spool done again. If you cannot, leave it with spool ask.`;
+}
+
 /** What an agent is started with: the words it is given, and the command that is run. */
 interface Start {
   prompt: string;
@@ -191,6 +196,8 @@ interface Run {
   told: string[];
   /** When the human last said something to its agent. A session that ends its turn unfinished is kept a while after for what they say next. */
   spoke?: number;
+  /** Its agent has been given a failed check to fix: once a run, so a second failure ends it. */
+  retried?: boolean;
   /** Lines for the thread's log that are not on it yet. */
   unsaid?: string[];
   /** Its agent, once one is started: while a model is still being chosen for it there is none. */
@@ -728,6 +735,16 @@ export class Runner {
             }
             if (fresh.length && session.id) remember(task, { session: session.id, told: run.told, pid: run.child.pid });
           }
+          // The check refused its `spool done` and it has stopped: one more go, in this same session, with what the check said.
+          if (ours && session.waiting !== undefined && session.failedCheck && !run.retried && !this.held) {
+            const output = session.failedCheck;
+            session.failedCheck = undefined;
+            if (session.say(retryWords(output))) {
+              run.retried = true;
+              (run.unsaid ??= []).push('the check refused spool done; the agent was given its output and one more go');
+              continue;
+            }
+          }
           const kept = ours && !this.held && run.spoke !== undefined && Date.now() - run.spoke < this.replyWindow;
           if (session.waiting !== undefined && !kept) session.leave();
         }
@@ -995,6 +1012,8 @@ export class Runner {
           // what the human stopped waits for them, as its log now says, and the rest waits for something to change.
           now.status = 'open';
           now.by = undefined;
+          // A check that refused it and was still failing when it left: the output stays on the thread for whoever picks it up.
+          if (!run.stopped && run.session?.failedCheck) addLog(now, 'page', `the check ${run.retried ? 'failed again after one more go' : 'failed'}: ${run.session.failedCheck.slice(-1200)}`, ws.now());
           addLog(now, 'page', run.stopped ? 'stopped from the page; back in build' : `agent ${how} without finishing; back in build`, ws.now());
           ws.save(now);
           if (!run.stopped) this.gaveUp.set(now.id, now.updated);

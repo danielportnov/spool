@@ -717,6 +717,13 @@ was, and the outcome says so. Done lands it and removes it. A landing that is re
 a failing check, your own uncommitted changes in the way) lands nothing and keeps the worktree, for
 the agent to fix and run `spool done` again.
 
+**A failed check gets one more go (Headless).** When the check refuses a `spool done` and the
+agent stops with the thread unfinished, the runner gives the same Claude session what the check
+said (the end of its output) and asks it to fix it and run `spool done` again. It is the same run,
+the same model: not a new run for the step-up, and a thread that lands after it did not "not work".
+A second failure puts the thread back in Build, with the output on its log. In Chat the page starts
+no agent; the loop's subagents already retry by themselves under the worker's rules.
+
 **Which of the two, picked on the page.** Left of the Agents switch are two picks. **Headless** is
 the page's own runner, as above. **Chat** is a Claude Code chat running the loop: the page then
 starts no agent, whether its runner is on or not, and a thread dragged into Building waits in Build

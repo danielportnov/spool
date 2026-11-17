@@ -174,6 +174,17 @@ export interface Heard {
   over?: true;
   /** It needs a yes for a tool call, and waits for the answer. */
   asks?: Ask;
+  /** A `spool done` it ran was refused by the project's check: what that said, trimmed to its end. */
+  checkFailed?: string;
+}
+
+/** What `spool done` says when the project's check refuses it (see `runCheck` in commands.ts). */
+const CHECK_REFUSED = /the check (?:failed \(exit|could not run|was stopped)[\s\S]*It has to pass before this can be finished/;
+
+/** The part of a refusal worth handing back: where the check named what broke, which is the end of it. */
+function trimmedRefusal(text: string): string {
+  const out = text.trim().split('\n').slice(-40).join('\n');
+  return out.length > 4000 ? out.slice(-4000) : out;
 }
 
 const short = (s: string, n = 200): string => {
@@ -228,6 +239,7 @@ export function hearLine(line: string): Heard {
   if (!e || typeof e !== 'object' || typeof e.type !== 'string') return { lines: [raw.slice(0, 400)] };
   const session = typeof e.session_id === 'string' && /^[\w-]{1,100}$/.test(e.session_id) ? e.session_id : undefined;
   const lines: string[] = [];
+  let checkFailed: string | undefined;
   if (e.type === 'system' && e.subtype === 'init') {
     lines.push(`session ${session ?? '?'}${typeof e.model === 'string' ? ` · ${e.model}` : ''}`);
   } else if (e.type === 'assistant' && Array.isArray(e.message?.content)) {
@@ -238,6 +250,8 @@ export function hearLine(line: string): Heard {
   } else if (e.type === 'user' && Array.isArray(e.message?.content)) {
     for (const c of e.message.content) {
       if (c?.type === 'tool_result' && c.is_error) lines.push(`✗ ${short(textOf(c.content)) || 'the tool failed'}`);
+      const said = c?.type === 'tool_result' ? textOf(c.content) : '';
+      if (said && CHECK_REFUSED.test(said)) checkFailed = trimmedRefusal(said);
     }
   } else if (e.type === 'spool') {
     // What Spool itself said to the session. It is kept in the transcript between the agent's own lines, so that a
@@ -273,7 +287,7 @@ export function hearLine(line: string): Heard {
     const lost = Array.isArray(e.errors) && e.errors.some((x: unknown) => NO_SESSION.test(String(x)));
     return { lines, session, denials, over: true, ...(lost ? { lost: true as const } : {}) };
   }
-  return { lines, session };
+  return { lines, session, ...(checkFailed ? { checkFailed } : {}) };
 }
 
 /**

@@ -176,6 +176,8 @@ export interface Session {
   listens: boolean;
   /** When its last turn ended, if nothing has been said to it since: it is waiting for a word. */
   waiting?: number;
+  /** What the project's check last said when it refused this agent's `spool done`, until it has been handed back. */
+  failedCheck?: string;
   /** The tool calls it needs a yes for and is waiting on, oldest first, each with when it asked. */
   asking: (Ask & { since: number })[];
   /**
@@ -307,6 +309,7 @@ export function startSession(
     const heard = hearLine(line.replace(/\x1b\[[0-9;]*[A-Za-z]/g, ''));
     for (const l of heard.lines) show(l);
     if (heard.lost) live.lost = true;
+    if (heard.checkFailed) live.failedCheck = heard.checkFailed;
     let log = false;
     // The id on the line that says there is no such session is not a session.
     if (heard.session && !session && !heard.lost) {
