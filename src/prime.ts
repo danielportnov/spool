@@ -5,7 +5,8 @@
  * ask for it to be recorded. A worker takes tasks off the queue and does them. Each role's rules
  * are written once, in a file Spool ships: the recorder's are the record
  * skill (`skills/spool-record`), the worker's are `rules/worker.md`, which no
- * skill repeats. What neither can hold is what is true of this project right
+ * skill repeats, and the manager's, who puts the backlog in order, are
+ * `rules/manager.md`. What neither can hold is what is true of this project right
  * now: its autonomy policy, its projects, what is waiting. `spool prime
  * <role> --context` prints that, and the skills run it first.
  *
@@ -17,7 +18,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { rules, workerRules } from './builtin.ts';
+import { managerRules, rules, workerRules } from './builtin.ts';
 import { goalsFile, goalsOf, goalsText } from './goals.ts';
 import { lessonsSection, withoutLessons } from './lessons.ts';
 import { sprintAbout } from './sprints.ts';
@@ -25,7 +26,7 @@ import { type Spool, oneLine } from './model.ts';
 import { ready, review, tasks, taskState } from './schedule.ts';
 import type { Workspace } from './store.ts';
 
-export type Role = 'worker' | 'recorder';
+export type Role = 'worker' | 'recorder' | 'manager';
 
 const WORKER = `# Spool · worker protocol
 
@@ -34,6 +35,16 @@ into tasks, work them, and go back to the human only for calls that are theirs
 to make. State is markdown in .spool/. Use the \`spool\` CLI; never edit it by hand.
 
 \`spool next --claim\` hands you the task to do now, with all its context.
+`;
+
+const MANAGER = `# Spool · manager protocol
+
+You keep this project's backlog in order, in one pass that one undo takes back.
+Spool is the work queue: state is markdown in .spool/, and you use the \`spool\`
+CLI; never edit it by hand. You do not build, and the calls that are the
+human's you propose, and do not make.
+
+\`spool manage --start\` opens the pass and hands you the facts.
 `;
 
 const RECORDER = `# Spool · recorder protocol
@@ -196,7 +207,7 @@ export function prime(ws: Workspace, role: Role, contextOnly = false): string {
     parts.push(`${map(ws)}\n`);
     return parts.join('\n');
   }
-  if (!contextOnly) parts.push(WORKER, `${workerRules()}\n`);
+  if (!contextOnly) parts.push(...(role === 'manager' ? [MANAGER, `${managerRules()}\n`] : [WORKER, `${workerRules()}\n`]));
   // Where the project is going comes first: the policy says how to work, the goals say what for.
   if (goalsOf(ws.home)) parts.push(`GOALS (${path.relative(ws.home.root, goalsFile(ws.home))})\n\n${goalsText(ws.home)}\n`);
   const policy = path.join(ws.home.dir, 'policy.md');

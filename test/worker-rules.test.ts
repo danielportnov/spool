@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { section, shipped, workerRules } from '../src/builtin.ts';
+import { managerRules, section, shipped, workerRules } from '../src/builtin.ts';
 import { spool } from './helpers.ts';
 
 /**
@@ -53,4 +53,21 @@ test('the rules ship in the package, beside the skills', () => {
   assert.ok(pkg.files.includes('rules'), 'package.json ships rules/');
   assert.ok(pkg.files.includes('skills'));
   assert.ok(fs.existsSync(fileURLToPath(new URL('../rules/worker.md', import.meta.url))));
+});
+
+test("the manager's rules are one shipped file, and spool prime manager prints them", () => {
+  const s = spool();
+  try {
+    const primed = s.sp('prime', 'manager');
+    assert.ok(primed.startsWith('# Spool · manager protocol\n'));
+    assert.ok(primed.includes(`\n\n${managerRules()}\n\nPOLICY (.spool/policy.md)`), 'the whole file, between the protocol and the policy');
+    assert.doesNotMatch(primed, /# The manager's rules|Working a thread/, 'not the lines that say what the file is, and not the worker\'s');
+    for (const part of ['What you may do', 'What you only propose', 'What you never do', 'A leave', 'The pass', 'Guard rails']) assert.match(managerRules(), new RegExp(`^## ${part}$`, 'm'));
+    for (const cmd of ['spool manage --start', 'spool manage --end', 'spool leave', 'spool takeover', 'spool ideate']) assert.ok(managerRules().includes(cmd), cmd);
+    assert.doesNotMatch(s.sp('prime', 'manager', '--context'), /What you may do/);
+    assert.ok(fs.existsSync(fileURLToPath(new URL('../rules/manager.md', import.meta.url))));
+    assert.match(s.fails('prime', 'nobody'), /no role "nobody"/);
+  } finally {
+    s.cleanup();
+  }
 });

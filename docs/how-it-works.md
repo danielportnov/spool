@@ -443,7 +443,9 @@ it, and each sprint says which goal it serves, on its line; `spool check` names 
 A backlog goes out of order by itself: threads that shipped under another name, one wish filed
 twice, ideas nobody sized, an order nobody set. The manager is an agent that puts it back in order
 in one pass, with the commands agents always had. It builds nothing and starts no work, and one
-undo takes back everything it did.
+undo takes back everything it did. What it may do, what it only proposes and what it never does are
+written once, in `rules/manager.md`, and `spool prime manager` prints them (then the goals and the
+policy) for a chat, a subagent or any agent with no chat.
 
 **Spool gathers the facts; the agent judges.** `spool manage --start` opens a run on a thread of
 its own ("Tidy the backlog, 2026-11-16": an audit tagged `manage`, signed by whoever runs it and
@@ -853,7 +855,7 @@ ones marked 🔒:
 | `spool sprint <name> [--goal …] [--why …] [--done-when …] [--serves <goal>] [--vision - \| --from <n-id>] [--add <t-id…>]` | Make a sprint and fill it in one go, keeping the vision in your words and the goal it serves; on a sprint that exists, add to it |
 | `spool manage [--start \| --end -m headline [--report -]]` | Put the backlog in order as one run that can be undone: `--start` opens the run and prints the worksheet of facts to work from, `--end` writes the report of what it changed; with neither, says whether a run is open |
 | `spool skill add` | Write a procedure down as a skill |
-| `spool prime [worker\|recorder] [--context]` | A role's rules and this project now. `worker` prints `rules/worker.md`, which everyone who builds follows; `--context` leaves the rules out |
+| `spool prime [worker\|recorder\|manager] [--context]` | A role's rules and this project now. `worker` prints `rules/worker.md`, which everyone who builds follows; `manager` prints `rules/manager.md`, which whoever tidies the backlog follows; `--context` leaves the rules out |
 
 When a new thread's words are close to an open thread, one finished in the last four weeks, or one dropped in the last three months, `spool task` says so after its usual lines and in `--json` as `similar`. It is a nudge: nothing is blocked or merged. Matching is by shared words, so it stays quiet unless most of the words agree.
 

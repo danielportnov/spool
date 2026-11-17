@@ -372,7 +372,7 @@ It reads `GEMINI.md` unless its settings name `AGENTS.md` too.
   yours to say, in your words and until a time:
   `spool leave "work through what still seems relevant" --until 8am --build 5` lets it move up to
   five threads to Build and no more, and with no leave it only tidies. One undo takes the whole
-  night back.
+  night back. Its rules are one file, which `spool prime manager` prints.
 - 💡 Ask for new ideas ("come up with ideas") and `spool ideate` hands an agent the project's goals,
   what shipped, what is already there, what you said and what you said no to. It files a handful
   of ideas as AI suggested, each with its reason, and none is built until you move it to Build.

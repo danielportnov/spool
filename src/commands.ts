@@ -1391,12 +1391,12 @@ export const COMMANDS: Command[] = [
   {
     name: 'prime',
     group: 'agents',
-    usage: 'prime [worker|recorder] [--context]',
+    usage: 'prime [worker|recorder|manager] [--context]',
     summary: 'What a role needs before it starts: its rules, and this project now (--context: just the project)',
     options: { context: { type: 'boolean' } },
     run({ ws, args, opts }) {
       const role = (args[0] ?? 'worker') as Role;
-      if (role !== 'worker' && role !== 'recorder') throw new SpoolError(`no role "${args[0]}"`, 'spool prime worker   or   spool prime recorder');
+      if (role !== 'worker' && role !== 'recorder' && role !== 'manager') throw new SpoolError(`no role "${args[0]}"`, 'spool prime worker   or   spool prime recorder   or   spool prime manager');
       const text = prime(ws, role, !!opts.context);
       return { text, data: { role, protocol: text } };
     },

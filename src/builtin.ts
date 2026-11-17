@@ -78,6 +78,11 @@ export function workerRules(): string {
   return fromFirstHeading(fs.readFileSync(path.join(PACKAGE, 'rules', 'worker.md'), 'utf8').replace(/\r\n?/g, '\n'));
 }
 
+/** The manager's rules, as they are in the package: what whoever puts the backlog in order follows, and `spool prime manager` prints. */
+export function managerRules(): string {
+  return fromFirstHeading(fs.readFileSync(path.join(PACKAGE, 'rules', 'manager.md'), 'utf8').replace(/\r\n?/g, '\n'));
+}
+
 /** Everything under one `## heading` of the worker's rules, heading included, up to the next `## `. */
 export function section(heading: string): string {
   const lines = workerRules().split('\n');
