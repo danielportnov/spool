@@ -11,13 +11,22 @@ export const PICTURES_CSS = String.raw`
   .tray .pending { position: relative; width: 64px; height: 64px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); overflow: hidden; }
   .tray .pending img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .tray .off { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; padding: 0; display: grid; place-items: center; font-size: 11px; line-height: 1; border-radius: 50%; }
+  .tray .pending.file { width: auto; max-width: 240px; display: flex; align-items: center; padding: 0 30px 0 10px; font-size: 13px; color: var(--ink); }
+  .tray .pending.file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tray .pending.file .off { top: 50%; transform: translateY(-50%); }
   textarea.dropping { border-color: var(--blue) !important; }
+  /* a whole thread takes a dropped file */
+  .dropzone.dropping { outline: 2px dashed var(--blue); outline-offset: 6px; border-radius: 10px; }
+  button.pick { padding: 4px 10px; }
 
   /* in the conversation: under the words, at a size that reads, a click from full size */
   .pictures { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   button.picture { padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); overflow: hidden; cursor: zoom-in; line-height: 0; max-width: 100%; }
   button.picture:hover { border-color: var(--soft); }
   button.picture img { display: block; max-width: min(100%, 360px); max-height: 240px; object-fit: contain; }
+  /* a file is a link to open it, in a tab of its own */
+  a.file { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; max-width: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 13px; text-decoration: none; overflow-wrap: anywhere; }
+  a.file:hover { border-color: var(--soft); }
 
   /* a finished thread's proof: before and after side by side, stacked on a narrow screen */
   .proof { display: grid; gap: 10px; margin-top: 10px; }

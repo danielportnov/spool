@@ -84,7 +84,7 @@ test('a picture pasted into a reply shows under the words, opens full size, and 
     await until('both wait under the box', async () => (await tray.count()) === 2);
     assert.ok(await send.isEnabled(), 'a picture alone can be sent');
     await shot(page, 'pictures-reply-tray');
-    await tray.nth(1).getByRole('button', { name: 'Take this picture off' }).click();
+    await tray.nth(1).getByRole('button', { name: 'Take it off' }).click();
     await until('one is left', async () => (await tray.count()) === 1);
 
     // Sent with the words, it is kept with the thread and shown under them.
@@ -173,6 +173,87 @@ test('a picture pasted into a reply shows under the words, opens full size, and 
     });
 
     assert.deepEqual(problems, [], 'the page logged no errors');
+  } finally {
+    await stop();
+    s.cleanup();
+  }
+});
+
+test('a file picked with the 📎 button or dropped on the thread goes with the reply, and shows as a link', async (t) => {
+  let browser: Browser;
+  try {
+    browser = await openChrome();
+  } catch {
+    t.skip('no Chrome on this machine to drive');
+    return;
+  }
+  t.after(() => browser.close());
+
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop');
+  const save = s.id('task', 'Saved games will not load', '-s', 's');
+  const { url, stop } = await startPage(s);
+  const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+  const problems: string[] = [];
+  page.on('pageerror', (error) => problems.push(String(error)));
+  page.on('console', (message) => {
+    if (message.type() === 'error') problems.push(message.text());
+  });
+  const ticket = page.locator('#thread');
+  try {
+    await page.goto(url);
+    await page.locator(`#board .card[data-id="${save}"] .title`).click();
+    await ticket.locator('.key', { hasText: save }).waitFor();
+    const box = ticket.getByPlaceholder('Post your reply');
+    const tray = ticket.locator('.compose .tray .pending');
+
+    // A screenshot pasted, a PDF picked with the button.
+    await paste(box, png(200, 120, [40, 120, 200]));
+    const chooser = page.waitForEvent('filechooser');
+    await ticket.getByRole('button', { name: 'Add a picture or a file' }).click();
+    await (await chooser).setFiles({ name: 'Save Format.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF\n') });
+    // A log dropped anywhere on the thread, here on its title.
+    await ticket.locator('h2').evaluate((node) => {
+      const dom = globalThis as unknown as Record<string, new (...a: unknown[]) => any>;
+      const data = new dom.DataTransfer!();
+      data.items.add(new File(['TypeError: save is undefined'], 'crash.log', { type: 'text/plain' }));
+      node.dispatchEvent(new dom.DragEvent!('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
+    });
+    await until('all three wait under the box', async () => (await tray.count()) === 3);
+    assert.deepEqual(await ticket.locator('.compose .tray .pending.file').allInnerTexts(), ['📄 Save Format.pdf\n✕', '📄 crash.log\n✕']);
+    // What a thread does not keep is refused before it is sent.
+    await ticket.locator('h2').evaluate((node) => {
+      const dom = globalThis as unknown as Record<string, new (...a: unknown[]) => any>;
+      const data = new dom.DataTransfer!();
+      data.items.add(new File(['MZ'], 'setup.exe', { type: 'application/octet-stream' }));
+      node.dispatchEvent(new dom.DragEvent!('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
+    });
+    await page.locator('#said', { hasText: 'Only a picture' }).waitFor();
+    assert.equal(await tray.count(), 3);
+    await shot(page, 'files-reply-tray');
+
+    await box.click();
+    await page.keyboard.type('It breaks on this save. The log and the format are here.');
+    await page.keyboard.press('Enter');
+    await until('all three are on record', () => fs.existsSync(path.join(s.root, '.spool', 'runs', save, 'files', '3.crash.log')));
+    assert.deepEqual(fs.readdirSync(path.join(s.root, '.spool', 'runs', save, 'files')).sort(), ['1.png', '2.save-format.pdf', '3.crash.log']);
+    const post = ticket.locator('.post', { hasText: 'It breaks on this save.' });
+    await post.locator('a.file', { hasText: 'crash.log' }).waitFor();
+    assert.deepEqual(await post.locator('a.file').allInnerTexts(), ['📄 save-format.pdf', '📄 crash.log']);
+    assert.equal(await post.locator('button.picture').count(), 1, 'the screenshot is shown, not linked');
+    const href = await post.locator('a.file', { hasText: 'crash.log' }).getAttribute('href');
+    const served = await page.evaluate(async (where) => {
+      const res = await fetch(where!);
+      return [res.headers.get('content-type'), await res.text()];
+    }, href);
+    assert.deepEqual(served, ['text/plain; charset=utf-8', 'TypeError: save is undefined']);
+    assert.match(s.sp('start', save), /FILES — read each one: they were added for this\n {2}\S+\/2\.save-format\.pdf {2}\(human\)\n {2}\S+\/3\.crash\.log/);
+    await shot(page, 'files-reply-sent');
+    if (SHOTS) {
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await shot(page, 'dark-files-reply-sent');
+    }
+    assert.deepEqual(problems.filter((p) => !/the server responded with a status of 400/.test(p)), [], 'the page logged no errors');
   } finally {
     await stop();
     s.cleanup();

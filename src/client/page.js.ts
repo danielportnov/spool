@@ -1313,7 +1313,7 @@ function threadNode(c, b) {
     onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } if (e.key === 'Escape') { e.target.textContent = c.title; e.target.blur(); e.stopPropagation(); } },
     onblur: (e) => { const now = e.target.textContent.trim(); if (now && now !== c.title) save({ title: now }, 'Renamed'); else e.target.textContent = c.title; } }, c.title);
 
-  const story = el('div', {},
+  const story = el('div', { class: 'dropzone' },
     el('div', { class: 'key' }, c.n != null && '#' + c.n + ' · ', el('span', { class: 'copyid', title: 'Copy the id', onclick: () => copyId(c.id) }, c.id), copyLinkNode(c.id)),
     title,
     waitNode(c, b),
@@ -1364,7 +1364,7 @@ function threadNode(c, b) {
 
     el('div', { class: 'compose' }, avatar('human'),
       el('div', {}, box, trayNode(c.id, ready),
-        el('div', { class: 'acts' }, el('span', { class: 'hint' }, 'Enter to send · Shift+Enter for a new line · Paste a picture to show it'), send))),
+        el('div', { class: 'acts' }, el('span', { class: 'hint' }, 'Enter to send · Shift+Enter for a new line · Paste or drop a picture or a file'), pickNode(c.id), send))),
     changesNode(c),
     c.done && el('div', { class: 'finish' }, c.complete
       ? el('div', { class: 'ok' }, '✓ Complete. You approved this change.')
@@ -1441,6 +1441,8 @@ function threadNode(c, b) {
     field('Created', el('div', { class: 'val' }, stamp(c.created, true))),
     field('Updated', el('div', { class: 'val' }, stamp(c.updated, true))));
 
+  // A picture or a file dropped anywhere on the thread waits under its reply box.
+  dropOn(story, c.id);
   return [el('button', { class: 'x', onclick: closeThread, title: 'Close' }, '✕'), el('div', { class: 'ticket' }, story, side)];
 }
 
@@ -2280,7 +2282,7 @@ function quickAddNode() {
   box.value = quickDraft;
   show();
   takePictures(box, 'quick');
-  return [box, chips, trayNode('quick'), el('div', { class: 'foot' }, 'Enter adds it to the backlog. Shift+Enter is a new line. Paste a picture to send it too. Esc closes, and keeps what you typed.')];
+  return [box, chips, trayNode('quick'), el('div', { class: 'foot' }, 'Enter adds it to the backlog. Shift+Enter is a new line. Paste or drop a picture or a file to send it too. Esc closes, and keeps what you typed.')];
 }
 
 // Esc closes the nearest thing: a box over the page, then the search, then the ticket, then lets go of the thread.
