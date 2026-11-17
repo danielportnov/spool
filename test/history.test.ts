@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
 import { CLI, spool } from './helpers.ts';
+import { KEEP_DAYS, KEEP_PER_FILE } from '../src/queue-journal.ts';
 
 test('item history keeps signed edits and byte-for-byte undo across commands', (t) => {
   const s = spool();
@@ -232,4 +233,41 @@ test('restoring a thread to Build through history respects a locked gate', (t) =
   assert.equal(s.json('show', id).item.state, 'proposed');
   assert.equal(s.exec(['undo', entry.id], { tty: true }).code, 0);
   assert.match(s.item(id), /^status: open$/m);
+});
+
+test('an unsigned write on a claimed thread is kept under the claimer, as its log line is', (t) => {
+  const s = spool();
+  t.after(() => s.cleanup());
+  const id = s.id('task', 'Claimed work');
+  s.sp('build', id);
+  s.sp('start', id, '--as', 'Claude Opus 5.5');
+  s.sp('log', id, 'A fact for the next agent');
+  const entry = s.json('history', id).entries[0];
+  assert.equal(entry.command, 'log');
+  assert.equal(entry.actor, 'Claude Opus 5.5');
+});
+
+test('the history is kept in check: old entries and all but each file\'s newest few go, once a day', (t) => {
+  const s = spool();
+  t.after(() => s.cleanup());
+  const id = s.id('task', 'A busy thread');
+  const other = s.id('task', 'A quiet thread');
+  for (let i = 0; i < KEEP_PER_FILE + 5; i++) s.sp('log', id, `fact ${i}`);
+  // Within the day nothing is pruned.
+  assert.equal(s.json('history', id).entries.length, KEEP_PER_FILE + 6);
+
+  const history = path.join(s.dir, '.spool', 'history');
+  const quiet = s.json('history', other).entries[0];
+  const old = new Date(Date.parse('2026-01-01T00:00:00Z') - (KEEP_DAYS + 1) * 86_400_000);
+  fs.utimesSync(path.join(history, `${quiet.id}.json`), old, old);
+  s.advance(25);
+  s.sp('log', id, 'the next day');
+  const kept = s.json('history', id).entries;
+  assert.equal(kept.length, KEEP_PER_FILE);
+  assert.match(kept[0].after, /the next day/);
+  assert.equal(s.json('history', other).entries.length, 0);
+  assert.match(s.fails('undo', quiet.id), /no history entry/);
+  // Only the history folder is touched, and the queue itself is as it was.
+  assert.match(s.item(id), /fact 0/);
+  assert.match(s.item(other), /A quiet thread/);
 });

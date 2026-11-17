@@ -32,6 +32,11 @@ const TARGET = new RegExp(`^(?:${ITEM}|report-t-[a-z0-9]+|config|policy|goals)$`
 const ENTRY = new RegExp(`^j-((?:${ITEM}|report-t-[a-z0-9]+|config|policy|goals))-[0-9a-f]{32}$`);
 const HISTORY = 'history';
 const PENDING = '.pending.json';
+const PRUNED = '.pruned';
+/** The history is kept in check: entries older than this go, and so does all but each file's newest few. */
+export const KEEP_DAYS = 90;
+export const KEEP_PER_FILE = 50;
+const DAY_MS = 86_400_000;
 
 // Only fields managed by project commands can appear in history. In particular, local user
 // settings and unrecognized fields in a project's config never become part of a receipt.
@@ -191,7 +196,43 @@ export function writeQueue(
     throw error;
   }
   fs.renameSync(pending, entryFile(history, entry.id));
+  prune(history, now);
   return entry;
+}
+
+/**
+ * At most once a day, and only on a write, drop what is too old to be worth undoing: entries
+ * older than KEEP_DAYS, and all but the newest KEEP_PER_FILE for each item or file. Only names
+ * and dates are read, never the copies. The caller holds the queue lock.
+ */
+export function prune(history: string, now: Date): number {
+  const marker = path.join(history, PRUNED);
+  const last = fs.statSync(marker, { throwIfNoEntry: false })?.mtimeMs;
+  if (last !== undefined && now.getTime() - last < DAY_MS && last <= now.getTime()) return 0;
+  const byTarget = new Map<string, { file: string; at: number }[]>();
+  for (const name of fs.readdirSync(history)) {
+    const target = name.endsWith('.json') ? ENTRY.exec(name.slice(0, -5))?.[1] : undefined;
+    if (!target) continue;
+    const file = path.join(history, name);
+    const at = fs.lstatSync(file, { throwIfNoEntry: false });
+    if (!at?.isFile()) continue;
+    const list = byTarget.get(target) ?? [];
+    list.push({ file, at: at.mtimeMs });
+    byTarget.set(target, list);
+  }
+  const oldest = now.getTime() - KEEP_DAYS * DAY_MS;
+  let dropped = 0;
+  for (const list of byTarget.values()) {
+    list.sort((a, b) => b.at - a.at);
+    list.forEach(({ file, at }, i) => {
+      if (i < KEEP_PER_FILE && at >= oldest) return;
+      fs.rmSync(file, { force: true });
+      dropped++;
+    });
+  }
+  fs.writeFileSync(marker, '');
+  fs.utimesSync(marker, now, now);
+  return dropped;
 }
 
 /** Receipts in this project, newest first. Only the requested files' snapshots are read. */
