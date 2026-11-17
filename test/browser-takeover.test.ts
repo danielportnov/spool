@@ -27,13 +27,13 @@ test('Take over is a switch in Settings: off headless, and in Chat mode it switc
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(String(error)));
   const settings = page.locator('#settings');
-  const take = settings.getByRole('switch', { name: 'Take over the backlog' });
-  const row = settings.locator('.srow', { has: page.getByRole('switch', { name: 'Take over the backlog' }) });
+  const take = settings.getByRole('switch', { name: '⚠️ Agent take over' });
+  const row = settings.locator('.srow', { has: page.getByRole('switch', { name: '⚠️ Agent take over' }) });
   try {
     await page.goto(url);
     await page.locator('#board .card').first().waitFor();
     // Nothing in the header takes over: it is behind the gear.
-    assert.equal(await page.locator('.bar').getByText('Take over').count(), 0);
+    assert.equal(await page.locator('.bar').getByText('Agent take over').count(), 0);
 
     // Headless, there is no chat to take anything over: the switch is greyed.
     await page.locator('#gear').click();

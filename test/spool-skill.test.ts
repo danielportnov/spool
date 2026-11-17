@@ -57,7 +57,7 @@ test('/spool is the one skill for the chat: status first, a short reply, and one
   assert.equal(run('"turn the agents off"'), '`spool agents off`, `spool agents on`');
   assert.match(run('"I don\'t need Spool here"'), /^`spool disable`, `spool enable`; `--all` for every project in this folder/);
   assert.equal(run('"build three at once"'), '`spool builder --at-once <n>`');
-  assert.match(run('"take over the backlog"'), /^`spool takeover on`, `spool takeover off`\. In Chat mode the chat then moves the next thread to Build itself, theirs first, then AI suggested, up to the usage target$/);
+  assert.match(run('"take over the backlog"'), /^`spool takeover on`, `spool takeover off`\. "⚠️ Agent take over": in Chat mode the chat then moves the next thread to Build itself, without asking each time, theirs first, then AI suggested, up to the usage target$/);
   assert.match(run('"use up to 80% of my weekly usage"'), /^`spool target --weekly <n>`, `--five-hour <n>`, with `--agent <name>` for one agent's own; `none` takes one off\. A chat building in Chat mode works up to it$/);
   assert.equal(run('"tell me when a thread starts"'), '`spool notify on started`, `spool notify off done`; `only <events>` for exactly those. `spool notify` lists them');
   assert.match(run('"what happened overnight"'), /^`spool brief`, as it comes; `--since 8h` or `--since yesterday`/);

@@ -2146,13 +2146,13 @@ function settingsSections() {
           el('span', { class: 'gets' }, gets));
       }));
     });
-  const take = settingSwitch('Take over the backlog', (on) => sendSetting('takeover', { on }, on ? 'The chat takes over the backlog, up to your usage target.' : 'The chat builds only what you move to Build.'));
-  const takeRow = settingRow('Take over the backlog', 'With Build empty and usage under your target, the chat moves the top thread you filed to Build itself, and builds it. Chat only.',
+  const take = settingSwitch('⚠️ Agent take over', (on) => sendSetting('takeover', { on }, on ? '⚠️ Agent take over is on: agents work on your repo and move cards to Build without asking for your approval each time.' : 'The chat builds only what you move to Build.'));
+  const takeRow = settingRow('⚠️ Agent take over', 'While it is on, agents work on your repo and move cards to Build without asking for your approval each time. Chat only.',
     'spool takeover on', take, (b, row) => {
       const chat = b.runner.builder === 'chat';
       const t = takeOverOf(b);
       if (!leave(take)) take.checked = t.on;
-      row.querySelector('p').textContent = 'With Build empty and usage under your target, the chat moves the top thread you filed to Build itself, and builds it. Never an AI suggested one, one on hold, or one waiting on you. Chat only.'
+      row.querySelector('p').textContent = 'While it is on, agents work on your repo and move cards to Build without asking for your approval each time. With Build empty and usage under your target, the chat moves the top thread you filed to Build itself, and builds it. Never an AI suggested one, one on hold, or one waiting on you. Chat only.'
         + (!t.on ? '' : t.waiting ? ' Not now: ' + t.waiting + '.' : t.next ? ' Next: ' + t.next.title + '.' : '');
       take.disabled = !chat;
       row.classList.toggle('dim', !chat);

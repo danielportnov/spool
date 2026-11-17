@@ -314,8 +314,9 @@ claim built on that model. The next claim goes back into the same worktree, its 
 note, and its log says who it took over from. A hand-off is not a failed run, so it is no step up.
 Where nobody has usage left, it waits in Build, and the board's list says it was handed off.
 
-**It can take over the backlog,** where you switch that on (`spool takeover on`, or Take over in
-Settings). With Build empty and the usage under the target, it runs `spool build --takeover`,
+**It can take over the backlog,** where you switch on ⚠️ Agent take over (`spool takeover on`, or
+in Settings). While it is on, agents work on your repo and move cards to Build without asking for
+your approval each time. With Build empty and the usage under the target, it runs `spool build --takeover`,
 which moves the next thread to Build, signed by the chat and saying so on the thread, and builds
 it: yours first, then the AI suggested ones (a thread an agent filed counts as one, marked or not).
 It keeps on until the target is reached; the chat never decides a thread is not worth the usage.

@@ -26,10 +26,10 @@ test('with taking over off, an agent moves nothing to build; on, it moves the to
   const { s, top, suggested, held, next } = chatProject();
   try {
     s.sp('usage', '--weekly', '40');
-    assert.match(s.sp('takeover'), /^The chat does not take over skyhop's backlog: nothing moves to Build without you\./);
+    assert.match(s.sp('takeover'), /^Agent take over is off for skyhop: nothing moves to Build without you\./);
     assert.match(s.fails('build', '--takeover', '--as', 'Claude'), /taking over the backlog is off in skyhop/);
 
-    assert.match(s.sp('takeover', 'on'), /^The chat takes over skyhop's backlog[\s\S]*Next: t-\w+ Tighten the jump/);
+    assert.match(s.sp('takeover', 'on'), /^⚠️ Agent take over is on for skyhop[\s\S]*Next: t-\w+ Tighten the jump/);
     assert.equal(s.json('takeover').next.id, top);
     // An agent's idea waits behind the user's own, whatever its priority, and a parked thread is not its to take.
     assert.match(s.fails('build', suggested, '--takeover', '--as', 'Claude'), /an agent's idea, and the user's own t-\w+ comes first/);
@@ -85,12 +85,12 @@ test('where the gate is locked, only the user switches taking over on; anyone sw
   const { s, top } = chatProject('--lock');
   try {
     assert.match(s.fails('takeover', 'on'), /user's alone.*locked/s);
-    assert.match(s.exec(['takeover', 'on'], { tty: true }).out, /The chat takes over/);
+    assert.match(s.exec(['takeover', 'on'], { tty: true }).out, /Agent take over is on/);
     // Once they did, the chat moves a thread under it, as under a leave they gave.
     s.sp('usage', '--weekly', '10');
     s.sp('build', '--takeover', '--as', 'Claude');
     assert.equal(s.json('show', top).item.status, 'open');
-    assert.match(s.sp('takeover', 'off'), /does not take over/);
+    assert.match(s.sp('takeover', 'off'), /take over is off/);
   } finally {
     s.cleanup();
   }

@@ -262,14 +262,15 @@ export function takeoverCommand(call: Call, spool: Spool, byHuman: () => void): 
   const state = takeOverState(ctx, ws, spool);
   const lines = state.on
     ? [
-        `The chat takes over ${spool.name}'s backlog: with Build empty, it moves the next thread to Build itself and builds it, yours first, then the AI suggested ones, until the usage target is reached.`,
+        `⚠️ Agent take over is on for ${spool.name}. While it is on, agents work on your repo and move cards to Build without asking for your approval each time.`,
+        `  The chat takes over the backlog: with Build empty, it moves the next thread to Build itself and builds it, yours first, then the AI suggested ones, until the usage target is reached.`,
         '  Never one on hold, one you undid or moved back, one waiting on a question or a plan\'s go-ahead, or one a tidy proposed to drop or archive or found gone cold. Each says so on its thread, and spool revert takes one back.',
         state.waiting ? `  Not now: ${state.waiting}.` : state.next ? `  Next: ${state.next.id} ${oneLine(state.next.title, 70)}` : '',
         '  With Build empty it tidies the backlog too, once a night at most: it sizes and orders threads, and proposes what to drop or archive.',
         `  Next tidy: ${tidyWhen(state.tidy, ctx.now())}`,
         '  Off: spool takeover off',
       ]
-    : [`The chat does not take over ${spool.name}'s backlog: nothing moves to Build without you.`, '  On, in Chat mode and up to the usage target: spool takeover on'];
+    : [`Agent take over is off for ${spool.name}: nothing moves to Build without you.`, '  On, in Chat mode and up to the usage target: spool takeover on'];
   return { text: lines.filter(Boolean).join('\n'), data: { project: spool.name, ...state } };
 }
 

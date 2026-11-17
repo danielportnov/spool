@@ -330,7 +330,8 @@ gone), lands or hands off what it has, and takes nothing new once the end has pa
 is stopped, and an agent that needs a minute or two past it to land cleanly does so. The header
 shows the time left beside the logos. `spool until none` takes it off.
 
-**Take over the backlog** lets the chat fill Build for you. Switched on, in Settings
+**⚠️ Agent take over** lets the chat fill Build for you, and while it is on agents work on your
+repo and move cards to Build without asking for your approval each time. Switched on, in Settings
 or by saying "take over the backlog", the chat that builds moves the next thread to Build itself
 whenever Build is empty and the usage is under the target, and builds it: yours first, then the AI
 suggested ones. It keeps on until the target is reached. Never one on hold, one you undid or moved
