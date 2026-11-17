@@ -141,6 +141,7 @@ export function fixture(): Board {
       ],
       stopped: ['t-e2b7'],
       recent: [],
+      typing: [],
     },
     usage: { target: {}, read: null, reached: [] },
     notices: { on: ['question', 'empty', 'stuck', 'budget'], default: true, notifier: '' },

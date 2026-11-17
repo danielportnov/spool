@@ -31,6 +31,7 @@ import { dirtyPaths, discardPaths, repoRoot } from './git.ts';
 import { DEFAULT_AGENT, PREAMBLE } from './loop.ts';
 import { type Item, type SpoolError, addLog, oneLine, splitBody, timestamp } from './model.ts';
 import { prime } from './prime.ts';
+import { QuickReplies, type Typing } from './quick.ts';
 import { brief, paint } from './render.ts';
 import { runOf } from './run.ts';
 import { ready, tasks } from './schedule.ts';
@@ -77,6 +78,8 @@ for you. Finish it with \`spool done\`, or leave it waiting on a question, then 
 
 /** How long a session that ended its turn with its thread unfinished is kept for the human's next word, after their last. */
 const REPLY_WINDOW_MS = 5 * 60_000;
+/** How long "Typing…" shows for an agent spoken to that says nothing back: it may be deep in a tool call. */
+const TYPING_MS = 3 * 60_000;
 
 /** A face that asked for the board this recently has someone looking at it. */
 const LOOKING_MS = 30_000;
@@ -296,6 +299,8 @@ export class Runner {
   /** How the last few threads it ran turned out, newest first. */
   recent: { id: string; title: string; outcome: string }[] = [];
   private gaveUp = new Map<string, string>();
+  /** The page answering the human on a thread nobody is building (quick.ts). */
+  readonly quick: QuickReplies;
   private timer: NodeJS.Timeout;
   private ctx: Ctx;
   private project: string | undefined;
@@ -305,6 +310,7 @@ export class Runner {
     this.project = project;
     this.agent = agent || ctx.env.SPOOL_AGENT || userConfig(ctx).agent || DEFAULT_AGENT;
     this.on = on;
+    this.quick = new QuickReplies(ctx);
     try {
       const ws = Workspace.open(ctx.cwd, ctx.now);
       try {
@@ -343,6 +349,7 @@ export class Runner {
    */
   close(): void {
     clearInterval(this.timer);
+    this.quick.close();
     // Nothing more is started from here, whatever is moved to Build on the way out.
     this.held = true;
     const runs = [...this.runs.values()];
@@ -528,6 +535,29 @@ export class Runner {
           : null,
       };
     });
+  }
+
+  /**
+   * The human wrote on a thread. Where this page is building it, its agent is told within a second
+   * (`attend`), and nothing more is done: "Typing…" shows until that agent is heard. Where nobody
+   * is, the page answers itself with a quick reply. Says which: 'agent', 'quick', or 'none' where
+   * neither will answer. `elsewhere` is a thread being built by someone else, a chat say.
+   */
+  heard(id: string, words: string, elsewhere = false): 'agent' | 'quick' | 'none' {
+    if (this.runs.has(id)) return this.runs.get(id)!.session?.listens === false ? 'none' : 'agent';
+    return this.quick.reply(id, words, this.agent, elsewhere) ? 'quick' : 'none';
+  }
+
+  /**
+   * The threads showing "Typing…": each with a quick reply being written, and each whose agent the
+   * human spoke to and that has not been heard since, for a few minutes at most. `who` is empty
+   * where it is the thread's own agent.
+   */
+  typing(): Typing[] {
+    const agents = [...this.runs.values()]
+      .filter((run) => run.session?.listens && run.spoke !== undefined && run.session.heardAt < run.spoke && Date.now() - run.spoke < TYPING_MS)
+      .map((run) => ({ id: run.id, who: '', since: new Date(run.spoke!).toISOString() }));
+    return [...agents, ...this.quick.typing()];
   }
 
   /** A face has just asked what there is to show: someone is looking. */

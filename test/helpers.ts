@@ -14,6 +14,10 @@ import { run } from '../src/cli.ts';
 
 export const CLI = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
 
+// No test's page answers a reply with a quick reply of its own (quick.ts): that would start the real
+// `claude`, or a stand-in written for something else. A test of the quick reply turns it back on.
+process.env.SPOOL_QUICK_REPLY = 'off';
+
 export interface Out {
   code: number;
   out: string;

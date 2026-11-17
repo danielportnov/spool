@@ -408,6 +408,18 @@ export function startPage(
             return send(res, told ? 200 : 400, 'application/json', JSON.stringify({ ok: told, text: words }));
           }
           const result = change(here, action, body);
+          // Words on a thread are answered: by the agent building it, or by the page itself, in seconds (quick.ts).
+          if (action === 'note' && result.ok && result.id && result.id === text(body.id)) {
+            const check = Workspace.open(ctx.cwd, ctx.now);
+            let elsewhere = false;
+            try {
+              elsewhere = check.find(result.id)?.status === 'active';
+            } finally {
+              check.close();
+            }
+            const by = runner.heard(result.id, text(body.text), elsewhere && !runner.runs.has(result.id));
+            return send(res, 200, 'application/json', JSON.stringify({ ...result, answers: by }));
+          }
           send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify(result));
         });
         return;

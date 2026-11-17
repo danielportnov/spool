@@ -20,6 +20,7 @@ import { git, repoRoot } from './git.ts';
 import { type Goals, goalsOf } from './goals.ts';
 import { type Item, isPlan, isRun, oneLine, reportFile, splitBody, whyOf } from './model.ts';
 import { attachLine, picturesOf } from './pictures.ts';
+import type { Typing } from './quick.ts';
 import { proposalLine, readProposals, unanswered } from './proposals.ts';
 import { age, sprintAbout, tableRows } from './render.ts';
 import { type Run as StartedWith, runOf } from './run.ts';
@@ -288,6 +289,8 @@ export interface Board {
     /** Threads the human stopped while they were being built: the runner leaves them in Build until they carry on. */
     stopped: string[];
     recent: { id: string; title: string; outcome: string }[];
+    /** The threads showing "Typing…": a quick reply being written (quick.ts), or an agent the human just spoke to. `who` is empty for the thread's own agent. */
+    typing: Typing[];
   };
   /**
    * The human's usage target, and the plan's usage the chat that builds last read: the page shows it
@@ -625,6 +628,7 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
       // stopped thread back: the chat takes whatever is in Build.
       stopped: builds === 'chat' ? [] : all.filter((t) => stoppedInBuild(t) && !runner?.isNext(t.id)).map((t) => t.id),
       recent: (runner?.recent ?? []).filter((r) => ours.has(r.id)),
+      typing: (runner?.typing() ?? []).filter((t) => ours.has(t.id)),
     },
     usage: usage ?? { target: {}, read: null, reached: [] },
     notices: notices ?? { on: [...DEFAULT_ON], default: true, notifier: '' },

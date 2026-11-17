@@ -1055,6 +1055,30 @@ function livePost(c, b) {
       run && el('div', { class: 'livelog', 'data-keep': 'livelog', 'data-follow': 'true' }, run.lines.join('\n') || 'starting…')));
 }
 
+// "Typing…" under the thread while someone answers what the human just wrote: the page's quick reply
+// (a small model, where nobody is building it), or the agent building it, until it is heard again.
+const typingNow = new Set();
+function typingOf(c, b) {
+  const t = ((b.runner && b.runner.typing) || []).find((x) => x.id === c.id);
+  if (t) return t.who || c.thread.by || 'agent';
+  return typingNow.has(c.id) ? (c.live && c.thread.by) || 'Claude' : null;
+}
+function typingNode(c, b) {
+  const who = typingOf(c, b);
+  if (!who) return null;
+  const s = speaker(who);
+  return el('div', { class: 'post typing', role: 'status', 'aria-live': 'polite' }, avatar(who),
+    el('div', {}, el('div', { class: 'byline' }, el('b', {}, s.name), s.model && el('span', { class: 'model' }, s.model)),
+      el('div', { class: 'dots' }, 'Typing', el('span', {}, '.'), el('span', {}, '.'), el('span', {}, '.'))));
+}
+// Put "Typing…" on the open thread now, without a redraw under the box they are typing in.
+function showTyping(c, b) {
+  const feed = document.querySelector('.ticket .feed') || document.querySelector('.feed');
+  if (!feed || feed.querySelector('.typing')) return;
+  const node = typingNode(c, b);
+  if (node) feed.append(node);
+}
+
 // The open thread is in the address, so a ticket can be linked to and survives a reload.
 function openThread(id) { openId = id; history.replaceState(null, '', '#' + id); redraw(); }
 function closeThread() { openId = null; history.replaceState(null, '', location.pathname + location.search); redraw(); }
@@ -1261,7 +1285,11 @@ function threadNode(c, b) {
   // Pictures pasted into the box go with the reply, to the thread it landed on; with no words, they go alone.
   const reply = async () => {
     if (!box.value.trim()) return pendingOf(c.id).length > 0 && sendPictures(c.id, c.id);
+    // "Typing…" shows the moment they send, before the server has said who answers; the board carries it on from there.
+    typingNow.add(c.id);
+    showTyping(c, b);
     const landed = await post('note', { id: c.id, text: box.value }, 'Posted to the thread');
+    typingNow.delete(c.id);
     if (landed) { drafts.delete(c.id); await sendPictures(landed === true ? c.id : landed, c.id); }
   };
   const ready = () => { send.disabled = !box.value.trim() && !pendingOf(c.id).length; };
@@ -1327,6 +1355,7 @@ function threadNode(c, b) {
       callsFor(b, c.id).filter((x) => !t.feed.some((p) => p.ref === x.id)).map((x) => decidedNode(x.by || 'agent', '', x.id, x.title + ' → ' + x.choice, b, t)),
       skillsFor(b, c.id).map(skillPost),
       livePost(c, b),
+      typingNode(c, b),
       !t.feed.length && !c.question && !c.live && el('div', { class: 'empty' }, 'Nothing has been said here yet.')),
 
     t.report && el('details', { class: 'desc', open: true, 'data-keep': 'report' }, el('summary', {}, c.type === 'plan' ? 'The plan' : 'The report'), el('pre', {}, rich(t.report))),

@@ -87,6 +87,11 @@ export interface UserConfig {
    */
   quietStopMinutes?: number;
   /**
+   * The quick reply: where nobody is building a thread, a small model answers what the human
+   * writes on it within seconds (quick.ts). On unless this is `false`.
+   */
+  quickReply?: boolean;
+  /**
    * How much of their Claude plan the human wants used while a chat builds, in percent of each
    * limit: `{ "weekly": 80, "fiveHour": 90 }`. The plan is the account's, so one target holds in
    * every project. A chat building in Chat mode works up to it. Set on the page. See usage.ts.

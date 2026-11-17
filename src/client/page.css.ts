@@ -328,7 +328,12 @@ export const CSS = String.raw`  :root {
   .livenow { margin-top: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow-wrap: anywhere; }
   .caret { display: inline-block; width: 7px; height: 14px; margin-left: 3px; vertical-align: -2px; background: var(--blue); animation: blink 1.1s steps(2, start) infinite; }
   @keyframes blink { to { visibility: hidden; } }
-  @media (prefers-reduced-motion: reduce) { .pulse, .caret { animation: none !important; } }
+  .typing .dots { color: var(--soft); font-style: italic; }
+  .typing .dots span { animation: typing 1.2s infinite; }
+  .typing .dots span:nth-child(2) { animation-delay: .2s; }
+  .typing .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes typing { 0%, 60%, 100% { opacity: .2; } 30% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .pulse, .caret, .typing .dots span { animation: none !important; } }
   .post .badge { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--go); }
   .post .badge.ask { color: var(--warn); }
   .event { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; position: relative; padding-bottom: 10px; font-size: 13px; color: var(--soft); overflow-wrap: anywhere; }
