@@ -70,6 +70,10 @@ those comments are the detail.
   question, a sprint finished, Build empty, an agent stuck, the usage target reached), kept in their
   own settings under `notifyOn`. The chat that builds asks `spool notify check <event>` before it
   sends a Claude notification; `notify` in `context.ts` runs the notifier only for events picked.
+- `settings.ts` is `spool settings`: the settings kept in the user's config that had no command
+  of their own (quick replies, quiet-agent minutes, rebuilding after a landing, offering Headless,
+  and caveman again). `settingsOf` is what the page's Settings panel needs that the board does not
+  already carry, the roster included whoever builds.
 - `leave.ts` is `spool leave`: how far agents may go while the human is away, and until when,
   kept in `.spool/leave.json`. `settle` gives the live leave and removes one that has run out.
   `buildUnderLeave` and `dropUnderLeave` are what `spool build --leave` and `spool drop --leave`

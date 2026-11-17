@@ -341,6 +341,14 @@ Chat mode the chat that builds sends each one you picked as a single-line Claude
 nothing for the rest; headless, the page runs your notifier for them. Tell a chat "notify me when a
 thread starts" and it runs `spool notify on started`.
 
+**Settings**, the gear in the header (or ⌘K, "Open settings"), gathers every choice about how
+the spool runs in one panel: who builds and whether Headless is offered, threads at once for each
+agent, taking over the backlog, rebuilding after each landing, the quiet-agent minutes, the usage
+targets, what notifies you, caveman mode and quick replies. Each row says what it does and the
+command that does the same. `spool settings` lists the ones that had only a line in the config
+file, and `spool settings quick-reply off`, `rebuild off`, `headless on` or `quiet-minutes 15`
+sets one.
+
 The agent it starts is a command on your machine, `claude -p` unless you say otherwise, and it can
 only do what you allow it. What you have not allowed, it asks for while the page is open: the
 question shows on its card, with **Allow once**, **Allow for this run** and **No**. With nobody

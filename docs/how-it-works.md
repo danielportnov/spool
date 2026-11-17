@@ -928,6 +928,14 @@ started question` and `default` change it; it is kept under `notifyOn` in your o
 Chat mode the chat that builds runs `spool notify check <event>` before each and sends the ones you
 picked as one-line Claude notifications.
 
+**Settings.** The gear on the board opens one panel with every setting, in four sections:
+Building, Usage, Notifications, and Replies & style. Each is changed there through the same
+command it has on the command line, shown under it. `spool settings` is the command for those that
+had none: `caveman`, `quick-reply` (`quickReply`), `quiet-minutes` and `stop-minutes`
+(`quietMinutes`, `quietStopMinutes`), `rebuild` (`rebuild: false` stops the page rebuilding Spool
+after a thread lands) and `headless` (`offerHeadless: true` lets Headless be picked on the page;
+it is greyed out otherwise).
+
 **Notifications outside a chat.** Put a command under `notify` in `~/.config/spool/config.json` and
 Spool runs it for the events you picked. The details arrive in `SPOOL_EVENT`, `SPOOL_TITLE`,
 `SPOOL_ID` and `SPOOL_PROJECT`. The event is `ask` for a question, `plan` for a plan that waits
