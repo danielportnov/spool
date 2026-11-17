@@ -107,7 +107,7 @@ test("the board's meter shows Codex's own plan from its log beside Claude's", as
   const page = await startPage(s);
   try {
     s.sp('usage', '--weekly', '62', '--as', 'Claude Opus 5.5');
-    const b = await (await fetch(`${page.url}api/board`)).json();
+    const b: any = await (await fetch(`${page.url}api/board`)).json();
     const by = Object.fromEntries(b.runner.agents.map((a: any) => [a.name, a.usage]));
     assert.deepEqual(by.Claude.read.used, { weekly: 62 });
     assert.deepEqual([by.Codex.read.used, by.Codex.read.by], [{ weekly: 34, fiveHour: 12 }, 'Codex, from its session log']);
