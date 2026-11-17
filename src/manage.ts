@@ -43,7 +43,8 @@ import {
   tokens,
   whyOf,
 } from './model.ts';
-import { PROPOSABLE, type Proposal, type Verb, proposalLine, readProposals, unanswered, writeProposals } from './proposals.ts';
+import { PROPOSABLE, type Proposal, type Verb, proposalKey, proposalLine, readProposals, unanswered, writeProposals } from './proposals.ts';
+import { OVERVIEW_SPEC, applyOrder, directionText, gatherDirection, proposeWhole } from './direction.ts';
 import { type Paint, age, itemJson, itemLine, paint } from './render.ts';
 import { type Entry, readJournal, startJournal } from './journal.ts';
 import { buildLine, effort, openRun, taskState, tasks } from './schedule.ts';
@@ -192,7 +193,7 @@ function handsOff(ws: Workspace, t: Item): string | null {
 }
 
 /** Every thread the manager leaves as it is, and why. */
-function handsOffIn(ws: Workspace, spool: Spool): { id: string; title: string; why: string }[] {
+export function handsOffIn(ws: Workspace, spool: Spool): { id: string; title: string; why: string }[] {
   return tasks(ws, spool)
     .filter((t) => !isRun(t) && [...WAITING, 'active'].includes(taskState(ws, t)))
     .map((t) => ({ id: t.id, title: t.title, why: handsOff(ws, t) }))
@@ -261,7 +262,7 @@ function commitsOf(spool: Spool): Commit[] {
 }
 
 /** The changelog's entries, each under the heading it sits below. A wrapped entry is read as one. */
-function changelogOf(spool: Spool): { version: string; line: string; words: Set<string> }[] {
+export function changelogOf(spool: Spool): { version: string; line: string; words: Set<string> }[] {
   const file = ['CHANGELOG.md', 'CHANGES.md', 'HISTORY.md'].map((name) => path.join(spool.root, name)).find((f) => fs.existsSync(f));
   if (!file) return [];
   const out: { version: string; line: string; words: Set<string> }[] = [];
@@ -764,22 +765,51 @@ function propose(call: Call, open: Item | undefined): Result {
   const run = named ? ws.find(named) : open;
   if (!run || !isRun(run) || run.status !== 'active') throw new SpoolError('no run is open to propose on', 'Start one: spool manage --start');
   const [verb, ref, ...extra] = call.args;
-  if (!PROPOSABLE.includes(verb as Verb) || !ref || extra.length) {
-    throw new SpoolError(`a proposal is a verb (${PROPOSABLE.join(', ')}) and one thread`, 'spool manage --propose drop <id> -m "Shipped in <sha>: <why>"');
+  if (!PROPOSABLE.includes(verb as Verb)) {
+    throw new SpoolError(`a proposal is one of ${PROPOSABLE.join(', ')}`, 'spool manage --propose drop <id> -m "Shipped in <sha>: <why>"');
   }
-  const item = ws.get(ref);
-  if (item.kind !== 'task' || isRun(item)) throw new SpoolError(`${item.id} is not a thread a run can propose on`);
-  if (item.status === 'dropped' || item.status === 'done') throw new SpoolError(`${item.id} is already ${item.status}`);
   const reason = (typeof opts.message === 'string' ? opts.message : '').replace(/\s+/g, ' ').trim();
-  if (!reason) throw new SpoolError('a proposal needs its reason', `spool manage --propose ${verb} ${item.id} -m "<why>": it is what the human reads, and what a drop is given`);
   const all = readProposals(run);
-  if (unanswered(all).some((x) => x.verb === verb && x.id === item.id)) throw new SpoolError(`${verb} ${item.id} is already proposed`);
-  const made: Proposal = { n: Math.max(0, ...all.map((x) => x.n)) + 1, verb: verb as Verb, id: item.id, title: item.title, reason };
+  let made: Proposal;
+  if (verb === 'goals' || verb === 'sprint' || verb === 'order') {
+    // What an overview of the whole project proposes: the goals, a sprint, an order. See direction.ts.
+    made = { n: 0, ...proposeWhole(call, run, verb, call.args.slice(1)), reason };
+    if (!reason) throw new SpoolError('a proposal needs its reason', `spool manage --propose ${verb} … -m "<why>": it is what the human reads`);
+  } else {
+    if (!ref || extra.length) throw new SpoolError(`a ${verb} is proposed on one thread`, `spool manage --propose ${verb} <id> -m "<why>"`);
+    const item = ws.get(ref);
+    if (item.kind !== 'task' || isRun(item)) throw new SpoolError(`${item.id} is not a thread a run can propose on`);
+    if (item.status === 'dropped' || item.status === 'done') throw new SpoolError(`${item.id} is already ${item.status}`);
+    if (!reason) throw new SpoolError('a proposal needs its reason', `spool manage --propose ${verb} ${item.id} -m "<why>": it is what the human reads, and what a drop is given`);
+    made = { n: 0, verb: verb as Verb, id: item.id, title: item.title, reason };
+  }
+  if (unanswered(all).some((x) => proposalKey(x) === proposalKey(made))) {
+    throw new SpoolError(`${made.verb === 'goals' ? 'new goals are' : `${proposalKey(made)} is`} already proposed`, 'The human answers the one on the run\'s thread first');
+  }
+  made.n = Math.max(0, ...all.map((x) => x.n)) + 1;
   writeProposals(run, [...all, made]);
   return {
     text: `${p.bold(`${run.id} proposal ${made.n}`)}  ${proposalLine(made)}\n${p.dim(`  The human says yes or no on the run's ticket, or:  spool manage --answer yes ${made.n}`)}`,
     data: { run: run.id, proposal: made },
   };
+}
+
+/** A yes: run what the proposal says, as whoever says yes, with the run's reason. Each verb's own rules hold for it. */
+function apply(call: Call, run: Item, x: Proposal): string {
+  const command = (name: string) => COMMANDS.find((c) => c.name === name)!;
+  const why = `${x.reason} (proposed by run ${run.id})`;
+  if (x.verb === 'goals') {
+    command('goals').run!({ ...call, args: [], opts: { edit: x.goals! } });
+    return 'goals kept';
+  }
+  if (x.verb === 'sprint') {
+    const s = x.sprint!;
+    const out = command('sprint').run!({ ...call, args: [s.name], opts: { goal: s.goal, why: s.why, 'done-when': s.doneWhen, ...(s.threads.length ? { add: s.threads } : {}) } });
+    return `sprint ${(out.data as { sprint: { id: string } }).sprint.id} made, planned`;
+  }
+  if (x.verb === 'order') return applyOrder(call, x);
+  command(x.verb).run!({ ...call, args: [x.id], opts: { message: why } });
+  return `${x.verb} ${x.id}, done`;
 }
 
 /** `spool manage --answer yes|no <n…|all>`: a word on proposals. A yes runs the verb, as whoever says it, with the run's reason. */
@@ -796,20 +826,16 @@ function answer(call: Call): Result {
   const all = readProposals(run);
   const picked = which.includes('all') ? unanswered(all) : which.map((w) => all.find((x) => x.n === Number(w)));
   if (!picked.length || picked.some((x) => !x)) throw new SpoolError(`which proposals? ${run.id} has ${all.map((x) => x.n).join(', ') || 'none'}`);
-  const command = (verb: Verb) => COMMANDS.find((c) => c.name === verb)!;
   const out: string[] = [];
   for (const x of picked as Proposal[]) {
     if (x.answer) {
       out.push(`  ${x.n}: already answered ${x.answer.said}`);
       continue;
     }
-    if (said === 'yes') {
-      // The verb is the one a person would type, with the run's reason: its own rules hold for it.
-      command(x.verb).run!({ ...call, args: [x.id], opts: { message: `${x.reason} (proposed by run ${run.id})` } });
-    }
+    const did = said === 'yes' ? apply(call, run, x) : `left alone${x.id ? `, ${x.id}` : ''}`;
     x.answer = { by: actor, at: timestamp(ws.now()), said };
     addLog(run, actor, `${said} to proposal ${x.n}: ${proposalLine(x)}`, ws.now());
-    out.push(`  ${x.n}: ${said === 'yes' ? `${x.verb} ${x.id}, done` : `left alone, ${x.id}`}`);
+    out.push(`  ${x.n}: ${did}`);
   }
   writeProposals(run, all);
   ws.save(run);
@@ -830,6 +856,7 @@ export function manage(call: Call): Result {
   if (opts.propose) return propose(call, open);
   if (opts.answer) return answer(call);
 
+  if (opts.overview && (!opts.start || opts.takeover)) throw new SpoolError('--overview goes with --start alone: it opens an overview of the whole project', 'spool manage --start --overview');
   if (opts.takeover && !opts.start) throw new SpoolError('--takeover goes with --start: it is how the chat that takes over the backlog opens its own tidy', 'spool manage --start --takeover');
   if (opts.start) {
     // Taking over, the chat runs its own pass: only when one is due, and never past the usage target.
@@ -844,7 +871,7 @@ export function manage(call: Call): Result {
       );
     }
     const run = ws.create(spool, 'task', {
-      title: `Tidy the backlog, ${timestamp(ws.now()).slice(0, 10)}`,
+      title: `${opts.overview ? 'An overview of the project' : 'Tidy the backlog'}, ${timestamp(ws.now()).slice(0, 10)}`,
       type: 'audit',
       tags: [RUN_TAG],
       // It changes no code, so it does not go through Build, which guards code: it is being worked from the start.
@@ -852,11 +879,16 @@ export function manage(call: Call): Result {
       by: actor,
       started: timestamp(ws.now()),
       priority: 2,
-      body: SPEC,
+      body: opts.overview ? OVERVIEW_SPEC : SPEC,
     });
-    addLog(run, actor, 'started', ws.now());
+    addLog(run, actor, opts.overview ? 'started: an overview of the whole project' : 'started', ws.now());
     ws.save(run);
     startJournal(run);
+    // An overview proposes and changes nothing, so it takes no leave and no Clean Up: those are for a tidy.
+    if (opts.overview) {
+      const sheet = gatherDirection(ws, spool, run);
+      return { text: directionText(ws, sheet, p), data: { env: { SPOOL_RUN: run.id }, ...sheet } };
+    }
     // A leave that is live is this run's from now on: its thread names it, and undoing the run ends it.
     const { live } = settle(ws, spool);
     if (live) runUnder(ws, run, live, actor);

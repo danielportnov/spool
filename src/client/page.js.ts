@@ -855,7 +855,8 @@ function proposalsNode(c) {
   return el('div', { class: 'proposals' },
     el('h3', {}, 'Proposals ', el('span', { class: 'count' }, left ? left + ' to answer' : 'all answered')),
     c.proposals.map((x) => el('div', { class: 'proposal', 'data-n': String(x.n) },
-      el('div', { class: 'ptext' }, el('span', { class: 'pn' }, x.n + '. '), inline(x.text)),
+      el('div', { class: 'ptext' }, el('span', { class: 'pn' }, x.n + '. '), inline(x.text),
+        x.detail ? el('div', { class: 'pdetail' }, x.detail) : null),
       x.answer
         ? el('div', { class: 'said ' + x.answer }, x.answer === 'yes' ? '✓ Yes, done' : 'No, left alone')
         : el('div', { class: 'acts' }, el('button', { class: 'go', onclick: () => say(x, 'yes') }, 'Yes'), el('button', { onclick: () => say(x, 'no') }, 'No')))));

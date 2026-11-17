@@ -46,12 +46,12 @@ test('a yes on the page drops the thread with the run\'s reason, and a no leaves
   }
 });
 
-test('a proposal needs a verb that puts a thread out of the way, a thread and a reason', () => {
+test('a proposal needs a verb it knows, a thread and a reason', () => {
   const s = spool();
   try {
     const t = s.id('task', 'Draw the tip page', '-s', 's');
     s.sp('manage', '--start', '--as', 'Mgr');
-    assert.match(s.fails('manage', '--propose', 'delete', t, '-m', 'why', '--as', 'Mgr'), /a proposal is a verb/);
+    assert.match(s.fails('manage', '--propose', 'delete', t, '-m', 'why', '--as', 'Mgr'), /a proposal is one of drop, archive, build, goals, sprint, order/);
     assert.match(s.fails('manage', '--propose', 'drop', t, '--as', 'Mgr'), /needs its reason/);
   } finally {
     s.cleanup();

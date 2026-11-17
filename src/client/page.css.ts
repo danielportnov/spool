@@ -472,6 +472,7 @@ export const CSS = String.raw`  :root {
   .proposals { margin-top: 18px; }
   .proposal { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
   .proposal .ptext { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+  .proposal .pdetail { margin-top: 6px; white-space: pre-wrap; font-size: 13px; color: var(--soft); }
   .proposal .pn { color: var(--soft); font-variant-numeric: tabular-nums; }
   .proposal .acts { margin-top: 0; flex: none; }
   .proposal .acts button { min-width: 56px; padding: 9px 14px; }

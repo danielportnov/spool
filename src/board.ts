@@ -22,7 +22,7 @@ import { plain } from './plain.ts';
 import { type Item, isPlan, isRun, oneLine, reportFile, splitBody, whyOf } from './model.ts';
 import { attachLine, picturesOf } from './pictures.ts';
 import type { Typing } from './quick.ts';
-import { proposalLine, readProposals, unanswered } from './proposals.ts';
+import { proposalDetail, proposalLine, readProposals, unanswered } from './proposals.ts';
 import { age, sprintAbout, tableRows } from './render.ts';
 import { type Run as StartedWith, runOf } from './run.ts';
 import { type Review, blockers, children, dependents, docket, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
@@ -78,7 +78,7 @@ export interface Card {
   thread: Thread;
   question: { id: string; title: string; options: string[]; recommend: number | null } | null;
   /** A manager's run: what it proposes, numbered, each waiting for the human's yes or no on its thread. */
-  proposals: { n: number; verb: string; id: string; text: string; answer: 'yes' | 'no' | null }[];
+  proposals: { n: number; verb: string; id: string; text: string; detail: string; answer: 'yes' | 'no' | null }[];
   /** While it is being built: when the agent took it, and the latest thing it said it was doing. */
   live: Live | null;
   /** The folder it is built in, from the project's, where it has a git worktree of its own; empty where it is the project's own folder. */
@@ -532,7 +532,7 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     steps: task.status === 'done' ? task.steps : [],
     thread,
     question: asked ? { id: asked.id, title: asked.title, options: asked.options, recommend: asked.recommend ?? null } : null,
-    proposals: isRun(task) ? readProposals(task).map((x) => ({ n: x.n, verb: x.verb, id: x.id, text: proposalLine(x), answer: x.answer?.said ?? null })) : [],
+    proposals: isRun(task) ? readProposals(task).map((x) => ({ n: x.n, verb: x.verb, id: x.id, text: proposalLine(x), detail: proposalDetail(x, (id) => ws.find(id)?.title) ?? '', answer: x.answer?.said ?? null })) : [],
     live: column === 'building' ? liveNow(task) : null,
     worktree: task.worktree ?? '',
     run: column === 'building' || column === 'done' ? runOf(log) : null,
