@@ -26,7 +26,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { act } from './act.ts';
 import { type Pick as Picked, type Routing, commandFor, pickFor, stepNote, takesPick } from './agent.ts';
-import { type Builder, type Ctx, builderOf, notify, parallelOf, saveBuilder, userConfig } from './context.ts';
+import { type Builder, type Ctx, builderOf, notify, parallelOf, quietLimits, saveBuilder, userConfig } from './context.ts';
 import { dirtyPaths, discardPaths, repoRoot } from './git.ts';
 import { DEFAULT_AGENT, PREAMBLE } from './loop.ts';
 import { type Item, type SpoolError, addLog, oneLine, splitBody, timestamp } from './model.ts';
@@ -200,6 +200,8 @@ interface Run {
   retried?: boolean;
   /** Lines for the thread's log that are not on it yet. */
   unsaid?: string[];
+  /** Its agent has printed nothing for the quiet limit, and the page has said so: once per silence. */
+  quietSaid?: boolean;
   /** Its agent, once one is started: while a model is still being chosen for it there is none. */
   session?: Session;
   /** It picks a session up again: how to start the thread afresh instead, if that session turns out to be gone. */
@@ -216,6 +218,8 @@ export interface Live {
   lines: string[];
   /** A note written on its thread reaches its agent while it works. False for an agent that is only watched. */
   listens: boolean;
+  /** Seconds its agent has printed nothing, once that is past the quiet limit; null while it is not quiet. */
+  quiet: number | null;
   /** The tool call its agent needs a yes for and is waiting on, if it is waiting on one: the oldest, where there are several. */
   asking: Asking | null;
 }
@@ -508,6 +512,7 @@ export class Runner {
         id: run.id,
         seconds: Math.round((Date.now() - run.began) / 1000),
         lines: run.lines,
+        quiet: this.quietFor(run),
         listens: !!run.session?.listens,
         asking: ask
           ? {
@@ -693,8 +698,40 @@ export class Runner {
     return line;
   }
 
+  /** How long an agent has been silent, in seconds, if that is past the limit; null if not. A run waiting on a person or for a word is not quiet. */
+  private quietFor(run: Run): number | null {
+    const { quiet } = quietLimits(this.ctx);
+    const s = run.session;
+    if (!quiet || !s || run.stopped || s.asking.length || s.waiting) return null;
+    const silent = Date.now() - s.heardAt;
+    return silent >= quiet ? Math.round(silent / 1000) : null;
+  }
+
+  /** An agent quiet for the limit is said to be on the page and in the notifier, once; past the stop limit it is stopped, and its thread put back. */
+  private watchQuiet(): void {
+    const { stop } = quietLimits(this.ctx);
+    for (const run of this.runs.values()) {
+      const silent = this.quietFor(run);
+      if (silent === null) {
+        run.quietSaid = false;
+        continue;
+      }
+      const minutes = Math.max(1, Math.round(silent / 60));
+      if (!run.quietSaid) {
+        run.quietSaid = true;
+        this.note(run.id, [`its agent has printed nothing for ${minutes} min`]);
+        setImmediate(() => notify(this.ctx, 'stuck', `Quiet: ${run.title} has printed nothing for ${minutes} min`));
+      }
+      if (stop && silent * 1000 >= stop) {
+        this.note(run.id, [`stopped: its agent printed nothing for ${minutes} min; the thread is back in build, stopped`]);
+        this.stop(run.id);
+      }
+    }
+  }
+
   private tick(): void {
     this.held = !!this.upkeep?.();
+    this.watchQuiet();
     this.attend();
     this.fill();
   }

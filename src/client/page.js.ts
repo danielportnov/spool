@@ -236,8 +236,9 @@ function liveLine(c, b) {
   if (!c.live) return null;
   const run = b && liveOf(c, b);
   const now = (run && run.lines.at(-1)) || c.live.note || 'starting…';
-  return el('div', { class: 'live', title: 'What the agent is doing now, and how long it has been at it' },
-    el('span', { class: 'pulse' }), el('span', { class: 'now' }, now), el('span', { class: 'for', 'data-since': c.live.since }, took(c.live.since)));
+  const quiet = run && run.quiet != null ? Math.max(1, Math.round(run.quiet / 60)) : 0;
+  return el('div', { class: 'live' + (quiet ? ' quiet' : ''), title: quiet ? 'Its agent has printed nothing for ' + quiet + ' min: it may be hung' : 'What the agent is doing now, and how long it has been at it' },
+    el('span', { class: 'pulse' }), quiet ? el('span', { class: 'quietmark' }, 'Quiet for ' + quiet + ' min') : null, el('span', { class: 'now' }, now), el('span', { class: 'for', 'data-since': c.live.since }, took(c.live.since)));
 }
 // What a thread waits on, as its card shows it: a small mark at the top, in the colour of who has to act.
 // The note under the title says the rest; a ticket says all of it. A question is asked on the thread

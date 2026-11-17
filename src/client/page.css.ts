@@ -121,6 +121,8 @@ export const CSS = String.raw`  :root {
   .live { margin-top: 6px; display: flex; align-items: center; gap: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--soft); }
   .live .now { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .live .for { color: var(--blue); white-space: nowrap; }
+  .live.quiet .pulse { background: var(--hot); animation: none; }
+  .live .quietmark { flex: none; color: var(--hot); font-weight: 600; white-space: nowrap; }
   .live .pulse { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--blue); animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .25; } }
   .flag { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; font-size: 12px; font-weight: 650; color: var(--soft); }

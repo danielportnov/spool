@@ -168,6 +168,8 @@ export interface Session {
   /** The newest of the lines it has printed, as a person reads them. */
   lines: string[];
   began: number;
+  /** When it last printed anything, on stdout or stderr. */
+  heardAt: number;
   /** The Claude session Spool put it in, where it did. */
   id?: string;
   /** It was to pick that session up again, and Claude has no such session: nothing was carried on. */
@@ -246,6 +248,7 @@ export function startSession(
     child,
     lines,
     began,
+    heardAt: began,
     id: sessionOf(command)?.id,
     lost: false,
     listens: listens(command),
@@ -341,6 +344,7 @@ export function startSession(
   const reader = (stderr: boolean) => {
     let rest = '';
     const take = (part: string, whole = true): void => {
+      if (part.trim()) live.heardAt = Date.now();
       if (stderr && part.trim()) keepRaw(`${JSON.stringify({ type: 'stderr', text: part })}\n`);
       if (!stderr) keepRaw(whole ? `${part}\n` : part);
       hear(part);

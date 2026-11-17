@@ -77,6 +77,16 @@ export interface UserConfig {
    */
   parallel?: number;
   /**
+   * Minutes an agent may print nothing before its card says it is quiet and the `stuck` notice
+   * goes out: 10 unless set, 0 for never. For agents the page starts (Headless); in Chat mode it starts none.
+   */
+  quietMinutes?: number;
+  /**
+   * Minutes of silence after which the page stops the agent and puts its thread back in Build,
+   * stopped: not set, or 0, for never. Counted from its last output, so it is meant to be longer than `quietMinutes`.
+   */
+  quietStopMinutes?: number;
+  /**
    * How much of their Claude plan the human wants used while a chat builds, in percent of each
    * limit: `{ "weekly": 80, "fiveHour": 90 }`. The plan is the account's, so one target holds in
    * every project. A chat building in Chat mode works up to it. Set on the page. See usage.ts.
@@ -102,6 +112,14 @@ export const PARALLEL_DEFAULT = 3;
 export function parallelOf(ctx: Ctx): number {
   const asked = userConfig(ctx).parallel;
   return typeof asked === 'number' && Number.isInteger(asked) && asked >= 1 ? asked : PARALLEL_DEFAULT;
+}
+
+/** Minutes of silence that mark an agent quiet: 10 unless set, 0 for never. */
+export const QUIET_DEFAULT = 10;
+export function quietLimits(ctx: Ctx): { quiet: number; stop: number } {
+  const c = userConfig(ctx);
+  const minutes = (n: unknown, fallback: number): number => (typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : fallback);
+  return { quiet: minutes(c.quietMinutes, QUIET_DEFAULT) * 60_000, stop: minutes(c.quietStopMinutes, 0) * 60_000 };
 }
 
 /** Who builds a project's threads: the page, starting the agent command itself, or a chat running the loop. */

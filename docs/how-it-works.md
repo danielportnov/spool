@@ -694,6 +694,12 @@ agent the dead page had started is ended first. It would otherwise work on to th
 and two programs must not be in one session. [docs/claude-stream.md](claude-stream.md)
 has what was tried against Claude Code, and on which version.
 
+**A quiet agent.** An agent that has printed nothing for ten minutes shows "Quiet for N min" in red
+on its card in Building, and the `stuck` notice goes out once (see `spool notify`). `"quietMinutes"` in
+`~/.config/spool/config.json` sets the ten, 0 for never. `"quietStopMinutes"` is off unless set: past it
+the page stops the agent and the thread goes back to Build as stopped. An agent waiting on your yes or
+on a word is not quiet. In Chat mode the page starts no agents, so this is for Headless.
+
 **How many at once.** Three, unless you say otherwise: the page gives each thread it builds a git
 worktree of its own, as `spool start --worktree` does (see "Several at once"), so no two agents
 edit one folder. Its agent is started there, its card and ticket say which folder, and its own
