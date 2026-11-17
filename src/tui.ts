@@ -460,6 +460,13 @@ function briefBody(b: Brief, inner: number, now: number): Bit[] {
     });
   }
 
+  if (b.spent) {
+    const sp = b.spent;
+    title('WHAT IT TOOK');
+    put([plural(sp.runs, 'run'), `${Math.round(sp.minutes)} min`, ...(sp.turns ? [plural(sp.turns, 'turn')] : []), ...(sp.usd > 0 ? [`$${sp.usd.toFixed(2)}`] : [])].join(' · '), undefined, 2);
+    if (sp.unmeasured) put(`${plural(sp.unmeasured, 'thread')} built in chat: only the time from claim to landing is known`, 'dim', 2);
+  }
+
   const rest = b.alsoShipped.reduce((n, g) => n + g.threads.length, 0);
   if (rest) {
     title(`${b.worthALook.length ? 'ALSO SHIPPED' : 'SHIPPED'}  ${rest}`);

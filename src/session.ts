@@ -28,7 +28,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import type { Ctx } from './context.ts';
 import type { Item } from './model.ts';
-import { type Ask, allowLine, denyLine, hearLine, interruptLine, listens, runDir, sessionOf, transcriptFile, userLine } from './stream.ts';
+import { type Ask, allowLine, denyLine, hearLine, interruptLine, listens, runDir, sessionOf, tookLine, transcriptFile, userLine } from './stream.ts';
 
 /** How many of the lines an agent has printed are kept to show: the newest. */
 const LIVE_LINES = 60;
@@ -327,6 +327,13 @@ export function startSession(
         continue;
       }
       notes.push(`permission denied: ${d}`);
+      log = true;
+    }
+    if (heard.took) {
+      // One line a run: a session spoken to again reports its running total, which replaces the last.
+      const at = notes.findIndex((n) => n.startsWith('run took '));
+      if (at >= 0) notes.splice(at, 1);
+      notes.push(tookLine(heard.took));
       log = true;
     }
     if (log) on.note(notes);

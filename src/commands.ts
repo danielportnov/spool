@@ -1884,7 +1884,7 @@ export const COMMANDS: Command[] = [
       if (noted) out.push(p.dim(`  ${noted} git note(s) written in ${NOTES_REF}, kept on this machine`));
       if (finished) {
         // Headless, the user's notifier tells them, where they picked it. In Chat mode the chat that builds does.
-        if (builderOf(call.ctx, t.spool.root) !== 'chat') notify(call.ctx, 'sprint', `Sprint finished: ${finished.title}`, finished);
+        if (builderOf(call.ctx, t.spool.root) !== 'chat') notify(call.ctx, 'sprint', morning(ws, { project: t.spool }).headline, finished);
         out.push(
           p.green(`  Sprint finished: ${finished.title}. Everything in it is done.`),
           `  A sprint reached is a version: cut it now, the changelog led by its name and goal, then spool edit ${finished.id} --version <x.y.z>`,

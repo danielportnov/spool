@@ -18,7 +18,7 @@ import { JOURNAL } from './journal.ts';
 import { picturesOf } from './pictures.ts';
 import { readProposals, unanswered } from './proposals.ts';
 import { type Scope, children, dependents, review, sprintOf, taskState, tasks } from './schedule.ts';
-import { hearLine } from './stream.ts';
+import { hearLine, readTook } from './stream.ts';
 import { MOVED } from './takeover.ts';
 import { type Strays, strayFixes, strayLines, straysOf } from './strays.ts';
 import type { Workspace } from './store.ts';
@@ -37,6 +37,8 @@ export interface Brief {
   shipped: number;
   /** From the first of them being started to the last being finished, in ms. */
   took: number;
+  /** What the shipped threads' runs took, summed from the line each run left on its ticket; null when no run said. `unmeasured`: shipped threads with none (built in chat, where there is no stream). */
+  spent: { runs: number; minutes: number; turns: number; usd: number; unmeasured: number } | null;
   needsYou: {
     questions: { id: string; title: string; options: string[]; recommend: number | null; blocks: number; project: string }[];
     plans: { id: string; title: string; summary: string | null; parts: number; project: string }[];
@@ -287,6 +289,16 @@ export function morning(ws: Workspace, opts: { since?: string; project?: Scope }
   const starts = shipped.map((t) => Date.parse(t.started ?? t.created));
   const ends = shipped.map(finishedAt);
   const took = shipped.length ? Math.max(0, Math.max(...ends) - Math.min(...starts)) : 0;
+  const runs = shipped.flatMap((t) => entries(t).map((e) => readTook(e.text)).filter((r) => r !== null));
+  const spent = runs.length
+    ? {
+        runs: runs.length,
+        minutes: runs.reduce((n, r) => n + r.minutes, 0),
+        turns: runs.reduce((n, r) => n + r.turns, 0),
+        usd: runs.reduce((n, r) => n + r.usd, 0),
+        unmeasured: shipped.filter((t) => !entries(t).some((e) => readTook(e.text))).length,
+      }
+    : null;
   const needs = waitingOnYou(ws, opts.project);
   // "8h" reads as a span, so it is said as one; "yesterday" and a date are a point to start from.
   const said = opts.since?.trim() ?? '';
@@ -294,6 +306,7 @@ export function morning(ws: Workspace, opts: { since?: string; project?: Scope }
   const span = age(new Date(now.getTime() - took).toISOString(), now);
   const headline = [
     shipped.length ? `${plural(shipped.length, 'thread')} shipped ${when}${span === 'now' ? '' : `, over ${span}`}` : `Nothing shipped ${when}`,
+    ...(spent && spent.usd > 0 ? [`$${spent.usd.toFixed(2)}`] : []),
     needs ? `${needs} ${needs === 1 ? 'needs' : 'need'} you` : 'nothing needs you',
   ].join(' · ');
   const projects = !opts.project ? ws.spools : [typeof opts.project === 'string' ? ws.project(opts.project) : opts.project];
@@ -307,6 +320,7 @@ export function morning(ws: Workspace, opts: { since?: string; project?: Scope }
     headline,
     shipped: shipped.length,
     took,
+    spent,
     needsYou: { questions, plans, stopped: stops, proposals },
     worthALook: worth.map(({ t, reasons, files }) => ({
       id: t.id,
@@ -374,6 +388,13 @@ export function morningText(ws: Workspace, b: Brief, p: Paint): string {
       out.push(line('     why: ', t.reasons.join(' · ')));
       if (t.steps.length) out.push('     to check:', ...t.steps.map((s, n) => line(`       ${n + 1}) `, s)));
     });
+  }
+
+  if (b.spent) {
+    const sp = b.spent;
+    const bits = [plural(sp.runs, 'run'), `${Math.round(sp.minutes)} min`, ...(sp.turns ? [plural(sp.turns, 'turn')] : []), ...(sp.usd > 0 ? [`$${sp.usd.toFixed(2)}`] : [])];
+    out.push('', `⏱ ${p.bold('WHAT IT TOOK')}  ${p.dim(bits.join(' · '))}`);
+    if (sp.unmeasured) out.push(p.dim(`  ${plural(sp.unmeasured, 'thread')} built in chat: no stream to read, so only the time from claim to landing is known`));
   }
 
   const rest = b.alsoShipped.reduce((n, g) => n + g.threads.length, 0);

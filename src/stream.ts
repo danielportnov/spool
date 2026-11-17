@@ -170,6 +170,8 @@ export interface Heard {
   denials?: string[];
   /** The session it was told to pick up is not there: nothing was carried on. */
   lost?: true;
+  /** What the run took, read from its last event: minutes of its own time, turns, and cost in dollars. */
+  took?: { minutes: number; turns: number | null; usd: number | null };
   /** Its turn has ended: a session whose input is open now waits for the next message. */
   over?: true;
   /** It needs a yes for a tool call, and waits for the answer. */
@@ -285,7 +287,11 @@ export function hearLine(line: string): Heard {
     const turns = typeof e.num_turns === 'number' ? ` · ${e.num_turns} turns` : '';
     lines.push(`${how}${turns}${typeof e.result === 'string' && e.result.trim() ? ` — ${short(e.result)}` : ''}`);
     const lost = Array.isArray(e.errors) && e.errors.some((x: unknown) => NO_SESSION.test(String(x)));
-    return { lines, session, denials, over: true, ...(lost ? { lost: true as const } : {}) };
+    const took =
+      typeof e.duration_ms === 'number'
+        ? { minutes: e.duration_ms / 60_000, turns: typeof e.num_turns === 'number' ? e.num_turns : null, usd: typeof e.total_cost_usd === 'number' ? e.total_cost_usd : null }
+        : undefined;
+    return { lines, session, denials, over: true, ...(took ? { took } : {}), ...(lost ? { lost: true as const } : {}) };
   }
   return { lines, session, ...(checkFailed ? { checkFailed } : {}) };
 }
@@ -306,4 +312,16 @@ export function runDir(spoolDir: string, id: string): string {
 /** The file the agent's stream is kept in, one per run of a thread. */
 export function transcriptFile(spoolDir: string, id: string, began: Date): string {
   return path.join(runDir(spoolDir, id), `${began.toISOString().replace(/[:.]/g, '-')}.jsonl`);
+}
+
+/** What a run took, as the line on its thread says it; the brief reads the same line back. */
+export function tookLine(t: { minutes: number; turns: number | null; usd: number | null }): string {
+  const mins = t.minutes < 1 ? '<1 min' : `${Math.round(t.minutes)} min`;
+  return `run took ${mins}${t.turns !== null ? ` · ${t.turns} turns` : ''}${t.usd !== null ? ` · $${t.usd.toFixed(2)}` : ''}`;
+}
+
+/** The inverse of tookLine, over a line of a thread's log; null for any other line. */
+export function readTook(text: string): { minutes: number; turns: number; usd: number } | null {
+  const m = /^run took (<1|\d+) min(?: · (\d+) turns)?(?: · \$(\d+\.\d\d))?/.exec(text);
+  return m ? { minutes: m[1] === '<1' ? 0.5 : Number(m[1]), turns: Number(m[2] ?? 0), usd: Number(m[3] ?? 0) } : null;
 }

@@ -159,6 +159,7 @@ export function fixture(): Board {
 export function briefFixture(): Brief {
   return {
     since: null,
+    spent: null,
     headline: '3 threads shipped since you last looked, over 2h · 2 need you',
     shipped: 3,
     took: 7_200_000,
