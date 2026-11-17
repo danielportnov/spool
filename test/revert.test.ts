@@ -354,7 +354,10 @@ test('cross-thread revert protects dirty files of later threads and restoration 
   assert.equal(s.git('rev-parse', 'HEAD'), before);
   assert.equal(s.json('show', later).item.status, 'done');
   s.git('restore', 'notes.txt');
-  s.sp('revert', original, '--with-later');
+  const said = s.sp('revert', original, '--with-later', '--now');
+  assert.match(said, new RegExp(`The later thread waits in the backlog, each with why on its log: spool build ${later}`));
+  assert.equal(s.json('show', original).item.status, 'open', '--now puts only the thread named back in Build');
+  assert.equal(s.json('show', later).item.status, 'proposed');
   const shared = s.git('rev-parse', 'HEAD');
   s.sp('build', later);
   s.sp('start', later);

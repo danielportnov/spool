@@ -872,6 +872,11 @@ export const COMMANDS: Command[] = [
               : `It waits in the backlog at p${t.priority}${why ? ' with your reason attached' : ''}. Nothing builds it until you move it to Build: spool build ${t.id}`,
           );
         }
+        // The later threads were not what the human said no to: they wait in the backlog, whatever --now or --drop said.
+        if (later.length) {
+          const ids = later.map(({ task }) => task.id).join(' ');
+          out.push(`${later.length === 1 ? 'The later thread waits' : 'The later threads wait'} in the backlog, each with why on its log: spool build ${ids}`);
+        }
         // The human's reason outlives the thread: every agent here reads it from now on. An agent's own revert keeps none.
         const { lesson, line } = learn(ws, t, actor, why);
         if (line) out.push(line);
