@@ -320,6 +320,9 @@ number. Before each thread the chat reads the plan's usage with its own tool (`g
 Claude app) and reports it with `spool usage`; once a target is reached it takes no new thread, and
 the header shows the usage against the target. `spool target --weekly 80` sets it from a chat or a
 terminal. Spool never reads your usage or your account itself: it keeps what the chat reports.
+With several agents on the spool, each reads its own plan and is held to its own target: `spool
+target --agent Codex --weekly 50` holds Codex to half its plan while Claude goes on to 80%, and the
+header shows a meter for each, or says where an agent cannot read its usage. Settings sets each one.
 As the end nears, the chat starts only threads small enough to finish (nothing past S from 90% of
 the target, by default; `spool target --headroom` changes it), says which it passed by, and wraps
 up what it is building.

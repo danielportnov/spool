@@ -1591,6 +1591,8 @@ const TARGET_START = 80;
 // The target's changes, sent in turn, and each limit's slider waiting for its keys to stop.
 let targetSends = Promise.resolve();
 const targetWait = {};
+// The target for all: the one each agent with none of its own works up to.
+const allOf = (u) => u.all || u.target;
 const usedOf = (u, key) => (u.read && u.read.used[key] != null ? u.read.used[key] : null);
 const pct = (n) => (Math.round(n * 10) / 10) + '%';
 
@@ -1601,14 +1603,73 @@ function shownLimit(u) {
   return set.sort((a, z) => near(z[0]) - near(a[0]))[0] || null;
 }
 
+// The roster agents with a usage of their own to show: a reading, or a target set for them alone.
+const ownOf = (u) => (u && u.own) || {};
+function usageAgents(b) {
+  return (b.runner.agents || []).filter((a) => a.usage && (a.usage.read || Object.keys(ownOf(a.usage)).length));
+}
+// One agent in the header: its name, a meter of its nearest limit against its own target, the two
+// numbers; or that it cannot read its usage, or has no target.
+function agentMeter(a) {
+  const u = a.usage;
+  const shown = shownLimit(u);
+  const reached = u.reached.length > 0;
+  const part = el('span', { class: 'agent' + (reached ? ' reached' : '') }, el('span', { class: 'who' }, a.name));
+  let said;
+  if (u.cannotRead) {
+    part.append(el('span', { class: 'num none' }, 'can’t read'));
+    said = a.name + ' cannot read its usage, so it is not held to a target.';
+  } else if (!shown) {
+    part.append(el('span', { class: 'num none' }, 'no target'));
+    said = a.name + ' has no usage target: it builds whatever the usage.';
+  } else {
+    const [key, name] = shown;
+    const used = usedOf(u, key);
+    const goal = u.target[key];
+    const whose = ownOf(u)[key] != null ? 'its own ' : 'the ';
+    part.append(
+      el('span', { class: 'meter', 'aria-hidden': 'true' },
+        el('i', { class: 'used', style: 'width: ' + Math.min(100, used || 0) + '%' }),
+        el('i', { class: 'mark', style: 'left: ' + goal + '%' })),
+      el('span', { class: 'num' }, (used == null ? 'to ' : Math.round(used) + '/') + goal + '%'));
+    said = a.name + ': ' + name.toLowerCase() + ' ' + (used == null ? 'not read yet' : pct(used)) + ' of ' + whose + goal + '% target' + (reached ? ', reached: it takes no new thread.' : '.');
+  }
+  return { part, said };
+}
+
+// Where one agent stands against its own target, in a sentence, for Settings.
+function agentStands(a) {
+  const u = a.usage;
+  if (u.cannotRead) return a.name + ' cannot read its usage, so it is not held to a target.';
+  const shown = shownLimit(u);
+  if (!u.read) return a.name + ' has not read its usage yet.';
+  if (!shown) return a.name + ' read ' + Object.keys(u.read.used).map((k) => (LIMITS.find(([x]) => x === k) || [k, k])[1].toLowerCase() + ' ' + pct(u.read.used[k])).join(', ') + ', with no target.';
+  const [key, name] = shown;
+  return a.name + ': ' + name.toLowerCase() + ' ' + (usedOf(u, key) == null ? 'not read' : pct(usedOf(u, key))) + ' of ' + u.target[key] + '%' + (u.reached.length ? ', reached: it takes no new thread.' : '.');
+}
+
 // In the header, Chat mode only: the limit's name, a meter of what is used with a tick at the
-// target, and the two numbers. With no target it is a button that says what it is for.
+// target, and the two numbers. With no target it is a button that says what it is for. Where more
+// than one agent has a usage of its own, a meter each, against its own target.
 function drawTarget(b) {
   const chip = document.getElementById('target');
   const chat = b.runner.builder === 'chat';
   chip.hidden = !chat;
   if (!chat) return closeTargets();
   const u = b.usage;
+  const several = usageAgents(b);
+  if (several.length > 1 || (several.length === 1 && several[0].name !== u.agent)) {
+    const parts = several.map(agentMeter);
+    const all = several.every((a) => a.usage.reached.length);
+    chip.className = 'target set several' + (all ? ' reached' : '');
+    chip.onclick = () => (targetsOpen ? closeTargets() : openTargets());
+    chip.replaceChildren(...parts.map((p) => p.part));
+    chip.title = parts.map((p) => p.said).join(' ') + ' Each agent reads its own plan before each thread. Click to change the target; each agent’s own is in Settings.';
+    chip.setAttribute('aria-label', 'Usage: ' + parts.map((p) => p.said).join(' '));
+    chip.setAttribute('aria-expanded', String(targetsOpen));
+    if (targetsOpen) fillTargets(u);
+    return;
+  }
   const shown = shownLimit(u);
   chip.className = 'target' + (shown ? ' set' : '') + (u.reached.length ? ' reached' : '');
   chip.onclick = () => (targetsOpen ? closeTargets() : openTargets());
@@ -1668,7 +1729,7 @@ function openTargets() {
   const shut = el('button', { class: 'shut', title: 'Close', 'aria-label': 'Close', onclick: closeTargets }, '×');
   box.replaceChildren(
     el('div', { class: 'head' }, el('h3', {}, 'Usage target'), shut),
-    el('p', { class: 'what' }, 'The chat that builds here works until your Claude plan’s usage reaches this, then takes no new thread.'),
+    el('p', { class: 'what' }, 'The chat that builds here works until your Claude plan’s usage reaches this, then takes no new thread. An agent with a target of its own, set in Settings, works up to that instead.'),
     ...LIMITS.map(([key, name]) => limitNode(key, name)),
     el('p', { class: 'foot' }));
   box.hidden = false;
@@ -1695,7 +1756,7 @@ function limitNode(key, name) {
     clearTimeout(targetWait[key]);
     const send = () => {
       targetSends = targetSends.then(() => {
-        const had = current ? current.usage.target[key] : undefined;
+        const had = current ? allOf(current.usage)[key] : undefined;
         if ((had == null ? null : had) === value) return;
         return post('target', { [key]: value }, value == null ? 'No ' + name.toLowerCase() + ' target.' : name + ' target: ' + value + '%. The chat works up to it.');
       });
@@ -1717,7 +1778,7 @@ function fillTargets(u) {
   for (const row of box.querySelectorAll('.limit')) {
     const key = row.dataset.limit;
     const [on, slide, num] = row.querySelectorAll('input');
-    const goal = u.target[key];
+    const goal = allOf(u)[key];
     const used = usedOf(u, key);
     const capped = key === 'fable' && u.fableCap != null;
     const reached = u.reached.includes(key) || capped;
@@ -2063,7 +2124,7 @@ function settingsSections() {
     const num = settingNumber(name + ' target, in percent', 1, 100, (n) => sendSetting('target', { [key]: n }, name + ' target: ' + n + '%.'));
     return settingRow(name + ' usage target', what, 'spool target --' + flag + ' 80', el('span', { class: 'unit' }, on, num, '%'), (b, row) => {
       const u = b.usage;
-      const goal = u.target[key];
+      const goal = allOf(u)[key];
       if (!leave(on)) on.checked = goal != null;
       num.disabled = goal == null;
       if (!leave(num)) num.value = String(goal != null ? goal : (Number(num.value) || TARGET_START));
@@ -2083,7 +2144,34 @@ function settingsSections() {
     if (!leave(when)) when.value = t ? clockOf(t.end) : '';
     row.querySelector('p').textContent = timeWhat + (t ? (t.passed ? ' Until ' + clockOf(t.end) + ': passed, so no new thread is taken.' : ' Until ' + clockOf(t.end) + ': ' + timeLeft(t.leftMinutes) + ' left.') : ' Not set.');
   });
-  const coming = el('p', { class: 'coming' }, 'Coming here as it is built: each agent’s usage limit.');
+  // Each agent's own target, a row each: its plan is its own. Empty, it works up to the one above.
+  const ownBox = el('div', { class: 'agents' });
+  const ownRow = settingRow('Each agent’s own target', 'An agent with a target of its own stops at it while the others keep going. Empty, it works up to the target above. Chat only.',
+    'spool target --agent Codex --weekly 50', ownBox, (b, row) => {
+      const list = settingsOf(b).agents.filter((a) => a.usage);
+      row.hidden = !list.length;
+      row.classList.toggle('dim', b.runner.builder !== 'chat');
+      const shape = JSON.stringify(list.map((a) => [a.name, ownOf(a.usage), allOf(b.usage)]));
+      if (ownBox.dataset.shape !== shape && !ownBox.contains(document.activeElement)) {
+        ownBox.dataset.shape = shape;
+        ownBox.replaceChildren(...list.map((a) => el('span', { class: 'count own', 'data-agent': a.name },
+          el('span', { class: 'name' }, a.name),
+          ...STOPS.map(([key, name]) => {
+            const box = el('input', { type: 'number', min: '1', max: '100', step: '1', inputmode: 'numeric', 'aria-label': a.name + '’s own ' + name.toLowerCase() + ' target, in percent; empty for the one for all',
+              title: name + ', its own. Empty: the target for all', placeholder: allOf(b.usage)[key] != null ? String(allOf(b.usage)[key]) : '–',
+              onchange: () => {
+                const n = box.value.trim() === '' ? null : Math.min(100, Math.max(1, Math.round(Number(box.value)) || 1));
+                box.value = n == null ? '' : String(n);
+                sendSetting('target', { agent: a.name, [key]: n }, n == null ? a.name + ' works up to the ' + name.toLowerCase() + ' target for all.' : a.name + '’s own ' + name.toLowerCase() + ' target: ' + n + '%.');
+              },
+              onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } } });
+            box.value = ownOf(a.usage)[key] != null ? String(ownOf(a.usage)[key]) : '';
+            return el('label', { class: 'unit' }, name, box, '%');
+          }))));
+      }
+      // Where each stands, in words, under the row's line.
+      row.querySelector('p').textContent = 'An agent with a target of its own stops at it while the others keep going. Empty, it works up to the target above. ' + list.map(agentStands).join(' ');
+    });
 
   // Notifications: each event, a switch.
   const noticeRows = NOTICES.map(([key, name]) => {
@@ -2104,7 +2192,7 @@ function settingsSections() {
 
   return [
     section('Building', who, offerRow, atOnce, sizeRow, leanRow, takeRow, afkRow, rebuildRow, quietRow, stopRow),
-    section('Usage', ...usageRows, timeRow, coming),
+    section('Usage', ...usageRows, timeRow, ownRow),
     section('Notifications', ...noticeRows, via),
     section('Replies & style', caveRow, quickRow),
   ];

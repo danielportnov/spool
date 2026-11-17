@@ -281,6 +281,9 @@ things, and nothing else. Questions about the spool, and steering it, are `/spoo
 Before it claims each thread it reads your plan's weekly and 5-hour usage with its own tool and
 reports it with `spool usage`, which says keep building or stop. Stopped, it claims nothing new and
 lets what is being built land. With no target it builds what is in Build, whatever the usage.
+Each agent on the spool reads its own plan and is held to its own target, where you set one for it
+(`spool target --agent Codex --weekly 50`, or in Settings): Codex stops at its line while Claude
+keeps going. One that cannot read its usage says so, and the header shows it.
 
 **Near the end it takes only what fits.** As the usage nears the target (or the plan's own limit,
 where none is set), the largest thread worth starting shrinks: by default up to M from 80% of the

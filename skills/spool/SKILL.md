@@ -63,7 +63,7 @@ the detail.**
 | "I don't need Spool here", "turn Spool back on" | `spool disable`, `spool enable`; `--all` for every project in this folder. Off, the queue is kept and every command refuses |
 | "build three at once", "one at a time" | `spool builder --at-once <n>` |
 | "take over the backlog", "stop taking over" | `spool takeover on`, `spool takeover off`. In Chat mode the chat then moves the top thread they filed to Build itself, up to the usage target |
-| "use up to 80% of my weekly usage", "stop at 90% of the 5-hour limit" | `spool target --weekly <n>`, `--five-hour <n>`; `none` takes one off. A chat building in Chat mode works up to it |
+| "use up to 80% of my weekly usage", "stop at 90% of the 5-hour limit", "Codex only to 50%" | `spool target --weekly <n>`, `--five-hour <n>`, with `--agent <name>` for one agent's own; `none` takes one off. A chat building in Chat mode works up to it |
 | "tell me when a thread starts", "stop notifying me when one is done" | `spool notify on started`, `spool notify off done`; `only <events>` for exactly those. `spool notify` lists them |
 | "what is this project for", "the goal has changed" | `spool goals`; `spool goals --edit -` with their words |
 | "where is this heading", "how is the sprint going" | The Roadmap on the board: its address, then `?view=roadmap`. A sprint that is reached has its review there, `?review=<r-id>`: send them to it, and do not walk its threads in the chat |

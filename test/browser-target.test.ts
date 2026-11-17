@@ -112,3 +112,61 @@ test('in Chat mode the header holds the usage target: a slider and a number, aga
     s.cleanup();
   }
 });
+
+test('with two agents reading their own plans, the header shows a meter each against its own target, and Settings sets each one', async (t) => {
+  let browser: Browser;
+  try {
+    browser = await openChrome();
+  } catch {
+    t.skip('no Chrome on this machine to drive');
+    return;
+  }
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop');
+  s.id('task', 'Tighten the jump arc', '-s', 's');
+  s.exec(['builder', 'chat'], { tty: true });
+  s.sp('target', '--weekly', '80');
+  s.sp('usage', '--weekly', '66', '--as', 'Claude Opus 5.5');
+  const { url, stop } = await startPage(s);
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const problems: string[] = [];
+  page.on('pageerror', (error) => problems.push(String(error)));
+  const chip = page.locator('#target');
+  try {
+    await page.goto(url);
+    await chip.waitFor();
+    // One agent read: the header is as it always was.
+    assert.equal(await chip.locator('.agent').count(), 0);
+
+    // Codex reads its own plan, and has a target of its own: a meter each, Codex's past its line.
+    s.sp('target', '--agent', 'Codex', '--weekly', '50');
+    s.sp('usage', '--weekly', '52', '--as', 'Codex GPT-6');
+    await until('a meter for each agent', async () => (await chip.locator('.agent').count()) === 2);
+    assert.match(await chip.innerText(), /Claude\s*66\/80%\s*Codex\s*52\/50%/);
+    assert.equal(await chip.locator('.agent.reached').innerText().then((x) => x.split(/\s/)[0]), 'Codex');
+    assert.match((await chip.getAttribute('title'))!, /Codex: weekly 52% of its own 50% target, reached/);
+    await shot(page, 'agent-targets-header');
+
+    // One that cannot read its usage says so.
+    s.sp('usage', '--cannot-read', '--as', 'Codex GPT-6');
+    await until('Codex says it cannot read', async () => /Codex\s*can’t read/.test(await chip.innerText()));
+
+    // Settings: each agent's own target, and empty gives it the one for all again.
+    await page.locator('#gear').click();
+    const codex = page.locator('#settings .count.own[data-agent="Codex"]');
+    const weekly = codex.getByLabel('Codex’s own weekly target, in percent; empty for the one for all');
+    assert.equal(await weekly.inputValue(), '50');
+    await weekly.fill('40');
+    await page.keyboard.press('Enter');
+    await until('Codex is held to 40%', () => s.json('target', '--agent', 'Codex').own.weekly === 40);
+    await weekly.fill('');
+    await page.keyboard.press('Enter');
+    await until('Codex takes the one for all', () => s.json('target', '--agent', 'Codex').own.weekly === undefined);
+    assert.match(await page.locator('#settings').innerText(), /Codex cannot read its usage, so it is not held to a target\./);
+    assert.deepEqual(problems, []);
+  } finally {
+    await browser.close();
+    await stop();
+    s.cleanup();
+  }
+});

@@ -77,6 +77,13 @@ export const CSS = String.raw`  :root {
   .target .num.time { font-weight: 500; color: var(--soft); }
   .target .num.time.near, .target .num.time.up { font-weight: 600; color: var(--warn); }
   .target.reached { color: var(--warn); border-color: var(--warn); }
+  .target .agent { display: inline-flex; align-items: center; gap: 6px; }
+  .target .agent + .agent { padding-left: 8px; border-left: 1px solid var(--line); }
+  .target .agent .who { font-weight: 500; }
+  .target .agent .meter { width: 40px; }
+  .target .num.none { font-weight: 500; color: var(--soft); }
+  .target .agent.reached { color: var(--warn); }
+  .target .agent.reached .meter .used { background: var(--warn); }
   .target.reached .meter .used { background: var(--warn); }
   .target[aria-expanded="true"] { border-color: var(--soft); background: var(--bg); }
   #targets { position: absolute; z-index: 3; top: calc(100% + 6px); right: 20px; width: 360px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); padding: 12px 16px 14px; }
@@ -316,6 +323,8 @@ export const CSS = String.raw`  :root {
   #settings .count { display: inline-flex; align-items: center; gap: 6px; }
   #settings .count .name { min-width: 64px; text-align: right; color: var(--soft); font-size: 13px; }
   #settings .count button { width: 26px; height: 26px; padding: 0; }
+  #settings .count.own .unit { gap: 4px; font-size: 12px; }
+  #settings .count.own input { width: 48px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
   #settings .count .n { min-width: 18px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
   #settings .coming { margin: 0; padding: 8px 0 0; border-top: 1px solid var(--line); font-size: 12px; color: var(--soft); font-style: italic; }
   #settings .coming.via { font-style: normal; }

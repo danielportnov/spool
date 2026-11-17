@@ -60,8 +60,10 @@ those comments are the detail.
   it out.
 - `usage.ts` is the usage target: `spool target`, how much of their Claude plan the human wants a
   chat in Chat mode to use, kept in their own settings; and `spool usage`, the plan's usage that
-  chat read and reported before a thread, kept beside it in `usage.json`. `usageOf` is both, and
-  which limits are reached, for the board's header.
+  chat read and reported before a thread, kept beside it in `usage.json`. Each roster agent has its
+  own reading and may have its own target (`agentTargets`), the old one being the one for all.
+  `usageOf(ctx, agent)` is one agent's target, reading and which limits are reached, for the
+  header, claims (`refuseOverTarget`) and taking over.
 - `until.ts` is the time to work: `spool until` and `spool for`, the end the human set, kept in their
   own settings. `timeOf` is where it stands now: the minutes left and the share of the window gone,
   which `headroomOf` in `usage.ts` reads as one more budget, so claims, `spool next`, `spool usage`

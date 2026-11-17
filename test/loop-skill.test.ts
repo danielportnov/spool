@@ -37,10 +37,11 @@ test('the loop skill has one job: make this chat the builder', () => {
   assert.doesNotMatch(loop, /\| They say \| Run \||## Show the spool|## Put the spool in order|spool overview/);
   assert.match(flat, /\*\*The worker's rules are not in this skill\.\*\* `spool prime worker` prints them, and whoever builds a thread reads them first: you, or each subagent\./);
   // Up to their usage target: read before each thread, reported, and a stop is a stop.
-  assert.match(flat, /\*\*Up to their usage target,\*\* where they set one on the board \(`spool target` says\)\. Before you claim each thread, read the plan's usage with your harness's tool \(`get_usage` in the Claude app\) and report it: `spool usage --weekly <n> --five-hour <n> --fable <n>` \(Fable's own weekly figure, where your tool shows one\)\. It says keep building, or stop: then claim nothing new, let what is building land, and notify them once \(`budget`\)\. Near the end it says so: say a line on any thread passed by, and tell building subagents to finish and land, or hand off\. No usage tool\? Say so once, and build as if no target were set\./);
+  assert.match(flat, /\*\*Up to their usage target,\*\* where they set one on the board \(`spool target` says\)\. Before you claim each thread, read the plan's usage with your harness's tool \(`get_usage` in the Claude app\) and report it: `spool usage --weekly <n> --five-hour <n> --fable <n> --as "<your model>"` \(Fable's own weekly figure, where your tool shows one\)\. It says keep building, or stop: then claim nothing new, let what is building land, and notify them once \(`budget`\)\. Near the end it says so: say a line on any thread passed by, and tell building subagents to finish and land, or hand off\. Each agent reads its own plan, signed with its name, and is held to its own target\. No usage tool\? `spool usage --cannot-read --as "<your model>"`, so the board says so, and build as if no target were set\./);
   // Short enough to be read every time: it was 553 lines, and grew six for the usage target, 29 for questions asked in the chat, two for the model,
-  // nine for taking over, ten for the notifications the human picks, one for Clean Up on the board, and one for AFK.
-  assert.ok(loop.trimEnd().split('\n').length <= 185, `${loop.trimEnd().split('\n').length} lines`);
+  // nine for taking over, ten for the notifications the human picks, one for Clean Up on the board, one for AFK,
+  // and one for each agent's own usage target.
+  assert.ok(loop.trimEnd().split('\n').length <= 186, `${loop.trimEnd().split('\n').length} lines`);
 });
 
 test('the loop watches the spool, and falls back to one scheduled job', () => {
