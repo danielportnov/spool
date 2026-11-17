@@ -511,4 +511,4 @@ Want to fix something? Start with [CONTRIBUTING](CONTRIBUTING.md) and [a tour of
 
 ## License
 
-MIT
+MIT. To report a security problem, see [SECURITY](SECURITY.md).
