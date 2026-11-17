@@ -137,6 +137,8 @@ export interface UserConfig {
   rebuild?: boolean;
   /** `true` where the page offers Headless as a pick; greyed out otherwise. See settings.ts. */
   offerHeadless?: boolean;
+  /** The mode on: what it set, and what was there before it, for `spool mode off`. See modes.ts. */
+  mode?: { name: string; label: string; root: string; at: string; set: Record<string, unknown>; before: Record<string, unknown> };
 }
 
 export function cavemanOf(ctx: Ctx): boolean {

@@ -22,6 +22,7 @@ import { HARNESSES, describe, harness, installFor, installedAnywhere, others } f
 import { spawnSync } from 'node:child_process';
 import { type Ctx, afkOf, builderOf, cavemanOf, notify, saveUserConfig, userConfig } from './context.ts';
 import { settingsCommand } from './settings.ts';
+import { modeCommand } from './modes.ts';
 import { doctor } from './doctor.ts';
 import { GOALS_STARTER, goalsFile, goalsOf, goalsText } from './goals.ts';
 import { isReverted, repoRoot, resolveCommit, trailerCommits } from './git.ts';
@@ -1362,6 +1363,19 @@ export const COMMANDS: Command[] = [
           : 'AFK is off. Agents ask you as usual.',
         data: { afk: on },
       };
+    },
+  },
+  {
+    name: 'mode',
+    group: 'you',
+    usage: 'mode [<name> | off] [-P <project>]',
+    summary:
+      'Put a mode on: a named set of the switches there are (AFK, take-over, time to work, usage target, lean, threads at once, caveman, notifications), all moved at once, and says what changed. off puts back what was there before. With nothing after it, says which mode is on, "changed" where a switch was moved by hand since, or your own settings. A mode that switches AFK or take-over on is yours where the gate is locked',
+    human: true,
+    options: { ...PROJECT },
+    run(call) {
+      const spool = str(call.opts.project) ? call.ws.project(str(call.opts.project)) : call.ws.home;
+      return modeCommand({ call, spool, guard: (verb) => byTheHuman(call, verb === 'afk on' ? call.ws.spools : [spool], verb) }, call.args);
     },
   },
   {
