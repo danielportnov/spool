@@ -279,6 +279,7 @@ test('landing stamps each commit with its thread, agent and model, keeps what wa
     'what a commit already said is kept, and not said twice',
   );
   assert.equal(s.git('log', '--format=%an <%ae> %at', `${base}..HEAD`), authors, 'the author is untouched');
+
   assert.deepEqual([...done.task.commits].sort(), s.git('rev-list', `${base}..HEAD`).split('\n').sort(), 'the stamped commits are the ones on record');
   s.cleanup();
 });
@@ -303,6 +304,15 @@ test('stamping again after a refused landing doubles nothing, and a run handed t
       `${subject}\n\nSpool: ${id}\nSpool-Agent: Claude Sonnet 5.5\nSpool-Model: claude-sonnet-5-5`,
     );
   }
+
+  // A claim that says what builds it is believed over what the size would give.
+  const next = s.id('task', 'Soften the jump');
+  s.sp('--as', 'Claude Opus 5.5', 'start', next, '--worktree', '--model', 'claude-haiku-5');
+  const n = s.cd(`.spool/worktrees/${next}`);
+  n.write('soft.txt', 'soft\n');
+  n.commitAll('Soften the jump');
+  n.sp('--as', 'Claude Opus 5.5', 'done', next, '-m', 'Softer');
+  assert.match(s.git('log', '-1', '--format=%B'), new RegExp(`\\nSpool: ${next}\\nSpool-Agent: Claude Opus 5\\.5\\nSpool-Model: claude-haiku-5$`));
   s.cleanup();
 });
 

@@ -335,7 +335,8 @@ its commits gets the lines it lacks of
 
 whatever agent built it, Claude, Codex or the page's own. The agent is the `--as` name that
 finished it, or claimed it. The model is the one the page or the loop started it on, or the one its
-claim named for a chat's subagent, and is left out where Spool does not know it. A line already
+claim named for a chat's subagent (its `--model`, or else the model the brief said to start it on),
+and is left out where Spool does not know it. A line already
 there is kept, and not added twice; the author and committer stay yours. Those commits are on the
 thread's own branch until then, so nothing that was shared is rewritten. A thread built in the
 project's own folder is not stamped: its commits may already be pushed, so `spool done` only says

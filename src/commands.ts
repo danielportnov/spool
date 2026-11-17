@@ -336,8 +336,8 @@ function beforeDone(call: Bare): Finishing | undefined {
   if (task.worktree) {
     // What the command is about to refuse is left for it to refuse, before anything is landed.
     if (isClosed(task) || task.status === 'proposed' || !summaryOf(call)) return undefined;
-    // Git itself is told whose work it is: the one finishing it, or the one who claimed it where that is only "agent".
-    const agent = [call.actor, task.by].find((who) => who && who !== 'agent');
+    // Git itself is told whose work it is: the one finishing it, or the one who claimed it where that is only Spool's own name.
+    const agent = [call.actor, task.by].find((who) => who && !['agent', 'page', 'loop'].includes(who));
     const landing = land(task, (cwd) => (command ? runCheck(ctx, command, cwd) : undefined), landingTrailers(task.id, agent, ranOn(task)));
     return { checked: landing.checked, landing };
   }
