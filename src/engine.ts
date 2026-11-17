@@ -45,15 +45,16 @@ import { type Ask, SESSION_ID, asking, inSession, keeps, listening, listens, ses
 import { closeWorktree, openWorktree, workDir } from './worktree.ts';
 
 /** Whether the last claim on a thread was a page handing it to an agent, not someone starting it. */
-function handedByPage(task: Item): boolean {
-  const claims = splitBody(task.body).log.filter((line) => /^- \S+ \S+ (page: handed to |[^:]+: (started|picked up after))/.test(line));
+export function handedByPage(task: Item): boolean {
+  // Opened in Claude Code (`spool open`), it is the human's, not a page's, until they give it back.
+  const claims = splitBody(task.body).log.filter((line) => /^- \S+ \S+ (page: handed to |[^:]+: (started|picked up after|opened in Claude Code))/.test(line));
   return / page: handed to /.test(claims.at(-1) ?? '');
 }
 
 /** A log line that says how a thread came to wait in Build, or that someone took it from there. */
 const STANDS = /^(moved to build|released from hold|reverted |started$|picked up after |handed to |agent .* without finishing|.*; back in build$)/;
 /** The human stopping a thread that was being built: Stop on the page, or the thread moved back to Build. */
-const STOP = /^stopped (from the page|while .* was building it); back in build$/;
+const STOP = /^stopped (from the page|while .* was building it|in Claude Code); back in build$/;
 
 /**
  * Whether the human stopped this thread while it was being built, and has not set it going
@@ -102,9 +103,14 @@ const ASK_WAIT_MS = 10 * 60_000;
 const GO_ON = 'Do not look for another way to do the same thing. If the thread cannot be finished without it, say what you need with `spool ask`, and stop.';
 
 /** How a page's run of a thread ended with the thread put back in Build: by the line that put it back. */
-type Left = 'stopped' | 'unfinished' | 'cut off';
+type Left = 'stopped' | 'unfinished' | 'cut off' | 'handed back';
+/** How `spool open` puts a thread back in Build for its agent, once the human has quit Claude Code. */
+export const HANDED_BACK = 'handed back from Claude Code; back in build';
+/** How `spool open` puts a thread back in Build for the human to carry on with later. */
+export const STOPPED_OPEN = 'stopped in Claude Code; back in build';
 const LEFT: [RegExp, Left][] = [
   [STOP, 'stopped'],
+  [/^handed back from Claude Code; back in build$/, 'handed back'],
   [/^agent .* without finishing; back in build$/, 'unfinished'],
   [/^(the page was stopped|its page had stopped with nobody working it); back in build$/, 'cut off'],
 ];
@@ -128,7 +134,7 @@ export function leftOff(task: Item): { session: string; how: Left } | undefined 
  * The Claude session a thread's last run by a page was in, or nothing: as its agent said it, or,
  * where the run was cut short before the agent said anything, as the hand-off put it.
  */
-function sessionRan(log: string[]): string {
+export function sessionRan(log: string[]): string {
   const ran = runOf(log);
   if (!ran) return '';
   const handed = log.map((line) => /^- \S+ \S+ .+?: handed to `(.*)`$/.exec(line)?.[1]).findLast(Boolean) ?? '';
@@ -152,6 +158,7 @@ function carryOn(task: Item, how: Left, notes: Item[], heard: boolean): string {
     stopped: 'The human stopped you, and has now set you going again.',
     unfinished: 'Your last run ended with the thread neither finished nor waiting on a question.',
     'cut off': 'Spool was stopped while you were working, and is back.',
+    'handed back': 'The human opened this session in Claude Code and worked in it with you, and has now handed the thread back to you to finish.',
   }[how];
   const said = notes.map((note) => splitBody(note.body).main.split('\n').map((line) => `> ${line}`.trimEnd()).join('\n'));
   return `${[
@@ -945,7 +952,8 @@ export class Runner {
           if (!chat.has(t.spool.root)) chat.set(t.spool.root, builderOf(this.ctx, t.spool.root) === 'chat');
           return chat.get(t.spool.root)!;
         };
-        const waiting = ready(ws, this.project).filter((t) => !this.runs.has(t.id) && !chatBuilds(t));
+        // Nor one another page, or the human in Claude Code (`spool open`), has an agent on.
+        const waiting = ready(ws, this.project).filter((t) => !this.runs.has(t.id) && !chatBuilds(t) && !pageRunning(t.id));
         // What was dragged into Building and still waits comes first; the rest of Build follows, top first.
         this.first = this.first.filter((id) => waiting.some((t) => t.id === id));
         // A project whose threads would share its folder, with an agent at work there already: the rest of it waits.

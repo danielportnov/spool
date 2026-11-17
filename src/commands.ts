@@ -11,6 +11,7 @@ import type { ParseArgsConfig } from 'node:util';
 import { agentsCommand } from './agents-switch.ts';
 import { ATTACH } from './attach.ts';
 import { HANDOFF, handedToOther, handoffOf } from './handoff.ts';
+import { OPEN } from './open.ts';
 import { ADOPT, strayFixes, strayLines, straysOf } from './strays.ts';
 import { builderCommand } from './builder.ts';
 import { refuseOutsideSizes, refuseOverCount, rosterAgent, rosterOf, routingFor, withinSizes } from './roster.ts';
@@ -1641,6 +1642,7 @@ export const COMMANDS: Command[] = [
   ATTACH,
   ADOPT,
   HANDOFF,
+  OPEN,
   {
     name: 'ask',
     group: 'agents',
