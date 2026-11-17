@@ -342,6 +342,24 @@ thread's own branch until then, so nothing that was shared is rewritten. A threa
 project's own folder is not stamped: its commits may already be pushed, so `spool done` only says
 so, and its hand-written `Spool:` line is the link.
 
+**A note says it in words.** `.spool/` stays off git, so a clone of the repo sees only the ids in
+those lines. As `spool done` lands a thread, each of its commits also gets a git note, under
+`refs/notes/spool`, built from the same record as `spool why`:
+
+    Spool t-4kq7: Show the short trail on the map
+    State: done · version 0.8.0
+    Built by: Claude Fable 5.2 · opus
+    Call d-9xq2: Line style? → dashed (assumed)
+
+It holds the thread's title, where it stands, who built it on what, and its calls with what was
+chosen: never your own words, the activity, summaries, transcripts, or anything under `.spool/`.
+Undoing the thread or putting it back rewrites the note, on its commits and on the commit that did
+it. A commit on two threads keeps a part for each. `spool notes --backfill` writes them for threads
+landed before; run again, it changes nothing. `spool notes <t-id>` shows what a thread's say.
+
+The notes stay on your machine: git does not push notes unless told to. Pushing them publishes the
+titles and calls, so it is your call, and `spool doctor` says how: `git push origin refs/notes/spool`.
+
 **What shipped gets a version.** At the end of a run that shipped something: a bump in the
 project's own version file (minor for something new, patch for fixes; a major is your call), a
 `CHANGELOG.md` entry, a commit, and a tag that stays on your machine. Each thread is stamped with
@@ -916,6 +934,7 @@ ones marked 🔒:
 | `spool approve <id…>` | Accept a call, finished work or a new skill; give a plan its go-ahead |
 | `spool history <id \| policy \| config \| goals>` · `undo <entry>` | Every edit to an item or a project file, newest first, with who and the lines it changed; undo one, if nothing has changed the file since. An entry with effects beyond the file (a switch, commits, a claim) names the command that takes it back instead |
 | `spool why <commit \| file:line \| thread>` | See what led to a change, from the original feedback through the calls, commits and reverts. File paths are relative to your current folder and line numbers refer to HEAD |
+| `spool notes [<t-id>] [--backfill]` | The git notes that carry each landed commit's thread, calls and builder: how many there are, what one thread's say, or `--backfill` to write them for threads landed before. They stay on your machine; `git push origin refs/notes/spool` publishes them, and is your call |
 | `spool revert <t-id> [-m why] [--now] [--with-later]` | Undo a thread's commits and put it back in the backlog with your reason, for you to move to Build (`--now`: straight back to Build). Where later threads changed the same lines, it names them; `--with-later` undoes them too, in the same commit, and puts them in the backlog. The reason is kept as a lesson every agent reads first. Given a run's thread, it puts back every item the run changed and touches no code |
 | `spool goals [--edit <text> \| -]` | Where the project is going: what it is for and the two or three things it is heading towards, as every agent reads it first (kept in `.spool/goals.md`); `--edit` replaces it |
 | `spool lessons [--drop <n>]` | What you undid and why, newest first, as agents read it (kept in `.spool/policy.md`, yours to edit); `--drop` forgets one |
