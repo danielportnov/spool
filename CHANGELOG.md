@@ -2,6 +2,23 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.22.0 · 2026-11-16
+
+- The chat takes over the backlog: in Chat mode a **Take over** switch in the board's header (or
+  `spool takeover on`) lets the chat that builds move threads you filed to Build itself, top first,
+  one at a time, while the usage is under your target. Never an AI-suggested one, one on hold or
+  one waiting on a question. Each says so on its thread and in the brief, and `spool revert` takes
+  it back. The switch opens a menu of its settings.
+- Caveman mode: `spool caveman on` and Spool answers in the fewest words, in every project, until
+  `spool caveman off`. Saying "caveman" in a message does it for that reply alone.
+- Ideation: say "come up with ideas" and `spool ideate` hands the agent a worksheet of the goals,
+  what shipped, the open threads and your notes; it files up to five new ideas as AI suggested, none
+  repeating a thread already there. The loop's own ideas come from the same worksheet.
+- Notification settings: pick what tells you from the bell on the board, or `spool notify`: a thread
+  started, a thread done, a question, a sprint finished, Build empty, an agent stuck, the budget
+  reached. In Chat mode each is one line in the Claude app; Headless runs your notifier for the
+  same picks. By default, questions, Build empty, stuck and the budget.
+
 ## 0.21.0 · 2026-11-16
 
 - Questions are asked on their thread alone: the board's brief, the Waiting on you strip and the
