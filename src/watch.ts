@@ -3,7 +3,7 @@
  *
  * `spool watch` stays up and prints one line whenever something the loop
  * should act on changes: a thread that can now be built (moved to build on the
- * page, or freed by an answer), words the human added to a thread, a question
+ * page, or freed by an answer), words, a picture or a file the human added to a thread, a question
  * an agent has just put to the human, or a note nobody has filed. It prints
  * nothing else, so every line is worth waking for.
  *
@@ -23,12 +23,15 @@ import { dependents, ready, tasks } from './schedule.ts';
 import type { Ctx } from './context.ts';
 import { Workspace } from './store.ts';
 import { takeOverOf } from './takeover.ts';
+import { picturesOf } from './pictures.ts';
 
 interface Seen {
   /** Threads that could be claimed right now. */
   ready: Map<string, string>;
   /** For each open thread, the notes of the human's that are on it. */
   said: Map<string, Set<string>>;
+  /** For each open thread, the pictures and files the human added to it, each with the line that tells of it. */
+  added?: Map<string, Map<string, string>>;
   /** Notes nobody has filed. */
   inbox: Set<string>;
   /** Questions waiting on the human, each with the line that tells of it. */
@@ -111,6 +114,7 @@ function look(
       seen: {
         ready: new Map(ready(ws, project).map((t) => [t.id, oneLine(t.title, 90)])),
         said: new Map(open.map((t) => [t.id, new Set(t.from.filter((id) => notes.has(id)))])),
+        added: new Map(open.map((t) => [t.id, addedBy(t)])),
         inbox: new Set(ws.items.filter((i) => i.kind === 'note' && i.status === 'new').map((n) => n.id)),
         asks: new Map(questions.map((d) => [d.id, asked(ws, d)])),
         takeOver: new Set((spool ? [spool] : ws.spools).filter((s) => takeOverOf(ctx, s.root)).map((s) => s.name)),
@@ -124,6 +128,20 @@ function look(
   }
 }
 
+/**
+ * What the human added to a thread from the page or the command line, by name, each as the reply it
+ * is: with its path, so the chat that builds opens it. An agent's own, and a before or an after, are not news.
+ */
+function addedBy(t: Item): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const k of picturesOf(t)) {
+    if (k.by !== 'human' || k.as) continue;
+    const what = k.kind === 'picture' ? 'a picture' : 'a file';
+    out.set(k.name, `${what}: ${k.path}${k.caption ? ` "${oneLine(k.caption, 140)}"` : ''}`);
+  }
+  return out;
+}
+
 /** What changed between two looks, as the lines to print. Only gains are news: the loop needs no telling that work went away. Unfiled notes are not here: `watch` holds them back a moment. */
 export function changes(before: Seen, after: Seen, text: (note: string) => string, title: (id: string) => string): string[] {
   const out: string[] = [];
@@ -133,6 +151,11 @@ export function changes(before: Seen, after: Seen, text: (note: string) => strin
     // A thread that is new arrives with its first words; those are the thread, not a reply on it.
     if (!had) continue;
     for (const note of notes) if (!had.has(note)) out.push(`reply: ${id} ${title(id)} — "${text(note)}"`);
+  }
+  for (const [id, added] of after.added ?? []) {
+    const had = before.added?.get(id);
+    if (!had) continue;
+    for (const [name, line] of added) if (!had.has(name)) out.push(`reply: ${id} ${title(id)} — added ${line}`);
   }
   // A question is news once, as it is asked. One answered or dropped goes without a word.
   for (const [id, line] of after.asks) if (!before.asks.has(id)) out.push(line);

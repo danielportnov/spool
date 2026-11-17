@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { test } from 'node:test';
 import { CLI, Sandbox, gone, pause, until as untilThat, watchUp } from './helpers.ts';
+import { png } from './pictures-helpers.ts';
 
 /** Start the real watcher and collect what it prints. */
 function startWatch(s: Sandbox): { child: ChildProcess; lines: string[]; until: (n: number) => Promise<void> } {
@@ -119,4 +122,34 @@ test('the watcher says so where there is no spool, and checks its interval', () 
   s.sp('init');
   assert.match(s.fails('watch', '--interval', '5'), /--interval is in milliseconds, 20 or more/);
   s.cleanup();
+});
+
+test('a picture or a file the human adds to an open thread wakes the chat with its path; not what an agent adds', async () => {
+  const s = new Sandbox();
+  s.sp('init', '--name', 'skyhop');
+  const coins = s.id('task', 'Make coins readable at sunset', '-s', 'xs');
+  s.sp('build', coins);
+  fs.writeFileSync(path.join(s.root, 'shot.png'), png());
+  s.write('crash.log', 'TypeError: coin is undefined');
+  const { child, lines, until } = startWatch(s);
+  try {
+    await watchUp(child.pid);
+    await settle();
+    s.sp('attach', coins, 'shot.png', '-m', 'see how they vanish', '--as', 'human');
+    await until(1);
+    const folder = path.join(s.root, '.spool', 'runs', coins, 'files');
+    assert.equal(lines[0], `reply: ${coins} Make coins readable at sunset — added a picture: ${path.join(folder, '1.png')} "see how they vanish"`);
+    s.sp('attach', coins, 'crash.log', '--as', 'human');
+    await until(2);
+    assert.equal(lines[1], `reply: ${coins} Make coins readable at sunset — added a file: ${path.join(folder, '2.crash.log')}`);
+    // An agent's proof, or a picture it keeps, is its own doing.
+    s.exec(['attach', coins, 'shot.png', '--as', 'before'], { env: { SPOOL_ACTOR: 'Claude' } });
+    s.sp('attach', coins, 'shot.png', '--as', 'Claude');
+    await settle();
+    assert.equal(lines.length, 2);
+  } finally {
+    child.kill();
+    await gone(child);
+    s.cleanup();
+  }
 });
