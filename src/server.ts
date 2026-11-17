@@ -96,7 +96,7 @@ function moveThread(ctx: Ctx, runner: Runner, id: string, to: string, who: Who):
       return built;
     }
     if (from === 'done') {
-      const reverted = act(ctx, ['revert', id, '--message=moved back to build on the page']);
+      const reverted = act(ctx, ['revert', id, '--now', '--message=moved back to build on the page']);
       return reverted.ok ? { ...reverted, text: `Undone, and back in build: ${title}` } : reverted;
     }
     const stopped = act(ctx, ['build', '--abort', id]);
@@ -106,7 +106,7 @@ function moveThread(ctx: Ctx, runner: Runner, id: string, to: string, who: Who):
 
   if (to === 'building') {
     if (from === 'done') {
-      const reverted = act(ctx, ['revert', id, '--message=moved back to building on the page']);
+      const reverted = act(ctx, ['revert', id, '--now', '--message=moved back to building on the page']);
       if (!reverted.ok) return reverted;
     }
     if (from === 'proposed') {
