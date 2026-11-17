@@ -34,7 +34,7 @@ function sayWho(name: string, builder: Builder, n: number, shared: string, targe
   const takes = takeOver ? ' It takes over the backlog: with Build empty and the usage under the target, spool build --takeover moves the next thread to Build.' : '';
   // Each agent on the roster builds up to its own count; the line under it names them, and what each is on.
   const tables = agents.map((a) => `\n  ${a.name}, leaning ${a.lean}: ${tableLine(a)}`).join('');
-  const who = `\nAgents: ${rosterLine(agents)}. Set one: spool builder --agent <name> --at-once <n> [--sizes xs-m] [--lean usage|balanced|development]${tables}`;
+  const who = `\nAgents: ${rosterLine(agents)}. Set one: spool builder --agent <name> --at-once <n> [--sizes xs-m] [--lean <stop>]${tables}`;
   if (builder === 'chat') return `A chat builds ${name}: say /spool-loop in a Claude Code chat there. The page starts no agents. The chat builds ${atOnce}.${upTo}${takes}${who}`;
   return `The page builds ${name}, headless, ${atOnce}. Switch its Agents on to start.`;
 }

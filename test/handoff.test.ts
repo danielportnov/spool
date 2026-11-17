@@ -70,7 +70,7 @@ test('handed off to a smaller model, the next claim is built on it, and it is no
     // A second hand-off, with --to left off: anyone may take it, and the next claim goes by its size, not one up.
     s.sp('handoff', t, '-m', 'still half tidied', '--as', 'Claude Opus 5.5');
     const again = s.json('start', t, '--as', 'Codex GPT-6');
-    assert.equal(again.model.model, 'opus');
+    assert.equal(again.model.model, 'gpt-6.1-sol', 'Codex goes by its own size table');
     assert.match(again.model.why, /by its size/);
   } finally {
     s.cleanup();
