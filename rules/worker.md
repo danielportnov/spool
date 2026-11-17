@@ -140,6 +140,8 @@ recommendation, the reason.
 ### Along the way
 
 - `spool log <id> "<fact>"` records anything the next agent can't learn from the code.
+- A commit of yours landed with no `Spool:` trailer? `spool adopt <sha> --for <id>` puts it on the
+  thread, so it is undone with it. `spool status` names what landed on no thread.
 - Found something out of scope? `spool task "<title>" --size <size>`. Queue it, don't wander.
 - Cannot finish? Then you need something. Say what with `spool ask … --for <id>`,
   so the thread waits on the answer instead of on you.
@@ -198,9 +200,14 @@ Handed one thread and nothing more? Then only a sprint reached is yours to cut.
    human's terms. For a sprint, lead with its name and goal, then its threads. `git log <last tag>..HEAD` shows what shipped, yours and
    anyone else's.
 4. **Commit and tag.** One commit, `Version <x.y.z>`, holding only the version
-   and the changelog; then `git tag -a v<x.y.z> -m "<x.y.z>"`, in the style of
-   the tags already there. No `Spool:` trailer: a version is not a thread, and
-   undoing a thread never takes a version back.
+   and the changelog, its message ending with the trailer
+
+       Spool-Version: <x.y.z>
+
+   then `git tag -a v<x.y.z> -m "<x.y.z>"`, in the style of the tags already
+   there. No `Spool:` trailer: a version is not a thread, and undoing a thread
+   never takes a version back. `Spool-Version:` says it is on no thread by
+   design, so `spool status` does not list it with the work that landed on none.
 5. **Stamp the threads.** `spool edit <t-id> --version <x.y.z>` on each thread
    that shipped in it, so the page shows what went into which version. For a
    sprint, `spool edit <r-id> --version <x.y.z>` does it in one: the sprint

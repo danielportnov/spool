@@ -147,6 +147,12 @@ those comments are the detail.
   and drop write the bytes to a file and run that command. On the page, `client/pictures.js.ts`
   and `pictures.css.ts` draw them.
 
+- `strays.ts` finds work that landed on no thread: commits on the branch with no `Spool:` or
+  `Spool-Revert:` trailer and in no thread's `commits:`, back to the oldest commit on a thread,
+  version commits (`Spool-Version:`, or titled `Version x.y.z`) set apart, and untracked files
+  outside the harness and editor folders. `spool status`, the brief and `spool doctor` print it;
+  `ADOPT` is `spool adopt`, which adds a commit to a thread's `commits:`.
+
 **Agents and models**
 
 - `agent.ts` decides which model works a thread and at what effort. `pickFor` takes the human's

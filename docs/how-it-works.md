@@ -311,6 +311,15 @@ there and on the page, and a group's numbers can skip.
 That is how `spool revert t-4kq7` finds exactly that thread's work and undoes all of it, and
 nothing else. It never touches `.spool/`; if a later change conflicts, nothing is undone at all.
 
+**Work on no thread is named.** A commit with no `Spool:` trailer, listed by no thread, has
+nothing to undo it by or say why it is there. `spool status`, the brief and `spool doctor` name the
+newest few, with a count for the rest, and `spool adopt <sha> --for <t-id>` puts one on the thread
+it belongs to. They look no further back than the oldest commit already on a thread. A version
+commit is on no thread by design: it ends with `Spool-Version: <x.y.z>`, and one titled
+`Version x.y.z` without it is taken as one too. Files in the project folder that git does not
+know about, and does not ignore, are named the same way; the folders an agent harness or an editor
+keeps its own settings in (`.claude/`, `.codex/`, `.cursor/`, `.vscode/` and the like) are left out.
+
 **Agents sign their work**: `--as "Claude Fable 5.2"` on the commands they run, so a ticket says
 who built it.
 
@@ -872,6 +881,7 @@ ones marked 🔒:
 | `spool file <n-id> --into <id>` | Attach a note to a thread, or set it aside |
 | `spool next [--claim]` · `start <t-id>` | The next thread in Build with its brief; claim it. `--worktree` gives it a git worktree of its own |
 | `spool log <id> <fact>` | Leave a note for whoever comes next |
+| `spool adopt <sha…> --for <t-id>` | Put a commit that landed on no thread on the thread it belongs to: it joins the thread's commits, so `spool revert` takes it back with the rest, and the thread's log says so. Refused for a commit on a thread already, or not on this branch |
 | `spool attach <t-id> <file…> [--as before\|after] [-m caption]` | Keep a picture or a file with a thread: a PNG, JPEG, GIF or WebP picture or a PDF, told by its bytes, or plain text (`.txt .md .csv .json .log`, UTF-8), 5 MB and 20 a thread at most. A file keeps its own name after Spool's number, and text is only ever served as plain text. It is copied into `.spool/runs/<id>/files/` under a name Spool gives, a line on the thread's log says who attached it and the caption, and the thread's brief names its path. `--as before` and `--as after` are the proof of a change you can see, shown side by side when it is done. A picture pasted or dropped into a box on the page, or a file dropped on a thread or picked with Add a file, is attached the same way, and `spool watch` prints a `reply:` line with its path |
 | `spool ask` · `assume` | Put a call to the human; or make it and leave a receipt |
 | `spool done <t-id> -m <summary> [--steps <step>…]` | Finish: record the commits, or hand in a report. The summary keeps its line breaks, so a list in it stays a list. Work in a worktree of its own is landed first. `--steps` (each word after it is a step, as in `--steps "Open the board" "The card is at the top"`, or `-` for one a line from stdin) says how to see a change working; a change finished without them says so |
@@ -904,7 +914,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool checks [command \| --none]` | Name the command that must pass before a change is done here |
 | `spool builder [headless \| chat] [--at-once n]` | Say who builds here, and how many threads at once; with nothing after it, says what is set. The human's, like `spool build` |
 | `spool agents [on \| off]` | Switch the page's agents on or off, as its Agents button does; with nothing after it, says whether a page is up and its agents are on. On is the human's, like `spool build`, and refused while a chat builds; off is always allowed |
-| `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it. After an upgrade it also names a retired skill that is still installed, for any agent, and a Spool block in `AGENTS.md` that is not the one this version writes; changes nothing |
+| `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it. It names work that landed on no thread, as `spool status` does. After an upgrade it also names a retired skill that is still installed, for any agent, and a Spool block in `AGENTS.md` that is not the one this version writes; changes nothing |
 | `spool page [--run] [--agent cmd] [--port n] [--no-open] [-P project]` | The board; `--run` has it build what is in Build too. In a folder of projects it shows them all, one click apart |
 | `spool page -d \| --status \| --stop` | The board in the background, with no browser opened; whether it is up, and where; end it |
 | `spool [--run \| --plain]` | With nothing after it, in a terminal: the queue, full-screen, over the page that is up, or one it starts in the background (`--run` with agents on). Piped, run by an agent, or with `--plain`: the status |
