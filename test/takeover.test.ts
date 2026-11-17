@@ -117,3 +117,23 @@ test('the board says whether the chat takes over, and its switch is the command'
     s.cleanup();
   }
 });
+
+test('a thread the human undid waits for them: taking over does not move it', () => {
+  const { s, top } = chatProject();
+  try {
+    s.sp('usage', '--weekly', '40');
+    s.sp('takeover', 'on');
+    s.sp('build', top);
+    s.sp('start', top, '--as', 'Claude');
+    s.sp('done', top, '-m', 'Tighter', '--as', 'Claude');
+    s.sp('revert', top, '-m', 'too tight');
+    assert.equal(s.json('show', top).item.status, 'proposed');
+    assert.match(s.fails('build', top, '--takeover', '--as', 'Claude'), /was undone: it waits for the human/);
+    assert.notEqual(s.json('takeover').next?.id, top);
+    // Once they move it to Build, it is theirs to have built.
+    s.sp('build', top);
+    assert.equal(s.json('show', top).item.status, 'open');
+  } finally {
+    s.cleanup();
+  }
+});

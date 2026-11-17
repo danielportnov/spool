@@ -381,7 +381,7 @@ test('a card says what model it gets left to itself: its size’s, or one up whe
   const coins = s.id('task', 'Make coins readable at sunset', '-s', 'xs');
   s.sp('start', coins, '--as', 'Claude Opus 5.5');
   s.sp('done', coins, '-m', 'A dark outline', '--as', 'Claude Opus 5.5');
-  s.sp('revert', coins, '-m', 'still sand-coloured');
+  s.sp('revert', coins, '-m', 'still sand-coloured', '--now');
   s.sp('edit', typo, '--model', 'opus');
   const { url, stop } = await startPage(s);
   try {

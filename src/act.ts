@@ -186,10 +186,10 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     return title ? act(ctx, ['task', '--from', id, '--', oneLine(title.split('\n')[0]!, 110)]) : { ok: false, text: 'it needs a name' };
   }
   if (action === 'undo') {
-    // Undo exactly what this thread changed. With their reason it is done again; dropped, it is not.
+    // Undo exactly what this thread changed. With their reason it waits in the backlog; `now` builds it again at once; dropped, it is not.
     if (!/^t-[a-z0-9]+$/.test(id)) return { ok: false, text: 'which thread?' };
     const why = text(body.why);
-    return act(ctx, ['revert', id, ...(why ? [`--message=${why}`] : []), ...(body.drop === true ? ['--drop'] : [])]);
+    return act(ctx, ['revert', id, ...(why ? [`--message=${why}`] : []), ...(body.drop === true ? ['--drop'] : body.now === true ? ['--now'] : [])]);
   }
   if (action === 'archive' || action === 'unarchive') {
     // Out of sight, not dropped; and back again, just as it was.

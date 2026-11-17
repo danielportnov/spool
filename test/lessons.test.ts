@@ -28,6 +28,7 @@ test('a revert with a reason becomes a lesson the next agent reads', () => {
   }
 
   // The rework of the thread is briefed with it.
+  s.sp('build', task);
   assert.match(s.sp('start', task), /UNDONE BEFORE, AND WHY[\s\S]*never add a dependency for this/);
 
   assert.match(s.sp('lessons'), /1 {2}"undo that, never add a dependency for this"/);

@@ -19,7 +19,7 @@
 
 import type { Call, Result } from './commands.ts';
 import { type Ctx, builderOf, saveUserConfig, userConfig } from './context.ts';
-import { type Item, type Spool, SpoolError, isRun, oneLine } from './model.ts';
+import { type Item, type Spool, SpoolError, isRun, oneLine, splitBody } from './model.ts';
 import { blockers, docket, ready } from './schedule.ts';
 import type { Workspace } from './store.ts';
 import { LIMITS, figuresText, usageOf } from './usage.ts';
@@ -50,7 +50,14 @@ function save(ctx: Ctx, root: string, on: boolean): void {
 
 /** The threads the chat may take, top of the backlog first. */
 export function reasonable(ws: Workspace, spool: Spool): Item[] {
-  return docket(ws, spool).proposed.filter((t) => !t.suggested && !t.hold && !t.archived && !isRun(t) && !blockers(ws, t).length);
+  return docket(ws, spool).proposed.filter((t) => !t.suggested && !t.hold && !t.archived && !isRun(t) && !blockers(ws, t).length && !undone(t));
+}
+
+/** Whether the human undid this thread and has not moved it to Build since: it waits for them, not for the chat. */
+function undone(t: Item): boolean {
+  const log = splitBody(t.body).log;
+  const at = (re: RegExp): number => log.findLastIndex((l) => re.test(l.replace(/^- \S+ \S+ [^:]+: /, '')));
+  return at(/^reverted \d+ commit/) > at(/^moved to build/);
 }
 
 /** Why a thread in the backlog is not one the chat may take. */
@@ -59,6 +66,7 @@ function notReasonable(ws: Workspace, t: Item): string {
   if (t.suggested) return `${t.id} is AI suggested: only the human moves an agent's idea to build`;
   if (t.hold) return `${t.id} is on hold: ${t.hold}`;
   if (t.archived) return `${t.id} is archived`;
+  if (undone(t)) return `${t.id} was undone: it waits for the human to move it to Build`;
   const waits = blockers(ws, t);
   if (waits.length) return `${t.id} waits on ${waits.map((w) => w.id).join(', ')}`;
   return `${t.id} is not one the chat may take`;

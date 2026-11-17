@@ -1152,11 +1152,12 @@ function undoNode(c) {
   if (!c.done) return null;
   if (undoing !== c.id) return el('button', { style: 'margin-top: 10px', onclick: () => { undoing = c.id; redraw(); } }, '↩ Undo this thread');
   const why = el('input', { placeholder: 'What was wrong with it? In your words' });
-  const go = (drop) => { undoing = ''; post('undo', { id: c.id, why: why.value, drop }, drop ? 'Undone and dropped' : 'Undone. It is back to be done again, with your words on it.'); };
+  const go = (how) => { undoing = ''; post('undo', { id: c.id, why: why.value, drop: how === 'drop', now: how === 'now' }, how === 'drop' ? 'Undone and dropped' : how === 'now' ? 'Undone. It is back in Build, with your words on it.' : 'Undone. It waits in the backlog, with your words on it.'); };
   return el('div', { class: 'undo' }, why,
     el('div', { class: 'acts' },
-      el('button', { class: 'go', onclick: () => go(false) }, 'Undo, and do it again'),
-      el('button', { onclick: () => go(true) }, 'Undo, and drop it'),
+      el('button', { class: 'go', onclick: () => go('wait') }, 'Undo, and keep it in the backlog'),
+      el('button', { onclick: () => go('now') }, 'Undo, to be done again now'),
+      el('button', { onclick: () => go('drop') }, 'Undo, and drop it'),
       el('button', { onclick: () => { undoing = ''; redraw(); } }, 'Cancel')));
 }
 

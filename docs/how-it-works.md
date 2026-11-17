@@ -833,7 +833,7 @@ ones marked 🔒:
 | `spool capture <words>` | Drop feedback in, exactly as said |
 | `spool answer <d-id> <choice>` | Answer a question, or overrule a call an agent made |
 | `spool approve <id…>` | Accept a call, finished work or a new skill; give a plan its go-ahead |
-| `spool revert <t-id> [-m why]` | Undo a thread's commits and reopen it with your reason. The reason is kept as a lesson every agent reads first. Given a run's thread, it puts back every item the run changed and touches no code |
+| `spool revert <t-id> [-m why] [--now]` | Undo a thread's commits and put it back in the backlog with your reason, for you to move to Build (`--now`: straight back to Build). The reason is kept as a lesson every agent reads first. Given a run's thread, it puts back every item the run changed and touches no code |
 | `spool goals [--edit <text> \| -]` | Where the project is going: what it is for and the two or three things it is heading towards, as every agent reads it first (kept in `.spool/goals.md`); `--edit` replaces it |
 | `spool lessons [--drop <n>]` | What you undid and why, newest first, as agents read it (kept in `.spool/policy.md`, yours to edit); `--drop` forgets one |
 | `spool review` | Everything waiting on you, most blocking first |

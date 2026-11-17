@@ -807,11 +807,11 @@ export const COMMANDS: Command[] = [
   {
     name: 'revert',
     group: 'you',
-    usage: 'revert <t-id> [-m <why>] [--drop]',
-    summary: "Undo a task's commits (or send back a plan or audit) and reopen it with your reason; given a run's thread, put back every item the run changed",
+    usage: 'revert <t-id> [-m <why>] [--now | --drop]',
+    summary: "Undo a task's commits (or send back a plan or audit) and put it back in the backlog with your reason, for you to move to Build when ready (--now: straight back to Build); given a run's thread, put back every item the run changed",
     human: true,
     write: true,
-    options: { ...MESSAGE, drop: { type: 'boolean' } },
+    options: { ...MESSAGE, drop: { type: 'boolean' }, now: { type: 'boolean' } },
     run(call) {
       const { ws, p, actor } = call;
       const t = first(call, 'which task', 'task');
@@ -838,7 +838,8 @@ export const COMMANDS: Command[] = [
         ws.save(k);
       }
 
-      t.status = call.opts.drop ? 'dropped' : 'open';
+      // Undoing is saying no: nothing builds it again until they say so (--now is that, said at once).
+      t.status = call.opts.drop ? 'dropped' : call.opts.now ? 'open' : 'proposed';
       t.by = undefined;
       t.summary = undefined;
       t.reviewed = undefined;
@@ -852,13 +853,19 @@ export const COMMANDS: Command[] = [
       if (reverted.length) {
         out.push(`${p.bold(t.id)} reverted — ${reverted.length} commit(s) undone in one new commit.`);
       } else {
-        out.push(`${p.bold(t.id)} ${call.opts.drop ? 'dropped' : 'reopened'}. ${root ? 'No commits were tied to it' : 'This is not a git repository'}, so no code was changed.`);
+        out.push(`${p.bold(t.id)} ${call.opts.drop ? 'dropped' : call.opts.now ? 'reopened' : 'back in the backlog'}. ${root ? 'No commits were tied to it' : 'This is not a git repository'}, so no code was changed.`);
       }
       for (const s of skipped) out.push(p.dim(`  left ${s.sha.slice(0, 7)} alone: ${s.why}`));
       if (gone) out.push(p.dim(`  ${gone}`));
       for (const d of voided) out.push(p.dim(`  dropped the assumption behind it: ${d.id} ${oneLine(d.choice ?? d.title, 60)}`));
       if (orphans.length) out.push(p.dim(`  dropped ${orphans.length} unstarted ${t.type === 'plan' ? 'part(s)' : 'finding(s)'} that came from it`));
-      if (!call.opts.drop) out.push(`It is back in the queue at p${t.priority}${why ? ' with your reason attached' : ''}.`);
+      if (!call.opts.drop) {
+        out.push(
+          call.opts.now
+            ? `It is back in Build at p${t.priority}${why ? ' with your reason attached' : ''}.`
+            : `It waits in the backlog at p${t.priority}${why ? ' with your reason attached' : ''}. Nothing builds it until you move it to Build: spool build ${t.id}`,
+        );
+      }
       // The human's reason outlives the thread: every agent here reads it from now on. An agent's own revert keeps none.
       const { lesson, line } = learn(ws, t, actor, why);
       if (line) out.push(line);

@@ -161,6 +161,7 @@ test('a thread undone and moved back to build is built one model up from its las
 
   // Undone, and back in build: Sonnet builds it next, and the log says why.
   s.sp('revert', t, '-m', 'the typo is still there');
+  s.sp('build', t);
   assert.deepEqual(s.json('loop', '--dry-run', '--agent', agent).stepped, [t]);
   assert.match(s.sp('loop', '--dry-run', '--agent', agent), /stepped up from haiku to sonnet · medium: its last run was undone/);
   assert.match(s.sp('loop', '--agent', agent), /1 done/);
@@ -169,6 +170,7 @@ test('a thread undone and moved back to build is built one model up from its las
 
   // Undone again, and this time its agent gives up: Opus, then Fable, then Fable again.
   s.sp('revert', t);
+  s.sp('build', t);
   fs.writeFileSync(give, '');
   assert.match(s.sp('loop', '--agent', agent), /unfinished/);
   assert.equal(runs().at(-1), '-p --model opus --effort medium');
@@ -180,6 +182,7 @@ test('a thread undone and moved back to build is built one model up from its las
 
   // The human's pick wins over the step.
   s.sp('revert', t);
+  s.sp('build', t);
   s.sp('edit', t, '--model', 'haiku');
   assert.match(s.sp('loop', '--agent', agent), /1 done/);
   assert.equal(runs().at(-1), '-p --model haiku --effort medium');
@@ -194,6 +197,7 @@ test('a chat’s claim names the model its subagent is started on, one up where 
   assert.match(s.item(t), /Claude Opus 5\.5: builder model: haiku · medium, by its size/);
   s.sp('done', t, '-m', 'fixed', '--as', 'Claude Opus 5.5');
   s.sp('revert', t, '-m', 'still there');
+  s.sp('build', t);
 
   const next = s.json('next', '--claim', '--as', 'Claude Opus 5.5');
   assert.equal(next.task.id, t);

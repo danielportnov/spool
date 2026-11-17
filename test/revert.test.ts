@@ -44,10 +44,14 @@ test('the commit trailer ties work to its task, and revert takes it all back', (
 
   // Back in the queue, bumped up, with the reason in the human's words.
   const item = s.json('show', task).item;
-  assert.equal(item.state, 'ready');
+  // Undoing is saying no: it waits in the backlog, nothing builds it, until it is moved to Build.
+  assert.equal(item.status, 'proposed');
+  assert.notEqual(item.state, 'ready');
   assert.equal(item.priority, 1);
   assert.deepEqual(item.commits, []);
   assert.ok(item.body.includes('> feels heavy now, not snappy'));
+  assert.notEqual(s.json('next').task?.id, task, 'nothing is handed out to build it');
+  s.sp('build', task);
   assert.equal(s.json('next').task.id, task);
 
   // The second attempt records only its own commits, not the ones already taken back.
@@ -108,6 +112,7 @@ test('commits that are merges, off-branch or already undone are left alone, and 
   );
 
   // Done again with nothing new, reverted again: the old commit is not undone twice.
+  s.sp('build', task);
   s.sp('done', task, '-m', 'No change this time');
   const second = s.json('revert', task);
   assert.deepEqual(second.reverted, []);
@@ -146,9 +151,10 @@ test('revert without git still reopens the task, and --drop abandons it', () => 
   assert.match(s.fails('revert', task), /isn't finished, so there is nothing to revert/);
   assert.match(s.sp('done', task, '-m', 'did it'), /done\./);
   assert.match(s.fails('done', task, '-m', 'x', '--commit', 'HEAD'), /already done/);
-  assert.match(s.sp('revert', task, 'not', 'what', 'I', 'meant'), /reopened\. This is not a git repository, so no code was changed/);
+  assert.match(s.sp('revert', task, 'not', 'what', 'I', 'meant'), /back in the backlog\. This is not a git repository, so no code was changed/);
   assert.ok(s.json('show', task).item.body.includes('> not what I meant'));
 
+  s.sp('build', task);
   s.sp('done', task, '-m', 'did it again');
   s.sp('revert', task, '--drop');
   assert.equal(s.json('show', task).item.status, 'dropped');
@@ -184,8 +190,18 @@ test('reverting also drops the unconfirmed assumptions the work was built on', (
   assert.deepEqual(s.json('show', task).item.needs.sort(), [approved, shared].sort());
 
   // The next attempt is briefed with the human's reason, not with the call that was rejected.
+  s.sp('build', task);
   const brief = s.sp('next');
   assert.ok(brief.includes('> too heavy'));
   assert.doesNotMatch(brief, /Raise it to 12  \(an agent's call/);
+  s.cleanup();
+});
+
+test('revert --now puts it straight back in Build', () => {
+  const s = spool();
+  const task = s.id('task', 'Again at once');
+  s.sp('done', task, '-m', 'did it');
+  assert.match(s.sp('revert', task, '--now', '-m', 'again'), /back in Build at p1/);
+  assert.equal(s.json('show', task).item.status, 'open');
   s.cleanup();
 });
