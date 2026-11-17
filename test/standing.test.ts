@@ -79,7 +79,7 @@ test('with a chat building, status says whether one is watching, and what Build 
   ]);
 
   const watcher = spawn(process.execPath, [CLI, 'watch', '--interval', '100', '-C', s.root], {
-    env: { ...process.env, HOME: `${s.root}/.home`, SPOOL_ACTOR: undefined },
+    env: { ...process.env, HOME: `${s.root}/.home`, XDG_CONFIG_HOME: undefined, SPOOL_ACTOR: undefined },
     stdio: 'ignore',
   });
   try {

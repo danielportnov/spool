@@ -13,7 +13,7 @@ test('a thread whose agent could not be started is put back with the reason, and
   const jump = s.id('task', 'Tighten the jump arc');
   const ctx: Ctx = {
     cwd: s.root,
-    env: { ...process.env, HOME: `${s.root}/.home`, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined },
+    env: { ...process.env, HOME: `${s.root}/.home`, XDG_CONFIG_HOME: undefined, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined },
     out: () => {},
     err: () => {},
     now: () => new Date(),

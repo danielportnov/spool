@@ -335,7 +335,7 @@ test('workers racing in separate processes never claim the same task', async () 
       execFile(
         process.execPath,
         [CLI, 'next', '--claim', '--json', '--as', `worker-${worker}`],
-        { cwd: s.dir, env: { ...process.env, HOME: path.join(s.root, '.home') } },
+        { cwd: s.dir, env: { ...process.env, HOME: path.join(s.root, '.home'), XDG_CONFIG_HOME: undefined } },
         (error, stdout) => (error ? reject(error) : resolve(JSON.parse(stdout).task.id as string)),
       );
     });

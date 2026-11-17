@@ -6,7 +6,7 @@ import { CLI, Sandbox, gone, pause, until as untilThat, watchUp } from './helper
 /** Start the real watcher and collect what it prints. */
 function startWatch(s: Sandbox): { child: ChildProcess; lines: string[]; until: (n: number) => Promise<void> } {
   const child = spawn(process.execPath, [CLI, 'watch', '--interval', '40', '-C', s.root], {
-    env: { ...process.env, HOME: `${s.root}/.home` },
+    env: { ...process.env, HOME: `${s.root}/.home`, XDG_CONFIG_HOME: undefined },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const lines: string[] = [];

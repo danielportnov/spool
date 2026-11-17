@@ -138,7 +138,7 @@ test('a detached page that cannot start says why, and the command fails', async 
 
     const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'spool-none-'));
     try {
-      const nowhere = spawnSync(process.execPath, [CLI, '-C', empty, 'page', '-d'], { env: { ...process.env, HOME: `${s.root}/.home` }, encoding: 'utf8' });
+      const nowhere = spawnSync(process.execPath, [CLI, '-C', empty, 'page', '-d'], { env: { ...process.env, HOME: `${s.root}/.home`, XDG_CONFIG_HOME: undefined }, encoding: 'utf8' });
       assert.notEqual(nowhere.status, 0);
       assert.match(nowhere.stderr, /^spool: /);
     } finally {

@@ -5,7 +5,7 @@ import { CLI, Sandbox, gone, pause, until, watchUp } from './helpers.ts';
 
 function startWatch(s: Sandbox): { child: ChildProcess; lines: string[] } {
   const child = spawn(process.execPath, [CLI, 'watch', '--interval', '40', '-C', s.root], {
-    env: { ...process.env, HOME: `${s.root}/.home` },
+    env: { ...process.env, HOME: `${s.root}/.home`, XDG_CONFIG_HOME: undefined },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const lines: string[] = [];

@@ -6,7 +6,7 @@ import { CLI, Sandbox, WAIT_MS, freePorts, gone } from './helpers.ts';
 /** Start `spool page` and give back what it printed first: the address of a page, its own or the one already up. */
 function page(s: Sandbox, ...args: string[]): Promise<{ child: ChildProcess; said: string }> {
   const child = spawn(process.execPath, [CLI, 'page', '--no-open', '-C', s.root, ...args], {
-    env: { ...process.env, HOME: `${s.root}/.home`, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined },
+    env: { ...process.env, HOME: `${s.root}/.home`, XDG_CONFIG_HOME: undefined, SPOOL_ACTOR: undefined, SPOOL_AGENT: undefined },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   return new Promise((resolve, reject) => {

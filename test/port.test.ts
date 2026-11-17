@@ -12,7 +12,7 @@ test('the page exits with the error when the port it was given is taken', async 
   await new Promise<void>((resolve) => holder.listen(0, '127.0.0.1', resolve));
   const port = (holder.address() as net.AddressInfo).port;
   const child = spawn(process.execPath, [CLI, 'page', '--no-open', '--port', String(port), '-C', s.root], {
-    env: { ...process.env, HOME: `${s.root}/.home` },
+    env: { ...process.env, HOME: `${s.root}/.home`, XDG_CONFIG_HOME: undefined },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let err = '';

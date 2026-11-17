@@ -364,7 +364,7 @@ test('with Chat picked, the page starts no agent: a chat builds, the pick is kep
     assert.equal((await board()).runner.watching, false, 'and nobody is listening yet');
 
     // A chat running the loop watches the spool: the page says so, for as long as it does.
-    watch = spawn(process.execPath, [CLI, 'watch', '--interval', '40', '-C', s.root], { env: { ...process.env, HOME: `${s.root}/.home` }, stdio: 'ignore' });
+    watch = spawn(process.execPath, [CLI, 'watch', '--interval', '40', '-C', s.root], { env: { ...process.env, HOME: `${s.root}/.home`, XDG_CONFIG_HOME: undefined }, stdio: 'ignore' });
     await until('the page sees the watch', async () => (await board()).runner.watching);
     watch.kill();
     await until('the page sees the watch go', async () => !(await board()).runner.watching);
