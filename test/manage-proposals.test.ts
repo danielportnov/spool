@@ -31,6 +31,18 @@ test('a run puts what it would do on its thread, and the brief says so in one li
   }
 });
 
+test('a run that was undone waits on nothing: its proposals do not count as waiting', () => {
+  const { s, run } = setup();
+  try {
+    assert.equal(s.json('brief').needsYou.proposals.length, 1);
+    s.sp('revert', run, '--as', 'Mgr');
+    assert.equal(s.json('brief').needsYou.proposals.length, 0, 'an undone run proposes nothing');
+    assert.doesNotMatch(s.sp('brief'), /The manager proposes/);
+  } finally {
+    s.cleanup();
+  }
+});
+
 test('a yes on the page drops the thread with the run\'s reason, and a no leaves it alone', () => {
   const { s, run, shipped, cold } = setup();
   try {

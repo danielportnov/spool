@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { pickFor, ranWith } from './agent.ts';
-import { type Brief, morning, waitingOnYou } from './brief.ts';
+import { type Brief, morning, pendingProposals, waitingOnYou } from './brief.ts';
 import type { Builder } from './context.ts';
 import { type Live as Running, type Picking, type Runner, stoppedInBuild } from './engine.ts';
 import { git, repoRoot } from './git.ts';
@@ -22,7 +22,7 @@ import { plain } from './plain.ts';
 import { type Item, isPlan, isRun, oneLine, reportFile, splitBody, whyOf } from './model.ts';
 import { attachLine, picturesOf } from './pictures.ts';
 import type { Typing } from './quick.ts';
-import { proposalDetail, proposalLine, readProposals, unanswered } from './proposals.ts';
+import { proposalDetail, proposalLine, readProposals } from './proposals.ts';
 import { age, sprintAbout, tableRows } from './render.ts';
 import { type Run as StartedWith, runOf } from './run.ts';
 import { type Review, blockers, children, dependents, docket, review, sprintOf, sprintTasks, taskState, tasks } from './schedule.ts';
@@ -547,8 +547,8 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     ranWith: [given?.model, given?.effort].filter(Boolean).join(' · '),
     // The runner says where it kept the stream, on the thread's log: "session … · transcript .spool/runs/…", or that alone.
     transcript: (column === 'building' || column === 'done') && log.some((line) => / (?:· )?transcript \S*runs\//.test(line)),
-    waiting: isRun(task) && unanswered(readProposals(task)).length
-      ? { kind: 'you', text: `${unanswered(readProposals(task)).length} to answer`, on: [], said: '', refused: [] }
+    waiting: pendingProposals(task).length
+      ? { kind: 'you', text: `${pendingProposals(task).length} to answer`, on: [], said: '', refused: [] }
       : task.status === 'done' || task.status === 'dropped' ? null : waitingOf(ws, task, thread.steps, asked),
   };
 }

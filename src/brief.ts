@@ -16,7 +16,7 @@ import { type Item, SpoolError, firstLine, isRun, oneLine, splitBody } from './m
 import { type Paint, age } from './render.ts';
 import { JOURNAL } from './journal.ts';
 import { picturesOf } from './pictures.ts';
-import { readProposals, unanswered } from './proposals.ts';
+import { type Proposal, readProposals, unanswered } from './proposals.ts';
 import { type Scope, children, dependents, review, sprintOf, taskState, tasks } from './schedule.ts';
 import { hearLine, readTook } from './stream.ts';
 import { MOVED, TIDIED } from './takeover.ts';
@@ -214,6 +214,14 @@ function stopped(ws: Workspace, t: Item): { why: string; at: number } | null {
 }
 
 /**
+ * The proposals of a run that really wait for a yes or a no. A run that was undone or dropped
+ * proposes nothing any more: its answers were taken back with it, so it never counts as waiting.
+ */
+export function pendingProposals(t: Item): Proposal[] {
+  return isRun(t) && t.status !== 'dropped' ? unanswered(readProposals(t)) : [];
+}
+
+/**
  * How many things wait on the human: an open question, a plan waiting for a go-ahead, and a thread
  * an agent stopped on or walked away from. Each thread is counted once, so a stopped thread with a
  * question on it is one; a question on no thread counts by itself. This is the one number the
@@ -228,7 +236,7 @@ export function waitingOnYou(ws: Workspace, scope?: Scope): number {
   }
   for (const t of queue.plans) seen.add(t.id);
   for (const t of tasks(ws, scope)) if (stopped(ws, t)) seen.add(t.id);
-  for (const t of tasks(ws, scope)) if (isRun(t) && unanswered(readProposals(t)).length) seen.add(t.id);
+  for (const t of tasks(ws, scope)) if (pendingProposals(t).length) seen.add(t.id);
   return seen.size;
 }
 
@@ -267,9 +275,9 @@ export function morning(ws: Workspace, opts: { since?: string; project?: Scope }
     .map(({ t, stop }) => ({ id: t.id, title: t.title, why: stop.why, when: new Date(stop.at).toISOString(), lastSaid: lastSaid(t), project: project(t) }));
 
   const proposals = tasks(ws, opts.project)
-    .filter((t) => isRun(t) && unanswered(readProposals(t)).length)
+    .filter((t) => pendingProposals(t).length)
     .sort((a, b) => b.created.localeCompare(a.created))
-    .map((t) => ({ id: t.id, headline: t.summary ?? null, count: unanswered(readProposals(t)).length, project: project(t) }));
+    .map((t) => ({ id: t.id, headline: t.summary ?? null, count: pendingProposals(t).length, project: project(t) }));
 
   // Most worth checking first; a thread with nothing to remark on is simply shipped.
   const weighed = shipped.map((t) => ({ t, ...weigh(ws, t) }));
