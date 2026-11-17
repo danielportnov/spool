@@ -31,6 +31,7 @@ import type { Upkeep } from './upkeep.ts';
 import { DEFAULT_ON, type Notices } from './notices.ts';
 import type { Usage } from './usage.ts';
 import { watched } from './watch.ts';
+import type { AgentView } from './roster.ts';
 
 export type Column = 'proposed' | 'build' | 'building' | 'done';
 
@@ -284,6 +285,8 @@ export interface Board {
   runner: {
     builder: Builder;
     watching: boolean;
+    /** With a chat building: the agents on the roster (roster.ts), each with its count, whether it is watching, and what it is building. */
+    agents: AgentView[];
     on: boolean;
     agent: string;
     parallel: number;
@@ -582,7 +585,7 @@ export function identicon(seed: string): string {
  * `usage` the human's usage target and the last reading (usage.ts), read from them too, and
  * `notices` what tells the human (notices.ts).
  */
-export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?: Upkeep, builder?: Builder, atOnce?: number, usage?: Usage, notices?: Notices): Board {
+export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?: Upkeep, builder?: Builder, atOnce?: number, usage?: Usage, notices?: Notices, agents?: AgentView[]): Board {
   const spool = project ? ws.project(project) : ws.home;
   const builds = builder ?? runner?.builder ?? 'headless';
   const d = docket(ws, spool);
@@ -621,6 +624,7 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
       builder: builds,
       // Looked for only where it is shown: with a chat building.
       watching: builds === 'chat' && watched(spool.root),
+      agents: builds === 'chat' ? (agents ?? []) : [],
       on: !!runner?.on,
       agent: runner?.agent ?? '',
       parallel: atOnce ?? runner?.parallel ?? 1,

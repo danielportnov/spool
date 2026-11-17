@@ -1480,6 +1480,7 @@ function draw(b) {
         : 'This page builds what is in Build itself, with no chat open. It runs: ' + b.runner.agent;
     pick.onclick = () => { if (!mine && !off) post('builder', { builder: pick.dataset.builder }, ''); };
   }
+  drawRoster(b);
   // One button says how the agents are doing. Headless, they are the page's own, and it is their switch.
   // With a chat building, the page cannot switch a chat on: it says whether one is building or listening.
   const runner = document.getElementById('runner');
@@ -1899,6 +1900,25 @@ function connected(yes) {
   banner.hidden = false;
   document.body.classList.add('away');
   unknown();
+}
+// In Chat mode, each agent on the roster: what it is building of its count, − and + to change the
+// count, and greyed while no watch of its own is up. Headless, the page's own agents build, and this is hidden.
+function drawRoster(b) {
+  const box = document.getElementById('roster');
+  const agents = b.runner.builder === 'chat' ? b.runner.agents || [] : [];
+  box.hidden = !agents.length;
+  box.replaceChildren(...agents.map((a) => {
+    const threads = (n) => n === 1 ? '1 thread' : n + ' threads';
+    const on = a.building.length ? ' Building ' + a.building.map((t) => t.id + ' ' + t.title).join(', ') + '.' : '';
+    const title = (a.watching ? a.name + ' is watching this spool, and builds up to ' + threads(a.atOnce) + ' at once.'
+      : a.name + ' is not watching this spool now. It builds up to ' + threads(a.atOnce) + ' at once once a chat of it runs /spool-loop here.') + on;
+    const set = (n) => post('roster', { agent: a.name, atOnce: n }, '');
+    return el('span', { class: 'agent' + (a.watching ? '' : ' off'), title },
+      el('span', { class: 'name' }, a.name),
+      el('button', { class: 'less', 'aria-label': 'One thread fewer for ' + a.name, disabled: a.atOnce <= 1, onclick: () => set(a.atOnce - 1) }, '−'),
+      el('span', { class: 'n', 'aria-label': a.building.length + ' of ' + threads(a.atOnce) }, a.building.length + '/' + a.atOnce),
+      el('button', { class: 'more', 'aria-label': 'One thread more for ' + a.name, disabled: a.atOnce >= 20, onclick: () => set(a.atOnce + 1) }, '+'));
+  }));
 }
 const AWAY_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.75 14.75 13.5H1.25z"/><path d="M8 6.25v3.25M8 11.5v.01"/></svg>';
 // With no server, nobody can say whether agents are on or who builds: the switch and the picks say

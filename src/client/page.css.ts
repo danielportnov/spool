@@ -53,6 +53,15 @@ export const CSS = String.raw`  :root {
   /* Headless is off for now: greyed, and a click does nothing. It still shows as the pick when the project is set to it. */
   .builder button.off { color: var(--line); cursor: not-allowed; }
   .builder button.off.on { color: var(--soft); }
+  /* In Chat mode, each agent that builds: its name, what it is building of its count, and − + to change the count. Greyed while it is not watching. */
+  .roster { display: flex; gap: 6px; white-space: nowrap; }
+  .roster .agent { display: inline-flex; align-items: center; border: 1px solid var(--soft); border-radius: 7px; background: var(--bg); padding-left: 9px; font-weight: 600; }
+  .roster .agent .n { min-width: 2.2em; text-align: center; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--soft); }
+  .roster .agent button { border: 0; background: none; padding: 5px 7px; color: var(--soft); font-weight: 400; }
+  .roster .agent button:hover { color: var(--ink); }
+  .roster .agent button:disabled { visibility: hidden; }
+  .roster .agent.off { border-color: var(--line); background: var(--panel); color: var(--line); font-weight: 400; }
+  .roster .agent.off .n, .roster .agent.off button { color: var(--line); }
   /* The usage target, in Chat mode: a small meter of the plan's usage, with a tick where the chat stops. */
   .target { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--soft); margin-left: -8px; }
   .target.set { color: var(--ink); }
@@ -436,6 +445,7 @@ export const CSS = String.raw`  :root {
     .search { display: none; }
     .bar.searching .search { display: block; position: absolute; z-index: 1; left: 16px; right: 16px; bottom: 8px; width: auto; margin: 0; background: var(--panel); }
     .builder { order: 6; margin: 0 0 8px; }
+    .roster { order: 6; margin: 0 0 8px; }
     .runner { order: 7; margin-bottom: 8px; }
     .themer { order: 8; margin: 0 0 8px auto; width: 36px; height: 36px; }
     /* No room for the bell on either row: on a phone, what notifies him is said to the chat. */

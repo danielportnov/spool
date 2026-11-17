@@ -132,6 +132,7 @@ export function fixture(): Board {
     runner: {
       builder: 'headless',
       watching: false,
+      agents: [],
       on: true,
       agent: 'claude -p',
       parallel: 3,

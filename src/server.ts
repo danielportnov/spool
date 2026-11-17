@@ -36,6 +36,7 @@ import { MAX_BYTES, pictureFile } from './pictures.ts';
 import { sprintReview } from './review.ts';
 import { taskState } from './schedule.ts';
 import { atOnceIn } from './slots.ts';
+import { rosterView, saveAgent } from './roster.ts';
 import { briefAcross, named, projectsOf } from './projects.ts';
 import { Workspace } from './store.ts';
 import { CODE_DIR, CODE_EXT, Upkeep } from './upkeep.ts';
@@ -227,7 +228,7 @@ export function startPage(
           options.serves?.(servedBy(ws, options.project));
           // The project asked for, by its name on the workspace's own list; any other is the page's own.
           const spool = named(ws, url.searchParams.get('project')) ?? own(ws);
-          const shown = board(ws, spool === ws.home ? undefined : spool.name, runner, upkeep, builderOf(ctx, spool.root), atOnceIn(ctx, spool.root), usageOf(ctx), noticesOf(ctx));
+          const shown = board(ws, spool === ws.home ? undefined : spool.name, runner, upkeep, builderOf(ctx, spool.root), atOnceIn(ctx, spool.root), usageOf(ctx), noticesOf(ctx), builderOf(ctx, spool.root) === 'chat' ? rosterView(ctx, ws, spool) : []);
           const several = ws.spools.length > 1;
           const workspace = {
             projects: projectsOf(ws, (p) => builds(ws, p), (id) => runner.runs.get(id)?.lines),
@@ -353,7 +354,7 @@ export function startPage(
           if (!spool) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which project?' }));
           if (stray.length) return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: `${stray[0]} is another project's, not ${spool.name}'s` }));
           const here = inProject(ws, spool);
-          if (who === 'elsewhere' && (action === 'runner' || action === 'builder')) {
+          if (who === 'elsewhere' && (action === 'runner' || action === 'builder' || action === 'roster')) {
             return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: `This page builds ${options.project} only. Agents for ${spool.name} are run by its own page, or a chat.` }));
           }
           // The runner is the page's own: switching it on or off, and stopping the agent it started.
@@ -372,6 +373,16 @@ export function startPage(
                 ? `A Claude Code chat builds now: say /spool-loop in one. This page starts no agents.${runner.runs.size ? ' What it had started is built to the end.' : ''}`
                 : `This page builds now, headless. ${runner.on ? 'Agents are on.' : 'Switch Agents on to start.'}`;
             return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: words }));
+          }
+          // One agent's thread count, from its − and + in the header: the human's click, as spool builder --agent sets it.
+          if (action === 'roster') {
+            const name = text(body.agent).trim();
+            const n = body.atOnce;
+            if (!name || name.length > 40 || typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > 20) {
+              return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: 'which agent, and how many threads (1 to 20)?' }));
+            }
+            const entry = saveAgent(ctx, spool.root, name, { atOnce: n });
+            return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: `${entry.name} builds up to ${n === 1 ? '1 thread' : `${n} threads`} at once.` }));
           }
           if (action === 'move' || action === 'abort') {
             // A thread moved to any column, from any column. Abort is the move straight back to the backlog.

@@ -12,6 +12,7 @@ import { agentsCommand } from './agents-switch.ts';
 import { ATTACH } from './attach.ts';
 import { ADOPT, strayFixes, strayLines, straysOf } from './strays.ts';
 import { builderCommand } from './builder.ts';
+import { refuseOverCount } from './roster.ts';
 import { type Picked, builderLine, effortOf, modelOf, pickFor, pickLabel, ranOn } from './agent.ts';
 import { morning, morningText } from './brief.ts';
 import { DISABLE, ENABLE } from './off.ts';
@@ -581,6 +582,8 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
   if (state === 'active' && task.by !== actor && !force) {
     throw new SpoolError(`${task.id} is being worked by ${task.by ?? 'someone'}`, 'Take it anyway with --force, or: spool next');
   }
+  // In Chat mode each agent builds up to its own count (roster.ts): past it, the claim is refused.
+  if (builderOf(call.ctx, task.spool.root) === 'chat') refuseOverCount(call.ctx, ws, task, actor);
   // Before anything is written: where there can be no worktree, the thread is not claimed either.
   const opened = worktree || task.worktree ? openWorktree(task) : undefined;
   // What the subagent that builds it is started on, read from the log as it stands, before this claim is on it.
@@ -1240,15 +1243,16 @@ export const COMMANDS: Command[] = [
   {
     name: 'builder',
     group: 'setup',
-    usage: 'builder [headless | chat] [--at-once <n>] [-P <project>]',
-    summary: 'Say who builds here: the page, starting agents (headless), or a Claude Code chat running the loop; --at-once sets how many threads at the same time. With nothing after it, says what is set',
+    usage: 'builder [headless | chat] [--at-once <n>] [--agent <name> [--model <model>]] [-P <project>]',
+    summary: 'Say who builds here: the page, starting agents (headless), or a Claude Code chat running the loop; --at-once sets how many threads at the same time, for every agent or, with --agent, for one (Claude, Codex), which adds it where it is not listed. With nothing after it, says what is set, and which agents build',
     human: true,
-    options: { 'at-once': { type: 'string' }, ...PROJECT },
+    options: { 'at-once': { type: 'string' }, agent: { type: 'string' }, model: { type: 'string' }, ...PROJECT },
     run(call) {
       const { ws, ctx, args, opts } = call;
-      if (args.length > 1) throw new SpoolError('too many words', 'spool builder [headless | chat] [--at-once <n>]');
+      if (args.length > 1) throw new SpoolError('too many words', 'spool builder [headless | chat] [--at-once <n>] [--agent <name>]');
       const spool = str(opts.project) ? ws.project(str(opts.project)) : ws.home;
-      return builderCommand(ctx, spool, args[0], str(opts['at-once']), () => byTheHuman(call, [spool], 'builder'));
+      const ask = { word: args[0], atOnce: str(opts['at-once']), agent: str(opts.agent), model: str(opts.model) };
+      return builderCommand(ctx, ws, spool, ask, call.actor, () => byTheHuman(call, [spool], 'builder'));
     },
   },
   {
@@ -2637,8 +2641,8 @@ export const COMMANDS: Command[] = [
   {
     name: 'watch',
     group: 'setup',
-    usage: 'watch [--interval <ms>] [-P <project>]',
-    summary: 'Stay up and print a line when work lands in build, the human replies on a thread, an agent asks the human something, or a note arrives',
+    usage: 'watch [--as <agent>] [--interval <ms>] [-P <project>]',
+    summary: 'Stay up and print a line when work lands in build, the human replies on a thread, an agent asks the human something, or a note arrives; --as says which agent is watching, for the board',
     options: { interval: { type: 'string' }, ...PROJECT },
     refusedWhenOff: true,
     bare: (call) => watch(call),

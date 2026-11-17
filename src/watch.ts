@@ -24,6 +24,10 @@ import type { Ctx } from './context.ts';
 import { Workspace } from './store.ts';
 import { takeOverOf } from './takeover.ts';
 import { picturesOf } from './pictures.ts';
+import { signer } from './agent.ts';
+
+/** Names a watch is signed with that are no agent's own. */
+const NOT_WATCHERS = new Set(['agent', 'human', '']);
 
 interface Seen {
   /** Threads that could be claimed right now. */
@@ -54,18 +58,22 @@ const real = (dir: string): string => {
   }
 };
 
-/** Whether a `spool watch` on this machine is up and watching the project in this folder. */
-export function watched(root: string): boolean {
+/**
+ * The agents whose `spool watch` on this machine is up and watching the project in this folder, by
+ * the name each signed with (`spool watch --as Codex`); an empty name for a watch nobody signed.
+ */
+export function watchers(root: string): string[] {
   let names: string[] = [];
   try {
     names = fs.readdirSync(os.tmpdir());
   } catch {
-    return false;
+    return [];
   }
   const wanted = real(root);
-  return names.some((name) => {
+  const out: string[] = [];
+  for (const name of names) {
     const found = /^spool-watch-(\d+)\.json$/.exec(name);
-    if (!found) return false;
+    if (!found) continue;
     const file = path.join(os.tmpdir(), name);
     try {
       process.kill(Number(found[1]), 0);
@@ -73,16 +81,24 @@ export function watched(root: string): boolean {
       if ((error as NodeJS.ErrnoException).code !== 'EPERM') {
         // Its watch was ended outright and could not tidy up.
         fs.rmSync(file, { force: true });
-        return false;
+        continue;
       }
     }
     try {
-      const roots: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
-      return Array.isArray(roots) && roots.includes(wanted);
+      // A list of folders, from before a watch said who it is; or the folders and the agent.
+      const kept: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+      const beat = Array.isArray(kept) ? { roots: kept, agent: '' } : (kept as { roots?: unknown; agent?: unknown });
+      if (Array.isArray(beat.roots) && beat.roots.includes(wanted)) out.push(typeof beat.agent === 'string' ? beat.agent : '');
     } catch {
-      return false; // Half-written, or gone this instant.
+      // Half-written, or gone this instant.
     }
-  });
+  }
+  return out;
+}
+
+/** Whether a `spool watch` on this machine is up and watching the project in this folder. */
+export function watched(root: string): boolean {
+  return watchers(root).length > 0;
 }
 
 /**
@@ -165,7 +181,7 @@ export function changes(before: Seen, after: Seen, text: (note: string) => strin
 }
 
 /** `spool watch`: print each change as it happens, until stopped. */
-export function watch({ ctx, opts }: Bare): Result {
+export function watch({ ctx, opts, actor }: Bare): Result {
   const every = opts.interval === undefined ? 1000 : Number(opts.interval);
   if (!Number.isInteger(every) || every < 20) throw new SpoolError('--interval is in milliseconds, 20 or more');
   const project = typeof opts.project === 'string' ? opts.project : undefined;
@@ -175,7 +191,9 @@ export function watch({ ctx, opts }: Bare): Result {
   // Say it is up, for as long as it is: the page shows whether anyone is listening.
   const beat = beatFile(process.pid);
   try {
-    fs.writeFileSync(beat, JSON.stringify(first.roots));
+    // Who is watching, by the agent part of its name: the page shows which agents are here.
+    const agent = NOT_WATCHERS.has(actor.trim().toLowerCase()) ? '' : signer(actor).agent;
+    fs.writeFileSync(beat, JSON.stringify({ roots: first.roots, agent }));
     const leave = (): void => fs.rmSync(beat, { force: true });
     process.once('exit', leave);
     for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {

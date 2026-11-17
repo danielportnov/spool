@@ -17,6 +17,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { Item } from './model.ts';
 import { type NoticeEvent, notifies } from './notices.ts';
+import type { RosterEntry } from './roster.ts';
 
 export interface Ctx {
   cwd: string;
@@ -76,6 +77,11 @@ export interface UserConfig {
    * this says, since two agents in one folder trample each other's edits. See slots.ts.
    */
   parallel?: number;
+  /**
+   * For each project, by the path of its folder: the agents that build it in Chat mode, each with
+   * its own thread count. Not set: Claude and Codex, each at `parallel`. See roster.ts.
+   */
+  roster?: Record<string, RosterEntry[]>;
   /**
    * Minutes an agent may print nothing before its card says it is quiet and the `stuck` notice
    * goes out: 10 unless set, 0 for never. For agents the page starts (Headless); in Chat mode it starts none.
