@@ -148,6 +148,8 @@ export interface Item {
    * and joins the work only when the human says yes. The reason stays, as where the thread came from.
    */
   suggested?: string;
+  /** The agent that suggested the task, independent of whoever builds it. */
+  suggestedBy?: string;
   /** Ids that must be settled before this task is ready. */
   needs: string[];
   /** Ids this item came from. */
@@ -219,6 +221,7 @@ const FIELDS: readonly (readonly [string, FieldType])[] = [
   ['hold', 'string'],
   ['archived', 'string'],
   ['suggested', 'string'],
+  ['suggestedBy', 'string'],
   ['needs', 'tokens'],
   ['from', 'tokens'],
   ['options', 'strings'],

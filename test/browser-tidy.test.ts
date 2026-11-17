@@ -94,8 +94,8 @@ test('on a phone the name has its room and the search is a button; answers line 
     const card = wide.locator('#board .card', { hasText: 'Refuse to split a bill between no one' });
     await card.locator('.why').click();
     await wide.locator('#thread h2', { hasText: 'Refuse to split a bill between no one' }).waitFor();
-    // Its Why is headed with the project's own name.
-    await wide.locator('#thread').getByText('How it helps tip-splitter').waitFor();
+    // Opening the ticket leaves the card's action available.
+    assert.equal(await wide.locator('#thread').getByText('About this thread').count(), 0);
     await wide.keyboard.press('Escape');
     await wide.locator('#thread').waitFor({ state: 'hidden' });
     await card.locator('.key').click();

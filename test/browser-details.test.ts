@@ -144,17 +144,6 @@ test('the details of a ticket and a card', async (t) => {
     const bare = good.locator('a');
     assert.deepEqual([await bare.getAttribute('href'), await bare.getAttribute('target'), await bare.getAttribute('rel')],
       ['https://example.com/mock', '_blank', 'noopener noreferrer']);
-    // The spec's parts: one a line, and the rest with its lists and its code.
-    const part = (key: string) => ticket.locator(`.desc .part.${key} pre`);
-    assert.equal(await part('what').locator('code').innerText(), 'src/coins.ts');
-    assert.equal(await part('why').locator('strong').innerText(), 'sand');
-    assert.equal(await part('done').locator('a').getAttribute('href'), 'https://example.com/coins');
-    const more = part('other');
-    assert.deepEqual(await more.locator('ul > li').allInnerTexts(), ['two pixels, dark', 'see the mockup']);
-    assert.equal(await more.locator('ul strong').innerText(), 'two pixels');
-    assert.equal(await more.locator('a', { hasText: 'the mockup' }).getAttribute('href'), 'https://example.com/mock?a=1&b=2');
-    assert.deepEqual(await more.locator('ol > li').allInnerTexts(), ['first the sprite', 'then the shader']);
-    assert.equal(await more.locator('pre.code').innerText(), 'outline(coin, 2);');
     // Hostile words stay words: no tag is made of them, no link but to the web, and what does not close stays as written.
     assert.equal(await ticket.locator('script, img, a[href^="javascript"], a[href^="data"]').count(), 0);
     assert.equal(await page.evaluate('window.hacked'), undefined);

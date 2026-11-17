@@ -458,6 +458,7 @@ function fileWork(call: Call, preset?: WorkType): Result {
     // Where it is off, the idea goes on hold, like anything else the human has not asked to start.
     hold: str(call.opts.hold)?.replace(/\s+/g, ' ').trim() ?? (suggested && !spool.config.gate ? 'AI suggested: waiting for your yes' : undefined),
     suggested,
+    suggestedBy: suggested ? call.actor : undefined,
     tags: tagsOf(call.opts.tag) ?? [],
     version: versionOf(call.opts.version) || undefined,
     sprint: str(call.opts.sprint) ? sprintBy(ws, str(call.opts.sprint)!).id : undefined,

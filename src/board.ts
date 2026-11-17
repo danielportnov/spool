@@ -202,6 +202,7 @@ interface Post {
 const BOOKKEEPING = /^(started|builder model: |built on |check passed|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |session |transcript |reverted|put the work back|reopened|dropped|agreed|filed |placed )/;
 
 function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['steps']): Post[] {
+  const opening: Post[] = task.suggested ? [{ at: task.created.slice(0, 16).replace('T', ' ') + 'Z', who: task.suggestedBy ?? 'agent', kind: 'post', text: task.suggested }] : [];
   const words: Post[] = said.map((s) => {
     const note = ws.find(s.note);
     const who = note?.by ?? 'human';
@@ -224,6 +225,7 @@ function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['
   });
   // Stable: things said in the same minute keep the order they were written in, words first.
   const story = [...words, ...rest].map((p, i) => ({ p, i })).sort((a, b) => a.p.at.localeCompare(b.p.at) || a.i - b.i).map((x) => x.p);
+  story.unshift(...opening);
   // Once it is finished, its before and after are shown together under the result, and not again where they were attached.
   if (story.some((p) => p.kind === 'shipped')) {
     for (const p of story) if (p.pictures) p.pictures = p.pictures.filter((name) => !/-(before|after)\./.test(name));
