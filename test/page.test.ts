@@ -199,6 +199,18 @@ test('the page shows the spool as a board, and what is done on it is saved to th
       http.get(`${url}api/board`, { headers: { host: 'evil.example' } }, (res) => resolve(res.statusCode ?? 0)).on('error', reject);
     });
     assert.equal(asOtherSite, 403);
+    // The page cannot be framed, and a change from another origin is refused with the token right.
+    const page = await fetch(url);
+    assert.match(page.headers.get('content-security-policy') ?? '', /frame-ancestors 'none'/);
+    assert.equal(page.headers.get('x-frame-options'), 'DENY');
+    assert.equal(page.headers.get('referrer-policy'), 'no-referrer');
+    const move = (headers: Record<string, string>) =>
+      fetch(`${url}api/move`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': token, ...headers }, body: JSON.stringify({ id: jump, to: 'proposed' }) });
+    assert.equal((await move({ origin: 'https://evil.example' })).status, 403);
+    assert.equal((await move({ origin: 'null' })).status, 403);
+    assert.equal((await move({ referer: 'https://evil.example/page' })).status, 403);
+    assert.equal(s.json('show', jump).item.state, 'ready', 'nothing moved from another origin');
+    assert.equal((await move({ origin: new URL(url).origin })).status, 200);
     const refused = await post('move', { id: jump, to: 'nowhere' });
     assert.equal(refused.status, 400);
     assert.match(((await refused.json()) as { text: string }).text, /moved to the backlog, build, building or done/);

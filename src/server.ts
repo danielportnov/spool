@@ -221,6 +221,17 @@ export function startPage(
     const { port } = server.address() as AddressInfo;
     // Only a browser pointed at this machine: a name another site resolved here is refused.
     if (!new Set([`127.0.0.1:${port}`, `localhost:${port}`]).has(req.headers.host ?? '')) return send(res, 403, 'text/plain', 'not this machine');
+    // No other site may frame the board, and none may send it a referrer: set for every response, before anything is written.
+    res.setHeader('content-security-policy', "frame-ancestors 'none'");
+    res.setHeader('x-frame-options', 'DENY');
+    res.setHeader('referrer-policy', 'no-referrer');
+    // A change comes from this page itself: a request that names another origin (or comes from another page) is refused,
+    // token or not. One naming neither, as the command line's does, is left to the token.
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      const own = new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
+      const from = req.headers.origin ?? (req.headers.referer ? req.headers.referer.replace(/^(https?:\/\/[^/?#]*).*$/s, '$1') : undefined);
+      if (from !== undefined && !own.has(from)) return send(res, 403, 'application/json', JSON.stringify({ ok: false, text: 'not from this page' }));
+    }
     const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
     try {
       if (req.method === 'GET' && url.pathname === '/') return send(res, 200, 'text/html', PAGE.replace('__TOKEN__', token).replace('__BUILD__', upkeep.build));
@@ -314,7 +325,7 @@ export function startPage(
           'content-type': found.type,
           'cache-control': 'private, max-age=86400',
           'x-content-type-options': 'nosniff',
-          'content-security-policy': "default-src 'none'",
+          'content-security-policy': "default-src 'none'; frame-ancestors 'none'",
           'content-disposition': `inline; filename="${path.basename(found.file)}"`,
         });
         return void res.end(fs.readFileSync(found.file));
