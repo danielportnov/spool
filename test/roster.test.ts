@@ -88,6 +88,8 @@ test('a watch says which agent it is, and the board shows each agent, its count,
       return now[1].building.length ? now : undefined;
     });
     assert.deepEqual(seen.map((a) => [a.name, a.atOnce, a.watching, a.building.length]), [['Claude', 3, false, 0], ['Codex', 3, true, 1]]);
+    assert.deepEqual([seen[1].model, seen[1].how, seen[1].listed, !!Date.parse(seen[1].since)], ['gpt-6', 'Chat loop', true, true]);
+    assert.match(s.sp('status'), /Codex 3 at once on gpt-6, watching since \d\d:\d\d, building t-/);
     const res = await fetch(`${page.url}api/roster`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-spool-token': page.token }, body: JSON.stringify({ agent: 'Codex', atOnce: 2 }) });
     assert.match(((await res.json()) as any).text, /Codex builds up to 2 threads at once/);
     await until('the board shows the new count', async () => (await agents())[1].atOnce === 2);
@@ -127,6 +129,25 @@ test('an agent set to medium at most never claims a large thread, and Claude sti
     assert.match(s.fails('builder', '--agent', 'Codex', '--sizes', 'm-xs'), /runs from large to small/);
     assert.match(s.sp('builder', '--agent', 'Codex', '--sizes', 'all'), /Codex 3 at once, not watching/);
   } finally {
+    s.cleanup();
+  }
+});
+
+test('a watch by an agent that is not on the roster is shown anyway', async () => {
+  const { s } = chatProject(1);
+  const watcher = spawn(process.execPath, [CLI, 'watch', '--as', 'Gemini 3', '--interval', '100', '-C', s.root], {
+    env: { ...process.env, HOME: `${s.root}/.home`, XDG_CONFIG_HOME: undefined, SPOOL_ACTOR: undefined },
+    stdio: 'ignore',
+  });
+  try {
+    await watchUp(watcher.pid);
+    const agents = s.json('builder').agents;
+    const g = agents.find((a: any) => a.name === 'Gemini');
+    assert.deepEqual([g.watching, g.listed, g.how, g.model], [true, false, 'Another agent', '3']);
+    assert.match(s.sp('status'), /Gemini \(not on the roster\) .*watching since/);
+  } finally {
+    watcher.kill('SIGTERM');
+    await gone(watcher);
     s.cleanup();
   }
 });

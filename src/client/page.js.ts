@@ -2232,7 +2232,8 @@ function drawRoster(b) {
   const agents = b.runner.builder === 'chat' ? b.runner.agents || [] : [];
   box.hidden = !agents.length;
   const threads = (n) => n === 1 ? '1 thread' : n + ' threads';
-  box.title = agents.map((a) => (a.watching ? a.name + ' is watching this spool, and builds up to ' + threads(a.atOnce) + ' at once.'
+  const since = (a) => a.watching && a.since ? ', since ' + new Date(a.since).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+  box.title = agents.map((a) => (a.watching ? a.name + (a.model ? ' on ' + a.model : '') + ' (' + a.how + (a.listed ? '' : ', not on the roster') + ') is watching this spool' + since(a) + ', and builds up to ' + threads(a.atOnce) + ' at once.'
     : a.name + ' is not watching this spool now. It builds up to ' + threads(a.atOnce) + ' at once once a chat of it runs /spool-loop here.')
     + (a.sizesText ? ' It takes ' + a.sizesText + '.' : '')
     + (a.building.length ? ' Building ' + a.building.map((t) => t.id + ' ' + t.title).join(', ') + '.' : '')).join('\n') + '\nClick to change how many each builds, and which sizes, in Settings.';

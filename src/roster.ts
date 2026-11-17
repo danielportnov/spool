@@ -19,7 +19,7 @@ import { type Item, SIZES, type Size, type Spool, SpoolError, oneLine } from './
 import { taskState, tasks } from './schedule.ts';
 import { sharedFolderWhy } from './slots.ts';
 import type { Workspace } from './store.ts';
-import { watchers } from './watch.ts';
+import { watcherList } from './watch.ts';
 
 export interface RosterEntry {
   /** The agent's own name, the words of its `--as` before the model: Claude, Codex. */
@@ -217,23 +217,59 @@ export interface AgentView {
   table: { size: string; model: string; effort: string }[];
   /** Whether a `spool watch` signed as this agent is up for the project. */
   watching: boolean;
+  /** When its watch started, while it is watching. */
+  since: string;
+  /** How it builds: a chat running the loop, or another agent that is watching without being on the roster. */
+  how: string;
+  /** Whether it is on the roster; a watcher that is not is shown anyway. */
+  listed: boolean;
   building: { id: string; title: string }[];
 }
 
 export function rosterView(ctx: Ctx, ws: Workspace, spool: Spool): AgentView[] {
   const shared = sharedFolderWhy(spool.root);
-  const up = watchers(spool.root).map((w) => w.toLowerCase());
-  return rosterOf(ctx, spool.root).map((e) => ({
-    name: e.name,
-    model: e.model ?? '',
-    atOnce: countOf(ctx, spool.root, e, shared),
-    sizes: sizesOf(e),
-    sizesText: sizesText(e),
-    lean: leanAt(e),
-    table: tableOf(routingFor(ctx, spool.root, e.name)),
-    watching: up.includes(e.name.toLowerCase()),
-    building: heldBy(ws, spool, e).map((t) => ({ id: t.id, title: oneLine(t.title, 90) })),
-  }));
+  const up = watcherList(spool.root);
+  const watch = (name: string) => up.filter((w) => w.agent.toLowerCase() === name.toLowerCase()).sort((x, y) => x.since.localeCompare(y.since))[0];
+  const roster = rosterOf(ctx, spool.root);
+  const views: AgentView[] = roster.map((e) => {
+    const w = watch(e.name);
+    return {
+      name: e.name,
+      model: e.model ?? w?.model ?? '',
+      atOnce: countOf(ctx, spool.root, e, shared),
+      sizes: sizesOf(e),
+      sizesText: sizesText(e),
+      lean: leanAt(e),
+      table: tableOf(routingFor(ctx, spool.root, e.name)),
+      watching: !!w,
+      since: w?.since ?? '',
+      how: e.kind === 'headless' ? 'Headless' : 'Chat loop',
+      listed: true,
+      building: heldBy(ws, spool, e).map((t) => ({ id: t.id, title: oneLine(t.title, 90) })),
+    };
+  });
+  // A watch signed as an agent that is not on the roster: shown anyway, with no count of its own.
+  const seen = new Set(roster.map((e) => e.name.toLowerCase()));
+  for (const w of up) {
+    if (!w.agent || seen.has(w.agent.toLowerCase())) continue;
+    seen.add(w.agent.toLowerCase());
+    const e: RosterEntry = { name: w.agent, kind: 'chat' };
+    views.push({
+      name: w.agent,
+      model: w.model,
+      atOnce: countOf(ctx, spool.root, e, shared),
+      sizes: sizesOf(e),
+      sizesText: sizesText(e),
+      lean: leanAt(e),
+      table: tableOf(routingFor(ctx, spool.root, e.name)),
+      watching: true,
+      since: w.since,
+      how: 'Another agent',
+      listed: false,
+      building: heldBy(ws, spool, e).map((t) => ({ id: t.id, title: oneLine(t.title, 90) })),
+    });
+  }
+  return views;
 }
 
 /** What each size is built on by a table, smallest first. */
@@ -254,7 +290,7 @@ export function rosterLine(agents: AgentView[]): string {
   return agents
     .map((a) => {
       const building = a.building.length ? `, building ${a.building.map((b) => b.id).join(', ')}` : '';
-      return `${a.name} ${a.atOnce} at once${a.model ? ` on ${a.model}` : ''}, ${a.sizesText === 'all sizes' ? '' : `${a.sizesText}, `}${a.lean !== LEAN_DEFAULT ? `leaning ${a.lean}, ` : ''}${a.watching ? 'watching' : 'not watching'}${building}`;
+      return `${a.name}${a.listed ? '' : ' (not on the roster)'} ${a.atOnce} at once${a.model ? ` on ${a.model}` : ''}, ${a.sizesText === 'all sizes' ? '' : `${a.sizesText}, `}${a.lean !== LEAN_DEFAULT ? `leaning ${a.lean}, ` : ''}${a.watching ? `watching${a.since ? ` since ${new Date(a.since).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}` : ''}` : 'not watching'}${building}`;
     })
     .join(' · ');
 }

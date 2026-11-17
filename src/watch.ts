@@ -66,6 +66,11 @@ const real = (dir: string): string => {
  * the name each signed with (`spool watch --as Codex`); an empty name for a watch nobody signed.
  */
 export function watchers(root: string): string[] {
+  return watcherList(root).map((w) => w.agent);
+}
+
+/** Each watch that is up for the project: the agent it signed as, the model it said, and when it started. */
+export function watcherList(root: string): { agent: string; model: string; since: string }[] {
   let names: string[] = [];
   try {
     names = fs.readdirSync(os.tmpdir());
@@ -73,7 +78,7 @@ export function watchers(root: string): string[] {
     return [];
   }
   const wanted = real(root);
-  const out: string[] = [];
+  const out: { agent: string; model: string; since: string }[] = [];
   for (const name of names) {
     const found = /^spool-watch-(\d+)\.json$/.exec(name);
     if (!found) continue;
@@ -90,8 +95,12 @@ export function watchers(root: string): string[] {
     try {
       // A list of folders, from before a watch said who it is; or the folders and the agent.
       const kept: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
-      const beat = Array.isArray(kept) ? { roots: kept, agent: '' } : (kept as { roots?: unknown; agent?: unknown });
-      if (Array.isArray(beat.roots) && beat.roots.includes(wanted)) out.push(typeof beat.agent === 'string' ? beat.agent : '');
+      const beat = Array.isArray(kept) ? { roots: kept } : (kept as { roots?: unknown; agent?: unknown; model?: unknown; since?: unknown });
+      const text = (v: unknown): string => (typeof v === 'string' ? v : '');
+      if (Array.isArray(beat.roots) && beat.roots.includes(wanted)) {
+        const b = beat as { agent?: unknown; model?: unknown; since?: unknown };
+        out.push({ agent: text(b.agent), model: text(b.model), since: text(b.since) });
+      }
     } catch {
       // Half-written, or gone this instant.
     }
@@ -204,7 +213,8 @@ export function watch({ ctx, opts, actor }: Bare): Result {
   try {
     // Who is watching, by the agent part of its name: the page shows which agents are here.
     const agent = NOT_WATCHERS.has(actor.trim().toLowerCase()) ? '' : signer(actor).agent;
-    fs.writeFileSync(beat, JSON.stringify({ roots: first.roots, agent }));
+    const model = agent ? (signer(actor).model ?? '') : '';
+    fs.writeFileSync(beat, JSON.stringify({ roots: first.roots, agent, model, since: new Date().toISOString() }));
     const leave = (): void => fs.rmSync(beat, { force: true });
     process.once('exit', leave);
     for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
