@@ -772,11 +772,21 @@ the command alone altogether. `spool loop --dry-run` shows the command each thre
 [Model Context Protocol](https://modelcontextprotocol.io) tools over stdio. The set-up commands are
 left out, and where the gate is locked the tools that start work are refused there too.
 
+**What notifies you.** The bell on the board, or `spool notify`, picks the events that tell you,
+for every project: `started` a thread starts, `done` one is done, `question` a question or a plan
+waits on you, `sprint` a sprint is finished, `empty` Build is empty, `stuck` an agent is stuck or
+refused, `budget` the usage target stops the run. With nothing picked it is `question`, `empty`,
+`stuck` and `budget`. Everything else is quiet. `spool notify on started`, `off done`, `only
+started question` and `default` change it; it is kept under `notifyOn` in your own settings. In
+Chat mode the chat that builds runs `spool notify check <event>` before each and sends the ones you
+picked as one-line Claude notifications.
+
 **Notifications outside a chat.** Put a command under `notify` in `~/.config/spool/config.json` and
-Spool runs it when an agent asks you something. The details arrive in `SPOOL_EVENT`, `SPOOL_TITLE`,
+Spool runs it for the events you picked. The details arrive in `SPOOL_EVENT`, `SPOOL_TITLE`,
 `SPOOL_ID` and `SPOOL_PROJECT`. The event is `ask` for a question, `plan` for a plan that waits
-for your go-ahead, `idle` when the loop has nothing left but questions, and `permission` when an
-agent the page runs needs your yes for a tool call.
+for your go-ahead, `idle` when the loop has nothing left but questions, `permission` when an
+agent the page runs needs your yes for a tool call, `started`, `done` and `stuck` for a thread the
+page builds, and `sprint` when a sprint is finished.
 
 ## What Spool will not do
 

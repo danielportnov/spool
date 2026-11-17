@@ -438,7 +438,8 @@ export const CSS = String.raw`  :root {
     .builder { order: 6; margin: 0 0 8px; }
     .runner { order: 7; margin-bottom: 8px; }
     .themer { order: 8; margin: 0 0 8px auto; width: 36px; height: 36px; }
-    .notifier:not([hidden]) + .themer { margin-left: 0; }
+    /* No room for the bell on either row: on a phone, what notifies him is said to the chat. */
+    .notifier { display: none; }
     #notices { left: 16px; right: 16px; width: auto; }
     /* In Chat mode the usage target is a row of its own: the meter runs the width of the phone. */
     .target { order: 9; flex: 1 0 100%; margin: 0 0 8px; justify-content: flex-start; }

@@ -1,6 +1,6 @@
 ---
 name: spool-loop
-description: Make this chat the builder of this project's Spool - it builds the threads the user has moved to build and nothing else, several at once with subagents in git worktrees where it can, says a line as each starts and lands, adds a few ideas of its own as AI suggested, notifies the user when build is empty or something needs them and asks an agent's question in the chat, then watches the spool and starts again the moment a thread is moved to build, with a timed check back (three hours unless told otherwise) only where the harness cannot watch. Use for /spool-loop [hours], /spool-loop stop, or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "build what is in build", "keep going", or asks you to work unattended. Not for questions about the spool or for steering it, which is /spool.
+description: Make this chat the builder of this project's Spool - it builds the threads the user has moved to build and nothing else, several at once with subagents in git worktrees where it can, says a line as each starts and lands, adds a few ideas of its own as AI suggested, notifies the user in a line of the events they picked, such as build empty or a question, and asks an agent's question in the chat, then watches the spool and starts again the moment a thread is moved to build, with a timed check back (three hours unless told otherwise) only where the harness cannot watch. Use for /spool-loop [hours], /spool-loop stop, or when the user says "run the loop", "start the loop", "work the spool", "work the queue", "work through the threads", "build what is in build", "keep going", or asks you to work unattended. Not for questions about the spool or for steering it, which is /spool.
 ---
 
 # Spool loop
@@ -55,8 +55,9 @@ says, three unless they set it.
   the smallest that can build it.
 - Meanwhile you build nothing yourself. Say one line as each thread starts
   ("🧵 Starting the jump: more gravity, less hang time") and one as each
-  lands ("✅ The jump: it lands in half the time"), take the next from build
-  as a slot frees, and answer the human. In caveman mode (`spool caveman`)
+  lands ("✅ The jump: it lands in half the time"), notify them of each
+  where they picked it (below), take the next from build as a slot frees,
+  and answer the human. In caveman mode (`spool caveman`)
   those lines, your notifications and every reply are fragments:
   "Start: the jump." "Landed: the jump. Build empty. http://127.0.0.1:4747/"
 
@@ -73,7 +74,7 @@ they say is for the `spool` skill, which has the one table.
 says). Before you claim each thread, read the plan's usage with your harness's
 tool (`get_usage` in the Claude app) and report it: `spool usage --weekly <n>
 --five-hour <n>`. It says keep building, or stop: then claim nothing new, let
-what is building land, and notify them once. No usage tool? Say so once, and
+what is building land, and notify them once (`budget`). No usage tool? Say so once, and
 build as if no target were set.
 
 ## Watch the spool
@@ -119,8 +120,9 @@ watch prints `ask:`, and its report says so too: ask each question once,
 whichever tells you first. Building alone? Ask your own the same way. Lazy
 dev on? The `spool-lazy` skill says when.
 
-1. **Notify them,** in one line: "Spool needs you: outline the coins, or
-   teal?" In Claude Code it is the `PushNotification` tool.
+1. **Notify them,** in one line, where they picked `question`: "Spool needs
+   you: outline the coins, or teal?" In Claude Code it is the
+   `PushNotification` tool.
 2. **Ask it in the chat, very directly,** with the `AskUserQuestion` tool:
    the question as asked, its options as the choices, the recommended one
    first, marked so and with the why. About how something looks? Put a
@@ -160,14 +162,22 @@ reached, or nothing may be taken. Then carry on below.
    idea too: `spool skills --suggest` lists them by the words they share, so
    read the threads first.
 3. **Show `spool brief`,** as it comes, and the new version in a line.
-4. **Notify them,** in one line, only when they would act on it. Then watch.
+4. **Notify them** of `empty`, in one line, where they picked it. Then watch.
 
-| When | Notify |
-| --- | --- |
-| Build is empty, and threads are proposed | "Spool: nothing in build. I'd build the jump next. Move it to build on the board." |
-| Everything is done | "Spool is done: 4 threads shipped, v0.5.0. Nothing left to do." |
-| Nothing can move without them | "Spool is waiting on you: 2 questions. Nothing else can move." |
-| A question stops one thread: once, as you ask it | "Spool needs you: outline the coins, or teal?" |
+## Notify them
 
-Never for one finished thread, or for progress. In Claude Code it is the
-`PushNotification` tool. No such tool? `spool ask` runs their notifier.
+**What they picked, and nothing else.** They choose on the board, or say it
+here (`spool notify on started`, `off done`, `only …`). Before each one,
+`spool notify check <event>`: send it, or quiet. Each is one short line, by
+the `PushNotification` tool in Claude Code. No such tool? `spool ask` runs
+their notifier.
+
+| Event | When | The line |
+| --- | --- | --- |
+| `started` | A thread starts | "🧵 Started: the jump" |
+| `done` | A thread lands | "✅ Done: the jump, half the hang time" |
+| `question` | A question stops a thread: once, as you ask it | "Spool needs you: outline the coins, or teal?" |
+| `sprint` | A sprint is finished | "🏁 Feel is done: v0.5.0" |
+| `empty` | Build is empty, or everything is done | "Spool: nothing in build. I'd build the jump next." |
+| `stuck` | An agent is stuck or refused, or nothing can move without them | "Spool is stuck on the jump: the check fails." |
+| `budget` | The usage target stops the run | "Spool stopped: weekly usage at 80%." |

@@ -168,7 +168,8 @@ test('with nobody looking it is refused at once, as it always was, and a questio
     assert.equal(fake.heard(1)[1]!.response.response.behavior, 'deny');
     assert.match(fake.heard(1)[1]!.response.response.message, /^Refused: nobody is at Spool to allow it\. Do not look for another way[\s\S]*spool ask/);
     assert.match(s.item(jump), new RegExp(`page: permission denied: ${SECOND}\n`), 'on the log as a denial always was');
-    assert.equal(fs.existsSync(told), false, 'and nobody is notified of what was not held for them');
+    // Nobody is notified of what was not held for them: only that the agent then stopped short.
+    assert.deepEqual(fs.existsSync(told) ? fs.readFileSync(told, 'utf8').trim().split('\n') : [], ['stuck'], 'and nobody is notified of what was not held for them');
     assert.ok(runner.recent[0]!.outcome.startsWith('unfinished'));
 
     // Someone looking, who never answers: it waits its time out, and is refused.

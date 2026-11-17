@@ -59,6 +59,10 @@ those comments are the detail.
   kept in the user's settings beside who builds it. `reasonable` is which threads it may take;
   `buildUnderTakeOver` is `spool build --takeover`, refused unless the switch is on, a chat builds,
   the usage is freshly read and under the target, and Build is empty.
+- `notices.ts` is `spool notify`: which events tell the human (a thread started or done, a
+  question, a sprint finished, Build empty, an agent stuck, the usage target reached), kept in their
+  own settings under `notifyOn`. The chat that builds asks `spool notify check <event>` before it
+  sends a Claude notification; `notify` in `context.ts` runs the notifier only for events picked.
 - `leave.ts` is `spool leave`: how far agents may go while the human is away, and until when,
   kept in `.spool/leave.json`. `settle` gives the live leave and removes one that has run out.
   `buildUnderLeave` and `dropUnderLeave` are what `spool build --leave` and `spool drop --leave`

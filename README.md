@@ -312,6 +312,13 @@ look, and `spool revert` takes it back. `spool takeover on` and `off` are the sa
 **Caveman mode** (`spool caveman on`, or say "caveman" to the chat) makes the chat that steers or builds
 answer in the fewest words, as short fragments. `spool caveman off` returns to normal replies.
 
+The **bell** by the theme picks what notifies you, in every project: a thread started, a thread
+done, a question, a sprint finished, Build empty, an agent stuck or refused, a run stopped at its
+usage target. Out of the box, only what needs you: questions, Build empty, stuck, the target. In
+Chat mode the chat that builds sends each one you picked as a single-line Claude notification and
+nothing for the rest; headless, the page runs your notifier for them. Tell a chat "notify me when a
+thread starts" and it runs `spool notify on started`.
+
 The agent it starts is a command on your machine, `claude -p` unless you say otherwise, and it can
 only do what you allow it. What you have not allowed, it asks for while the page is open: the
 question shows on its card, with **Allow once**, **Allow for this run** and **No**. With nobody
@@ -353,7 +360,7 @@ It reads `GEMINI.md` unless its settings name `AGENTS.md` too.
 ## While you're away
 
 - ⚡ The loop watches the spool. Press ▶ on the page and it starts within seconds; no timer, nobody typing.
-- 🔔 It notifies you when Build is empty, or when it needs a call that is yours.
+- 🔔 It notifies you of what you pick, in one line each: a thread started or done, a question, a sprint finished, Build empty, an agent stuck, the usage target reached. By default only what needs you; the bell on the board changes it.
 - ❓ A question stops one thread, never the loop. It asks with options and a recommendation, and moves on. In Chat mode it comes to you in the chat, with a notification.
 - 🧾 A call it makes by itself leaves a receipt you can overrule.
 - ✅ Name your tests once (`spool checks "npm test"`) and no thread can be marked done unless they pass.

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { shipped } from '../src/builtin.ts';
+import { EVENTS } from '../src/notices.ts';
 import { parseFrontmatter } from '../src/frontmatter.ts';
 import { Sandbox } from './helpers.ts';
 
@@ -10,7 +11,7 @@ import { Sandbox } from './helpers.ts';
 test('the loop skill has one job: make this chat the builder', () => {
   const loop = shipped('spool-loop');
   const flat = loop.replace(/\s+/g, ' ');
-  assert.deepEqual([...loop.matchAll(/^## (.+)$/gm)].map((m) => m[1]), ['Start', 'Build what is in Build', 'Watch the spool', 'Ask them in the chat', 'When Build is empty']);
+  assert.deepEqual([...loop.matchAll(/^## (.+)$/gm)].map((m) => m[1]), ['Start', 'Build what is in Build', 'Watch the spool', 'Ask them in the chat', 'When Build is empty', 'Notify them']);
   assert.match(flat, /`\/spool-loop` makes this chat the one that builds\. \*\*They decide what is built, and you build it:\*\* what is in Build, top first, and nothing else\./);
 
   // It starts by telling the board a chat builds here, which is theirs to say: typing /spool-loop says it.
@@ -36,9 +37,10 @@ test('the loop skill has one job: make this chat the builder', () => {
   assert.doesNotMatch(loop, /\| They say \| Run \||## Show the spool|## Put the spool in order|spool overview/);
   assert.match(flat, /\*\*The worker's rules are not in this skill\.\*\* `spool prime worker` prints them, and whoever builds a thread reads them first: you, or each subagent\./);
   // Up to their usage target: read before each thread, reported, and a stop is a stop.
-  assert.match(flat, /\*\*Up to their usage target,\*\* where they set one on the board \(`spool target` says\)\. Before you claim each thread, read the plan's usage with your harness's tool \(`get_usage` in the Claude app\) and report it: `spool usage --weekly <n> --five-hour <n>`\. It says keep building, or stop: then claim nothing new, let what is building land, and notify them once\. No usage tool\? Say so once, and build as if no target were set\./);
-  // Short enough to be read every time: it was 553 lines, and grew six for the usage target, 29 for questions asked in the chat, two for the model and nine for taking over.
-  assert.ok(loop.trimEnd().split('\n').length <= 173, `${loop.trimEnd().split('\n').length} lines`);
+  assert.match(flat, /\*\*Up to their usage target,\*\* where they set one on the board \(`spool target` says\)\. Before you claim each thread, read the plan's usage with your harness's tool \(`get_usage` in the Claude app\) and report it: `spool usage --weekly <n> --five-hour <n>`\. It says keep building, or stop: then claim nothing new, let what is building land, and notify them once \(`budget`\)\. No usage tool\? Say so once, and build as if no target were set\./);
+  // Short enough to be read every time: it was 553 lines, and grew six for the usage target, 29 for questions asked in the chat, two for the model,
+  // nine for taking over and ten for the notifications the human picks.
+  assert.ok(loop.trimEnd().split('\n').length <= 183, `${loop.trimEnd().split('\n').length} lines`);
 });
 
 test('the loop watches the spool, and falls back to one scheduled job', () => {
@@ -76,7 +78,7 @@ test("in a chat that builds, an agent's question comes to the human as a Claude 
   // Building alone, its own questions go the same way; lazy dev decides for itself when to bring one up.
   assert.match(flat, /Building alone\? Ask your own the same way\. Lazy dev on\? The `spool-lazy` skill says when\./);
   // A notification first, then the question itself, very directly, with Claude's own tools.
-  assert.match(flat, /1\. \*\*Notify them,\*\* in one line: "Spool needs you: outline the coins, or teal\?" In Claude Code it is the `PushNotification` tool\./);
+  assert.match(flat, /1\. \*\*Notify them,\*\* in one line, where they picked `question`: "Spool needs you: outline the coins, or teal\?" In Claude Code it is the `PushNotification` tool\./);
   assert.match(flat, /2\. \*\*Ask it in the chat, very directly,\*\* with the `AskUserQuestion` tool: the question as asked, its options as the choices, the recommended one first, marked so and with the why\./);
   // Mockups to compare when it is about how something looks: the subagent draws them, the chat shows them side by side.
   assert.match(flat, /About how something looks\? Put a small mockup of each option, or its code, in its `preview`, so they compare them side by side\./);
@@ -103,11 +105,20 @@ test('when build is empty the loop versions what shipped, adds a few ideas of it
   assert.match(flat, /A step agents keep working out again is an idea too: `spool skills --suggest` lists them by the words they share, so read the threads first\./);
   assert.match(flat, /3\. \*\*Show `spool brief`,\*\* as it comes, and the new version in a line\./);
 
-  // It reaches the human through the harness's own notifications, and only when they would act.
-  assert.match(flat, /4\. \*\*Notify them,\*\* in one line, only when they would act on it\. Then watch\./);
-  const when = loop.split('\n').filter((l) => l.startsWith('| ') && l.includes('"Spool')).map((l) => l.slice(2).split(' | ')[0]);
-  assert.deepEqual(when, ['Build is empty, and threads are proposed', 'Everything is done', 'Nothing can move without them', 'A question stops one thread: once, as you ask it']);
-  assert.match(flat, /Never for one finished thread, or for progress\. In Claude Code it is the `PushNotification` tool\./);
+  // It reaches the human through the harness's own notifications, where they picked it.
+  assert.match(flat, /4\. \*\*Notify them\*\* of `empty`, in one line, where they picked it\. Then watch\./);
+});
+
+test('the loop notifies of what the human picked, one line each, and nothing else', () => {
+  const loop = shipped('spool-loop');
+  const flat = loop.replace(/\s+/g, ' ');
+  assert.match(flat, /\*\*What they picked, and nothing else\.\*\* They choose on the board, or say it here \(`spool notify on started`, `off done`, `only …`\)\. Before each one, `spool notify check <event>`: send it, or quiet\. Each is one short line, by the `PushNotification` tool in Claude Code\./);
+  // One row for each event spool notify knows, in its order, and each line short.
+  const rows = loop.split('\n').filter((l) => /^\| `[a-z]+` \|/.test(l)).map((l) => l.slice(2).split(' | '));
+  assert.deepEqual(rows.map((r) => r[0]!.replace(/`/g, '')), [...EVENTS]);
+  for (const r of rows) assert.ok(r[2]!.length <= 60, r[2]);
+  // A thread starting and landing is said in the chat, and notified only where they picked it.
+  assert.match(flat, /notify them of each where they picked it \(below\)/);
 });
 
 test("the loop's description says it builds, and leaves questions and steering to /spool", () => {

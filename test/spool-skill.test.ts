@@ -59,6 +59,7 @@ test('/spool is the one skill for the chat: status first, a short reply, and one
   assert.equal(run('"build three at once"'), '`spool builder --at-once <n>`');
   assert.match(run('"take over the backlog"'), /^`spool takeover on`, `spool takeover off`\. In Chat mode the chat then moves the top thread they filed to Build itself, up to the usage target$/);
   assert.match(run('"use up to 80% of my weekly usage"'), /^`spool target --weekly <n>`, `--five-hour <n>`; `none` takes one off\. A chat building in Chat mode works up to it$/);
+  assert.equal(run('"tell me when a thread starts"'), '`spool notify on started`, `spool notify off done`; `only <events>` for exactly those. `spool notify` lists them');
   assert.match(run('"what happened overnight"'), /^`spool brief`, as it comes; `--since 8h` or `--since yesterday`/);
   assert.equal(run('"what needs me"'), '`spool review`');
   assert.match(run('"where do things stand"'), /^`spool overview --brief`, as it comes/);
@@ -91,8 +92,8 @@ test('/spool is the one skill for the chat: status first, a short reply, and one
   assert.match(flat, /never stop and start it yourself: that ends the agents it is running\. `spool page --stop` only when they ask\./);
   assert.doesNotMatch(skill, /On the page \| What it does|Keep the board live/);
 
-  // Short enough to be read on every project: about seventy lines, the table most of it.
-  assert.ok(skill.trimEnd().split('\n').length <= 90, `${skill.trimEnd().split('\n').length} lines`);
+  // Short enough to be read on every project: about seventy lines, the table most of it, and a row for notifications.
+  assert.ok(skill.trimEnd().split('\n').length <= 91, `${skill.trimEnd().split('\n').length} lines`);
 });
 
 test("/spool's description says when to load it, and when not to", () => {
