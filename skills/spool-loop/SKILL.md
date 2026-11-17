@@ -85,7 +85,7 @@ do, and nothing otherwise:
 | It prints | Do |
 | --- | --- |
 | `build: t-4kq7 Tighter jump` | They moved it to Build, or an answer freed it. Build it |
-| `reply: t-4kq7 Tighter jump`, and their words | They wrote on a thread. Being built? It steers that work. Otherwise leave it for whoever builds it |
+| `reply: t-4kq7 Tighter jump`, and their words, or the path of a picture or a file they added | They wrote on a thread. Being built? It steers that work: open what they added. Otherwise leave it for whoever builds it |
 | `unfiled: n-9wxa "add a mute button"` | A note nobody has filed. File it, by the `spool-record` skill |
 | `ask: d-3kq2 for t-4kq7 Tighter jump — "Outline, or teal?"`, and its options | An agent needs their call. Ask them in the chat, below |
 | `takeover: skyhop`, and how | They switched taking over on. Build empty? Take the next, below |

@@ -184,7 +184,9 @@ open, and you watch threads move.
 Much feedback is about how something looks, so a picture can go with it: paste a screenshot, or
 drop an image file, into the reply box, **+ Add** or `c`, and it waits under the box until you send.
 It shows under your words in the conversation, a click opens it full size, and the agent that builds
-the thread finds its path in its brief. Agents attach pictures too, with `spool attach`: a before and
+the thread finds its path in its brief. A file goes the same way, dropped on the thread or picked
+with **Add a file**: a PDF, or plain text such as a log, notes, a CSV or JSON. It shows as a link,
+and a chat that is building the thread is told its path the moment you send it. Agents attach pictures too, with `spool attach`: a before and
 an after of anything that changes what is on screen, shown side by side under the result when the
 thread is done, and marked in the brief's **Worth a look**. Pictures stay on your machine, in
 `.spool/runs/`, out of git.

@@ -140,7 +140,7 @@ those comments are the detail.
   permission questions put to Spool, and `userLine`, `interruptLine`, `allowLine` and `denyLine`
   are what Spool writes to it. `docs/claude-stream.md` says what of Claude's
   stream was tried, and on which version.
-- `pictures.ts` keeps pictures with a thread, in `.spool/runs/<id>/files/` beside its transcripts:
+- `pictures.ts` keeps pictures and files (PDF, plain text) with a thread, in `.spool/runs/<id>/files/` beside its transcripts:
   `attach` takes them in by their first bytes and within the limits, `picturesOf` lists them with
   who attached each and the caption from the thread's log, and `pictureFile` is the only way the
   server finds one to serve. `attach.ts` is the `spool attach` command over it; the page's paste

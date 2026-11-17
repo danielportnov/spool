@@ -51,7 +51,7 @@ test('the loop watches the spool, and falls back to one scheduled job', () => {
 
   // Each line of the watch is something to do.
   assert.match(loop, /^\| `build: t-4kq7 Tighter jump` \| They moved it to Build, or an answer freed it\. Build it \|$/m);
-  assert.match(loop, /^\| `reply: t-4kq7 Tighter jump`, and their words \| They wrote on a thread\. Being built\? It steers that work\. Otherwise leave it for whoever builds it \|$/m);
+  assert.match(loop, /^\| `reply: t-4kq7 Tighter jump`, and their words, or the path of a picture or a file they added \| They wrote on a thread\. Being built\? It steers that work: open what they added\. Otherwise leave it for whoever builds it \|$/m);
   assert.match(loop, /^\| `unfiled: n-9wxa "add a mute button"` \| A note nobody has filed\. File it, by the `spool-record` skill \|$/m);
   assert.match(loop, /^\| `ask: d-3kq2 for t-4kq7 Tighter jump — "Outline, or teal\?"`, and its options \| An agent needs their call\. Ask them in the chat, below \|$/m);
   assert.match(flat, /start the `Monitor` tool with the command `spool watch` and the longest timeout it allows\. Then end your turn: each line wakes you\./);
