@@ -23,6 +23,8 @@ import type { AddressInfo } from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { type Body, act, change, text } from './act.ts';
+import { askCleanup, cleanupAsked } from './cleanup.ts';
+import { settle } from './leave.ts';
 import { type Column, board, columnOf, diffOf } from './board.ts';
 import { PAGE } from './client/page.html.ts';
 import type { Bare, Result } from './commands.ts';
@@ -31,10 +33,11 @@ import { type PageRecord, detachPage, forgetPage, pageStatus, pageUp, realOf, re
 import { Runner } from './engine.ts';
 import { heardRun } from './heard.ts';
 import { lineageSections, threadLineage } from './lineage.ts';
-import { type Spool, SpoolError } from './model.ts';
+import { type Item, type Spool, SpoolError, isRun } from './model.ts';
 import { MAX_BYTES, pictureFile } from './pictures.ts';
 import { sprintReview } from './review.ts';
-import { taskState } from './schedule.ts';
+import { openRun, taskState, tasks } from './schedule.ts';
+import { readProposals, unanswered } from './proposals.ts';
 import { atOnceIn } from './slots.ts';
 import { rosterView, saveAgent } from './roster.ts';
 import { briefAcross, named, projectsOf } from './projects.ts';
@@ -43,6 +46,7 @@ import { CODE_DIR, CODE_EXT, Upkeep } from './upkeep.ts';
 import { takeOverState } from './takeover.ts';
 import { noticesOf } from './notices.ts';
 import { usageOf } from './usage.ts';
+import { watched } from './watch.ts';
 
 interface Started {
   url: string;
@@ -240,7 +244,19 @@ export function startPage(
           };
           // Whether the chat takes over this project's backlog, and what it would take next, for the header's switch and its menu.
           const takeOver = takeOverState(ctx, ws, spool);
-          return send(res, 200, 'application/json', JSON.stringify({ ...shown, takeOver, workspace }));
+          // The backlog's Clean Up: a pass open now, a request still waiting for whoever builds, and the leave that is live.
+          const live = settle(ws, spool).live;
+          // The newest pass whose proposals still wait for a yes or a no, so the button can lead there too.
+          const waits = tasks(ws, spool)
+            .filter((t) => isRun(t) && t.status !== 'active' && unanswered(readProposals(t)).length)
+            .sort((a, b) => b.created.localeCompare(a.created))[0];
+          const cleanup = {
+            open: openRun(ws, spool)?.id ?? null,
+            asked: cleanupAsked(spool)?.at ?? null,
+            leave: live ? live.words : null,
+            waiting: waits ? { id: waits.id, count: unanswered(readProposals(waits)).length } : null,
+          };
+          return send(res, 200, 'application/json', JSON.stringify({ ...shown, takeOver, cleanup, workspace }));
         } finally {
           ws.close();
         }
@@ -384,6 +400,11 @@ export function startPage(
             const entry = saveAgent(ctx, spool.root, name, { atOnce: n });
             return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: `${entry.name} builds up to ${n === 1 ? '1 thread' : `${n} threads`} at once.` }));
           }
+          if (action === 'cleanup') {
+            // Clean Up: a pass over the backlog, by whoever builds this project. One already open is the answer.
+            const result = cleanupFrom(here, spool, who, text(body.words));
+            return send(res, result.ok ? 200 : 400, 'application/json', JSON.stringify(result));
+          }
           if (action === 'move' || action === 'abort') {
             // A thread moved to any column, from any column. Abort is the move straight back to the backlog.
             const result = moveThread(here, runner, text(body.id), action === 'abort' ? 'proposed' : text(body.to), who);
@@ -462,6 +483,41 @@ export function startPage(
       if (!(error instanceof SpoolError)) ctx.err(String(error));
     }
   });
+  /**
+   * Clean Up, pressed. Their words, where they wrote any, are kept with the request and given as a
+   * leave that allows nothing more than tidying, so the run's thread names it. Then the request is
+   * left for whoever builds: a chat hears it from its watch, and this page's runner starts the pass.
+   */
+  const cleanupFrom = (here: Ctx, spool: Spool, who: Who, words: string): { ok: boolean; text: string; id?: string } => {
+    if (who === 'elsewhere') return { ok: false, text: `This page builds ${options.project} only. Clean up ${spool.name} from its own page, or a chat.` };
+    const ws = Workspace.open(here.cwd, here.now);
+    let open: Item | undefined;
+    // Their words become a leave only with a new request, and only where none is live: nothing renews a leave.
+    let leave = false;
+    try {
+      // Opened in the project's own folder: its spool is the home one.
+      const mine = ws.home;
+      open = openRun(ws, mine);
+      if (!open && !cleanupAsked(mine)) {
+        leave = !!words && !settle(ws, mine).live;
+        askCleanup(mine, 'human', words, ws.now());
+      }
+    } finally {
+      ws.close();
+    }
+    if (open) return { ok: true, id: open.id, text: 'A clean-up is open already: here is its thread.' };
+    if (leave) act(here, ['leave', '--', words]);
+    if (who === 'chat') {
+      const heard = watched(spool.root);
+      return {
+        ok: true,
+        text: heard
+          ? 'Asked the chat that builds: it goes through the backlog, and its proposals come here for your yes or no.'
+          : 'Asked for. No chat is watching this project: say /spool-loop in one, and it runs the pass.',
+      };
+    }
+    return runner.cleanup(here);
+  };
   /**
    * A picture or a file pasted, dropped or picked on the page: the file's bytes as they are, the thread
    * and the file's own name in the query. It is the one POST that is not JSON, and the one allowed more

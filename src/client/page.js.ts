@@ -425,6 +425,44 @@ function addNode(column, placeholder) {
     el('div', { class: 'acts' }, el('button', { class: 'go', onclick: save }, 'Add'), el('button', { onclick: close }, 'Cancel')));
 }
 
+// Clean Up: an agent goes through the backlog by the manager's rules, and what it would drop or archive
+// waits on its thread for a yes or a no. With a pass open, the button is the way to its thread.
+let cleaning = false;
+let cleanDraft = '';
+function cleanupNode(b) {
+  const c = b.cleanup || {};
+  if (c.open) return el('button', { class: 'cleanup', title: 'A clean-up is open: see what it proposes', onclick: () => openThread(c.open) }, '🧹 Clean-up open');
+  if (c.asked) return el('button', { class: 'cleanup', disabled: true, title: 'Waiting for whoever builds to run the pass' }, '🧹 Clean Up asked for');
+  if (!cleaning) {
+    const button = el('button', { class: 'cleanup', title: 'An agent tags what to drop or archive, and sets sizes and the order. Nothing goes without your yes.', onclick: () => { cleaning = true; cleanDraft = ''; redraw(); } }, '🧹 Clean Up');
+    // The last pass's proposals that still wait for a yes or a no: one click to them.
+    if (!c.waiting) return button;
+    return el('div', { class: 'cleanups' }, button,
+      el('button', { class: 'cleanup waits', title: 'The last clean-up proposes these: say yes or no', onclick: () => openThread(c.waiting.id) }, c.waiting.count + (c.waiting.count === 1 ? ' proposal waits' : ' proposals wait')));
+  }
+  const close = () => { cleaning = false; cleanDraft = ''; redraw(); };
+  const start = async () => {
+    const words = cleanDraft.trim();
+    cleaning = false;
+    cleanDraft = '';
+    const made = await post('cleanup', words ? { words } : {}, 'Clean-up asked for');
+    // A pass that started, or one open already: its thread, once the board has it.
+    if (typeof made === 'string') { await load(true); openThread(made); }
+  };
+  // Their words, if any, are a leave for tonight that allows tidying only. One live already is what the pass runs under.
+  const box = c.leave ? el('div', { class: 'hint' }, 'It runs under your leave: "' + c.leave + '"') : el('input', { class: 'leave', placeholder: 'Your words for it, optional: a leave for tonight',
+    oninput: (e) => { cleanDraft = e.target.value; },
+    onkeydown: (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); start(); }
+      if (e.key === 'Escape') { e.stopPropagation(); close(); }
+    } });
+  if (!c.leave) box.value = cleanDraft;
+  return el('div', { class: 'adding cleaning' },
+    el('div', { class: 'hint' }, 'An agent goes through the backlog: what to drop or archive comes to you as proposals, a yes or a no on each. Sizes and the order it sets itself, and one undo takes it all back.'),
+    box,
+    el('div', { class: 'acts' }, el('button', { class: 'go', onclick: start }, 'Start the clean-up'), el('button', { onclick: close }, 'Cancel')));
+}
+
 // ---- each column can be sorted and filtered by itself; the choice is remembered
 
 const SORTS = [['', 'Sort: as it stands'], ['priority', 'Sort: most urgent'], ['small', 'Sort: smallest'], ['large', 'Sort: largest'], ['new', 'Sort: newest'], ['old', 'Sort: oldest'], ['title', 'Sort: A to Z']];
@@ -547,6 +585,7 @@ function drawBoard(b) {
       } },
       el('h2', {}, DOT[key] + ' ' + name, el('span', { class: 'count' }, filter ? every.length + ' of ' + whole.length : String(cards.length))),
       line && cards.length > 1 && el('div', { class: 'hint' }, 'Built top first. Drag a card up or down to change the order.'),
+      key === 'proposed' && whole.length > 0 && cleanupNode(b),
       whole.length > 1 && tools,
       cards.length ? cards.map((c) => cardNode(c, b)) : el('div', { class: 'empty' }, filter ? 'Nothing here matches.' : key === 'done' ? 'Nothing left to check.' : hint),
       key === 'done' && cards.length > 1 && el('button', { class: 'foot go', onclick: () => post('complete-all', {}, 'All marked as complete') }, '✓ Mark all ' + cards.length + ' as complete'),
@@ -696,7 +735,8 @@ function drawBacklog(b) {
     ...open.map((s) => sprintNode(s, b)),
     newSprint,
     dropInto(el('div', { class: 'group' },
-      el('div', { class: 'ghead' }, el('span', { class: 'gname' }, 'Backlog'), el('span', { class: 'gmeta' }, loose.length + (loose.length === 1 ? ' thread' : ' threads') + ' in no sprint')),
+      el('div', { class: 'ghead' }, el('span', { class: 'gname' }, 'Backlog'), el('span', { class: 'gmeta' }, loose.length + (loose.length === 1 ? ' thread' : ' threads') + ' in no sprint'),
+        b.columns.proposed.length > 0 && (cleaning ? cleanupNode(b) : el('span', { class: 'push' }, cleanupNode(b)))),
       loose.length ? loose.map((c) => rowNode(c, b)) : el('div', { class: 'empty' }, 'Everything is in a sprint, or built.'),
       addNode('proposed', 'What do you want added?'),
       loose.length > 0 && el('div', { style: 'margin-top: 8px; max-width: 320px' }, addAllNode('backlog', loose))), ''),

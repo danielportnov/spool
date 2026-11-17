@@ -14,16 +14,16 @@ import { sprintReview } from './review.ts';
 import { review } from './schedule.ts';
 import { Workspace } from './store.ts';
 
-/** Run one command as the human, in-process, and say whether it worked. */
-export function act(ctx: Ctx, argv: string[]): { ok: boolean; text: string; data: unknown } {
+/** Run one command as the human, in-process, and say whether it worked. `as` signs it as an agent the page started instead. */
+export function act(ctx: Ctx, argv: string[], as?: string): { ok: boolean; text: string; data: unknown } {
   const out: string[] = [];
   const err: string[] = [];
   // --json goes first: after a `--`, everything is the human's words.
   const code = run(['--json', ...argv], {
     ...ctx,
-    env: { ...ctx.env, SPOOL_ACTOR: 'human' },
-    // Everything the page does is a click a person made on it.
-    human: true,
+    env: { ...ctx.env, SPOOL_ACTOR: as ?? 'human' },
+    // Everything the page does is a click a person made on it, but for what an agent it started does.
+    human: !as,
     out: (line) => out.push(line),
     err: (line) => err.push(line),
     stdin: () => '',
