@@ -54,7 +54,7 @@ ${CSS + ROADMAP_CSS + REVIEW_CSS + PROJECTS_CSS + PICTURES_CSS}</style>
   <input class="search" id="search" placeholder="Search threads   /" autocomplete="off">
   <button class="searchbtn" id="searchbtn" title="Search   /" aria-label="Search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg></button>
   <div class="builder" id="builder" role="group" aria-label="Who builds" hidden><button data-builder="headless">Headless</button><button data-builder="chat">Chat</button></div>
-  <div class="roster" id="roster" role="group" aria-label="Agents that build" hidden></div>
+  <button class="roster" id="roster" aria-haspopup="dialog" aria-controls="settings" hidden></button>
   <button class="runner" id="runner" hidden></button>
   <button class="target" id="target" aria-haspopup="dialog" aria-expanded="false" aria-controls="targets" hidden></button>
   <button class="takeover" id="takeover" aria-haspopup="dialog" aria-expanded="false" aria-controls="takeovers" hidden></button>

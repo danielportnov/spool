@@ -39,6 +39,12 @@ export const CSS = String.raw`  :root {
   .tab.on { color: var(--ink); border-bottom-color: var(--accent); }
   .search { margin-left: auto; width: min(260px, 40vw); padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
   .searchbtn { display: none; }
+  /* Chat mode fills the bar: under a wide screen it packs closer, so the gear and the theme stay in view. */
+  @media (min-width: 761px) and (max-width: 1700px) {
+    .bar { gap: 10px; }
+    .tab { padding: 0 9px; }
+    .where { display: none; }
+  }
   .runner { white-space: nowrap; color: var(--soft); }
   .runner.on { color: var(--go); border-color: var(--go); font-weight: 600; }
   /* who builds: two picks side by side, the one in force filled in */
@@ -53,17 +59,12 @@ export const CSS = String.raw`  :root {
   /* Headless is off for now: greyed, and a click does nothing. It still shows as the pick when the project is set to it. */
   .builder button.off { color: var(--line); cursor: not-allowed; }
   .builder button.off.on { color: var(--soft); }
-  /* In Chat mode, each agent that builds: its name, what it is building of its count, and − + to change the count. Greyed while it is not watching. */
-  .roster { display: flex; gap: 6px; white-space: nowrap; }
-  .roster .agent { display: inline-flex; align-items: center; border: 1px solid var(--soft); border-radius: 7px; background: var(--bg); padding-left: 9px; font-weight: 600; }
-  .roster .agent .n { min-width: 2.2em; text-align: center; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--soft); }
-  .roster .agent button { border: 0; background: none; padding: 5px 7px; color: var(--soft); font-weight: 400; }
-  .roster .agent button.sizes { border-left: 1px solid var(--line); font-size: 0.85em; font-variant-numeric: tabular-nums; }
-  .roster .agent button.sizes:disabled { visibility: visible; }
-  .roster .agent button:hover { color: var(--ink); }
-  .roster .agent button:disabled { visibility: hidden; }
-  .roster .agent.off { border-color: var(--line); background: var(--panel); color: var(--line); font-weight: 400; }
-  .roster .agent.off .n, .roster .agent.off button { color: var(--line); }
+  /* In Chat mode, the agents that build, in one button: each name and what it is building of its count, greyed while it is not watching. It opens Settings. */
+  .roster { display: inline-flex; align-items: center; gap: 0; white-space: nowrap; padding: 5px 4px; }
+  .roster .agent { display: inline-flex; align-items: center; gap: 5px; padding: 0 7px; font-weight: 600; color: var(--ink); }
+  .roster .agent + .agent { border-left: 1px solid var(--line); }
+  .roster .agent .n { font-weight: 400; font-variant-numeric: tabular-nums; color: var(--soft); }
+  .roster .agent.off, .roster .agent.off .n { color: var(--soft); font-weight: 400; opacity: .6; }
   /* The usage target, in Chat mode: a small meter of the plan's usage, with a tick where the chat stops. */
   .target { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--soft); margin-left: -8px; }
   .target.set { color: var(--ink); }

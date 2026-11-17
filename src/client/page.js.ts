@@ -1957,6 +1957,23 @@ function settingsSections() {
         : [step('This page', s.parallel, (n) => sendSetting('parallel', { atOnce: n }, 'This page builds up to ' + n + ' at once.'))]));
       row.querySelector('.cmd').textContent = b.runner.builder === 'chat' ? 'spool builder --agent ' + (list[0] ? list[0].name : 'Claude') + ' --at-once <n>' : 'spool builder --at-once <n>';
     });
+  // Which sizes each agent takes: the largest, from XS up, or all of them.
+  const sizeBox = el('div', { class: 'agents' });
+  const sizeRow = settingRow('Sizes each agent takes', 'The largest thread each agent is handed. A thread bigger than that waits for an agent that takes it. Chat only.',
+    'spool builder --agent Claude --max-size m', sizeBox, (b, row) => {
+      const list = settingsOf(b).agents.filter((a) => a.sizes);
+      row.hidden = !list.length;
+      row.classList.toggle('dim', b.runner.builder !== 'chat');
+      const shape = list.map((a) => a.name + a.sizes.join('-')).join();
+      if (sizeBox.dataset.shape === shape || sizeBox.contains(document.activeElement)) return;
+      sizeBox.dataset.shape = shape;
+      sizeBox.replaceChildren(...list.map((a) => {
+        const pick = el('select', { 'aria-label': 'Largest size ' + a.name + ' takes', onchange: () => sendSetting('roster', { agent: a.name, maxSize: pick.value }, '') },
+          ...['xs', 's', 'm', 'l', 'xl'].map((z) => el('option', { value: z === 'xl' ? 'all' : z }, z === 'xl' ? 'All sizes' : 'Up to ' + z.toUpperCase())));
+        pick.value = a.sizes[1] === 'xl' ? 'all' : a.sizes[1];
+        return el('span', { class: 'count' }, el('span', { class: 'name' }, a.name), pick);
+      }));
+    });
   const take = settingSwitch('Take over the backlog', (on) => sendSetting('takeover', { on }, on ? 'The chat takes over the backlog, up to your usage target.' : 'The chat builds only what you move to Build.'));
   const takeRow = settingRow('Take over the backlog', 'With Build empty and usage under your target, the chat moves the top thread you filed to Build itself, and builds it. Chat only.',
     'spool takeover on', take, (b, row) => {
@@ -1998,7 +2015,7 @@ function settingsSections() {
         row.querySelector('p').textContent = 'How much of your Claude plan’s ' + name.toLowerCase() + ' limit the chat that builds may use. Past it, it takes no new thread.' + (used == null ? '' : ' Used now: ' + pct(used) + '.');
       });
   });
-  const coming = el('p', { class: 'coming' }, 'Coming here as they are built: each agent’s sizes and usage limit, and the Usage-to-Development slider.');
+  const coming = el('p', { class: 'coming' }, 'Coming here as they are built: each agent’s usage limit, and the Usage-to-Development slider.');
 
   // Notifications: each event, a switch.
   const noticeRows = NOTICES.map(([key, name]) => {
@@ -2018,7 +2035,7 @@ function settingsSections() {
     'spool settings quick-reply off', quick, (b) => { if (!leave(quick)) quick.checked = settingsOf(b).quickReply; });
 
   return [
-    section('Building', who, offerRow, atOnce, takeRow, afkRow, rebuildRow, quietRow, stopRow),
+    section('Building', who, offerRow, atOnce, sizeRow, takeRow, afkRow, rebuildRow, quietRow, stopRow),
     section('Usage', ...usageRows, coming),
     section('Notifications', ...noticeRows, via),
     section('Replies & style', caveRow, quickRow),
@@ -2145,32 +2162,24 @@ function connected(yes) {
   document.body.classList.add('away');
   unknown();
 }
-// In Chat mode, each agent on the roster: what it is building of its count, − and + to change the
-// count, and greyed while no watch of its own is up. Headless, the page's own agents build, and this is hidden.
+// In Chat mode, each agent on the roster: what it is building of its count, greyed while no watch of
+// its own is up. A summary: a click opens Settings, where each count is changed. Headless, the
+// page's own agents build, and this is hidden.
 function drawRoster(b) {
   const box = document.getElementById('roster');
   const agents = b.runner.builder === 'chat' ? b.runner.agents || [] : [];
   box.hidden = !agents.length;
-  box.replaceChildren(...agents.map((a) => {
-    const threads = (n) => n === 1 ? '1 thread' : n + ' threads';
-    const on = a.building.length ? ' Building ' + a.building.map((t) => t.id + ' ' + t.title).join(', ') + '.' : '';
-    const title = (a.watching ? a.name + ' is watching this spool, and builds up to ' + threads(a.atOnce) + ' at once.'
-      : a.name + ' is not watching this spool now. It builds up to ' + threads(a.atOnce) + ' at once once a chat of it runs /spool-loop here.') + on;
-    const set = (n) => post('roster', { agent: a.name, atOnce: n }, '');
-    // The largest size it takes: a click goes up one size, and past XL back to all of them down to XS.
-    const sizes = ['xs', 's', 'm', 'l', 'xl'];
-    const top = a.sizes[1];
-    const next = top === 'xl' ? 'xs' : sizes[sizes.indexOf(top) + 1];
-    const chip = el('button', { class: 'sizes', 'aria-label': a.name + ' takes ' + a.sizesText + '. Click to change the largest size.',
-      title: a.name + ' takes ' + a.sizesText + '. Click: up to ' + next.toUpperCase() + '.', onclick: () => post('roster', { agent: a.name, maxSize: next }, '') },
-      top === 'xl' ? 'all' : '≤ ' + top.toUpperCase());
-    return el('span', { class: 'agent' + (a.watching ? '' : ' off'), title },
-      el('span', { class: 'name' }, a.name),
-      el('button', { class: 'less', 'aria-label': 'One thread fewer for ' + a.name, disabled: a.atOnce <= 1, onclick: () => set(a.atOnce - 1) }, '−'),
-      el('span', { class: 'n', 'aria-label': a.building.length + ' of ' + threads(a.atOnce) }, a.building.length + '/' + a.atOnce),
-      el('button', { class: 'more', 'aria-label': 'One thread more for ' + a.name, disabled: a.atOnce >= 20, onclick: () => set(a.atOnce + 1) }, '+'),
-      chip);
-  }));
+  const threads = (n) => n === 1 ? '1 thread' : n + ' threads';
+  box.title = agents.map((a) => (a.watching ? a.name + ' is watching this spool, and builds up to ' + threads(a.atOnce) + ' at once.'
+    : a.name + ' is not watching this spool now. It builds up to ' + threads(a.atOnce) + ' at once once a chat of it runs /spool-loop here.')
+    + (a.sizesText ? ' It takes ' + a.sizesText + '.' : '')
+    + (a.building.length ? ' Building ' + a.building.map((t) => t.id + ' ' + t.title).join(', ') + '.' : '')).join('\n') + '\nClick to change how many each builds, and which sizes, in Settings.';
+  box.setAttribute('aria-label', 'Agents that build: ' + agents.map((a) => a.name + ' ' + a.building.length + ' of ' + threads(a.atOnce)).join(', ') + '. Opens Settings.');
+  box.onclick = () => openSettings();
+  box.replaceChildren(...agents.map((a) => el('span', { class: 'agent' + (a.watching ? '' : ' off') },
+    el('span', { class: 'name' }, a.name),
+    el('span', { class: 'n' }, a.building.length + '/' + a.atOnce),
+    a.sizes && a.sizes[1] !== 'xl' && el('span', { class: 'n' }, '≤ ' + a.sizes[1].toUpperCase()))));
 }
 const AWAY_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.75 14.75 13.5H1.25z"/><path d="M8 6.25v3.25M8 11.5v.01"/></svg>';
 // With no server, nobody can say whether agents are on or who builds: the switch and the picks say
