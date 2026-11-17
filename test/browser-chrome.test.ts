@@ -215,7 +215,7 @@ test('on a phone: the bar in two rows, one column at a time, the ticket filling 
     await page.goto(url);
     await page.locator('#board .card').first().waitFor();
 
-    // The bar is two rows: the project and the views, then the search's button, who builds, the Agents switch and the theme.
+    // The bar is two rows: the project and the views, then the search's button, the status, the bell and the gear. The theme is in Settings.
     const middle = async (selector: string): Promise<number> => {
       const box = (await page.locator(selector).boundingBox())!;
       return box.y + box.height / 2;
@@ -223,9 +223,10 @@ test('on a phone: the bar in two rows, one column at a time, the ticket filling 
     const row = async (a: string, b: string): Promise<boolean> => Math.abs((await middle(a)) - (await middle(b))) < 6;
     assert.ok(await row('.brand', '.tabs'), 'the project and the views are one row');
     assert.ok((await middle('#searchbtn')) > (await middle('.tabs')) + 30, 'the search is on the second row');
-    assert.ok(await row('#searchbtn', '#builder'), 'who builds is on the search row');
-    assert.ok(await row('#searchbtn', '#runner'), 'the Agents switch is on the search row');
-    assert.ok(await row('#searchbtn', '#themer'), 'the theme is on the search row');
+    assert.ok(await row('#searchbtn', '#runner'), 'the status is on the search row');
+    assert.ok(await row('#searchbtn', '#notifier'), 'the bell is on the search row');
+    assert.ok(await row('#searchbtn', '#gear'), 'the gear is on the search row');
+    assert.equal(await page.locator('#themer').isVisible(), false, 'no room for the theme: it is in Settings');
     await fits('the board');
 
     // One column at a time, and a row of their names with what each holds goes to another.

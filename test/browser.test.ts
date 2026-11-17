@@ -85,29 +85,32 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     ]);
     await shot(page, '1-board');
 
-    // Who builds, left of the Agents switch: Headless until Chat is picked. With a chat building, the switch says who is listening.
-    const picks = page.locator('#builder button');
+    // Who builds is in Settings, behind the gear; the header says only whether anyone builds.
+    // Headless, one line; with a chat building, each agent is its logo, greyed while it is not watching.
     const agents = page.locator('#runner');
-    assert.deepEqual(await picks.allInnerTexts(), ['Headless', 'Chat']);
-    assert.deepEqual([await picks.nth(0).getAttribute('aria-pressed'), await agents.innerText()], ['true', 'Agents: off']);
-    const [picksBox, agentsBox] = [(await page.locator('#builder').boundingBox())!, (await agents.boundingBox())!];
-    assert.ok(picksBox.x + picksBox.width <= agentsBox.x, 'the picks sit to the left of the Agents switch');
-    await picks.nth(1).click();
-    await page.locator('#builder button.on', { hasText: 'Chat' }).waitFor();
     assert.equal(await agents.innerText(), 'Agents: off');
-    assert.match((await agents.getAttribute('title'))!, /No Claude Code chat is watching this spool/);
+    assert.equal(await page.locator('.bar #builder').count(), 0, 'the picks are not in the header');
+    await page.locator('#gear').click();
+    const picks = page.locator('#settings .seg[aria-label="Who builds"] button');
+    assert.deepEqual(await picks.allInnerTexts(), ['Chat', 'Headless']);
+    assert.equal(await picks.nth(1).getAttribute('aria-pressed'), 'true');
+    await picks.nth(0).click();
+    await page.locator('#settings .seg[aria-label="Who builds"] button.on', { hasText: 'Chat' }).waitFor();
+    await page.locator('#status .agentchip.off[data-agent="Claude"]').waitFor();
+    assert.equal(await agents.count(), 0);
     await shot(page, '1b-chat-builds');
     // Headless is off for now: greyed, it does nothing when clicked, and the chat stays the builder.
-    assert.equal(await picks.nth(0).getAttribute('aria-disabled'), 'true');
-    assert.match((await picks.nth(0).getAttribute('title'))!, /Not offered\. Switch on Offer Headless in Settings to pick it, or: spool builder headless/);
-    await picks.nth(0).click({ force: true });
-    assert.equal(await picks.nth(1).getAttribute('aria-pressed'), 'true');
-    assert.equal(await picks.nth(0).getAttribute('aria-pressed'), 'false');
+    assert.equal(await picks.nth(1).getAttribute('aria-disabled'), 'true');
+    assert.match((await picks.nth(1).getAttribute('title'))!, /Not offered\. Switch on Offer Headless below to pick it\./);
+    await picks.nth(1).click({ force: true });
+    assert.equal(await picks.nth(0).getAttribute('aria-pressed'), 'true');
+    assert.equal(await picks.nth(1).getAttribute('aria-pressed'), 'false');
+    await page.keyboard.press('Escape');
     // The command still switches it, and the board follows.
     s.sp('builder', 'headless');
-    await page.locator('#builder button.on', { hasText: 'Headless' }).waitFor();
-    assert.equal(await picks.nth(0).getAttribute('aria-disabled'), 'true');
-    assert.match((await agents.getAttribute('title'))!, /Click to have this page build what is in Build/);
+    await agents.waitFor();
+    assert.equal(await page.locator('#status .agentchip').count(), 0);
+    assert.match((await agents.getAttribute('title'))!, /This page builds nothing now\..*Click to switch it in Settings\./);
 
     // ▶ Build moves a thread to Build.
     await card('proposed', 'Tighten the jump arc').getByRole('button', { name: '▶ Build' }).click();

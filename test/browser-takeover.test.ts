@@ -1,6 +1,7 @@
 /**
- * Taking over the backlog, in the page's header, in a real browser: a switch shown in Chat mode
- * only, that opens a menu of its settings. Skipped where there is no Chrome.
+ * Taking over the backlog, in a real browser: a switch in Settings, behind the gear, live in Chat
+ * mode only, that says what the chat would take next. The header has no switch of its own. Skipped
+ * where there is no Chrome.
  */
 
 import assert from 'node:assert/strict';
@@ -8,7 +9,7 @@ import { test } from 'node:test';
 import { type Browser } from 'playwright-core';
 import { Sandbox, openChrome, startPage, until } from './helpers.ts';
 
-test('in Chat mode the header has a Take over switch, and its menu switches it and shows what it works up to and takes', async (t) => {
+test('Take over is a switch in Settings: off headless, and in Chat mode it switches the chat on and says what it takes next', async (t) => {
   let browser: Browser;
   try {
     browser = await openChrome();
@@ -25,42 +26,31 @@ test('in Chat mode the header has a Take over switch, and its menu switches it a
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(String(error)));
-  const chip = page.locator('#takeover');
-  const menu = page.locator('#takeovers');
+  const settings = page.locator('#settings');
+  const take = settings.getByRole('switch', { name: 'Take over the backlog' });
+  const row = settings.locator('.srow', { has: page.getByRole('switch', { name: 'Take over the backlog' }) });
   try {
     await page.goto(url);
     await page.locator('#board .card').first().waitFor();
-    // Headless, there is no chat to take anything over.
-    assert.equal(await chip.isVisible(), false);
-    await page.locator('#builder button', { hasText: 'Chat' }).click();
-    await chip.waitFor();
-    assert.equal(await chip.getAttribute('class'), 'takeover');
-    const [targetBox, chipBox] = [(await page.locator('#target').boundingBox())!, (await chip.boundingBox())!];
-    assert.ok(targetBox.x + targetBox.width <= chipBox.x, 'it sits beside the usage target');
+    // Nothing in the header takes over: it is behind the gear.
+    assert.equal(await page.locator('.bar').getByText('Take over').count(), 0);
 
-    // Clicked, it opens its menu; switched on there, the command says so and the header follows.
-    await chip.click();
-    await menu.waitFor();
-    assert.match(await menu.locator('.usage .goal').innerText(), /Weekly 30 of 80%/);
-    await menu.locator('.switch input').check();
+    // Headless, there is no chat to take anything over: the switch is greyed.
+    await page.locator('#gear').click();
+    await settings.waitFor();
+    assert.equal(await take.isDisabled(), true);
+    await settings.locator('.seg button', { hasText: 'Chat' }).click();
+    await until('the switch can be used', async () => !(await take.isDisabled()));
+
+    // Switched on: the command says so, and the row says what it takes next, or why not now.
+    await take.check();
     await until('it is on', () => s.json('takeover').on === true);
-    await until('the header shows it on', async () => (await chip.getAttribute('class')) === 'takeover on');
-    // What it would do now: the page keeps the real clock, so the sandbox's reading may count as old.
-    await until('it says what it takes next, or why not now', async () => /^(Next: Tighten the jump arc|Not now: .+)$/.test(await menu.locator('.takes .now').innerText()));
+    await until('it says what it takes next, or why not now', async () => /(Next: Tighten the jump arc|Not now: .+)\.$/.test(await row.locator('p').innerText()));
 
-    // Closed and clicked again, with it on, the menu opens again; Change goes to the usage target.
-    await page.locator('#takeovers .shut').click();
-    assert.equal(await menu.isVisible(), false);
-    await chip.click();
-    await menu.waitFor();
-    await menu.locator('button.link', { hasText: 'Change' }).click();
-    await page.locator('#targets').waitFor();
-    assert.equal(await menu.isVisible(), false);
-
-    // Off from the menu, as on.
-    await chip.click();
-    await menu.locator('.switch input').uncheck();
+    // Off, as on.
+    await take.uncheck();
     await until('it is off', () => s.json('takeover').on === false);
+    await until('it no longer says what it would take', async () => !/Next:|Not now:/.test(await row.locator('p').innerText()));
     assert.deepEqual(problems, []);
   } finally {
     await browser.close();

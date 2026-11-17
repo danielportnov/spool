@@ -159,7 +159,7 @@ test('a ticket shows only what a run really had; dark buttons are calm; a lost s
     await tab.locator('#away').waitFor();
     assert.equal(await tab.locator('#runner').innerText(), 'Agents: ?');
     assert.equal(await tab.locator('#runner.on').count(), 0);
-    assert.equal(await tab.locator('#builder button.on').count(), 0);
+    assert.equal(await tab.locator('#status .agentchip').count(), 0, 'nothing else says who builds');
     assert.ok((await tab.locator('#away').boundingBox())!.height < 40, 'the banner is one line');
     await shot(tab, 'lost-server-light');
     await tab.emulateMedia({ colorScheme: 'dark' });
@@ -173,7 +173,6 @@ test('a ticket shows only what a run really had; dark buttons are calm; a lost s
     page = await startPage(s, '--port', String(page.port));
     await tab.locator('#away').waitFor({ state: 'hidden' });
     await until('the switch is known again', async () => /^Agents: off$/.test(await tab.locator('#runner').innerText()));
-    assert.equal(await tab.locator('#builder button.on').count(), 1);
     assert.deepEqual(problems, []);
   } finally {
     await page.stop();

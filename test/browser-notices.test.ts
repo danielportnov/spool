@@ -29,9 +29,9 @@ test('the bell picks what notifies him: one click an event, kept for every proje
   try {
     await page.goto(url);
     await page.locator('#board .card').first().waitFor();
-    // It sits by the theme, right of everything that says who builds.
+    // It sits by the gear and the theme, right of what says who builds.
     const [themer, bellBox, runner] = [(await page.locator('#themer').boundingBox())!, (await bell.boundingBox())!, (await page.locator('#runner').boundingBox())!];
-    assert.ok(runner.x + runner.width <= bellBox.x && bellBox.x + bellBox.width <= themer.x, 'the bell is between the Agents switch and the theme');
+    assert.ok(runner.x + runner.width <= bellBox.x && bellBox.x + bellBox.width <= themer.x, 'the bell is between the status and the theme');
     assert.match((await bell.getAttribute('title'))!, /^Notifications: a question is asked, build is empty, an agent is stuck or refused, a run stops at its usage target\./);
 
     await bell.click();
@@ -44,10 +44,11 @@ test('the bell picks what notifies him: one click an event, kept for every proje
     await until('only started and question', () => on().join() === 'started,question');
     // Headless with no notifier, it says nothing is sent; in Chat mode, the chat sends them.
     assert.match(await box.locator('.via').innerText(), /no notifier is set/);
-    await page.locator('#builder button', { hasText: 'Chat' }).click();
-    // A click anywhere else put the box away.
+    // A click anywhere else puts the box away.
+    await page.locator('#board').click({ position: { x: 5, y: 5 } });
     assert.equal(await box.isVisible(), false);
-    await until('Chat mode', async () => (await page.locator('#builder button.on').innerText()) === 'Chat');
+    s.sp('builder', 'chat');
+    await page.locator('#status .agentchip').first().waitFor();
     await bell.click();
     await until('the box says the chat sends them', async () => /a Claude notification/.test(await box.locator('.via').innerText()));
     // Defaults puts it back, and the box follows.

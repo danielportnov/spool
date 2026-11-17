@@ -321,14 +321,14 @@ test('Cmd+K finds any thread by name, id or tag, and runs any action by name', a
     await page.keyboard.type('who builds');
     assert.deepEqual(await hits.allInnerTexts(), ['Switch who builds to Chat']);
     await page.keyboard.press('Enter');
-    await page.locator('#builder button.on', { hasText: 'Chat' }).waitFor();
+    await page.locator('#status .agentchip').first().waitFor();
     // Headless is off for now, so the palette offers no switch back to it.
     await page.keyboard.press('ControlOrMeta+k');
     await page.keyboard.type('who builds');
     assert.deepEqual(await hits.allInnerTexts(), []);
     await page.keyboard.press('Escape');
     s.sp('builder', 'headless');
-    await page.locator('#builder button.on', { hasText: 'Headless' }).waitFor();
+    await page.locator('#runner').waitFor();
     await page.keyboard.press('ControlOrMeta+k');
     await page.keyboard.type('add a');
     await page.keyboard.press('Enter');

@@ -39,12 +39,12 @@ test('the gear opens Settings, and each setting changed there is what its comman
     // Each row says the command that does the same.
     assert.ok((await panel.locator('.cmd').allInnerTexts()).includes('spool caveman on'));
 
-    // Headless is greyed until it is offered; offered here, the header's pick can be clicked.
-    const headless = page.locator('#builder button[data-builder=headless]');
+    // Headless is greyed until it is offered; offered, its pick can be clicked.
+    const headless = panel.locator('button[data-builder=headless]');
     assert.equal(await headless.getAttribute('aria-disabled'), 'true');
     await panel.getByRole('switch', { name: 'Offer Headless' }).click();
     await until('headless is offered', () => s.json('settings').headless === true);
-    await until('the header follows', async () => (await headless.getAttribute('aria-disabled')) === 'false');
+    await until('the pick follows', async () => (await headless.getAttribute('aria-disabled')) === 'false');
 
     // Switches, a count and a number, each the same as its command.
     await panel.getByRole('switch', { name: 'Caveman mode' }).click();
