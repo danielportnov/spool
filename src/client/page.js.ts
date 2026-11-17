@@ -1705,6 +1705,8 @@ function fillTakeOvers(b) {
 }
 document.addEventListener('click', (e) => {
   if (takeOversOpen && !e.composedPath().some((node) => ['takeovers', 'takeover', 'layer'].includes(node.id))) closeTakeOvers();
+});
+
 // ---- what notifies him: the events he picked, sent as one line each, and quiet for the rest
 
 // Every event, in the order the command lists them, and what it is in a few words (notices.ts).

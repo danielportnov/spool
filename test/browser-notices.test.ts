@@ -36,7 +36,7 @@ test('the bell picks what notifies him: one click an event, kept for every proje
 
     await bell.click();
     await box.waitFor();
-    const picked = async (): Promise<string[]> => box.locator('input:checked').evaluateAll((all) => all.map((i) => (i as HTMLInputElement).dataset.event!));
+    const picked = async (): Promise<string[]> => box.locator('input:checked').evaluateAll((all) => all.map((i) => (i as unknown as { dataset: Record<string, string> }).dataset.event!));
     assert.deepEqual(await picked(), ['question', 'empty', 'stuck', 'budget']);
     await box.locator('input[data-event="started"]').check();
     await until('started is kept', () => on().includes('started'));
