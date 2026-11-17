@@ -122,7 +122,7 @@ in Build with **Carry on**, and a manager's run says **Needs a call from you**.
 - **🎙** beside + Add, quick add (`c`) and the reply box dictates: what is said fills the box as it
   is heard, and it is sent as anything typed. Press it again, or send, to stop. It is the browser's
   own speech recognition (Chrome, Edge, Safari); where there is none, as in Firefox, there is no 🎙,
-  and macOS's own dictation (the dictation key, or Fn twice) does the same in any box. A long
+  and macOS's own dictation (the 🎤 key, or its shortcut under System Settings › Keyboard) does the same in any box. A long
   dictation with several ideas in it is saved as one thread: `/spool-record` is what splits one.
 - **Add to Build** at the foot of the backlog moves everything the backlog is *showing*, after
   every filter, and asks once first.
