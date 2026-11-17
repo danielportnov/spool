@@ -2,3 +2,6 @@ node_modules/
 dist/
 .DS_Store
 *.tgz
+
+# Spool's queue is private working state: never commit it.
+.spool/
