@@ -30,13 +30,12 @@ import { type Pick as Picked, type Routing, commandFor, pickFor, stepNote, takes
 import { agentOfCommand, rosterOf, routingFor } from './roster.ts';
 import { type Builder, type Ctx, builderOf, notify, parallelOf, quietLimits, saveBuilder, userConfig } from './context.ts';
 import { dirtyPaths, discardPaths, repoRoot } from './git.ts';
-import { type Item, type SpoolError, addLog, isRun, oneLine, splitBody, timestamp } from './model.ts';
-import { type Worksheet, worksheetText } from './manage.ts';
+import { type Item, type SpoolError, addLog, oneLine, splitBody, timestamp } from './model.ts';
 import { prime } from './prime.ts';
 import { QuickReplies, type Typing } from './quick.ts';
 import { brief, paint } from './render.ts';
 import { runOf } from './run.ts';
-import { openRun, ready, tasks } from './schedule.ts';
+import { ready, tasks } from './schedule.ts';
 import { type Session, endAgent, endLeftover, pageRunning, promptFile, recall, remember, startSession } from './session.ts';
 import { atOnceIn, sharedFolderWhy } from './slots.ts';
 import { Workspace, isOff } from './store.ts';
@@ -104,15 +103,6 @@ work: what they say arrives as a message, so read it and adjust. They may not be
 reading what you say in chat, so a question still goes through \`spool ask\`, and a
 call you make yourself through \`spool assume\`. The task below is already claimed
 for you. Finish it with \`spool done\`, or leave it waiting on a question, then stop.
-`;
-
-/** What an agent started on a pass over the backlog, from Clean Up on the board, is told first. */
-const PASS = `You are tidying the backlog of a Spool queue: one pass, asked for by the human
-with Clean Up on the board. The pass is already open for you, and SPOOL_RUN is set,
-so every command you run is part of it and one undo takes all of it back. You do
-not build. Work the worksheet below by the manager's rules, put every drop and
-every archive on the run's thread as a proposal (spool manage --propose), and end
-with spool manage --end -m "<the headline>" --report -, then stop.
 `;
 
 /** How long a session that ended its turn with its thread unfinished is kept for the human's next word, after their last. */
@@ -254,8 +244,6 @@ interface Run {
   session?: Session;
   /** It picks a session up again: how to start the thread afresh instead, if that session turns out to be gone. */
   afresh?: Start;
-  /** A pass over the backlog asked for with Clean Up: its thread is a manager's run, not a thread from Build. */
-  pass?: boolean;
 }
 
 /** What is settled about a run when its thread is handed out, before any program is started for it. */
@@ -576,67 +564,6 @@ export class Runner {
   /** What an agent starting a thread from nothing is given: what it is here to do, the worker's rules, and the thread's brief. */
   private opening(ws: Workspace, command: string, briefText: string): string {
     return `${listens(command) ? PREAMBLE_HEARD : PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${briefText}\n`;
-  }
-
-  /**
-   * Clean Up, pressed on the board of a project this page builds headless: open a pass over its
-   * backlog and start an agent on it, by the manager's rules. The request the page left is taken up
-   * by the pass's own `spool manage --start`, so the worksheet says every drop and archive is a
-   * proposal. A pass already open is not started twice: its thread is the answer.
-   */
-  cleanup(ctx: Ctx): { ok: boolean; text: string; id?: string } {
-    if (this.held) return { ok: false, text: 'Spool is being updated: press Clean Up again in a moment.' };
-    const actor = this.name();
-    let id = '';
-    let prompt = '';
-    let folder = ctx.cwd;
-    let run: Item | undefined;
-    try {
-      const ws = Workspace.open(ctx.cwd, ctx.now, true);
-      try {
-        const open = openRun(ws, ws.home);
-        if (open) return { ok: true, id: open.id, text: 'A clean-up is open already: here is its thread.' };
-      } finally {
-        ws.close();
-      }
-      const started = act(ctx, ['manage', '--start'], actor);
-      if (!started.ok) return { ok: false, text: started.text || 'The clean-up could not be started.' };
-      const sheet = started.data as Worksheet;
-      id = sheet.run;
-      const again = Workspace.open(ctx.cwd, ctx.now, true);
-      try {
-        run = again.get(id, 'task');
-        folder = run.spool.root;
-        const command = this.afresh(this.command(pickFor(run, this.leaned(run))));
-        addLog(run, this.as, `the pass is handed to \`${command}\``, again.now());
-        again.save(run, this.signed);
-        prompt = `${PASS}\n${prime(again, 'manager')}\n\nYOUR PASS\n\n${worksheetText(again, sheet, paint(false))}\n`;
-        this.startPass(run, prompt, command, folder);
-      } finally {
-        again.close();
-      }
-    } catch (error) {
-      return { ok: false, text: (error as Error).message };
-    }
-    return { ok: true, id, text: 'Clean-up started: an agent goes through the backlog, and its proposals wait here for your yes or no.' };
-  }
-
-  private startPass(task: Item, prompt: string, command: string, folder: string): void {
-    const handed: Handed = { id: task.id, title: task.title, folder, before: null, told: task.from.slice() };
-    let session: Session;
-    try {
-      session = startSession(task, prompt, command, { folder, env: { ...this.ctx.env, SPOOL_RUN: task.id }, actor: this.name() }, {
-        note: (notes) => this.note(task.id, notes),
-        end: (ended) => this.settle(run, ended),
-        turn: () => this.attend(),
-        ask: (ask) => this.asked(run, task, ask),
-      });
-    } catch (error) {
-      this.note(task.id, [`the pass could not be started: ${(error as Error).message}. Take it back with spool revert ${task.id}, and press Clean Up again`]);
-      return;
-    }
-    const run: Run = { ...handed, child: session.child, lines: session.lines, began: session.began, session, stopped: false, pass: true };
-    this.keep(run);
   }
 
   /**
@@ -1246,12 +1173,7 @@ export class Runner {
       try {
         const now = ws.find(run.id);
         task = now;
-        if (run.pass && now?.status === 'active' && isRun(now)) {
-          // A pass its agent left before it ended: the run stays open for whoever ends it, or takes it back.
-          addLog(now, this.as, `the agent ${run.stopped ? 'was stopped' : how} before it ended the pass: end it (spool manage --end -m "<headline>") or take it back (spool revert ${now.id})`, ws.now());
-          ws.save(now, this.signed);
-          outcome = 'unfinished: the pass is still open';
-        } else if (now?.status === 'done') outcome = 'done';
+        if (now?.status === 'done') outcome = 'done';
         else if (now?.status === 'proposed') outcome = 'aborted: back in the backlog';
         else if (now?.status === 'active') {
           // The agent left without finishing or asking, or was stopped. Put the thread back, and do not spin on it:

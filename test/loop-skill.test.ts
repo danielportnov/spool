@@ -39,7 +39,7 @@ test('the loop skill has one job: make this chat the builder', () => {
   // Up to their usage target: read before each thread, reported, and a stop is a stop.
   assert.match(flat, /\*\*Up to their usage target,\*\* where they set one on the board \(`spool target` says\)\. Before you claim each thread, read the plan's usage with your harness's tool \(`get_usage` in the Claude app\) and report it: `spool usage --weekly <n> --five-hour <n> --fable <n> --as "<your model>"` \(Fable's own weekly figure, where your tool shows one\)\. It says keep building, or stop: then claim nothing new, let what is building land, and notify them once \(`budget`\)\. Near the end it says so: say a line on any thread passed by, and tell building subagents to finish and land, or hand off\. Each agent reads its own plan, signed with its name, and is held to its own target\. No usage tool\? `spool usage --cannot-read --as "<your model>"`, so the board says so, and build as if no target were set\./);
   // Short enough to be read every time: it was 553 lines, and grew six for the usage target, 29 for questions asked in the chat, two for the model,
-  // nine for taking over, ten for the notifications the human picks, one for Clean Up on the board, and one for AFK.
+  // nine for taking over, ten for the notifications the human picks, and one for AFK.
   assert.ok(loop.trimEnd().split('\n').length <= 185, `${loop.trimEnd().split('\n').length} lines`);
 });
 
@@ -53,7 +53,7 @@ test('the loop watches the spool, and falls back to one scheduled job', () => {
   assert.match(loop, /^\| `build: t-4kq7 Tighter jump` \| They moved it to Build, or an answer freed it\. Build it \|$/m);
   assert.match(loop, /^\| `reply: t-4kq7 Tighter jump`, and their words, or the path of a picture or a file they added \| They wrote on a thread\. Being built\? It steers that work: open what they added\. Otherwise leave it for whoever builds it \|$/m);
   assert.match(loop, /^\| `unfiled: n-9wxa "add a mute button"` \| A note nobody has filed\. File it, by the `spool-record` skill \|$/m);
-  assert.match(loop, /^\| `cleanup: skyhop`, and their words, or `tidy: skyhop` \| They pressed Clean Up, or a tidy is due while you take over\. Run the pass by `spool prime manager` \(a tidy: `spool manage --start --takeover`\), every drop and archive a proposal, and reply with the run's link \|$/m);
+  assert.match(loop, /^\| `tidy: skyhop` \| A tidy is due while you take over\. Run the pass by `spool prime manager` \(a tidy: `spool manage --start --takeover`\), every drop and archive a proposal, and reply with the run's link \|$/m);
   // Taking over, a refusal that says a tidy is due sends the chat to that pass first.
   assert.match(flat, /Refused\? It says why, and if a tidy is due: run that pass first\./);
   assert.match(loop, /^\| `ask: d-3kq2 for t-4kq7 Tighter jump — "Outline, or teal\?"`, and its options \| An agent needs their call\. Ask them in the chat, below \|$/m);

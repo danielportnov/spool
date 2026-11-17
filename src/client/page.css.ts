@@ -237,14 +237,6 @@ export const CSS = String.raw`  :root {
   .foot { width: 100%; margin-bottom: 8px; }
   .addall { margin-bottom: 0; }
   .history { background: none; border: 0; padding: 6px; color: var(--soft); font-size: 13px; width: 100%; text-align: left; }
-  .col > .cleanup { width: 100%; margin-bottom: 8px; text-align: left; font-size: 13px; }
-  .cleanup:disabled { color: var(--soft); cursor: default; }
-  .cleanups { display: flex; gap: 6px; margin-bottom: 8px; }
-  .cleanups .cleanup { flex: 1; font-size: 13px; text-align: left; }
-  .cleanup.waits { color: var(--warn); }
-  .cleaning { margin-bottom: 8px; }
-  .ghead .cleaning { flex-basis: 100%; margin: 4px 0 0; }
-  .cleaning .hint { font-size: 12px; color: var(--soft); margin-bottom: 6px; }
   .history:hover { color: var(--ink); }
 
   /* the backlog: sprints to fill and play, and everything not in one */

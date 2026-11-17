@@ -23,7 +23,6 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { CLEANUP_RULE, type CleanupAsk, takeCleanup } from './cleanup.ts';
 import { COMMANDS, type Call, type Result } from './commands.ts';
 import { git, repoRoot } from './git.ts';
 import { type Leave, allowed, leaveLine, leaveOfRun, runUnder, settle } from './leave.ts';
@@ -116,8 +115,6 @@ export interface Worksheet {
   open: number;
   /** The leave the run is under: how far the human said it may go. Null: it tidies only. */
   leave: Leave | null;
-  /** The human asked for this pass with Clean Up on the board: every drop and archive is theirs to say yes to. */
-  asked: CleanupAsk | null;
   /** The chat that builds ran this pass itself, taking over the backlog: it sizes and orders, and proposes every drop and archive. */
   tidy?: boolean;
   /** New ideas the run may file: five, or what the leave says; none while too many still wait. */
@@ -329,7 +326,7 @@ function outcome(ws: Workspace, item: Item | undefined): string {
 }
 
 /** Everything the worksheet says, as data. Reads the spool, the git log, the changelog and the tests; writes nothing. */
-export function gather(ws: Workspace, spool: Spool, run: Item, leave?: Leave, asked?: CleanupAsk): Worksheet {
+export function gather(ws: Workspace, spool: Spool, run: Item, leave?: Leave): Worksheet {
   const now = ws.now();
   const mine = tasks(ws, spool).filter((t) => !isRun(t));
   const state = (t: Item) => taskState(ws, t);
@@ -423,7 +420,6 @@ export function gather(ws: Workspace, spool: Spool, run: Item, leave?: Leave, as
     project: spool.name,
     open: open.length,
     leave: leave ?? null,
-    asked: asked ?? null,
     // The human's own number for tonight stands, whatever is waiting.
     proposals: { cap: leave?.allows.proposals ?? (unanswered >= MANAGE.waiting ? 0 : MANAGE.proposals), unanswered },
     saidNo: {
@@ -490,13 +486,8 @@ export function worksheetText(ws: Workspace, w: Worksheet, p: Paint): string {
 
   const ideas = w.proposals;
   out.push(`SPOOL_RUN=${w.run}`, `Set it on every command of this run, so one undo takes back all of it:  export SPOOL_RUN=${w.run}`, '');
-  if (w.tidy && !w.asked) {
+  if (w.tidy) {
     out.push(p.bold(TIDY_RULE), '');
-  }
-  if (w.asked) {
-    out.push(p.bold(CLEANUP_RULE));
-    if (w.asked.words) out.push(`  What they wrote with it: "${w.asked.words}"`);
-    out.push('');
   }
   // How far this run may go: the human's leave, in their words, or none.
   if (w.leave) {
@@ -872,7 +863,7 @@ export function manage(call: Call): Result {
     addLog(run, actor, opts.overview ? 'started: an overview of the whole project' : 'started', ws.now());
     ws.save(run);
     startJournal(run);
-    // An overview proposes and changes nothing, so it takes no leave and no Clean Up: those are for a tidy.
+    // An overview proposes and changes nothing, so it takes no leave: that is for a tidy.
     if (opts.overview) {
       const sheet = gatherDirection(ws, spool, run);
       return { text: directionText(ws, sheet, p), data: { env: { SPOOL_RUN: run.id }, ...sheet } };
@@ -880,17 +871,11 @@ export function manage(call: Call): Result {
     // A leave that is live is this run's from now on: its thread names it, and undoing the run ends it.
     const { live } = settle(ws, spool);
     if (live) runUnder(ws, run, live, actor);
-    // Asked for with Clean Up on the board: the request is this run's now, and its thread says so.
-    const asked = takeCleanup(spool);
-    if (asked) {
-      addLog(run, actor, `asked for with Clean Up on the board by ${asked.by}${asked.words ? `: "${asked.words}"` : ''}`, ws.now());
-      ws.save(run);
-    }
     if (opts.takeover) {
       addLog(run, actor, TIDIED, ws.now());
       ws.save(run);
     }
-    const sheet = { ...gather(ws, spool, run, live, asked), ...(opts.takeover ? { tidy: true } : {}) };
+    const sheet = { ...gather(ws, spool, run, live), ...(opts.takeover ? { tidy: true } : {}) };
     return { text: worksheetText(ws, sheet, p), data: { env: { SPOOL_RUN: run.id }, ...sheet } };
   }
 

@@ -4,7 +4,7 @@
  * `spool watch` stays up and prints one line whenever something the loop
  * should act on changes: a thread that can now be built (moved to build on the
  * page, or freed by an answer), words, a picture or a file the human added to a thread, a question
- * an agent has just put to the human, Clean Up pressed on the board, or a note nobody has filed. It prints
+ * an agent has just put to the human, or a note nobody has filed. It prints
  * nothing else, so every line is worth waking for.
  *
  * It is what makes the loop reactive. A harness that can listen to a command's
@@ -25,7 +25,6 @@ import { Workspace } from './store.ts';
 import { takeOverOf, tidyDue, tidyLine } from './takeover.ts';
 import { picturesOf } from './pictures.ts';
 import { signer } from './agent.ts';
-import { cleanupAsked, cleanupLine } from './cleanup.ts';
 
 /** Names a watch is signed with that are no agent's own. */
 const NOT_WATCHERS = new Set(['agent', 'human', '']);
@@ -43,8 +42,6 @@ interface Seen {
   asks: Map<string, string>;
   /** Projects whose backlog the chat takes over, by name. */
   takeOver?: Set<string>;
-  /** Projects where the human pressed Clean Up and no pass has taken it up yet, each with the line that tells of it. */
-  cleanup?: Map<string, string>;
   /** Projects where, taking over, a tidy of the backlog is due, by name. */
   tidy?: Set<string>;
 }
@@ -149,12 +146,6 @@ function look(
         asks: new Map(questions.map((d) => [d.id, asked(ws, d)])),
         takeOver: new Set((spool ? [spool] : ws.spools).filter((s) => takeOverOf(ctx, s.root)).map((s) => s.name)),
         tidy: new Set((spool ? [spool] : ws.spools).filter((s) => tidyDue(ctx, ws, s).due).map((s) => s.name)),
-        cleanup: new Map(
-          (spool ? [spool] : ws.spools).flatMap((s) => {
-            const ask = cleanupAsked(s);
-            return ask ? [[s.name, cleanupLine(s.name, ask)] as const] : [];
-          }),
-        ),
       },
       roots: (project ? [ws.project(project)] : ws.spools).map((s) => real(s.root)),
       text: (note) => notes.get(note) ?? '',
@@ -198,8 +189,6 @@ export function changes(before: Seen, after: Seen, text: (note: string) => strin
   for (const [id, line] of after.asks) if (!before.asks.has(id)) out.push(line);
   // Switched on, taking over is news: the chat may fill an empty Build from the backlog now.
   for (const name of after.takeOver ?? []) if (!before.takeOver?.has(name)) out.push(`takeover: ${name} — they switched taking over the backlog on: Build empty? spool build --takeover`);
-  // Clean Up pressed on the board: the chat that builds runs the pass. Once, as it is asked.
-  for (const [name, line] of after.cleanup ?? []) if (!before.cleanup?.has(name)) out.push(line);
   // Taking over, a tidy of the backlog has come due: the chat runs the pass itself. Once, as it comes due.
   for (const name of after.tidy ?? []) if (!before.tidy?.has(name)) out.push(tidyLine(name));
   return out;
