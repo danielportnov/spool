@@ -12,7 +12,7 @@ import { Sandbox, openChrome, startPage, until } from './helpers.ts';
 
 // A recognizer that says what the test hands it: hear(words, final) is one result.
 function fakeSpeech() {
-  const w = window as any;
+  const w = globalThis as any;
   w.SpeechRecognition = undefined;
   w.webkitSpeechRecognition = class {
     continuous = false;
@@ -89,7 +89,7 @@ test('🎙 fills + Add and the reply box with what is said, and where the browse
 
     // A browser that cannot listen shows no 🎙.
     const plain = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-    await plain.addInitScript(() => { (window as any).SpeechRecognition = undefined; (window as any).webkitSpeechRecognition = undefined; });
+    await plain.addInitScript(() => { (globalThis as any).SpeechRecognition = undefined; (globalThis as any).webkitSpeechRecognition = undefined; });
     await plain.goto(url);
     await plain.locator('.card').first().waitFor();
     await plain.locator('#board [data-column="proposed"] button.add').click();
