@@ -927,6 +927,17 @@ thread has run, they show the model and effort its agent's command really named,
 named none, the boxes are for the next run), or `spool edit <id> --model opus --effort high`
 (`none` hands either back). A `claude` command gets `--model` and `--effort` added where it does
 not set them itself; any other agent command can take `{model}` and `{effort}` where it wants them.
+Each agent on the roster has its own **lean**, the slider beside its count in the header:
+`usage`, `balanced` (the table above, and where it starts) or `development`. It moves the table, not
+the thread's own say: at usage a tiny or small thread goes to Haiku, a medium one to Sonnet, a
+large one to Opus at medium and a huge one to Opus at high; at development a tiny one goes to
+Sonnet, a small one to Opus, medium to Opus at high, large to Opus at xhigh and huge to Fable at
+high. Codex has a table of its own on its own ladder, GPT-6 Luna, Terra, then Sol, slid the same
+way: Luna for tiny work at balanced, and for small work too at usage. A size set by hand in
+your own table (`models` in the config) stays as you set it, and the step up and Fable's cap
+still apply on top. `spool builder --agent Claude --lean usage` sets it; `spool builder` lists
+what each size gets for each agent now. Headless, the page builds on its agent command's brand
+(Codex for a `codex` command, Claude otherwise) at that agent's lean.
 In Chat mode, `spool start` and `spool next --claim` print the pick on a `MODEL` line under the
 brief, and log it on the thread ("builder model: haiku · medium, by its size"): the chat starts
 the subagent that builds the thread on it. A claim that says what it starts the subagent on,
@@ -1042,7 +1053,7 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool demo [folder] [--open]` | A throwaway sample project with threads in its spool, to try the page and the loop on |
 | `spool install [--for claude\|codex\|cursor\|gemini\|all] [--here \| --dir path]` | Put the skills where your agent finds them: Claude Code unless `--for` names another; it also names the other agents it finds here |
 | `spool checks [command \| --none]` | Name the command that must pass before a change is done here |
-| `spool builder [headless \| chat] [--at-once n] [--agent <name> [--model m]]` | Say who builds here, and how many threads at once, for every agent or, with `--agent`, for one on the roster (adding it); with nothing after it, says what is set and lists the agents. The human's, like `spool build` |
+| `spool builder [headless \| chat] [--at-once n] [--agent <name> [--model m] [--lean usage\|balanced\|development]]` | Say who builds here, and how many threads at once, for every agent or, with `--agent`, for one on the roster (adding it), and how far it leans from saving usage to pushing development; with nothing after it, says what is set and lists the agents. The human's, like `spool build` |
 | `spool agents [on \| off]` | Switch the page's agents on or off, as its Agents button does; with nothing after it, says whether a page is up and its agents are on. On is the human's, like `spool build`, and refused while a chat builds; off is always allowed |
 | `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it. It names work that landed on no thread, as `spool status` does. After an upgrade it also names a retired skill that is still installed, for any agent, and a Spool block in `AGENTS.md` that is not the one this version writes; changes nothing |
 | `spool page [--run] [--agent cmd] [--port n] [--no-open] [-P project]` | The board; `--run` has it build what is in Build too. In a folder of projects it shows them all, one click apart |
