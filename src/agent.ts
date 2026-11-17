@@ -242,10 +242,15 @@ function givenBy(what: string): Pick | undefined {
  * none, or the last claim left no line: an older run's model is not this one's.
  */
 export function ranOn(task: Item): string | undefined {
+  return ranWith(task)?.model;
+}
+
+/** The same, with the effort beside the model: what the thread's current or last run was given, as its log says. */
+export function ranWith(task: Item): Pick | undefined {
   const lines = splitBody(task.body).log.map(said);
   for (let i = lines.length - 1; i >= 0; i--) {
     const given = givenBy(lines[i]!);
-    if (given) return given.model;
+    if (given) return given;
     if (/^(started\b|picked up after)/.test(lines[i]!)) return undefined;
   }
   return undefined;

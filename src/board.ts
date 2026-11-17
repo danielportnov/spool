@@ -12,7 +12,7 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { pickFor } from './agent.ts';
+import { pickFor, ranWith } from './agent.ts';
 import { type Brief, morning, waitingOnYou } from './brief.ts';
 import type { Builder } from './context.ts';
 import { type Live as Running, type Picking, type Runner, stoppedInBuild } from './engine.ts';
@@ -85,6 +85,13 @@ export interface Card {
   worktree: string;
   /** What its agent was started with, where the page started one: the model, the effort, and its session. */
   run: StartedWith | null;
+  /**
+   * The model and effort its current or last run was given, as "opus · high": the command the page or
+   * the loop handed it to, or, for a chat's subagent, what its claim named. Empty where nothing says.
+   */
+  ranWith: string;
+  /** Its agent's stream was kept (`.spool/runs/`), so the page can play its run back. */
+  transcript: boolean;
   /** Why it cannot move on by itself, where it cannot. */
   waiting: Waiting | null;
 }
@@ -504,6 +511,7 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
   const { main, log } = splitBody(task.body);
   const asked = blockers(ws, task).find((b) => b.kind === 'decision' && b.status === 'open');
   const thread = threadOf(ws, task, main, log);
+  const given = column === 'building' || column === 'done' ? ranWith(task) : undefined;
   return {
     id: task.id,
     n,
@@ -536,6 +544,9 @@ function card(ws: Workspace, task: Item, n: number | null, note: string, column:
     live: column === 'building' ? liveNow(task) : null,
     worktree: task.worktree ?? '',
     run: column === 'building' || column === 'done' ? runOf(log) : null,
+    ranWith: [given?.model, given?.effort].filter(Boolean).join(' · '),
+    // The runner says where it kept the stream, on the thread's log: "session … · transcript .spool/runs/…", or that alone.
+    transcript: (column === 'building' || column === 'done') && log.some((line) => / (?:· )?transcript \S*runs\//.test(line)),
     waiting: isRun(task) && unanswered(readProposals(task)).length
       ? { kind: 'you', text: `${unanswered(readProposals(task)).length} to answer`, on: [], said: '', refused: [] }
       : task.status === 'done' || task.status === 'dropped' ? null : waitingOf(ws, task, thread.steps, asked),

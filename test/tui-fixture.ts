@@ -43,6 +43,8 @@ export function card(id: string, title: string, column: Card['column'], over: Pa
     live: null,
     worktree: '',
     run: null,
+    ranWith: '',
+    transcript: false,
     waiting: null,
     ...over,
   };
