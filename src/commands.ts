@@ -47,6 +47,7 @@ import {
   type Kind,
   KIND_NAMES,
   SIZES,
+  SUGGESTED_HOLD,
   type Size,
   type Spool,
   SpoolError,
@@ -501,7 +502,7 @@ function fileWork(call: Call, preset?: WorkType): Result {
     type: type === 'change' ? undefined : type,
     // An agent's own idea waits for a yes. Where the gate is on, everything does: it starts proposed.
     // Where it is off, the idea goes on hold, like anything else the human has not asked to start.
-    hold: str(call.opts.hold)?.replace(/\s+/g, ' ').trim() ?? (suggested && !spool.config.gate ? 'AI suggested: waiting for your yes' : undefined),
+    hold: str(call.opts.hold)?.replace(/\s+/g, ' ').trim() ?? (suggested && !spool.config.gate ? SUGGESTED_HOLD : undefined),
     suggested,
     suggestedBy: suggested ? call.actor : undefined,
     tags: tagsOf(call.opts.tag) ?? [],
@@ -1121,7 +1122,7 @@ export const COMMANDS: Command[] = [
     group: 'you',
     usage: 'takeover [on | off] [-P <project>]',
     summary:
-      "Say whether the chat that builds in Chat mode takes over the backlog: with Build empty and the usage under your target, it moves the top thread you filed to Build itself, and builds it. Switching it on is yours, like spool build; with nothing after it, says where it stands",
+      "Say whether the chat that builds in Chat mode takes over the backlog: with Build empty and the usage under your target, it moves the next thread to Build itself, yours first, then the AI suggested ones, and builds it, up to the target. Switching it on is yours, like spool build; with nothing after it, says where it stands",
     human: true,
     options: { ...PROJECT },
     run(call) {

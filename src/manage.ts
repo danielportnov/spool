@@ -324,6 +324,43 @@ function touched(t: Item, byRuns: Map<string, Set<string>>): number {
   return Math.max(Date.parse(t.created), own?.at ?? 0);
 }
 
+/** The proposed threads gone cold by `now`, untouched for MANAGE.coldDays or more but by a run's own sizing, and for how many days. */
+function coldDays(ws: Workspace, open: Item[], runs: Item[], journals: Map<string, { entries: Entry[] }>, now = ws.now()): Map<string, number> {
+  // Only a run from the last weeks can be what last touched a thread that might still be warm.
+  const byRuns = new Map<string, Set<string>>();
+  for (const r of runs.filter((r) => now.getTime() - Date.parse(r.created) < (MANAGE.coldDays + 1) * DAY)) {
+    for (const entry of journals.get(r.id)!.entries) byRuns.set(entry.item, (byRuns.get(entry.item) ?? new Set()).add(entry.at.slice(0, 16)));
+  }
+  const out = new Map<string, number>();
+  for (const t of open.filter((t) => taskState(ws, t) === 'proposed')) {
+    const days = Math.floor((now.getTime() - touched(t, byRuns)) / DAY);
+    if (days >= MANAGE.coldDays) out.set(t.id, days);
+  }
+  return out;
+}
+
+/**
+ * The threads a pass over the backlog has marked potentially irrelevant, and why: a drop or an
+ * archive a run proposed that the human has not answered, or named gone cold on the last pass's
+ * worksheet and untouched since. Taking
+ * over leaves these; when they are all that is left, the chat stops.
+ */
+export function potentiallyIrrelevant(ws: Workspace, spool: Spool): Map<string, string> {
+  const runs = tasks(ws, spool).filter(isRun);
+  const journals = new Map(runs.map((r) => [r.id, readJournal(r)]));
+  const out = new Map<string, string>();
+  for (const r of runs) {
+    if (journals.get(r.id)!.undone) continue;
+    for (const p of unanswered(readProposals(r))) if (p.verb !== 'build' && !out.has(p.id)) out.set(p.id, `${r.id} proposes to ${p.verb} it`);
+  }
+  // Gone cold counts once a pass's worksheet named it so: as of the last pass. Touched since, it is warm again.
+  const last = runs.sort((a, b) => b.created.localeCompare(a.created))[0];
+  if (!last) return out;
+  const open = tasks(ws, spool).filter((t) => !isRun(t) && t.status === 'proposed');
+  for (const [id, days] of coldDays(ws, open, runs, journals, new Date(last.updated))) if (!out.has(id)) out.set(id, `gone cold, untouched for ${days} days when ${last.id} looked`);
+  return out;
+}
+
 /** What became of an idea an earlier run filed: the human's answer to it, or that there is none yet. */
 function outcome(ws: Workspace, item: Item | undefined): string {
   if (!item) return 'gone';
@@ -409,15 +446,10 @@ export function gather(ws: Workspace, spool: Spool, run: Item, leave?: Leave, as
       const notes = m.b.from.filter((id) => ws.find(id)?.kind === 'note');
       return { a: ref(m.a), b: ref(m.b), words: m.words, merge: [...notes.map((n) => `spool file ${n} --into ${m.a.id}`), `spool drop ${m.b.id}`].join(', then ') };
     });
-  // Only a run from the last weeks can be what last touched a thread that might still be warm.
-  const byRuns = new Map<string, Set<string>>();
-  for (const r of runs.filter((r) => now.getTime() - Date.parse(r.created) < (MANAGE.coldDays + 1) * DAY)) {
-    for (const entry of journals.get(r.id)!.entries) byRuns.set(entry.item, (byRuns.get(entry.item) ?? new Set()).add(entry.at.slice(0, 16)));
-  }
+  const days = coldDays(ws, open, runs, journals);
   const cold = open
-    .filter((t) => state(t) === 'proposed')
-    .map((t) => ({ ...ref(t), days: Math.floor((now.getTime() - touched(t, byRuns)) / DAY) }))
-    .filter((t) => t.days >= MANAGE.coldDays)
+    .filter((t) => days.has(t.id))
+    .map((t) => ({ ...ref(t), days: days.get(t.id)! }))
     .sort((a, b) => b.days - a.days);
 
   // 6. The order, and whose it is.

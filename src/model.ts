@@ -370,6 +370,9 @@ export const RUN_TAG = 'manage';
  * put in order, holds the report afterwards, and is the id the whole run is undone by. It is
  * the manager's own, so it is never handed to a worker, and is no part of the backlog it tidies.
  */
+/** The hold an agent's own idea starts under where there is no gate: waiting for a yes, not the human's not yet. */
+export const SUGGESTED_HOLD = 'AI suggested: waiting for your yes';
+
 export function isRun(item: Item): boolean {
   return item.kind === 'task' && item.type === 'audit' && item.tags.includes(RUN_TAG);
 }

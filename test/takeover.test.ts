@@ -16,12 +16,13 @@ function chatProject(gate = '--gate'): { s: Sandbox; top: string; suggested: str
   typed('target', '--weekly', '80');
   const suggested = s.id('task', 'An idea of the agent', '--suggested', 'it would help', '-p', '0');
   const held = s.id('task', 'Parked until the launch', '-p', '0', '--hold', 'after the launch');
-  const top = s.id('task', 'Tighten the jump', '-p', '1', '-s', 'xs');
-  const next = s.id('task', 'Add a mute button', '-s', 's');
+  // The human's own, filed from what they said.
+  const top = s.id('task', 'Tighten the jump', '-p', '1', '-s', 'xs', '--from', s.id('capture', 'the jump feels floaty'));
+  const next = s.id('task', 'Add a mute button', '-s', 's', '--from', s.id('capture', 'I want a mute button'));
   return { s, top, suggested, held, next };
 }
 
-test('with taking over off, an agent moves nothing to build; on, it moves the top thread a person filed, signed, up to the target', () => {
+test('with taking over off, an agent moves nothing to build; on, it moves the top thread the human filed first, signed, up to the target', () => {
   const { s, top, suggested, held, next } = chatProject();
   try {
     s.sp('usage', '--weekly', '40');
@@ -30,8 +31,8 @@ test('with taking over off, an agent moves nothing to build; on, it moves the to
 
     assert.match(s.sp('takeover', 'on'), /^The chat takes over skyhop's backlog[\s\S]*Next: t-\w+ Tighten the jump/);
     assert.equal(s.json('takeover').next.id, top);
-    // An agent's idea and a parked thread are not its to take, whatever their priority.
-    assert.match(s.fails('build', suggested, '--takeover', '--as', 'Claude'), /AI suggested/);
+    // An agent's idea waits behind the human's own, whatever its priority, and a parked thread is not its to take.
+    assert.match(s.fails('build', suggested, '--takeover', '--as', 'Claude'), /an agent's idea, and the human's own t-\w+ comes first/);
     assert.match(s.fails('build', held, '--takeover', '--as', 'Claude'), /on hold/);
 
     // The reading must be fresh: an hour on, it reads the usage again first.
@@ -110,7 +111,7 @@ test('the board says whether the chat takes over, and its switch is the command'
     s.sp('takeover', 'on');
     const on = (await board()).takeOver;
     assert.equal(on.on, true);
-    assert.equal(on.next.id, top);
+    assert.equal(on.next?.id, top, JSON.stringify(on));
     assert.match(on.waiting, /usage has not been read/);
   } finally {
     await stop();
@@ -196,4 +197,67 @@ test('the watch tells the chat once when a tidy comes due', () => {
     'tidy: skyhop — taking over, a tidy of the backlog is due. Run the pass by spool prime manager: spool manage --start --takeover',
   ]);
   assert.deepEqual(changes(seen(['skyhop']), seen(['skyhop']), () => '', () => ''), []);
+});
+
+test('taking over builds to the target: the human\'s threads first, then the agents\' ideas, marked or not', () => {
+  const { s, top, suggested, held, next } = chatProject();
+  try {
+    s.exec(['target', '--weekly', '100'], { tty: true });
+    // An agent filed this one without marking it AI suggested: it still waits behind the human's own.
+    const unmarked = s.id('task', 'A follow-up an agent found', '-p', '0', '-s', 'xs');
+    s.sp('takeover', 'on');
+    const take = (): string => {
+      s.sp('usage', '--weekly', '60');
+      const id = s.json('takeover').next?.id;
+      s.sp('build', '--takeover', '--as', 'Claude');
+      s.sp('start', id, '--as', 'Claude');
+      s.sp('done', id, '-m', 'Done', '--as', 'Claude');
+      return id;
+    };
+    assert.deepEqual([take(), take()], [top, next]);
+    // Only agents' ideas are left, and the target is not reached: it keeps on taking them.
+    assert.deepEqual([take(), take()].sort(), [suggested, unmarked].sort());
+    // The held one is the human's not yet: left, and nothing more is taken.
+    assert.match(s.fails('build', '--takeover', '--as', 'Claude'), /nothing in the backlog the chat may take/);
+    assert.equal(s.json('show', held).item.status, 'proposed');
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('with every thread left proposed for drop or archive by a tidy, taking over stops and says why', () => {
+  const { s, top, suggested, next } = chatProject();
+  try {
+    s.sp('takeover', 'on');
+    s.sp('manage', '--start', '--as', 'Mgr');
+    s.sp('manage', '--propose', 'drop', top, '-m', 'Shipped already', '--as', 'Mgr');
+    s.sp('manage', '--propose', 'archive', next, '-m', 'Nobody asked again', '--as', 'Mgr');
+    s.sp('usage', '--weekly', '40');
+    // One unmarked is still there to take, after them.
+    assert.equal(s.json('takeover').next?.id, suggested);
+    assert.match(s.fails('build', top, '--takeover', '--as', 'Claude'), /marked potentially irrelevant: t-\w+ proposes to drop it/);
+    s.sp('manage', '--propose', 'drop', suggested, '-m', 'Not needed', '--as', 'Mgr');
+    s.sp('manage', '--end', '-m', 'Tidied', '--as', 'Mgr');
+    const why = s.fails('build', '--takeover', '--as', 'Claude');
+    assert.match(why, /every thread left in the backlog is marked potentially irrelevant: .*proposes to drop it.*proposes to archive it/);
+    assert.match(why, /Stop: each waits for their word on the tidy/);
+    assert.match(s.json('takeover').waiting, /every thread left in the backlog is marked potentially irrelevant/);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('a thread the human moved back from Build waits for them: taking over leaves it', () => {
+  const { s, top, next } = chatProject();
+  try {
+    s.sp('usage', '--weekly', '40');
+    s.sp('takeover', 'on');
+    s.exec(['build', top], { tty: true });
+    s.exec(['propose', top], { tty: true });
+    assert.equal(s.json('show', top).item.status, 'proposed');
+    assert.match(s.fails('build', top, '--takeover', '--as', 'Claude'), /moved back from Build: it waits for the human/);
+    assert.equal(s.json('takeover').next?.id, next);
+  } finally {
+    s.cleanup();
+  }
 });
