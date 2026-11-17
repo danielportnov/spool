@@ -29,6 +29,8 @@ const ARROWS = ['↑↑', '↑', '=', '↓'];
 let last = '';
 let current = null;
 let busy = false;
+// A card or row is being dragged: nothing redraws under it, even a poll already on its way when the drag began.
+let dragging = false;
 // Which view is up: the board, the backlog with its sprints, or the roadmap of sprints in order.
 let view = 'board';
 // A view the page no longer has, remembered or linked to, is the board.
@@ -298,9 +300,13 @@ function archiveNode(c) {
   return node;
 }
 function dragOf(node, c, from) {
-  node.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', c.id + ' ' + from); node.classList.add('dragging'); busy = true; });
-  node.addEventListener('dragend', () => { node.classList.remove('dragging'); unland(); busy = false; });
+  node.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', c.id + ' ' + from); node.classList.add('dragging'); dragging = true; });
+  node.addEventListener('dragend', () => { node.classList.remove('dragging'); unland(); dragging = false; });
 }
+
+// A drag that ends anywhere, or whose card is gone, never leaves the board frozen.
+document.addEventListener('dragend', () => { dragging = false; });
+document.addEventListener('drop', () => { dragging = false; });
 
 // Dragging over Build, a thin line shows where the card will land: before the first card whose middle is below the pointer.
 function landAt(col, y) {
@@ -2264,13 +2270,15 @@ async function load(now) {
   const at = document.activeElement;
   // A switch in Settings is not being typed in: each row there leaves the one with the focus alone.
   const switched = at && at.type === 'checkbox' && !!at.closest('#settings');
-  if (!now && (busy || (at && at.id !== 'search' && !switched && (['TEXTAREA', 'INPUT', 'SELECT'].includes(at.tagName) || at.isContentEditable)))) return;
+  if (!now && (busy || dragging || (at && at.id !== 'search' && !switched && (['TEXTAREA', 'INPUT', 'SELECT'].includes(at.tagName) || at.isContentEditable)))) return;
   try {
     const res = await fetch(boardUrl());
     if (!res.ok) throw new Error('no board');
     const text = await res.text();
     connected(true);
     if (text === last) return;
+    // A drag began while this was on its way: let it finish, and the next poll shows the board.
+    if (!now && dragging) return;
     const b = JSON.parse(text);
     if (!fromHere(b)) return;
     if (b.build && b.build !== BUILD && renew(b.build)) return;
