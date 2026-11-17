@@ -18,8 +18,11 @@ function changes(entry: Pick<QueueEntry, 'target' | 'before' | 'after'>): string
     if (parts.length > 1) parts[0] = parts[0]!.replace(/^updated: .*\n?/m, '');
     return (parts.length > 1 ? parts.join('\n---\n') : text).trimEnd().split('\n');
   };
-  const before = lines(entry.before);
-  const after = lines(entry.after);
+  return diff(lines(entry.before), lines(entry.after));
+}
+
+/** The lines taken out and put in, in file order, around what both copies share. */
+function diff(before: string[], after: string[]): string[] {
   let start = 0;
   while (start < before.length && before[start] === after[start]) start++;
   let endBefore = before.length;
@@ -28,10 +31,32 @@ function changes(entry: Pick<QueueEntry, 'target' | 'before' | 'after'>): string
     endBefore--;
     endAfter--;
   }
-  return [
-    ...before.slice(start, endBefore).map((line) => `    - ${line}`),
-    ...after.slice(start, endAfter).map((line) => `    + ${line}`),
-  ];
+  const a = before.slice(start, endBefore);
+  const b = after.slice(start, endAfter);
+  const out = (line: string, sign: '-' | '+') => `    ${sign} ${line}`;
+  // A long rewrite is shown whole rather than matched line by line.
+  if (a.length * b.length > 250_000) return [...a.map((line) => out(line, '-')), ...b.map((line) => out(line, '+'))];
+  // The longest run of lines both share, so an edit near the top and a log line at the foot show as two changes.
+  const common = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      common[i]![j] = a[i] === b[j] ? common[i + 1]![j + 1]! + 1 : Math.max(common[i + 1]![j]!, common[i]![j + 1]!);
+    }
+  }
+  const lines: string[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length || j < b.length) {
+    if (i < a.length && j < b.length && a[i] === b[j]) {
+      i++;
+      j++;
+    } else if (j >= b.length || (i < a.length && common[i + 1]![j]! >= common[i]![j + 1]!)) {
+      lines.push(out(a[i++]!, '-'));
+    } else {
+      lines.push(out(b[j++]!, '+'));
+    }
+  }
+  return lines;
 }
 
 export const HISTORY: Command = {
