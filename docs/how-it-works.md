@@ -503,6 +503,21 @@ the live leave at the top of the worksheet, and the run's report names it.
 Giving a leave is yours, like `spool build`: where the gate is locked an agent is refused, and
 unlocked, a chat gives one on your plain word ("manage this until midnight").
 
+## New ideas
+
+Ask for ideas ("come up with ideas for this project") and the chat runs `spool ideate`. Like the
+manager, Spool gathers the facts and the agent judges: the worksheet holds the goals, the threads
+finished lately and the changelog's newest version, every open thread, your notes, newest first,
+what was dropped and why, the lessons, and where the code and its docs are. Then the rules for a
+good idea, and how to file one. It writes nothing itself.
+
+Each idea is filed with `spool task "<idea>" --suggested "<why>"`: proposed, marked AI suggested,
+with its reason. One that looks like a thread already there is named as it is filed, and dropped.
+A pass files five at most, and none while ten earlier AI ideas still wait for an answer;
+`--max <n>` is your own number, and it stands. Nothing filed is built until you move it to Build,
+and a no is `spool drop` with your reason, which the next pass reads. The loop's own few ideas,
+when Build is empty, start from the same worksheet.
+
 ## A run, undone in one step
 
 Some work is many small changes to the queue and none to the code: sizing a backlog, dropping what

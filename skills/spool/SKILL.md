@@ -1,6 +1,6 @@
 ---
 name: spool
-description: Steer this project's Spool from the chat - open the board, say what gets built and in what order, answer what agents asked, catch up on what they did, tidy the backlog, and change who builds. Replies are short and the detail is on the board. Use for /spool [what you want], or when the user says "open the board", "show me the spool", "where do things stand", "what needs me", "what's blocked", "catch me up", "what happened overnight", "why is nothing building", "build that one", "not yet", "do X first", "undo that", "play the sprint", "tidy the backlog", "archive that", "switch to chat mode", "let the page build", "turn the agents off" or "build three at once" or "take over the backlog". Not for building, which is /spool-loop, or for filing a new idea, which is /spool-record.
+description: Steer this project's Spool from the chat - open the board, say what gets built and in what order, answer what agents asked, catch up on what they did, tidy the backlog, and change who builds. Replies are short and the detail is on the board. Use for /spool [what you want], or when the user says "open the board", "show me the spool", "where do things stand", "what needs me", "what's blocked", "catch me up", "what happened overnight", "why is nothing building", "build that one", "not yet", "do X first", "undo that", "play the sprint", "tidy the backlog", "come up with ideas", "archive that", "switch to chat mode", "let the page build", "turn the agents off" or "build three at once" or "take over the backlog". Not for building, which is /spool-loop, or for filing a new idea, which is /spool-record.
 ---
 
 # Spool
@@ -46,7 +46,7 @@ the detail.**
 | "park that until the launch" | `spool hold <t-id> -m "<their words>"`; "take it off hold" is `spool release <t-id>` |
 | "archive that", "get it out of the way" | `spool archive <t-id>`; it is kept, and `spool archive --undo <t-id>` brings it back |
 | "drop that", "no", about any thread | `spool drop <t-id> -m "<their words>"` |
-| "tidy the backlog", "put the backlog in order" | `spool manage --start`: it opens a run, and prints the facts to judge from and how to end it. One undo takes the whole pass back. Only "what is duplicated"? `spool list --alike` |
+| "tidy the backlog", "put the backlog in order"; "come up with ideas" | `spool manage --start`: it opens a run, and prints the facts to judge from and how to end it. One undo takes the whole pass back. Only "what is duplicated"? `spool list --alike`. Ideas? `spool ideate` (`--max <n>` if they named a number) prints the facts and the rules: read the code it names, file each idea as it says, and say in a line how many |
 | "manage it while I sleep", "work through it until midnight" | `spool leave "<their exact words>" --until <time>`, with `--build <n>` only if they said how many may be built. Then tidy, as above |
 | "make a sprint of these", "put that in the sprint" | `spool sprint "<name>" --goal "<what it is for>" --add <t-id…>`; `spool edit <t-id> --sprint none` takes one out |
 | "play the sprint", "make a sprint of these and play it" | `spool play <sprint>`, once it is made: everything in it moves to Build at once |

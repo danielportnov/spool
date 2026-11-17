@@ -152,6 +152,7 @@ reached, or nothing may be taken. Then carry on below.
 1. **Version what shipped** in no sprint, by the worker's rules.
 2. **Add your own ideas,** three at most: a gap a user will hit, the
    follow-up a finished thread makes obvious, something that will break.
+   `spool ideate` prints the facts to find them in; it says none? File none.
    `spool task "<the idea>" --suggested "<why, in a line they would agree with>" --size <size> -b "<its spec>"`
    files one as proposed and marked **AI suggested**: nobody starts it, you
    included, until the human moves it to build. None that is already there,

@@ -98,6 +98,7 @@ test('when build is empty the loop versions what shipped, adds a few ideas of it
   assert.match(flat, /2\. \*\*Add your own ideas,\*\* three at most: a gap a user will hit/);
   assert.match(flat, /`spool task "<the idea>" --suggested "<why, in a line they would agree with>" --size <size> -b "<its spec>"` files one as proposed and marked \*\*AI suggested\*\*: nobody starts it, you included, until the human moves it to build\./);
   assert.match(flat, /None that is already there, and no chores for yourself\./);
+  assert.match(flat, /`spool ideate` prints the facts to find them in; it says none\? File none\./);
   // A procedure that keeps recurring is one of those ideas, offered and never written unasked.
   assert.match(flat, /A step agents keep working out again is an idea too: `spool skills --suggest` lists them by the words they share, so read the threads first\./);
   assert.match(flat, /3\. \*\*Show `spool brief`,\*\* as it comes, and the new version in a line\./);
