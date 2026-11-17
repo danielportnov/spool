@@ -25,6 +25,7 @@ import { buildUnderLeave, dropUnderLeave, leaveCommand, signer } from './leave.t
 import { buildUnderTakeOver, takeoverCommand } from './takeover.ts';
 import { dropLesson, learn, lessonLine, lessons } from './lessons.ts';
 import { runLoop } from './loop.ts';
+import { ideate } from './ideate.ts';
 import { manage } from './manage.ts';
 import { markLine } from './mark.ts';
 import { targetCommand, usageCommand } from './usage.ts';
@@ -2030,6 +2031,15 @@ export const COMMANDS: Command[] = [
     options: { start: { type: 'boolean' }, end: { type: 'boolean' }, report: { type: 'string' }, ...MESSAGE, ...PROJECT },
     reads: 'report',
     run: (call) => manage(call),
+  },
+  {
+    name: 'ideate',
+    group: 'agents',
+    usage: 'ideate [--max <n>] [-P <project>]',
+    summary:
+      'A pass of new ideas for the project: prints the worksheet to work from (its goals, what shipped, what is already there, what the human said and what they said no to) and how to file each idea as AI suggested; it writes nothing',
+    options: { max: { type: 'string' }, ...PROJECT },
+    run: (call) => ideate(call),
   },
 
   // ---- seeing --------------------------------------------------------------
