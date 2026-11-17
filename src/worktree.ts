@@ -153,6 +153,45 @@ function exclude(repo: string, pattern: string): void {
   fs.writeFileSync(file, `${text}${text && !text.endsWith('\n') ? '\n' : ''}${note}\n${pattern}\n`);
 }
 
+/** The hooks git runs, each of which a thread's worktree must still run from the project's own hooks. */
+const HOOKS = [
+  'applypatch-msg', 'pre-applypatch', 'post-applypatch', 'pre-commit', 'pre-merge-commit', 'prepare-commit-msg',
+  'commit-msg', 'post-commit', 'pre-rebase', 'post-checkout', 'post-merge', 'post-rewrite', 'pre-auto-gc', 'reference-transaction',
+];
+
+const shq = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
+
+/**
+ * Make `git push` fail in a thread's worktree, with a line saying why. Git shares one hooks folder
+ * between a repository's worktrees, so the hook cannot go there without also binding the human's own
+ * checkout. Instead the worktree alone gets `core.hooksPath` (git's per-worktree config), pointing at
+ * a folder kept in the worktree's own admin folder, which goes when the worktree does. That folder
+ * holds the refusing `pre-push`, and a forwarder for every other hook that runs the project's own
+ * hook of that name, so a worktree is checked by the same hooks its checkout is. The checkout's
+ * config gains only `extensions.worktreeConfig`, which changes nothing for it. A worktree the human
+ * makes by hand is not touched. Best effort: where git cannot, the policy still says it.
+ */
+function guardPush(at: Place): void {
+  if (process.platform === 'win32') return; // Shell hooks: git for Windows runs them, but a path with a drive letter is not worth the risk here.
+  const common = commonDir(at.repo);
+  const original = path.resolve(at.repo, git(at.repo, ['rev-parse', '--git-path', 'hooks']).out || path.join(common, 'hooks'));
+  const admin = path.resolve(at.dir, git(at.dir, ['rev-parse', '--git-dir']).out);
+  const hooks = path.join(admin, 'spool-hooks');
+  fs.mkdirSync(hooks, { recursive: true });
+  const write = (name: string, body: string): void => fs.writeFileSync(path.join(hooks, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+  write(
+    'pre-push',
+    [
+      'echo "spool: git push is refused here. Agents never push: this is a Spool thread worktree, and publishing is for the human to do." >&2',
+      'echo "spool: if the work needs to go out, finish the thread (spool done) or put it to them (spool ask --human publish)." >&2',
+      'exit 1',
+    ].join('\n'),
+  );
+  for (const name of HOOKS) write(name, `h=${shq(path.join(original, name))}\n[ -x "$h" ] || exit 0\nexec "$h" "$@"`);
+  if (!git(at.repo, ['config', 'extensions.worktreeConfig', 'true']).ok) return;
+  git(at.dir, ['config', '--worktree', 'core.hooksPath', hooks]);
+}
+
 export interface Opened {
   /** The top of the worktree: a whole checkout of the repository. */
   dir: string;
@@ -200,6 +239,7 @@ export function openWorktree(task: Item): Opened {
     }
     made = true;
   }
+  if (made) guardPush(at);
   const linked = link(at);
   task.worktree = posix(path.relative(task.spool.root, at.work));
   task.branch = at.branch;
