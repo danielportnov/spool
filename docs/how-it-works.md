@@ -927,7 +927,7 @@ thread has run, they show the model and effort its agent's command really named,
 named none, the boxes are for the next run), or `spool edit <id> --model opus --effort high`
 (`none` hands either back). A `claude` command gets `--model` and `--effort` added where it does
 not set them itself; any other agent command can take `{model}` and `{effort}` where it wants them.
-Each agent on the roster has its own **lean**, the slider beside its count in the header:
+Each agent on the roster has its own **lean**, its slider under Usage or development in Settings:
 `usage`, `balanced` (the table above, and where it starts) or `development`. It moves the table, not
 the thread's own say: at usage a tiny or small thread goes to Haiku, a medium one to Sonnet, a
 large one to Opus at medium and a huge one to Opus at high; at development a tiny one goes to

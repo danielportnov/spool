@@ -308,9 +308,9 @@ runs `spool builder chat`; "let the page build" is `spool builder headless`.
 In Chat mode Claude and Codex can build at once. The header shows each with what it is building of
 its thread count, and − and + to change it; one with no chat watching is greyed.
 `spool builder --agent Codex --at-once 2` sets it from a chat, and a claim past it is refused.
-Each also has a slider from **usage** to **development**. At usage, small threads go to the smallest
-model (Haiku for Claude, Luna for Codex) and every size to the cheapest that can do it; toward
-development, each size gets a bigger model and more effort. Hover it to see what each size gets
+In Settings each also has a slider from **usage** to **development**. At usage, small threads go to
+the smallest model (Haiku for Claude, Luna for Codex) and every size to the cheapest that can do it;
+toward development, each size gets a bigger model and more effort. Under it, what each size gets
 now. `spool builder --agent Claude --lean usage` (or `balanced`, `development`) sets it from a chat.
 A thread's own Model still wins.
 
