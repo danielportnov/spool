@@ -1656,50 +1656,7 @@ function draw(b) {
     only && only.kind !== 'sprint' && el('button', { class: 'pill on', onclick: () => narrow(only.kind, only.value) }, (only.kind === 'tag' ? '#' : 'v') + only.value + '  ✕'),
   ].filter(Boolean));
 
-  // Who builds what is in Build: this page, headless, or a Claude Code chat running the loop.
-  const chat = b.runner.builder === 'chat';
-  const builder = document.getElementById('builder');
-  builder.hidden = false;
-  for (const pick of builder.children) {
-    const mine = pick.dataset.builder === b.runner.builder;
-    // Headless is greyed out unless Settings offers it: it still shows as the pick when the project is set to it.
-    const off = pick.dataset.builder === 'headless' && !(b.settings && b.settings.headless);
-    pick.className = (mine ? 'on' : '') + (off ? ' off' : '');
-    pick.setAttribute('aria-pressed', String(mine));
-    pick.setAttribute('aria-disabled', String(off));
-    pick.title = off
-      ? 'Not offered. Switch on Offer Headless in Settings to pick it, or: spool builder headless'
-      : pick.dataset.builder === 'chat'
-        ? 'A Claude Code chat builds what is in Build: one running /spool-loop in this project. This page starts no agents.'
-        : 'This page builds what is in Build itself, with no chat open. It runs: ' + b.runner.agent;
-    pick.onclick = () => { if (!mine && !off) post('builder', { builder: pick.dataset.builder }, ''); };
-  }
-  drawRoster(b);
-  // One button says how the agents are doing. Headless, they are the page's own, and it is their switch.
-  // With a chat building, the page cannot switch a chat on: it says whether one is building or listening.
-  const runner = document.getElementById('runner');
-  const lately = b.runner.recent.length ? ' Last: ' + b.runner.recent[0].title + ' — ' + b.runner.recent[0].outcome : '';
-  // How many threads the page's own agents are on right now.
-  const running = b.runner.running.length;
-  runner.hidden = false;
-  if (chat) {
-    const building = b.columns.building.length > 0;
-    const live = building || b.runner.watching;
-    runner.className = 'runner' + (live ? ' on' : '');
-    runner.textContent = building ? '● Agents: building' : b.runner.watching ? '● Agents: watching' : 'Agents: off';
-    runner.title = building ? 'A thread is being built.' + (running ? ' What this page had started is being built to the end.' : '')
-      : b.runner.watching ? 'A Claude Code chat is watching this spool. It builds what you move to Build.'
-      : 'No Claude Code chat is watching this spool, so nothing in Build is built. Say /spool-loop in one, in this project.';
-    runner.onclick = () => say(live ? runner.title : 'Nobody is building. Say /spool-loop in a Claude Code chat in this project.');
-  } else {
-    runner.className = 'runner' + (b.runner.on ? ' on' : '');
-    runner.textContent = b.runner.on ? (running ? '● Agents: building' + (running > 1 ? ' ' + running : '') : '● Agents: on') : 'Agents: off';
-    runner.title = (b.runner.on ? 'This page is building what is in Build. Click to switch it off.' : 'Click to have this page build what is in Build, with no chat open.')
-      + ' It runs: ' + b.runner.agent + (b.runner.parallel > 1 ? ', on up to ' + b.runner.parallel + ' threads at once' : '') + '.' + lately;
-    runner.onclick = () => post('runner', { on: !b.runner.on }, '');
-  }
-  drawTarget(b);
-  drawTakeOver(b);
+  drawStatus(b);
   drawNotices(b);
   drawGear();
   if (settingsOpen) fillSettings(b);
@@ -1715,67 +1672,32 @@ function draw(b) {
   markFocus();
 }
 
-// ---- the usage target: in Chat mode, how much of the Claude plan the chat that builds may use
+// ---- the status in the header: who builds, at a glance, and how much of each one's usage is used
 
 // The plan's limits a target can be set on: the key the board and the command use, and its name.
 const LIMITS = [['weekly', 'Weekly'], ['fiveHour', '5-hour'], ['fable', 'Fable']];
-// Fable's own limit never stops the chat: it only keeps threads off Fable, so the header's meter is for the others.
+// Fable's own limit never stops the chat: it only keeps threads off Fable, so the header's ring is for the others.
 const STOPS = LIMITS.filter(([key]) => key !== 'fable');
-let targetsOpen = false;
-// What the slider of a limit with no target starts at, once it is switched on.
+// What a limit with no target starts at, once it is switched on.
 const TARGET_START = 80;
-// The target's changes, sent in turn, and each limit's slider waiting for its keys to stop.
-let targetSends = Promise.resolve();
-const targetWait = {};
 // The target for all: the one each agent with none of its own works up to.
 const allOf = (u) => u.all || u.target;
 const usedOf = (u, key) => (u.read && u.read.used[key] != null ? u.read.used[key] : null);
 const pct = (n) => (Math.round(n * 10) / 10) + '%';
+const ownOf = (u) => (u && u.own) || {};
+const takeOverOf = (b) => b.takeOver || { on: false, next: null, waiting: null };
+const NO_USAGE = { target: {}, own: {}, read: null, reached: [], cannotRead: false };
 
-// The limit the header shows: the one nearest its target, or the first that has one.
+// The limit shown for an agent: the one nearest its target, or the first that has one.
 function shownLimit(u) {
   const set = STOPS.filter(([key]) => u.target[key] != null);
   const near = (key) => (usedOf(u, key) == null ? -1 : usedOf(u, key) / u.target[key]);
   return set.sort((a, z) => near(z[0]) - near(a[0]))[0] || null;
 }
 
-// The roster agents with a usage of their own to show: a reading, or a target set for them alone.
-const ownOf = (u) => (u && u.own) || {};
-function usageAgents(b) {
-  return (b.runner.agents || []).filter((a) => a.usage && (a.usage.read || Object.keys(ownOf(a.usage)).length));
-}
-// One agent in the header: its name, a meter of its nearest limit against its own target, the two
-// numbers; or that it cannot read its usage, or has no target.
-function agentMeter(a) {
-  const u = a.usage;
-  const shown = shownLimit(u);
-  const reached = u.reached.length > 0;
-  const part = el('span', { class: 'agent' + (reached ? ' reached' : '') }, el('span', { class: 'who' }, a.name));
-  let said;
-  if (u.cannotRead) {
-    part.append(el('span', { class: 'num none' }, 'can’t read'));
-    said = a.name + ' cannot read its usage, so it is not held to a target.';
-  } else if (!shown) {
-    part.append(el('span', { class: 'num none' }, 'no target'));
-    said = a.name + ' has no usage target: it builds whatever the usage.';
-  } else {
-    const [key, name] = shown;
-    const used = usedOf(u, key);
-    const goal = u.target[key];
-    const whose = ownOf(u)[key] != null ? 'its own ' : 'the ';
-    part.append(
-      el('span', { class: 'meter', 'aria-hidden': 'true' },
-        el('i', { class: 'used', style: 'width: ' + Math.min(100, used || 0) + '%' }),
-        el('i', { class: 'mark', style: 'left: ' + goal + '%' })),
-      el('span', { class: 'num' }, (used == null ? 'to ' : Math.round(used) + '/') + goal + '%'));
-    said = a.name + ': ' + name.toLowerCase() + ' ' + (used == null ? 'not read yet' : pct(used)) + ' of ' + whose + goal + '% target' + (reached ? ', reached: it takes no new thread.' : '.');
-  }
-  return { part, said };
-}
-
-// Where one agent stands against its own target, in a sentence, for Settings.
+// Where one agent stands against its own target, in a sentence, for Settings and its logo.
 function agentStands(a) {
-  const u = a.usage;
+  const u = a.usage || NO_USAGE;
   if (u.cannotRead) return a.name + ' cannot read its usage, so it is not held to a target.';
   const shown = shownLimit(u);
   if (!u.read) return a.name + ' has not read its usage yet.';
@@ -1784,251 +1706,231 @@ function agentStands(a) {
   return a.name + ': ' + name.toLowerCase() + ' ' + (usedOf(u, key) == null ? 'not read' : pct(usedOf(u, key))) + ' of ' + u.target[key] + '%' + (u.reached.length ? ', reached: it takes no new thread.' : '.');
 }
 
-// In the header, Chat mode only: the limit's name, a meter of what is used with a tick at the
-// target, and the two numbers. With no target it is a button that says what it is for. Where more
-// than one agent has a usage of its own, a meter each, against its own target.
-function drawTarget(b) {
-  const chip = document.getElementById('target');
-  const chat = b.runner.builder === 'chat';
-  chip.hidden = !chat;
-  if (!chat) return closeTargets();
-  const u = b.usage;
-  const several = usageAgents(b);
-  if (several.length > 1 || (several.length === 1 && several[0].name !== u.agent)) {
-    const parts = several.map(agentMeter);
-    const all = several.every((a) => a.usage.reached.length);
-    chip.className = 'target set several' + (all ? ' reached' : '');
-    chip.onclick = () => (targetsOpen ? closeTargets() : openTargets());
-    chip.replaceChildren(...parts.map((p) => p.part));
-    chip.title = parts.map((p) => p.said).join(' ') + ' Each agent reads its own plan before each thread. Click to change the target; each agent’s own is in Settings.';
-    // The time to work is everyone's: once, after the meters.
-    const t = b.time;
-    if (t) {
-      chip.append(el('span', { class: 'num time' + (t.passed ? ' up' : t.upTo ? ' near' : '') }, t.passed ? 'Time up' : timeLeft(t.leftMinutes) + ' left'));
-      chip.title += ' Time to work: until ' + clockOf(t.end) + (t.passed ? ', which has passed.' : ', ' + timeLeft(t.leftMinutes) + ' left.');
-    }
-    chip.setAttribute('aria-label', 'Usage: ' + parts.map((p) => p.said).join(' ') + (t ? (t.passed ? ' Time to work is up.' : ' ' + timeLeft(t.leftMinutes) + ' left to work.') : ''));
-    chip.setAttribute('aria-expanded', String(targetsOpen));
-    if (targetsOpen) fillTargets(u);
-    return;
-  }
-  const shown = shownLimit(u);
-  chip.className = 'target' + (shown ? ' set' : '') + (u.reached.length ? ' reached' : '');
-  chip.onclick = () => (targetsOpen ? closeTargets() : openTargets());
-  const change = ' Click to change it.';
-  if (!shown) {
-    chip.replaceChildren(el('span', { class: 'label' }, 'Usage target'));
-    chip.title = 'No usage target: the chat that builds takes what is in Build, whatever the usage. Set how much of your Claude plan it may use, and it works up to that, then takes no new thread.';
-  } else {
-    const [key, name] = shown;
-    const used = usedOf(u, key);
-    const goal = u.target[key];
-    chip.replaceChildren(
-      el('span', { class: 'label' }, name),
-      el('span', { class: 'meter', 'aria-hidden': 'true' },
-        el('i', { class: 'used', style: 'width: ' + Math.min(100, used || 0) + '%' }),
-        el('i', { class: 'mark', style: 'left: ' + goal + '%' })),
-      el('span', { class: 'num' }, (used == null ? 'to ' : Math.round(used) + ' / ') + goal + '%'));
-    chip.title = u.reached.length
-      ? 'Usage target reached: ' + u.reached.map((k) => LIMITS.find(([x]) => x === k)[1].toLowerCase() + ' ' + pct(usedOf(u, k)) + ' of ' + u.target[k] + '%').join(', ') + '. The chat that builds takes no new thread until it is under again, or you raise it.' + change
-      : used == null ? name + ' target: ' + goal + '% of your Claude plan. No usage read yet: the chat that builds reads it before each thread.' + change
-      : name + ' usage ' + pct(used) + ' of your ' + goal + '% target, read ' + ago(u.read.at, true) + ' by ' + u.read.by + '. The chat that builds works up to it, then takes no new thread.' + change;
-  }
-  // Beside it, Fable's own weekly figure where it has been read, or has a target: shaded when it is spent and no thread goes to it.
-  const fableUsed = usedOf(u, 'fable');
-  if (fableUsed != null || u.target.fable != null) {
-    const capped = u.fableCap != null;
-    chip.append(el('span', { class: 'num fable' + (capped ? ' capped' : '') }, 'Fable ' + (fableUsed == null ? 'to ' + u.target.fable + '%' : Math.round(fableUsed) + '%')));
-    chip.title += ' Fable weekly: ' + (fableUsed == null ? 'not read yet' : pct(fableUsed)) + (u.target.fable != null ? ' of a ' + u.target.fable + '% target' : '') + (capped ? ': no thread goes to Fable now, it is built on Opus instead.' : '.');
-  }
-  // Beside it, the time left where a time to work is set: warm as it nears, and once it has passed.
-  const t = b.time;
-  if (t) {
-    chip.append(el('span', { class: 'num time' + (t.passed ? ' up' : t.upTo ? ' near' : '') }, t.passed ? 'Time up' : timeLeft(t.leftMinutes) + ' left'));
-    chip.title += ' Time to work: ' + (t.passed
-      ? 'until ' + clockOf(t.end) + ', which has passed. The chat takes no new thread; what is being built lands.'
-      : 'until ' + clockOf(t.end) + ', ' + timeLeft(t.leftMinutes) + ' left.' + (t.upTo ? ' Nearly up: it starts only up to ' + t.upTo.toUpperCase() + ' now, and wraps up the rest.' : ' It starts only what it can finish by then.')) + ' Change it in Settings.';
-    if (!shown) chip.classList.add('set');
-  }
-  // Said in words to a screen reader: the meter is only a picture of them.
-  const said = shown && (shown[1] + ' usage ' + (usedOf(u, shown[0]) == null ? 'target ' : pct(usedOf(u, shown[0])) + ' of a target of ') + u.target[shown[0]] + '%');
-  const saidTime = t ? (t.passed ? ', time to work is up' : ', ' + timeLeft(t.leftMinutes) + ' left to work') : '';
-  chip.setAttribute('aria-label', (said || 'Usage target') + saidTime);
-  chip.setAttribute('aria-expanded', String(targetsOpen));
-  if (targetsOpen) fillTargets(u);
-}
-
 // The time to work, as the header and Settings say it: "1h 20m", and the end on this machine's clock.
 const timeLeft = (n) => (n < 60 ? n + ' min' : Math.floor(n / 60) + 'h' + (n % 60 ? ' ' + (n % 60) + 'm' : ''));
 const clockOf = (iso) => { const d = new Date(iso); return d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0'); };
 
-// The box under it: for each limit, a switch, a slider and a box to type the number in. The slider
-// shows what is used, shaded in, so the target is set against it. Each change is spool target.
-function openTargets() {
-  closeTakeOvers();
-  const box = document.getElementById('targets');
-  targetsOpen = true;
-  const shut = el('button', { class: 'shut', title: 'Close', 'aria-label': 'Close', onclick: closeTargets }, '×');
-  box.replaceChildren(
-    el('div', { class: 'head' }, el('h3', {}, 'Usage target'), shut),
-    el('p', { class: 'what' }, 'The chat that builds here works until your Claude plan’s usage reaches this, then takes no new thread. An agent with a target of its own, set in Settings, works up to that instead.'),
-    ...LIMITS.map(([key, name]) => limitNode(key, name)),
-    el('p', { class: 'foot' }));
-  box.hidden = false;
-  document.getElementById('target').setAttribute('aria-expanded', 'true');
-  if (current) fillTargets(current.usage);
+// An agent's mark: Claude's, the ChatGPT one for Codex, or its first letter. Drawn as a picture
+// only: the button it is on says the name.
+function markOf(name) {
+  const node = el('span', { class: 'mark', 'aria-hidden': 'true' });
+  const svg = /^claude/i.test(name) ? CLAUDE : /^codex/i.test(name) ? CODEX : '';
+  if (svg) node.innerHTML = svg.replace(/role="img" aria-label="[^"]*"/, '').replace(/<title>[^<]*<\/title>/, '');
+  else node.textContent = (name || '?').slice(0, 1).toUpperCase();
+  return node;
 }
-function closeTargets() {
-  if (!targetsOpen) return;
-  targetsOpen = false;
-  document.getElementById('targets').hidden = true;
-  document.getElementById('targets').replaceChildren();
-  document.getElementById('target').setAttribute('aria-expanded', 'false');
+// The one figure an agent's ring shows: the limit nearest its target, or else the most used that was read.
+function ringOf(u) {
+  const shown = shownLimit(u);
+  if (shown) return { key: shown[0], name: shown[1], used: usedOf(u, shown[0]), goal: u.target[shown[0]] };
+  if (!u.read) return null;
+  const read = STOPS.filter(([key]) => usedOf(u, key) != null).sort((a, z) => usedOf(u, z[0]) - usedOf(u, a[0]))[0];
+  return read ? { key: read[0], name: read[1], used: usedOf(u, read[0]), goal: null } : null;
 }
-function limitNode(key, name) {
-  const on = el('input', { type: 'checkbox' });
-  const slide = el('input', { type: 'range', min: '1', max: '100', step: '1', 'aria-label': name + ' target, in percent' });
-  const num = el('input', { type: 'number', min: '1', max: '100', step: '1', inputmode: 'numeric', 'aria-label': name + ' target, in percent, typed' });
-  const row = el('div', { class: 'limit', 'data-limit': key }, el('label', { class: 'name' }, on, name), slide, el('span', { class: 'box' }, num, '%'), el('div', { class: 'now' }));
-  const whole = (v) => Math.min(100, Math.max(1, Math.round(Number(v)) || TARGET_START));
-  // Set: the number the slider or the box says, sent once it is let go of, or typed and left.
-  // The slider moved by its keys says it changed at every step: it is sent once they stop. Sends go
-  // one after another, so the last number given is the one kept, whatever order they would arrive in.
-  const set = (value, wait) => {
-    clearTimeout(targetWait[key]);
-    const send = () => {
-      targetSends = targetSends.then(() => {
-        const had = current ? allOf(current.usage)[key] : undefined;
-        if ((had == null ? null : had) === value) return;
-        return post('target', { [key]: value }, value == null ? 'No ' + name.toLowerCase() + ' target.' : name + ' target: ' + value + '%. The chat works up to it.');
-      });
-    };
-    if (wait) targetWait[key] = setTimeout(send, 300); else send();
+// A ring round the mark: what is used, drawn from the top, and a dot where the target is.
+function ringNode(r, reached) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 32 32');
+  svg.setAttribute('class', 'ring' + (reached ? ' reached' : ''));
+  svg.setAttribute('aria-hidden', 'true');
+  const circle = (cls, extra) => {
+    const c = document.createElementNS(NS, 'circle');
+    for (const [k, v] of Object.entries({ cx: 16, cy: 16, r: 14, class: cls, ...extra })) c.setAttribute(k, String(v));
+    svg.append(c);
   };
-  on.addEventListener('change', () => { row.classList.toggle('off', !on.checked); slide.disabled = num.disabled = !on.checked; set(on.checked ? whole(num.value) : null); });
-  slide.addEventListener('input', () => { num.value = slide.value; });
-  slide.addEventListener('change', () => set(whole(slide.value), true));
-  num.addEventListener('input', () => { if (Number(num.value) >= 1 && Number(num.value) <= 100) slide.value = String(Math.round(Number(num.value))); });
-  num.addEventListener('change', () => { num.value = slide.value = String(whole(num.value)); set(Number(num.value)); });
-  num.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); num.blur(); } });
-  return row;
+  circle('track', {});
+  if (r && r.used != null) circle('used', { pathLength: 100, 'stroke-dasharray': Math.min(100, Math.max(0, r.used)) + ' 100', transform: 'rotate(-90 16 16)' });
+  if (r && r.goal != null) {
+    const a = (r.goal * 3.6 - 90) * Math.PI / 180;
+    circle('goal', { cx: (16 + 14 * Math.cos(a)).toFixed(2), cy: (16 + 14 * Math.sin(a)).toFixed(2), r: 2 });
+  }
+  return svg;
+}
+
+// In the header: in Chat mode, each agent on the roster as its logo in a ring of its usage, with the
+// number beside it, greyed while it is not watching. A click opens its own settings under it. Headless,
+// one line says whether the page's agents build. The time to work, where one is set, after them.
+function drawStatus(b) {
+  const box = document.getElementById('status');
+  const chat = b.runner.builder === 'chat';
+  const agents = chat ? b.runner.agents || [] : [];
+  const parts = agents.map((a) => {
+    const u = a.usage || NO_USAGE;
+    const r = ringOf(u);
+    const reached = u.reached.length > 0;
+    const n = a.building.length;
+    const doing = a.watching ? (n ? 'building ' + n + ' of ' + a.atOnce : 'watching') : 'not watching';
+    const figure = u.cannotRead ? 'can’t read its usage' : r && r.used != null ? r.name.toLowerCase() + ' ' + pct(r.used) + (r.goal != null ? ' of ' + r.goal + '%' : '') : 'no usage read yet';
+    return el('button', {
+      class: 'agentchip' + (a.watching ? '' : ' off') + (reached ? ' reached' : '') + (agentOpen === a.name ? ' open' : ''),
+      'data-agent': a.name, 'aria-haspopup': 'dialog', 'aria-controls': 'agentbox', 'aria-expanded': String(agentOpen === a.name),
+      'aria-label': a.name + ': ' + doing + ', ' + figure + '. Opens its settings.',
+      title: a.name + (a.model ? ' on ' + a.model : '') + ': ' + doing + '. ' + agentStands(a) + ' Click for its usage target, threads at once, sizes and lean.',
+      onclick: (e) => { e.stopPropagation(); agentOpen === a.name ? closeAgent() : openAgent(a.name); },
+    },
+    el('span', { class: 'logo' }, ringNode(r, reached), markOf(a.name), n ? el('span', { class: 'busy' }, String(n)) : null),
+    el('span', { class: 'pct' + (u.cannotRead || !r || r.used == null ? ' none' : '') }, u.cannotRead ? '–' : r && r.used != null ? Math.round(r.used) + '%' : '–'));
+  });
+  // Headless, or a chat with nobody on the roster: one line, and a click opens where it is changed.
+  if (!agents.length) {
+    const runner = el('button', { id: 'runner', class: 'runner' });
+    const running = b.runner.running.length;
+    if (chat) {
+      const building = b.columns.building.length > 0;
+      const live = building || b.runner.watching;
+      runner.className = 'runner' + (live ? ' on' : '');
+      runner.textContent = building ? '● Building' : b.runner.watching ? '● Watching' : 'Agents: off';
+      runner.title = building ? 'A thread is being built.' : b.runner.watching ? 'A chat is watching this spool. It builds what you move to Build.'
+        : 'No chat is watching this spool, so nothing in Build is built. Say /spool-loop in one, in this project.';
+    } else {
+      const lately = b.runner.recent.length ? ' Last: ' + b.runner.recent[0].title + ' — ' + b.runner.recent[0].outcome : '';
+      runner.className = 'runner' + (b.runner.on ? ' on' : '');
+      runner.textContent = b.runner.on ? (running ? '● Building' + (running > 1 ? ' ' + running : '') : '● Agents: on') : 'Agents: off';
+      runner.title = (b.runner.on ? 'This page builds what is in Build.' : 'This page builds nothing now.') + ' It runs: ' + b.runner.agent
+        + (b.runner.parallel > 1 ? ', on up to ' + b.runner.parallel + ' threads at once' : '') + '.' + lately + ' Click to switch it in Settings.';
+    }
+    runner.onclick = () => openSettings('building');
+    parts.push(runner);
+  }
+  const t = chat ? b.time : null;
+  if (t) {
+    parts.push(el('button', { class: 'clockchip' + (t.passed ? ' up' : t.upTo ? ' near' : ''),
+      title: 'Time to work: until ' + clockOf(t.end) + (t.passed ? ', which has passed. No new thread is taken.' : ', ' + timeLeft(t.leftMinutes) + ' left.') + ' Click to change it in Settings.',
+      'aria-label': t.passed ? 'Time to work is up. Opens Settings.' : timeLeft(t.leftMinutes) + ' left to work. Opens Settings.',
+      onclick: () => openSettings('usage') }, t.passed ? 'Time up' : timeLeft(t.leftMinutes)));
+  }
+  box.replaceChildren(...parts);
+  box.hidden = false;
+  if (agentOpen) fillAgent(b);
+}
+
+// ---- one agent's own settings: a small box under its logo
+
+let agentOpen = null;
+const markAgent = (name) => document.querySelector('#status .agentchip[data-agent="' + CSS.escape(name) + '"]');
+function openAgent(name) {
+  closeNotices();
+  const box = document.getElementById('agentbox');
+  agentOpen = name;
+  const claude = /^claude/i.test(name);
+  const name0 = name;
+  const shut = el('button', { class: 'shut', title: 'Close', 'aria-label': 'Close', onclick: closeAgent }, '×');
+  // Each limit: what is used, and the target it works up to, its own. Empty, it takes the one for all.
+  // Fable is Claude's alone, so its target is the one for all.
+  const limits = (claude ? LIMITS : STOPS).map(([key, name]) => {
+    const box = el('input', { type: 'number', min: '1', max: '100', step: '1', inputmode: 'numeric',
+      'aria-label': key === 'fable' ? 'Fable target, in percent; empty for none' : name + ' target for ' + agentOpen + ', in percent; empty for the one for all',
+      onchange: () => {
+        const n = box.value.trim() === '' ? null : Math.min(100, Math.max(1, Math.round(Number(box.value)) || 1));
+        box.value = n == null ? '' : String(n);
+        if (key === 'fable') sendSetting('target', { fable: n }, n == null ? 'No Fable target.' : 'Fable target: ' + n + '%.');
+        else sendSetting('target', { agent: name0, [key]: n }, n == null ? name0 + ' works up to the ' + name.toLowerCase() + ' target for all.' : name0 + '’s ' + name.toLowerCase() + ' target: ' + n + '%.');
+      },
+      onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } } });
+    return el('div', { class: 'limit', 'data-limit': key },
+      el('span', { class: 'lname' }, name),
+      el('span', { class: 'meter' }, el('i', { class: 'used' }), el('i', { class: 'goal' })),
+      el('span', { class: 'now' }),
+      el('label', { class: 'unit' }, box, '%'));
+  });
+  const step = (by) => el('button', { 'aria-label': (by < 0 ? 'One thread fewer for ' : 'One thread more for ') + name, onclick: () => {
+    const a = agentOf(current, name);
+    if (a) sendSetting('roster', { agent: name, atOnce: a.atOnce + by }, name + ' builds up to ' + (a.atOnce + by) + ' at once.');
+  } }, by < 0 ? '−' : '+');
+  const sizes = el('select', { 'aria-label': 'Largest size ' + name + ' takes', onchange: () => sendSetting('roster', { agent: name, maxSize: sizes.value }, '') },
+    ...['xs', 's', 'm', 'l', 'xl'].map((z) => el('option', { value: z === 'xl' ? 'all' : z }, z === 'xl' ? 'All sizes' : 'Up to ' + z.toUpperCase())));
+  const lean = el('input', { type: 'range', class: 'lean', min: 0, max: 2, step: 1, 'aria-label': name + ', from usage to development',
+    onchange: () => { const to = LEANS[Number(lean.value)]; lean.blur(); const a = agentOf(current, name); if (a && to !== a.lean) sendSetting('roster', { agent: name, lean: to }, ''); } });
+  box.replaceChildren(
+    el('div', { class: 'head' }, markOf(name), el('h3', {}, name, el('span', { class: 'model' })), shut),
+    el('p', { class: 'astate' }),
+    el('div', { class: 'sub' }, 'Usage target'),
+    ...limits,
+    el('p', { class: 'foot usagefoot' }),
+    el('div', { class: 'line' }, el('span', { class: 'lname' }, 'Threads at once'), el('span', { class: 'count' }, step(-1), el('span', { class: 'n' }), step(1))),
+    el('div', { class: 'line' }, el('span', { class: 'lname' }, 'Sizes it takes'), sizes),
+    el('div', { class: 'line leanline' }, el('span', { class: 'lname' }, 'Lean'), el('span', { class: 'ends' }, 'Usage', lean, 'Development')),
+    el('p', { class: 'gets' }),
+    el('div', { class: 'acts' }, el('button', { class: 'link', onclick: () => openSettings('building') }, 'All settings')));
+  box.setAttribute('aria-label', name + '’s settings');
+  box.hidden = false;
+  if (current) drawStatus(current);
+  placeAgent();
+  shut.focus();
+}
+const agentOf = (b, name) => (b && b.runner.builder === 'chat' ? (b.runner.agents || []).find((a) => a.name === name) : null);
+// Under its logo, kept inside the page.
+function placeAgent() {
+  const box = document.getElementById('agentbox');
+  const chip = agentOpen && markAgent(agentOpen);
+  if (!chip) return;
+  const bar = document.querySelector('.bar').getBoundingClientRect();
+  const at = chip.getBoundingClientRect();
+  const width = box.offsetWidth;
+  const left = Math.max(8, Math.min(bar.width - width - 8, at.left - bar.left + at.width / 2 - width / 2));
+  box.style.left = left + 'px';
+}
+function closeAgent() {
+  if (!agentOpen) return;
+  const was = agentOpen;
+  agentOpen = null;
+  const box = document.getElementById('agentbox');
+  box.hidden = true;
+  box.replaceChildren();
+  if (current) drawStatus(current);
+  return was;
 }
 // What the box shows, from the board: each control left alone while it is being used.
-function fillTargets(u) {
-  const box = document.getElementById('targets');
+function fillAgent(b) {
+  const a = agentOf(b, agentOpen);
+  if (!a) return closeAgent();
+  const box = document.getElementById('agentbox');
   const at = document.activeElement;
+  const u = a.usage || NO_USAGE;
+  const all = allOf(b.usage || NO_USAGE);
+  box.querySelector('.head .model').textContent = a.model ? ' ' + a.model : '';
+  const n = a.building.length;
+  box.querySelector('.astate').textContent = (a.watching
+    ? (n ? 'Building ' + a.building.map((t) => t.title).join(', ') + '.' : 'Watching this spool' + (a.since ? ' since ' + clockOf(a.since) : '') + '.')
+    : 'Not watching. Say /spool-loop in a ' + a.name + ' chat in this project to start it.');
+  box.querySelector('.astate').classList.toggle('off', !a.watching);
   for (const row of box.querySelectorAll('.limit')) {
     const key = row.dataset.limit;
-    const [on, slide, num] = row.querySelectorAll('input');
-    const goal = allOf(u)[key];
+    const fable = key === 'fable';
     const used = usedOf(u, key);
-    const capped = key === 'fable' && u.fableCap != null;
-    const reached = u.reached.includes(key) || capped;
-    if (at !== on) on.checked = goal != null;
-    row.classList.toggle('off', goal == null);
-    row.classList.toggle('reached', reached);
-    slide.disabled = num.disabled = goal == null;
-    if (at !== slide && at !== num) slide.value = num.value = String(goal != null ? goal : (Number(num.value) || TARGET_START));
-    slide.style.setProperty('--used', Math.min(100, used || 0) + '%');
-    row.querySelector('.now').className = 'now' + (reached ? ' reached' : '');
-    row.querySelector('.now').textContent = used == null ? 'Not read yet.' : 'Used ' + pct(used) + (capped ? ': no thread goes to Fable now, it is built on Opus.' : reached ? ': reached, so the chat takes no new thread.' : goal != null ? ', ' + pct(Math.max(0, goal - used)) + ' to go.' : '.');
+    const goal = fable ? all.fable : u.target[key];
+    const reached = u.reached.includes(key) || (fable && b.usage && b.usage.fableCap != null);
+    row.classList.toggle('reached', !!reached);
+    row.querySelector('.meter .used').style.width = Math.min(100, used || 0) + '%';
+    row.querySelector('.meter .goal').hidden = goal == null;
+    if (goal != null) row.querySelector('.meter .goal').style.left = goal + '%';
+    row.querySelector('.now').textContent = u.cannotRead ? 'can’t read' : used == null ? 'not read' : pct(used);
+    const input = row.querySelector('input');
+    input.placeholder = fable ? '–' : all[key] != null ? String(all[key]) : '–';
+    if (at !== input) input.value = fable ? (all.fable != null ? String(all.fable) : '') : ownOf(u)[key] != null ? String(ownOf(u)[key]) : '';
   }
-  box.querySelector('.foot').textContent = u.read
-    ? 'Read ' + ago(u.read.at, true) + ' by ' + u.read.by + '. The chat reads it again before each thread.'
-    : 'Nothing read yet. The chat that builds reads your usage before each thread, and this fills in.';
+  const shared = STOPS.filter(([key]) => all[key] != null).map(([key, name]) => name.toLowerCase() + ' ' + all[key] + '%');
+  box.querySelector('.usagefoot').textContent = (u.cannotRead ? a.name + ' can’t read its usage yet, so no target holds it back. ' : u.read ? 'Read ' + ago(u.read.at, true) + '. ' : 'Nothing read yet: it reads its usage before each thread. ')
+    + 'Empty takes the target for all' + (shared.length ? ' (' + shared.join(', ') + ')' : ', none now') + '.';
+  box.querySelector('.count .n').textContent = String(a.atOnce);
+  const [less, more] = box.querySelectorAll('.count button');
+  less.disabled = a.atOnce <= 1;
+  more.disabled = a.atOnce >= 20;
+  const sizes = box.querySelector('select');
+  if (at !== sizes && a.sizes) sizes.value = a.sizes[1] === 'xl' ? 'all' : a.sizes[1];
+  const lean = box.querySelector('input.lean');
+  if (at !== lean) lean.value = String(Math.max(0, LEANS.indexOf(a.lean)));
+  lean.className = 'lean lean-' + a.lean;
+  lean.setAttribute('aria-valuetext', a.lean || '');
+  box.querySelector('.gets').textContent = (a.table || []).length ? 'Each size gets: ' + a.table.map((t) => t.size.toUpperCase() + ' ' + t.model + (t.effort && t.effort !== 'medium' ? ' · ' + t.effort : '')).join(', ') + '.' : '';
+  placeAgent();
 }
-// A click anywhere else puts the box away. Where the click was is read from its path as it was sent:
-// the palette's own row is gone by now, having opened this box.
+// A click anywhere else puts the box away.
 document.addEventListener('click', (e) => {
-  if (targetsOpen && !e.composedPath().some((node) => ['targets', 'target', 'layer'].includes(node.id))) closeTargets();
+  if (agentOpen && !e.composedPath().some((node) => ['agentbox', 'status', 'layer'].includes(node.id))) closeAgent();
 });
-
-// ---- taking over the backlog: in Chat mode, the chat that builds may move threads to Build itself
-
-let takeOversOpen = false;
-const takeOverOf = (b) => b.takeOver || { on: false, next: null, waiting: null };
-
-// In the header, Chat mode only: a switch that says whether the chat takes over, and opens its menu.
-function drawTakeOver(b) {
-  const chip = document.getElementById('takeover');
-  const chat = b.runner.builder === 'chat';
-  chip.hidden = !chat;
-  if (!chat) return closeTakeOvers();
-  const t = takeOverOf(b);
-  chip.className = 'takeover' + (t.on ? ' on' : '');
-  chip.replaceChildren(el('span', { class: 'knob', 'aria-hidden': 'true' }), el('span', { class: 'label' }, 'Take over'));
-  chip.title = t.on
-    ? 'The chat takes over the backlog: with Build empty and the usage under your target, it moves the top thread you filed to Build itself, and builds it.' + (t.waiting ? ' Not now: ' + t.waiting + '.' : '') + ' Click for its settings.'
-    : 'The chat builds only what you move to Build. Click to let it take over the backlog, up to your usage target.';
-  chip.setAttribute('aria-label', 'Take over the backlog: ' + (t.on ? 'on' : 'off'));
-  chip.setAttribute('aria-expanded', String(takeOversOpen));
-  chip.onclick = () => (takeOversOpen ? closeTakeOvers() : openTakeOvers());
-  if (takeOversOpen) fillTakeOvers(b);
-}
-
-// The menu under it: the switch, the usage it works up to, and which threads it takes. Each is an
-// entry of its own, so more settings for the agents can be added here later.
-function openTakeOvers() {
-  closeTargets();
-  const box = document.getElementById('takeovers');
-  takeOversOpen = true;
-  const shut = el('button', { class: 'shut', title: 'Close', 'aria-label': 'Close', onclick: closeTakeOvers }, '×');
-  const on = el('input', { type: 'checkbox' });
-  on.addEventListener('change', () => post('takeover', { on: on.checked }, on.checked
-    ? 'The chat takes over the backlog, up to your usage target.'
-    : 'The chat builds only what you move to Build.'));
-  const change = el('button', { class: 'link', onclick: (e) => { e.stopPropagation(); closeTakeOvers(); openTargets(); } }, 'Change');
-  const afk = el('input', { type: 'checkbox' });
-  afk.addEventListener('change', () => post('afk', { on: afk.checked }, afk.checked
-    ? 'AFK: agents take their own recommendation and keep going.'
-    : 'Back: agents ask you again.'));
-  box.replaceChildren(
-    el('div', { class: 'head' }, el('h3', {}, 'Take over the backlog'), shut),
-    el('div', { class: 'entry switch' },
-      el('label', { class: 'name' }, on, 'The chat takes over'),
-      el('p', {}, 'With Build empty, the chat that builds moves the top thread you filed to Build itself, and builds it. Each says so on its thread, and Undo takes it back.')),
-    el('div', { class: 'entry usage' },
-      el('div', { class: 'name' }, 'Works up to', change),
-      el('p', { class: 'goal' })),
-    el('div', { class: 'entry takes' },
-      el('div', { class: 'name' }, 'Takes'),
-      el('p', {}, 'Threads you filed, top of the backlog first, one at a time. Never an AI suggested one, one on hold, or one waiting on a question or a plan’s go-ahead.'),
-      el('p', { class: 'now' })),
-    el('div', { class: 'entry afk' },
-      el('label', { class: 'name' }, afk, 'I’m AFK'),
-      el('p', {}, 'Agents don’t ask you: each takes its own recommendation and records it as a call for your review. Only money, publishing or pushing, deleting, new accounts, what the product is and your own machine still ask.')));
-  box.hidden = false;
-  document.getElementById('takeover').setAttribute('aria-expanded', 'true');
-  if (current) fillTakeOvers(current);
-}
-function closeTakeOvers() {
-  if (!takeOversOpen) return;
-  takeOversOpen = false;
-  document.getElementById('takeovers').hidden = true;
-  document.getElementById('takeovers').replaceChildren();
-  document.getElementById('takeover').setAttribute('aria-expanded', 'false');
-}
-// What the menu shows, from the board: the switch left alone while it is being used.
-function fillTakeOvers(b) {
-  const box = document.getElementById('takeovers');
-  const t = takeOverOf(b);
-  const on = box.querySelector('.switch input');
-  if (on && document.activeElement !== on) on.checked = t.on;
-  const afk = box.querySelector('.afk input');
-  if (afk && document.activeElement !== afk) afk.checked = b.afk === true;
-  box.classList.toggle('off', !t.on);
-  const u = b.usage;
-  const set = LIMITS.filter(([key]) => u.target[key] != null);
-  box.querySelector('.goal').textContent = set.length
-    ? set.map(([key, name]) => name + ' ' + (usedOf(u, key) == null ? 'target ' + u.target[key] + '%' : Math.round(usedOf(u, key)) + ' of ' + u.target[key] + '%')).join(', ') + '. It moves nothing more once that is reached.'
-    : 'No usage target is set, so it moves nothing. Set one to let it take over.';
-  const now = box.querySelector('.takes .now');
-  now.className = 'now' + (t.on && t.waiting ? ' not' : '');
-  now.textContent = !t.on ? '' : t.waiting ? 'Not now: ' + t.waiting + '.' : t.next ? 'Next: ' + t.next.title : '';
-}
-document.addEventListener('click', (e) => {
-  if (takeOversOpen && !e.composedPath().some((node) => ['takeovers', 'takeover', 'layer'].includes(node.id))) closeTakeOvers();
-});
+window.addEventListener('resize', placeAgent);
 
 // ---- what notifies him: the events he picked, sent as one line each, and quiet for the rest
 
@@ -2150,7 +2052,7 @@ function settingNumber(label, min, max, on) {
 
 function settingsSections() {
   settingsFills = [];
-  const section = (title, ...rows) => el('section', { class: 'ssec' }, el('h3', {}, title), ...rows);
+  const section = (key, title, ...rows) => el('section', { class: 'ssec', 'data-section': key }, el('h3', {}, title), ...rows);
 
   // Who builds: Chat, or Headless where it is offered.
   const picks = el('div', { class: 'seg', role: 'group', 'aria-label': 'Who builds' },
@@ -2172,8 +2074,18 @@ function settingsSections() {
       }
     });
   const offer = settingSwitch('Offer Headless', (on) => sendSetting('setting', { name: 'headless', value: on }, ''));
-  const offerRow = settingRow('Offer Headless', 'Let Headless be picked here and in the header. Off, it is greyed out: you build with a chat.',
+  const offerRow = settingRow('Offer Headless', 'Let Headless be picked above. Off, it is greyed out: you build with a chat.',
     'spool settings headless on', offer, (b) => { if (!leave(offer)) offer.checked = settingsOf(b).headless; });
+
+  // Headless, whether this page's own agents build now.
+  const runs = settingSwitch('Agents on', (on) => sendSetting('runner', { on }, ''));
+  const agentsOn = settingRow('Agents on', 'Headless: this page builds what is in Build, with no chat open. Off, it starts nothing new.',
+    '', runs, (b, row) => {
+      const chat = b.runner.builder === 'chat';
+      if (!leave(runs)) runs.checked = !chat && b.runner.on;
+      runs.disabled = chat;
+      row.hidden = chat;
+    });
 
   // Threads at once: one count for each agent on the roster; Headless, the page's own number.
   const agents = el('div', { class: 'agents' });
@@ -2234,7 +2146,10 @@ function settingsSections() {
   const takeRow = settingRow('Take over the backlog', 'With Build empty and usage under your target, the chat moves the top thread you filed to Build itself, and builds it. Chat only.',
     'spool takeover on', take, (b, row) => {
       const chat = b.runner.builder === 'chat';
-      if (!leave(take)) take.checked = takeOverOf(b).on;
+      const t = takeOverOf(b);
+      if (!leave(take)) take.checked = t.on;
+      row.querySelector('p').textContent = 'With Build empty and usage under your target, the chat moves the top thread you filed to Build itself, and builds it. Never an AI suggested one, one on hold, or one waiting on you. Chat only.'
+        + (!t.on ? '' : t.waiting ? ' Not now: ' + t.waiting + '.' : t.next ? ' Next: ' + t.next.title + '.' : '');
       take.disabled = !chat;
       row.classList.toggle('dim', !chat);
     });
@@ -2332,16 +2247,27 @@ function settingsSections() {
   const quickRow = settingRow('Quick replies', 'Where nobody is building a thread, a small model answers what you write on it within seconds.',
     'spool settings quick-reply off', quick, (b) => { if (!leave(quick)) quick.checked = settingsOf(b).quickReply; });
 
+  // The theme, as the button in the bar goes round it: here too, where a phone has no room for that button.
+  const themes = el('div', { class: 'seg', role: 'group', 'aria-label': 'Theme' });
+  const markTheme = () => { const at = paintTheme(); for (const p of themes.children) { p.className = p.dataset.pick === at ? 'on' : ''; p.setAttribute('aria-pressed', String(p.dataset.pick === at)); } };
+  themes.append(...THEMES.map(([key, name]) => el('button', { 'data-pick': key, onclick: () => {
+    try { localStorage.setItem('spool-theme', key); } catch (e) {}
+    drawTheme();
+    markTheme();
+  } }, name)));
+  const themeRow = settingRow('Theme', 'Light or dark for this page, in this browser. System follows your computer.', '', themes, markTheme);
+
   return [
-    section('Building', who, offerRow, atOnce, sizeRow, leanRow, takeRow, afkRow, rebuildRow, quietRow, stopRow),
-    section('Usage', ...usageRows, timeRow, ownRow),
-    section('Notifications', ...noticeRows, via),
-    section('Replies & style', caveRow, quickRow),
+    section('building', 'Building', who, offerRow, agentsOn, atOnce, sizeRow, leanRow, takeRow, afkRow, rebuildRow, quietRow, stopRow),
+    section('usage', 'Usage', ...usageRows, timeRow, ownRow),
+    section('notifications', 'Notifications', ...noticeRows, via),
+    section('style', 'Replies & style', caveRow, quickRow, themeRow),
   ];
 }
 
-function openSettings() {
-  closeTargets(); closeTakeOvers(); closeNotices();
+// Opened at a section ('building', 'usage', 'notifications', 'style'), it is scrolled to it.
+function openSettings(at) {
+  closeAgent(); closeNotices();
   const box = document.getElementById('settings');
   settingsOpen = true;
   const shut = el('button', { class: 'shut', title: 'Close', 'aria-label': 'Close', onclick: closeSettings }, '×');
@@ -2353,6 +2279,8 @@ function openSettings() {
   document.getElementById('gear').setAttribute('aria-expanded', 'true');
   if (current) fillSettings(current);
   shut.focus();
+  const part = typeof at === 'string' && box.querySelector('[data-section="' + at + '"]');
+  if (part) box.scrollTop = part.offsetTop - box.querySelector('.head').offsetHeight - 8;
 }
 function closeSettings() {
   if (!settingsOpen) return;
@@ -2460,40 +2388,14 @@ function connected(yes) {
   document.body.classList.add('away');
   unknown();
 }
-// In Chat mode, each agent on the roster: what it is building of its count, greyed while no watch of
-// its own is up. A summary: a click opens Settings, where each count is changed. Headless, the
-// page's own agents build, and this is hidden.
-function drawRoster(b) {
-  const box = document.getElementById('roster');
-  const agents = b.runner.builder === 'chat' ? b.runner.agents || [] : [];
-  box.hidden = !agents.length;
-  const threads = (n) => n === 1 ? '1 thread' : n + ' threads';
-  const since = (a) => a.watching && a.since ? ', since ' + new Date(a.since).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
-  box.title = agents.map((a) => (a.watching ? a.name + (a.model ? ' on ' + a.model : '') + ' (' + a.how + (a.listed ? '' : ', not on the roster') + ') is watching this spool' + since(a) + ', and builds up to ' + threads(a.atOnce) + ' at once.'
-    : a.name + ' is not watching this spool now. It builds up to ' + threads(a.atOnce) + ' at once once a chat of it runs /spool-loop here.')
-    + (a.sizesText ? ' It takes ' + a.sizesText + '.' : '')
-    + (a.building.length ? ' Building ' + a.building.map((t) => t.id + ' ' + t.title).join(', ') + '.' : '')).join('\n') + '\nClick to change how many each builds, and which sizes, in Settings.';
-  box.setAttribute('aria-label', 'Agents that build: ' + agents.map((a) => a.name + ' ' + a.building.length + ' of ' + threads(a.atOnce)).join(', ') + '. Opens Settings.');
-  box.onclick = () => openSettings();
-  box.replaceChildren(...agents.map((a) => el('span', { class: 'agent' + (a.watching ? '' : ' off') },
-    el('span', { class: 'name' }, a.name),
-    el('span', { class: 'n' }, a.building.length + '/' + a.atOnce),
-    a.sizes && a.sizes[1] !== 'xl' && el('span', { class: 'n' }, '≤ ' + a.sizes[1].toUpperCase()))));
-}
 const AWAY_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.75 14.75 13.5H1.25z"/><path d="M8 6.25v3.25M8 11.5v.01"/></svg>';
 // With no server, nobody can say whether agents are on or who builds: the switch and the picks say
 // so, greyed, until the server answers and the board is drawn again.
 function unknown() {
-  const runner = document.getElementById('runner');
-  runner.className = 'runner unknown';
-  runner.textContent = 'Agents: ?';
-  runner.title = 'Not connected to the Spool server, so whether agents are on is not known.';
+  closeAgent();
+  const runner = el('button', { id: 'runner', class: 'runner unknown', title: 'Not connected to the Spool server, so whether agents are on is not known.' }, 'Agents: ?');
   runner.onclick = () => say(runner.title);
-  for (const pick of document.getElementById('builder').children) {
-    pick.className = 'unknown';
-    pick.setAttribute('aria-pressed', 'false');
-    pick.onclick = () => say('Not connected to the Spool server. Trying again…');
-  }
+  document.getElementById('status').replaceChildren(runner);
 }
 async function load(now) {
   // Never redraw under someone's typing or choosing; a redraw that was asked for goes ahead.
@@ -2700,7 +2602,8 @@ function actionsOf(b) {
     { name: 'Go to the Roadmap', hint: 'g r', run: () => goTo('roadmap') },
     !chat && { name: 'Switch who builds to Chat', run: () => post('builder', { builder: 'chat' }, '') },
     !chat && { name: b.runner.on ? 'Switch agents off' : 'Switch agents on', run: () => post('runner', { on: !b.runner.on }, '') },
-    chat && { name: 'Set the usage target', run: () => openTargets() },
+    chat && { name: 'Set the usage target', run: () => openSettings('usage') },
+    ...(chat ? b.runner.agents || [] : []).map((a) => ({ name: 'Open ' + a.name + '’s settings', run: () => openAgent(a.name) })),
     { name: 'Choose what notifies you', run: () => openNotices() },
     { name: 'Open settings', run: () => openSettings() },
     ...b.sprints.filter((x) => x.waiting > 0).map((x) => ({ name: 'Play sprint: ' + x.name, run: () => post('play', { id: x.id }, x.name + ' is running') })),
@@ -2812,7 +2715,7 @@ function quickAddNode() {
 function escape(at, typing) {
   if (layer) return closeLayer();
   if (settingsOpen) { closeSettings(); document.getElementById('gear').focus(); return; }
-  if (targetsOpen) { closeTargets(); document.getElementById('target').focus(); return; }
+  if (agentOpen) { const was = closeAgent(); const chip = markAgent(was); if (chip) chip.focus(); return; }
   if (noticesOpen) { closeNotices(); document.getElementById('notifier').focus(); return; }
   if (at && at.id === 'search') { at.value = ''; query = ''; at.blur(); redraw(); return; }
   if (openId && !adding && !(at && at.isContentEditable)) return closeThread();

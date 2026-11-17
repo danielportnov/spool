@@ -141,19 +141,13 @@ function drawProjects(b) {
 function drawElsewhere(b) {
   const p = shownProject(b);
   const away = !!p && !p.built;
-  let line = document.getElementById('elsewhere');
-  if (!line) {
-    line = el('span', { id: 'elsewhere', class: 'elsewhere', hidden: true });
-    document.getElementById('runner').before(line);
-  }
-  line.hidden = !away;
+  const runner = document.getElementById('runner');
   if (!away) {
-    if (severalOf(b) && b.workspace.opens === '' && b.runner.builder !== 'chat') document.getElementById('runner').title += ' It builds every project on this page.';
+    if (runner && severalOf(b) && b.workspace.opens === '' && b.runner.builder !== 'chat') runner.title += ' It builds every project on this page.';
     return;
   }
-  document.getElementById('builder').hidden = true;
-  document.getElementById('runner').hidden = true;
-  line.textContent = 'Agents for ' + b.project + ' are run by its own page, or a chat.';
+  // Its agents are another page's, or a chat's: the status says so, in place of theirs.
+  document.getElementById('status').replaceChildren(el('span', { id: 'elsewhere', class: 'elsewhere' }, 'Agents for ' + b.project + ' are run by its own page, or a chat.'));
 }
 
 // ---- the home view: a row for each project, and the brief across them all

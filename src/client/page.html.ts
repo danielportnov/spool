@@ -53,16 +53,11 @@ ${CSS + ROADMAP_CSS + REVIEW_CSS + PROJECTS_CSS + PICTURES_CSS}</style>
   </div>
   <input class="search" id="search" placeholder="Search threads   /" autocomplete="off">
   <button class="searchbtn" id="searchbtn" title="Search   /" aria-label="Search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg></button>
-  <div class="builder" id="builder" role="group" aria-label="Who builds" hidden><button data-builder="headless">Headless</button><button data-builder="chat">Chat</button></div>
-  <button class="roster" id="roster" aria-haspopup="dialog" aria-controls="settings" hidden></button>
-  <button class="runner" id="runner" hidden></button>
-  <button class="target" id="target" aria-haspopup="dialog" aria-expanded="false" aria-controls="targets" hidden></button>
-  <button class="takeover" id="takeover" aria-haspopup="dialog" aria-expanded="false" aria-controls="takeovers" hidden></button>
+  <div class="status" id="status" role="group" aria-label="Who builds, and their usage"></div>
   <button class="themer notifier" id="notifier" aria-haspopup="dialog" aria-expanded="false" aria-controls="notices" hidden></button>
   <button class="themer gear" id="gear" title="Settings" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings"></button>
   <button class="themer" id="themer"></button>
-  <div id="targets" role="dialog" aria-label="Usage target" hidden></div>
-  <div id="takeovers" role="dialog" aria-label="Take over the backlog" hidden></div>
+  <div id="agentbox" role="dialog" hidden></div>
   <div id="notices" role="dialog" aria-label="Notifications" hidden></div>
 </div>
 <div id="away" role="status" hidden></div>

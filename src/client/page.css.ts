@@ -39,98 +39,72 @@ export const CSS = String.raw`  :root {
   .tab.on { color: var(--ink); border-bottom-color: var(--accent); }
   .search { margin-left: auto; width: min(260px, 40vw); padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
   .searchbtn { display: none; }
-  /* Chat mode fills the bar: under a wide screen it packs closer, so the gear and the theme stay in view. */
-  @media (min-width: 761px) and (max-width: 1700px) {
-    .bar { gap: 10px; }
+  /* Under a wide screen the bar packs a little closer. */
+  @media (min-width: 701px) and (max-width: 1100px) {
+    .bar { gap: 12px; }
     .tab { padding: 0 9px; }
     .where { display: none; }
   }
-  .runner { white-space: nowrap; color: var(--soft); }
-  .runner.on { color: var(--go); border-color: var(--go); font-weight: 600; }
-  /* who builds: two picks side by side, the one in force filled in */
-  .builder { display: flex; white-space: nowrap; margin-right: -8px; }
-  .builder button { color: var(--soft); border-radius: 0; }
-  .builder button:first-child { border-radius: 7px 0 0 7px; }
-  .builder button:last-child { border-radius: 0 7px 7px 0; margin-left: -1px; }
   .themer { width: 30px; height: 30px; padding: 0; display: inline-grid; place-items: center; color: var(--soft); flex: none; }
   .themer:hover { color: var(--ink); }
   .themer svg { width: 16px; height: 16px; }
-  .builder button.on { position: relative; color: var(--ink); background: var(--bg); border-color: var(--soft); font-weight: 600; }
-  /* Headless is off for now: greyed, and a click does nothing. It still shows as the pick when the project is set to it. */
-  .builder button.off { color: var(--line); cursor: not-allowed; }
-  .builder button.off.on { color: var(--soft); }
-  /* In Chat mode, the agents that build, in one button: each name and what it is building of its count, greyed while it is not watching. It opens Settings. */
-  .roster { display: inline-flex; align-items: center; gap: 0; white-space: nowrap; padding: 5px 4px; }
-  .roster .agent { display: inline-flex; align-items: center; gap: 5px; padding: 0 7px; font-weight: 600; color: var(--ink); }
-  .roster .agent + .agent { border-left: 1px solid var(--line); }
-  .roster .agent .n { font-weight: 400; font-variant-numeric: tabular-nums; color: var(--soft); }
-  .roster .agent.off, .roster .agent.off .n { color: var(--soft); font-weight: 400; opacity: .6; }
-  /* The usage target, in Chat mode: a small meter of the plan's usage, with a tick where the chat stops. */
-  .target { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--soft); margin-left: -8px; }
-  .target.set { color: var(--ink); }
-  .target .meter { position: relative; flex: none; width: 56px; height: 6px; border-radius: 3px; background: var(--line); }
-  .target .meter .used { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; background: var(--blue); }
-  .target .meter .mark { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--ink); }
-  .target .num { font-weight: 600; font-variant-numeric: tabular-nums; }
-  .target .num.fable { font-weight: 500; color: var(--soft); }
-  .target .num.fable.capped { font-weight: 600; color: var(--warn); }
-  .target .num.time { font-weight: 500; color: var(--soft); }
-  .target .num.time.near, .target .num.time.up { font-weight: 600; color: var(--warn); }
-  .target.reached { color: var(--warn); border-color: var(--warn); }
-  .target .agent { display: inline-flex; align-items: center; gap: 5px; }
-  .target .agent + .agent { padding-left: 6px; border-left: 1px solid var(--line); }
-  .target .agent .who { font-weight: 500; }
-  .target .agent .meter { width: 30px; }
-  .target .num.none { font-weight: 500; color: var(--soft); }
-  .target .agent.reached { color: var(--warn); }
-  .target .agent.reached .meter .used { background: var(--warn); }
-  .target.reached .meter .used { background: var(--warn); }
-  .target[aria-expanded="true"] { border-color: var(--soft); background: var(--bg); }
-  #targets { position: absolute; z-index: 3; top: calc(100% + 6px); right: 20px; width: 360px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); padding: 12px 16px 14px; }
-  #targets .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  #targets h3 { margin: 0; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); }
-  #targets .shut { border: 0; background: none; color: var(--soft); padding: 2px 6px; font-size: 16px; line-height: 1; }
-  #targets .what { margin: 6px 0 4px; font-size: 13px; color: var(--soft); }
-  #targets .limit { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 10px 0 8px; border-top: 1px solid var(--line); }
-  #targets .name { display: flex; align-items: center; gap: 7px; font-weight: 600; cursor: pointer; }
-  #targets .name input { margin: 0; accent-color: var(--accent); }
-  #targets .box { display: inline-flex; align-items: center; gap: 3px; color: var(--soft); }
-  #targets .box input { width: 54px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); font-variant-numeric: tabular-nums; text-align: right; }
-  #targets .now { grid-column: 2 / 4; font-size: 12px; color: var(--soft); }
-  #targets .now.reached { color: var(--warn); font-weight: 600; }
-  #targets .off input[type="range"], #targets .off .box { opacity: .45; }
-  /* The slider's track is the meter: the plan's usage shaded in, and the thumb is the target. */
-  #targets input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; margin: 0; border-radius: 3px; cursor: pointer;
-    background: linear-gradient(to right, color-mix(in srgb, var(--blue) 55%, var(--line)) var(--used, 0%), var(--line) var(--used, 0%)); }
-  #targets .limit.reached input[type="range"] { background: linear-gradient(to right, color-mix(in srgb, var(--warn) 60%, var(--line)) var(--used, 0%), var(--line) var(--used, 0%)); }
-  #targets input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--accent); }
-  #targets input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--accent); }
-  #targets input[type="range"]:disabled { cursor: default; }
-  #targets .foot { margin: 6px 0 0; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; color: var(--soft); }
-  /* Taking over the backlog, in Chat mode: a switch in the header that opens its menu. */
-  .takeover { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--soft); margin-left: -8px; }
-  .takeover .knob { position: relative; flex: none; width: 22px; height: 12px; border-radius: 6px; background: var(--line); transition: background .15s; }
-  .takeover .knob::after { content: ''; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--panel); transition: left .15s; }
-  .takeover.on { color: var(--ink); font-weight: 600; }
-  .takeover.on .knob { background: var(--go); }
-  .takeover.on .knob::after { left: 12px; }
-  .takeover[aria-expanded="true"] { border-color: var(--soft); background: var(--bg); }
-  #takeovers { position: absolute; z-index: 3; top: calc(100% + 6px); right: 20px; width: 360px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); padding: 12px 16px 14px; }
-  #takeovers .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  #takeovers h3 { margin: 0; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); }
-  #takeovers .shut { border: 0; background: none; color: var(--soft); padding: 2px 6px; font-size: 16px; line-height: 1; }
-  /* Each setting is an entry of its own: more can be added below without changing these. */
-  #takeovers .entry { padding: 10px 0 8px; border-top: 1px solid var(--line); }
-  #takeovers .entry:first-of-type { margin-top: 8px; }
-  #takeovers .entry .name { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; }
-  #takeovers .entry label.name { cursor: pointer; justify-content: flex-start; }
-  #takeovers .entry label.name input { margin: 0; accent-color: var(--accent); }
-  #takeovers .entry p { margin: 4px 0 0; font-size: 12px; color: var(--soft); }
-  #takeovers .entry .now { color: var(--ink); }
-  #takeovers .entry .now.not { color: var(--warn); }
-  #takeovers .entry button.link { border: 0; background: none; padding: 0; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; }
-  #takeovers.off .entry.takes, #takeovers.off .entry.usage { opacity: .55; }
-  @media (max-width: 1100px) { .target .label, .takeover .label { display: none; } }
+  /* The status: who builds, at a glance. Each agent its logo in a ring of its usage, the number
+     beside it, greyed while it is not watching; headless, one line. Everything else is in Settings. */
+  .status { display: flex; align-items: center; gap: 4px; flex: none; }
+  .status:empty { display: none; }
+  .status button { border-color: transparent; background: none; }
+  .status button:hover, .status button.open { background: var(--bg); border-color: var(--line); }
+  .runner { white-space: nowrap; color: var(--soft); }
+  .runner.on { color: var(--go); font-weight: 600; }
+  .agentchip { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 8px 0 4px; color: var(--ink); }
+  .agentchip .logo { position: relative; flex: none; width: 30px; height: 30px; display: grid; place-items: center; }
+  .agentchip .ring { position: absolute; inset: 0; width: 30px; height: 30px; fill: none; }
+  .agentchip .ring .track { stroke: var(--line); stroke-width: 2.5; }
+  .agentchip .ring .used { stroke: var(--blue); stroke-width: 2.5; stroke-linecap: round; }
+  .agentchip .ring.reached .used { stroke: var(--warn); }
+  .agentchip .ring .goal { fill: var(--ink); stroke: var(--panel); stroke-width: 1; }
+  .agentchip .mark { width: 16px; height: 16px; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+  .agentchip .mark svg { width: 16px; height: 16px; }
+  .agentchip .busy { position: absolute; right: -3px; bottom: -2px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: var(--go); color: var(--panel); font-size: 10px; font-weight: 700; line-height: 14px; text-align: center; }
+  .agentchip .pct { min-width: 30px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: left; }
+  .agentchip .pct.none { color: var(--soft); font-weight: 400; }
+  .agentchip.reached .pct { color: var(--warn); }
+  .agentchip.off .logo, .agentchip.off .pct { opacity: .45; filter: grayscale(1); }
+  .clockchip { white-space: nowrap; color: var(--soft); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .clockchip.near, .clockchip.up { color: var(--warn); font-weight: 600; }
+  /* One agent's own settings, in a small box under its logo. */
+  #agentbox { position: absolute; z-index: 3; top: calc(100% + 6px); width: 320px; max-width: calc(100vw - 16px); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); padding: 12px 16px 14px; font-size: 13px; }
+  #agentbox .head { display: flex; align-items: center; gap: 8px; }
+  #agentbox .head .mark { width: 18px; height: 18px; display: grid; place-items: center; font-weight: 700; }
+  #agentbox .head .mark svg { width: 18px; height: 18px; }
+  #agentbox h3 { flex: 1; margin: 0; font-size: 15px; }
+  #agentbox h3 .model { font-weight: 400; color: var(--soft); font-size: 13px; }
+  #agentbox .shut { border: 0; background: none; color: var(--soft); padding: 2px 6px; font-size: 16px; line-height: 1; }
+  #agentbox p { margin: 4px 0 0; color: var(--soft); font-size: 12px; }
+  #agentbox .astate { margin: 4px 0 8px; color: var(--ink); }
+  #agentbox .astate.off { color: var(--soft); }
+  #agentbox .sub { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); }
+  #agentbox .limit { display: grid; grid-template-columns: 56px minmax(0, 1fr) 64px auto; align-items: center; gap: 10px; padding: 5px 0; }
+  #agentbox .lname { font-weight: 600; }
+  #agentbox .meter { position: relative; height: 6px; border-radius: 3px; background: var(--line); }
+  #agentbox .meter .used { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; background: var(--blue); }
+  #agentbox .meter .goal { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--ink); }
+  #agentbox .limit.reached .meter .used { background: var(--warn); }
+  #agentbox .limit .now { color: var(--soft); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  #agentbox .limit.reached .now { color: var(--warn); font-weight: 600; }
+  #agentbox .unit { display: inline-flex; align-items: center; gap: 3px; color: var(--soft); }
+  #agentbox input[type="number"] { width: 48px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); text-align: right; font-variant-numeric: tabular-nums; }
+  #agentbox .usagefoot { padding-bottom: 8px; }
+  #agentbox .line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+  #agentbox .count { display: inline-flex; align-items: center; gap: 6px; }
+  #agentbox .count button { width: 26px; height: 26px; padding: 0; }
+  #agentbox .count .n { min-width: 18px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+  #agentbox select { padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+  #agentbox .ends { display: inline-flex; align-items: center; gap: 6px; color: var(--soft); font-size: 12px; }
+  #agentbox .lean { width: 80px; accent-color: var(--accent); }
+  #agentbox .gets { margin: 0 0 4px; }
+  #agentbox .acts { display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px solid var(--line); }
+  #agentbox button.link { border: 0; background: none; padding: 0; color: var(--accent); font-size: 12px; font-weight: 600; }
   /* What notifies him: a bell by the theme, and its box of events, each one on or off. */
   .notifier { margin-right: -12px; }
   .notifier[aria-expanded="true"] { color: var(--ink); background: var(--bg); }
@@ -164,7 +138,7 @@ export const CSS = String.raw`  :root {
   #away .icon { flex: none; display: inline-grid; }
   #away .icon svg { width: 15px; height: 15px; }
   #away .words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .runner.unknown, .builder .unknown { color: var(--soft); opacity: .6; cursor: default; }
+  .runner.unknown { color: var(--soft); opacity: .6; cursor: default; }
   body.away #quick, body.away main { opacity: .6; }
   #quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 20px 0; font-size: 13px; min-height: 12px; }
   .pill { border-radius: 999px; padding: 2px 11px; background: var(--panel); border: 1px solid var(--line); color: var(--soft); }
@@ -523,9 +497,9 @@ export const CSS = String.raw`  :root {
   /* On a phone: the bar in two rows, one column of the board at a time, and nothing to tap under 36px. */
   .jump { display: none; }
   @media (max-width: 700px) {
-    /* The first row is the project's name and the views; the second, the search, who builds, the
-       agents and the theme. The search is a button there, and its box opens over that row. */
-    .bar { flex-wrap: wrap; height: auto; gap: 0 8px; padding: 0 16px; }
+    /* The first row is the project's name and the views; the second, the search, the status, and
+       the bell, the gear and the theme at its end. The search is a button there, and its box opens over that row. */
+    .bar { flex-wrap: wrap; height: auto; gap: 0 6px; padding: 0 16px; }
     .bar::after { content: ''; order: 4; flex-basis: 100%; }
     /* Where the row is short (a narrow phone, a wide font), the version gives way first, whole: it
        wraps to a second line that is never shown. Only then is the name cut, at its end. */
@@ -537,24 +511,17 @@ export const CSS = String.raw`  :root {
     .searchbtn svg { width: 16px; height: 16px; }
     .search { display: none; }
     .bar.searching .search { display: block; position: absolute; z-index: 1; left: 16px; right: 16px; bottom: 8px; width: auto; margin: 0; background: var(--panel); }
-    .builder { order: 6; margin: 0 0 8px; }
-    .roster { order: 6; margin: 0 0 8px; }
-    .runner { order: 7; margin-bottom: 8px; }
-    .themer { order: 8; margin: 0 0 8px auto; width: 36px; height: 36px; }
-    .gear + .themer { margin-left: 0; }
-    /* The gear and the theme sit close, and the picks a little tighter, so both fit on the row. */
+    .status { order: 6; margin: 0 0 8px; min-width: 0; gap: 0; }
+    .agentchip { padding: 0 4px 0 2px; gap: 3px; }
+    .agentchip .pct { min-width: 0; }
+    .clockchip { padding: 0 6px; }
+    .themer { order: 8; margin: 0 0 8px; width: 36px; height: 36px; }
+    /* No room for the theme on a phone: it is in Settings, under Replies & style. */
+    #themer { display: none; }
+    .notifier { order: 8; margin: 0 -4px 8px auto; width: 36px; height: 36px; }
     .gear { margin-right: -4px; }
-    .builder button { padding-left: 8px; padding-right: 8px; }
-    /* The agents' counts are in Settings, behind the gear: no room for them here. */
-    #roster { display: none; }
-    /* No room for the bell on either row: on a phone, what notifies him is said to the chat. */
-    .notifier { display: none; }
     #notices { left: 16px; right: 16px; width: auto; }
-    /* In Chat mode the usage target is a row of its own: the meter runs the width of the phone. */
-    .target { order: 9; flex: 1 0 100%; margin: 0 0 8px; justify-content: flex-start; }
-    .target .label { display: inline; }
-    .target .meter { flex: 1 1 auto; width: auto; }
-    #targets { left: 16px; right: 16px; width: auto; }
+    #agentbox { left: 8px !important; right: 8px; width: auto; }
     .rule, #away { padding-left: 16px; padding-right: 16px; }
     #quick { padding: 8px 16px 0; }
     .jump { display: flex; gap: 6px; padding: 8px 16px 0; }
