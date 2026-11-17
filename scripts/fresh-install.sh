@@ -15,7 +15,7 @@ set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 scratch="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/spool-fresh-XXXXXX")" && pwd -P)"
-mkdir -p "$scratch/home" "$scratch/prefix" "$scratch/cache" "$scratch/tmp" "$scratch/pack"
+mkdir -p "$scratch/user" "$scratch/prefix" "$scratch/cache" "$scratch/tmp" "$scratch/pack"
 
 project=""
 cleanup() {
@@ -32,11 +32,11 @@ cleanup() {
 trap cleanup EXIT
 
 # A clean machine: nothing of the real user's reaches the steps below.
-export HOME="$scratch/home"
+export HOME="$scratch/user"
 export TMPDIR="$scratch/tmp"
 export npm_config_prefix="$scratch/prefix"
 export npm_config_cache="$scratch/cache"
-export npm_config_userconfig="$scratch/home/.npmrc"
+export npm_config_userconfig="$scratch/user/.npmrc"
 export npm_config_update_notifier=false
 export npm_config_fund=false
 export npm_config_audit=false
@@ -50,7 +50,7 @@ for tool in node npm git curl claude; do
   elif [ "$tool" != claude ]; then echo "fresh-install: needs $tool" >&2; exit 1; fi
 done
 export PATH="$scratch/prefix/bin:$scratch/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-export GIT_CONFIG_GLOBAL="$scratch/home/.gitconfig"
+export GIT_CONFIG_GLOBAL="$scratch/user/.gitconfig"
 git config --global user.name "Fresh Install"
 git config --global user.email "fresh@example.invalid"
 git config --global init.defaultBranch main
