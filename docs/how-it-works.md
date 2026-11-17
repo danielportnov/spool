@@ -177,7 +177,7 @@ on its card and gets it on its ticket; a new skill is kept or dropped on the thr
 
 **A ticket.** Click any card. On the left, the thread as a conversation: what you said, what the
 agent answered and which agent it was, the moves in between, and a box to reply. An audit's or a
-plan's report is there in full. What agents write shows as it was meant: code, lists, bold, and links to
+plan's report is there in full; research shows its summary, with the full report a click away. What agents write shows as it was meant: code, lists, bold, and links to
 the web, which open in a new tab. Open **Lineage** to see the sources, calls and activity behind the
 thread alongside its commits, version, checks and reverts. On the right, its fields: status, priority, difficulty, tags,
 version, sprint. Everything is editable. A finished ticket shows **what changed** (the files, the lines, the patch)
@@ -481,6 +481,15 @@ Tiny, Small, Medium, Large, Huge.
 | change | commits | "the jump feels floaty" |
 | audit | a report, and each finding as a thread | "play it as a new player and tell me what would make them quit" |
 | plan | a plan, and its parts as threads | "we need multiplayer" |
+| research | a report on what was found out, kept for later work | "find out how other games let players rebind keys" |
+
+Research builds nothing. Its agent looks the topic up with whatever it can reach (the web, docs,
+the code) and hands in a report with its sources. You read the short version on the thread, with
+the full report a click away. The report stays in `.spool/reports/`, in git with the rest: every
+worker is shown what research is on record, a thread on the same subject has it named in its
+brief, and `spool list --research` lists it all. A thread already filed can be made research from
+the **Type** field on its ticket, or with `spool edit <id> --type research`. An agent started from
+the page asks before it searches the web unless you allow `WebSearch` and `WebFetch` in its command.
 
 Anything sized `xl` is a plan: nothing that big is built in one go.
 
@@ -686,7 +695,7 @@ AI-suggested thread. It matches words, not meaning.
   goals.md       where the project is going, in a few lines; agents read it first
   leave.json     the leave that is live, if you gave one: your words, until when, what it allows
   items/         one markdown file per thread, question, note, sprint and skill record
-  reports/       what audits and plans handed in
+  reports/       what audits, plans and research handed in; research is the project's memory
   runs/          per thread: what its agent printed, its pictures (files/), and for a run, its journal and the copies an undo puts back; never in git
   worktrees/     a git worktree for each thread being built in one of its own; never in git
   history/       every write to the queue, with who, when and the before-copy, for spool history and spool undo; never in git
@@ -1026,7 +1035,7 @@ ones marked 🔒:
 
 | Command | What it does |
 | --- | --- |
-| `spool task` · `audit` · `plan` | File a change, a look-and-report, or something big; `--suggested why` marks an agent's own idea, `--sprint <name>` puts it in a sprint |
+| `spool task` · `audit` · `plan` · `research` | File a change, a look-and-report, something big, or something to find out; `--suggested why` marks an agent's own idea, `--sprint <name>` puts it in a sprint |
 | `spool file <n-id> --into <id>` | Attach a note to a thread, or set it aside |
 | `spool next [--claim]` · `start <t-id>` | The next thread in Build with its brief; claim it. `--worktree` gives it a git worktree of its own; `--model <model>` says what builds it |
 | `spool log <id> <fact>` | Leave a note for whoever comes next |

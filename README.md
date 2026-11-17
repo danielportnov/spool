@@ -385,6 +385,9 @@ without asking, say so once in `~/.config/spool/config.json`:
 { "agent": "claude -p --permission-mode acceptEdits --allowedTools 'Bash(spool *)' 'Bash(git *)' Edit Write Read" }
 ```
 
+A research thread looks things up on the web: add `WebSearch WebFetch` to that list to let it
+do so without asking.
+
 ## Other agents
 
 Spool is built with Claude Code, and Claude Code is the only agent it is tried with end to end

@@ -28,6 +28,7 @@ their goals. No `.spool/` here? Tell them to run `/spool-init`, and stop.
    | --- | --- |
    | a change | `spool task "<short imperative title>" --from <note-id> -P <project> --size <size> [-p 0-3] -b "<its spec>"` |
    | a look and a report: "play it as a new player", "what would make them quit" | `spool audit "<what to examine, and through whose eyes>" --from <note-id> -P <project>` |
+   | something to find out, not build: "research how others do it", "look into X and report back" | `spool research "<the topic, or the question>" --from <note-id> -P <project>` |
    | something big or open, or too big to see its parts: "add multiplayer", "plan the launch" | `spool plan "<the objective>" --from <note-id> -P <project>`. Do not guess at its threads: planning it is the work |
    | a change that waits on another | the same `spool task`, with `--needs <the earlier thread>` |
    | "not yet", "just an idea", "after the launch" | filed as above, with `--hold "<their words>"`: nothing starts it until they say |
