@@ -162,8 +162,9 @@ export function diagnose({ ctx }: Bare): Finding[] {
         : [`Install ${path.basename(program)}, or change ${set}`];
     add('agent', 'wrong', `the agent command starts ${program}, which is not on the PATH (${agent})`, fix);
   } else if (path.basename(program ?? '') === 'claude' && !PERMISSION_FLAGS.test(agent)) {
-    add('agent', 'wrong', `the agent is ${agent}: it can read but not edit files or commit, so every thread ends with nothing done`, [
-      'Put this in ~/.config/spool/config.json:',
+    // It works: the page asks you before each edit or commit. Only with nobody there is it refused.
+    add('agent', 'advice', `the agent is ${agent}: it asks on the page before it edits a file or commits, and with nobody at the page it is refused`, [
+      'To let it edit and commit without asking, put this in ~/.config/spool/config.json:',
       AGENT_LINE,
     ]);
   } else {

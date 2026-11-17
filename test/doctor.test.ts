@@ -89,15 +89,15 @@ test('an agent command whose program does not exist is reported with its name', 
   assert.match(byId(s, { SPOOL_AGENT: 'from-the-env' }).agent!.label, /starts from-the-env/);
 });
 
-test('claude -p with no permission flags is said to read but not edit, with the config line', () => {
+test('claude -p with no permission flags is advice: it asks on the page, and the config line lets it edit', () => {
   const s = new Sandbox();
   s.sp('init');
   s.write('bin/claude', '#!/bin/sh\nexit 0\n');
   fs.chmodSync(path.join(s.dir, 'bin', 'claude'), 0o755);
   const env = { PATH: path.join(s.dir, 'bin') };
   const bare = byId(s, env).agent!;
-  assert.equal(bare.status, 'wrong');
-  assert.match(bare.label, /can read but not edit files or commit/);
+  assert.equal(bare.status, 'advice');
+  assert.match(bare.label, /asks on the page before it edits a file or commits/);
   assert.match(bare.fix!.join('\n'), /"agent": "claude -p --permission-mode acceptEdits --allowedTools/);
   s.write('.home/.config/spool/config.json', JSON.stringify({ agent: 'claude -p --permission-mode acceptEdits' }));
   assert.equal(byId(s, env).agent!.status, 'ok');
