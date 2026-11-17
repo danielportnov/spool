@@ -1,33 +1,21 @@
 # 🧶 Spool
 
-```text
-  ▄▟▀▄██▙▖
-▗██▘▟██▀▄▟█▖                    ╷
-██▘▟█▛▗█████    ╭───┬─╮ ╭─╮ ╭─╮ │
-█▌▐█▛▗█▄▀███    ╰─╮ │ ├─┤ ├─┤ ├─┤
-▝▌▐█ ████▖▜───────╯ ├─╯ ╰─╯ ╰─╯ ╰─╴
-  ▀▜ ███▛▀          ╵
-```
+Spool keeps a local queue of work for your coding agents. Tell it what you want,
+move a thread to Build, and watch it reach Done on the board.
 
-**Tell your agents what you want. Go outside. Come back to it built.**
+**Quickstart** · Requires Node.js 20+, Git and Claude Code.
 
-A spool holds threads. Every idea, bug and feature in your repo is a thread 🧵. Agents propose
-them, you pick the ones worth building, and Claude builds them while you do something better.
+1. Install from GitHub: `npm install -g github:danielportnov/spool && spool install`
+2. Open your project in Claude Code and run `/spool-init`.
+3. Run `/spool open the board`, add a thread and press **Build**. In Chat mode,
+   run `/spool-loop` to start a builder.
 
-Spool itself has no cloud and no account of its own: it is plain files in your repo. You bring Claude.
+**Status:** Early and moving fast; built on macOS with Claude Code. Not on npm yet;
+Windows has not been tested. [Changelog](CHANGELOG.md) · [Try the demo](#try-the-demo)
 
-![The Spool page: a board with Backlog, Build, Building and Done](docs/spool-board.png)
+![A sample Spool board with threads in Build and Done](docs/spool-demo.png)
 
-## Already use Claude Code?
-
-```bash
-npm install -g spool-ai && spool install
-```
-
-Then, in Claude Code inside your project: `/spool-init`, and after it `/spool open the board`. That's it.
-
-Want to see it first, away from your own code? `spool demo --open` makes a throwaway project with a
-few threads in it and opens its board.
+*The board from `spool demo`: sample threads waiting in Build and finished in Done.*
 
 ## New to this? Set up in five minutes
 
@@ -70,18 +58,17 @@ node --version
 In a terminal, anywhere:
 
 ```bash
-npm install -g spool-ai
+npm install -g github:danielportnov/spool
 ```
 
 ```bash
 spool install
 ```
 
-The first downloads Spool, which takes a few seconds. (Prefer the latest source? `npm install -g github:danielportnov/spool`
-builds it from GitHub instead, which takes a minute.) The second gives Claude Code five new
-commands, called skills. Nothing is added to your project yet.
+The first builds and installs Spool from GitHub. The second installs its skills for your coding agent.
+Nothing is added to your project yet.
 
-**Try it first, if you like**
+### Try the demo
 
 ```bash
 spool demo --open
@@ -145,6 +132,15 @@ Got an idea? Put this in front of it, typed or dictated, in any Claude Code chat
 Two threads land in the backlog, in your words, each in the sprint it serves if there is one. Nothing is built until you move them to Build.
 
 ## How it works
+
+```text
+  ▄▟▀▄██▙▖
+▗██▘▟██▀▄▟█▖                    ╷
+██▘▟█▛▗█████    ╭───┬─╮ ╭─╮ ╭─╮ │
+█▌▐█▛▗█▄▀███    ╰─╮ │ ├─┤ ├─┤ ├─┤
+▝▌▐█ ████▖▜───────╯ ├─╯ ╰─╯ ╰─╯ ╰─╴
+  ▀▜ ███▛▀          ╵
+```
 
 | 🟠 Backlog | 🟢 Build | 🔵 Building | ✅ Done |
 | --- | --- | --- | --- |
