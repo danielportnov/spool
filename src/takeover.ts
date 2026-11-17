@@ -132,6 +132,7 @@ function notNow(t: Item): string | null {
 
 /** Why a thread is not one the chat may take. */
 function notReasonable(ws: Workspace, spool: Spool, t: Item): string {
+  if (t.hold) return `${t.id} is on hold: ${t.hold}`;
   if (!inBacklog(ws, spool).includes(t)) return `${t.id} is not in the backlog`;
   const left = leftFor(ws, t);
   if (left) return left;
