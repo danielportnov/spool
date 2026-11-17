@@ -23,7 +23,7 @@ export const PROJECTS_CSS = String.raw`
   .elsewhere { font-size: 13px; color: var(--soft); }
 
   /* the home view: the brief across every project, then a row for each */
-  body.at-home :is(.tabs, .search, .searchbtn, .builder, .runner, #elsewhere, #brief, #jump, #board, #backlog, #roadmap, #thread, #veil) { display: none !important; }
+  body.at-home :is(.tabs, .search, .searchbtn, .builder, .runner, #elsewhere, #jump, #board, #backlog, #roadmap, #thread, #veil) { display: none !important; }
   #home { max-width: 860px; padding: 14px 20px 40px; }
   .hbrief { background: var(--col); border-radius: 10px; padding: 8px; margin-bottom: 14px; }
   .hbrief .hhead { padding: 4px 6px; font-weight: 600; overflow-wrap: anywhere; }

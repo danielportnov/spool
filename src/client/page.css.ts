@@ -142,7 +142,7 @@ export const CSS = String.raw`  :root {
   #away .icon svg { width: 15px; height: 15px; }
   #away .words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .runner.unknown, .builder .unknown { color: var(--soft); opacity: .6; cursor: default; }
-  body.away #quick, body.away #brief, body.away main { opacity: .6; }
+  body.away #quick, body.away main { opacity: .6; }
   #quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 20px 0; font-size: 13px; min-height: 12px; }
   .pill { border-radius: 999px; padding: 2px 11px; background: var(--panel); border: 1px solid var(--line); color: var(--soft); }
   .pill.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
@@ -155,7 +155,7 @@ export const CSS = String.raw`  :root {
   .col h2 { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; margin: 5px 6px 10px; display: flex; gap: 8px; color: var(--soft); font-weight: 600; }
   .col h2 .count { background: var(--chip); border-radius: 999px; padding: 0 8px; }
   /* In the light theme the chip's grey is the column's own, so a pill on a column was not there to see: it takes the line's, and reads as it does in the dark. */
-  [data-theme="light"] :is(.col h2 .count, #brief h2 .count, .ghead .state, .prog) { background: var(--line); }
+  [data-theme="light"] :is(.col h2 .count, .ghead .state, .prog) { background: var(--line); }
   .tools { display: flex; gap: 6px; margin: -4px 4px 8px; }
   .tools select { flex: 1; min-width: 0; padding: 2px 4px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--soft); font-size: 12px; cursor: pointer; }
   .tools select:hover { border-color: var(--line); }
@@ -176,6 +176,7 @@ export const CSS = String.raw`  :root {
   .chip.ok { color: var(--go); }
   .chip.check { color: var(--warn); }
   .chip.sprint { color: var(--accent); }
+  .chip.worth { color: var(--accent); font-weight: 600; cursor: help; }
   .tag { cursor: pointer; }
   .tag b { font-weight: 400; margin-left: 5px; opacity: .6; }
   .tag b:hover { opacity: 1; }
@@ -208,35 +209,6 @@ export const CSS = String.raw`  :root {
   .addall { margin-bottom: 0; }
   .history { background: none; border: 0; padding: 6px; color: var(--soft); font-size: 13px; width: 100%; text-align: left; }
   .history:hover { color: var(--ink); }
-
-  /* while you were away: the morning brief, above the columns. Its headline, then rows of cards
-     across the width; a third of the screen at most, and what is more scrolls inside it. */
-  #brief { margin: 12px 20px 0; background: var(--col); border-radius: 10px; padding: 6px 8px; }
-  #brief .bline { display: flex; align-items: center; gap: 10px; }
-  #brief .bline > .go { flex: none; padding: 4px 12px; }
-  #brief .bhead { display: flex; gap: 8px; flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 4px 6px; font-weight: 600; overflow-wrap: anywhere; }
-  #brief .bhead .fold { color: var(--soft); flex: none; }
-  #brief .bbody { max-height: calc(33vh - 44px); overflow-y: auto; margin: 4px -4px 0; padding: 0 4px 2px; }
-  #brief h2 { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; margin: 6px 6px 6px; display: flex; gap: 8px; color: var(--soft); font-weight: 600; }
-  #brief h2 .count { background: var(--chip); border-radius: 999px; padding: 0 8px; }
-  #brief .brow { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 7px; }
-  /* What needs him spreads across the row: a plan or a stopped thread alone gets the width to say it in a line. */
-  #brief .brow.needs { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
-  #brief .card { margin-bottom: 0; cursor: pointer; min-width: 0; }
-  #brief .card .note { margin-top: 3px; }
-  #brief .note.one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #brief .why { white-space: normal; }
-  #brief .card > .fold { display: block; margin-top: 5px; font-size: 12px; }
-  #brief .card pre { margin: 4px 0 0; font-size: 13px; }
-  #brief .sprint { margin: 8px 6px 6px; font-size: 13px; color: var(--soft); }
-  #brief .history { margin-top: 2px; }
-  @media (max-width: 700px) {
-    #brief { margin: 8px 16px 0; }
-    #brief .bline { flex-wrap: wrap; }
-    #brief .bline > .go { flex: 1 1 100%; margin: 2px 0 4px; }
-    #brief .bbody { max-height: 70vh; }
-    #brief .brow, #brief .brow.needs { grid-template-columns: minmax(0, 1fr); }
-  }
 
   /* the backlog: sprints to fill and play, and everything not in one */
   #backlog { padding: 12px 20px 32px; max-width: 1100px; }

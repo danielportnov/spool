@@ -109,15 +109,11 @@ projects, `--all` switches every one of them.
 
 **Board.** Four columns: Backlog, Build, Building, Done.
 
-When anything has shipped that you have not looked at, or a plan or a stopped thread needs you, a
-panel sits above the columns: the morning brief, as `spool brief` gives it, titled with its headline
-("4 threads shipped since you last looked · 2 need you"). Under it: what needs you (a plan, a thread
-that was stopped and what its agent last said), the few threads worth a look and why, and the rest
-by sprint, folded shut. A question is counted in the headline but not listed: it is asked on its
-thread, and nowhere else. Each line opens its thread. **All good: approve
-everything** approves every finished thread and every call an agent made; a new skill is still
-kept or dropped on its thread. Click the headline to fold the panel to that one line; it stays folded until another thread
-finishes. With nothing shipped and nothing needing you, the panel is not there.
+The board opens straight onto its columns: what shipped is in Done. The few finished threads most
+worth a look, as `spool brief` weighs them (calls an agent made, many files changed, a large change,
+a check that failed first), carry a small **★ Worth a look** on their Done card; hover it for why.
+What needs you is on its own card: a plan says **Waiting for your go-ahead**, a stopped thread sits
+in Build with **Carry on**, and a manager's run says **Needs a call from you**.
 
 - **▶ Build** on a card, or a drag into Build, moves it there. **Not yet** moves it back.
 - A move between Backlog and Build, or an archive, can be taken back: its toast has **Undo** for

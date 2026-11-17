@@ -66,7 +66,6 @@ ${CSS + ROADMAP_CSS + REVIEW_CSS + PROJECTS_CSS + PICTURES_CSS}</style>
 <div id="away" role="status" hidden></div>
 <div class="rule" id="rule" hidden></div>
 <div id="quick"></div>
-<section id="brief" aria-label="While you were away" hidden></section>
 <nav class="jump" id="jump" aria-label="Columns"></nav>
 <main id="board"></main>
 <main id="backlog" hidden></main>

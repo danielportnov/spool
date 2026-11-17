@@ -326,7 +326,7 @@ export interface Board {
   /** Threads put out of sight, newest first: on no column, shown only in the Backlog view's Archived section. */
   archived: Card[];
   also: { assumptions: number; skills: number; inbox: number };
-  /** The morning brief, as `spool brief --json` gives it, for the panel above the columns. Null with nothing shipped and nothing needing him. */
+  /** The morning brief, as `spool brief --json` gives it: the terminal board opens on it, and the page marks the Done cards worth a look. Null with nothing shipped and nothing needing him. */
   brief: Brief | null;
 }
 

@@ -188,7 +188,7 @@ the thread finds its path in its brief. A file goes the same way, dropped on the
 with **Add a file**: a PDF, or plain text such as a log, notes, a CSV or JSON. It shows as a link,
 and a chat that is building the thread is told its path the moment you send it. Agents attach pictures too, with `spool attach`: a before and
 an after of anything that changes what is on screen, shown side by side under the result when the
-thread is done, and marked in the brief's **Worth a look**. Pictures stay on your machine, in
+thread is done, and counted in the **★ Worth a look** mark on its Done card. Pictures stay on your machine, in
 `.spool/runs/`, out of git.
 
 Keep several projects in one folder, each with its own spool? Start `spool page` in that folder and

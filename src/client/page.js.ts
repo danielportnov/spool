@@ -161,6 +161,7 @@ const everyCard = (b) => COLUMNS.flatMap(([key]) => b.columns[key]);
 function chipsOf(c, b) {
   return [
     c.done && el('span', { class: 'chip ' + (c.complete ? 'ok' : 'check') }, c.complete ? '✓ Complete' : planWaits(b, c.id) ? 'Waiting for your go-ahead' : 'For you to check'),
+    worthOf(b, c) && el('span', { class: 'chip worth', title: 'Worth a look: ' + worthOf(b, c).join(' · ') }, '★ Worth a look'),
     lookAt(b, c.id) > 0 && el('span', { class: 'chip tag', title: 'Calls an agent made, or a skill it wrote, for you to look at on the thread', onclick: () => openThread(c.id) }, '🧾 ' + lookAt(b, c.id) + ' to look at'),
     c.type !== 'change' && el('span', { class: 'chip' }, c.type),
     c.suggested && el('span', { class: 'chip ai', title: c.suggested }, '✨ AI suggested'),
@@ -168,6 +169,13 @@ function chipsOf(c, b) {
     c.version && el('span', { class: 'chip tag', title: 'Show only this version', onclick: () => narrow('version', c.version) }, 'v' + c.version),
     c.tags.map((t) => el('span', { class: 'chip tag', title: 'Show only this tag', onclick: () => narrow('tag', t) }, '#' + t)),
   ];
+}
+
+// Why a finished thread still to check is worth a look, as the brief weighs it: only the few that matter most.
+// The pictures it keeps are said too: the quickest look there is.
+function worthOf(b, c) {
+  const t = c.done && !c.complete && b.brief && b.brief.worthALook.find((w) => w.id === c.id);
+  return t ? [...t.reasons, ...(t.pictures ? [t.pictures === 1 ? 'a picture to look at' : t.pictures + ' pictures to look at'] : [])] : null;
 }
 
 // What an agent did on the thread by itself and he has not looked at: the calls it made, the skills it wrote.
@@ -594,17 +602,8 @@ function slide(board, before) {
   }
 }
 
-// ---- while you were away: the morning brief, above the board's columns
+// ---- a card opens its thread
 
-// The rest of what shipped stays folded shut until asked for, and so do the steps of each thread worth a look.
-let briefRest = false;
-const briefOpen = new Set();
-// Where there is room for one line of what an agent wrote: its first, without a list's mark.
-const firstLine = (text) => (String(text).split('\n').find((l) => l.trim()) || '').replace(/^\s*(?:[-*+]|\d{1,3}[.)])\s+/, '').trim();
-// Whether it said more than that one line.
-const moreLines = (text) => !!text && String(text).split('\n').filter((l) => l.trim()).length > 1;
-// What an agent wrote, whole, read as a post on its thread is: lists and code shown as what they are.
-const richNote = (text) => el('pre', { class: 'note said' }, rich(text));
 // A card opens its thread from anywhere on it. Its buttons, links, id, tags and boxes do their own
 // thing, and so does a drag or a selection of its words.
 function opensOn(node, id) {
@@ -614,84 +613,6 @@ function opensOn(node, id) {
     openThread(id);
   });
   return node;
-}
-// Folded, the panel is its headline alone, until the set of finished threads in it changes.
-const briefSet = (r) => [...r.worthALook, ...r.alsoShipped.flatMap((g) => g.threads)].map((t) => t.id).sort().join(' ');
-function briefFolded(r) {
-  try { return localStorage.getItem('spool-brief-folded') === briefSet(r); } catch (e) { return false; }
-}
-function foldBrief(r, fold) {
-  try { if (fold) localStorage.setItem('spool-brief-folded', briefSet(r)); else localStorage.removeItem('spool-brief-folded'); } catch (e) {}
-  redraw();
-}
-
-// When it stopped: so long ago, or on a day.
-function briefWhen(at) {
-  const said = ago(at);
-  return !said || said === 'now' ? '' : /^\d+[mh]$/.test(said) ? ', ' + said + ' ago' : ', on ' + said;
-}
-
-function drawBrief(b) {
-  const box = document.getElementById('brief');
-  const r = b.brief;
-  box.hidden = view !== 'board' || !r;
-  if (box.hidden) { box.replaceChildren(); return; }
-  const folded = briefFolded(r);
-  // Approving everything is what the brief's headline offers: the finished threads, and the calls agents made.
-  const approve = async () => {
-    const ok = !r.shipped || await post('complete-all', {}, 'All marked as complete');
-    if (ok && r.calls.length) await post('approve-calls', {}, 'All approved');
-  };
-  const head = el('div', { class: 'bline' },
-    el('button', { class: 'bhead', 'aria-expanded': String(!folded), title: folded ? 'Show the brief' : 'Fold it to this line',
-      onclick: () => foldBrief(r, !folded) }, el('span', { class: 'fold' }, folded ? '▸' : '▾'), el('span', {}, r.headline)),
-    !folded && r.approve && (r.shipped > 0 || r.calls.length > 0) && el('button', { class: 'go', onclick: approve }, 'All good: approve everything'));
-  if (folded) { box.replaceChildren(head); return; }
-  const n = r.needsYou;
-  const plural = (k, one) => k + ' ' + one + (k === 1 ? '' : 's');
-  // Each card opens its thread from anywhere on it. What an agent wrote is read as it is on a thread:
-  // code and bold shown, not typed out. A card has room for the first line of a result; the rest is a click away.
-  // A question is not here: it is asked on its thread, and nowhere else, and its card on the board says so.
-  const needs = [
-    ...n.plans.map((t) => opensOn(el('div', { class: 'card', 'data-id': t.id },
-      el('div', { class: 'title' }, '📋 Plan: ' + t.title),
-      t.summary && el('div', { class: 'note one', title: t.summary }, inline(firstLine(t.summary))),
-      el('div', { class: 'why' }, plural(t.parts, 'part') + (t.parts === 1 ? ' waits' : ' wait') + ' for your go-ahead')), t.id)),
-    ...n.proposals.map((m) => opensOn(el('div', { class: 'card', 'data-id': m.id },
-      el('div', { class: 'title' }, '🧹 The manager proposes ' + plural(m.count, 'change')),
-      m.headline && el('div', { class: 'note one', title: m.headline }, inline(firstLine(m.headline))),
-      el('div', { class: 'why' }, 'Open it to say yes or no to each')), m.id)),
-    ...n.stopped.map((t) => opensOn(el('div', { class: 'card', 'data-id': t.id },
-      el('div', { class: 'title' }, '↺ ' + t.title),
-      el('div', { class: 'why' }, t.why + briefWhen(t.when)),
-      t.lastSaid && el('div', { class: 'note' }, 'Last said: “', inline(t.lastSaid), '”')), t.id)),
-  ];
-  const worth = (t) => {
-    const more = moreLines(t.summary);
-    const open = briefOpen.has(t.id);
-    const toggle = () => { if (open) briefOpen.delete(t.id); else briefOpen.add(t.id); redraw(); };
-    return opensOn(el('div', { class: 'card', 'data-id': t.id },
-      el('div', { class: 'title' }, t.title),
-      t.summary && el('div', { class: 'note one', title: t.summary }, inline(firstLine(t.summary))),
-      el('div', { class: 'why' }, t.reasons.join(' · '), pictureMark(t.pictures)),
-      (t.steps.length > 0 || more) && el('button', { class: 'fold', 'aria-expanded': String(open), onclick: toggle },
-        (open ? '▾ ' : '▸ ') + (t.steps.length ? 'To check · ' + t.steps.length : 'All it said')),
-      open && more && richNote(t.summary),
-      open && t.steps.length > 0 && stepsNode(t.steps)), t.id);
-  };
-  const rest = r.alsoShipped.reduce((k, g) => k + g.threads.length, 0);
-  box.replaceChildren(...[head, el('div', { class: 'bbody' }, ...[
-    needs.length > 0 && [el('h2', {}, 'Needs you', el('span', { class: 'count' }, String(needs.length))), el('div', { class: 'brow needs' }, needs)],
-    r.worthALook.length > 0 && [el('h2', {}, 'Worth a look', el('span', { class: 'count' }, String(r.worthALook.length))),
-      el('div', { class: 'brow worth' }, r.worthALook.map(worth))],
-    rest > 0 && el('button', { class: 'history', 'aria-expanded': String(briefRest), onclick: () => { briefRest = !briefRest; redraw(); } },
-      (briefRest ? '▾ ' : '▸ ') + (r.worthALook.length ? 'Also shipped' : 'Shipped') + ' · ' + rest),
-    rest > 0 && briefRest && r.alsoShipped.map((g) => [
-      g.sprint && el('div', { class: 'sprint' }, '🏁 ' + g.sprint.title),
-      el('div', { class: 'brow' }, g.threads.map((t) => opensOn(el('div', { class: 'card', 'data-id': t.id },
-        el('div', { class: 'title' }, t.title),
-        t.summary && el('div', { class: 'note one', title: t.summary }, inline(firstLine(t.summary)))), t.id)))]),
-  ].flat(3).filter(Boolean))]);
 }
 
 // ---- the backlog: sprints to fill and play, then everything that is in none
@@ -1613,7 +1534,6 @@ function draw(b) {
   document.getElementById('board').hidden = view !== 'board';
   document.getElementById('backlog').hidden = view !== 'backlog';
   document.getElementById('roadmap').hidden = view !== 'roadmap';
-  drawBrief(b);
   if (view === 'board') drawBoard(b); else if (view === 'roadmap') drawRoadmap(b); else drawBacklog(b);
   drawJump();
   const box = document.querySelector('.adding textarea, .adding input');

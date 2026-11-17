@@ -1,10 +1,10 @@
 /**
- * While you were away: the morning brief on the page, in a real browser.
+ * While you were away, on the page, in a real browser.
  *
- * After a night of agents working, the board opens with a panel above its
- * columns: what needs him, what is worth a look, and the rest, folded. Set
- * SPOOL_SHOTS to a folder to leave pictures of it there, light, dark and at a
- * phone's width.
+ * After a night of agents working, the board opens straight onto its columns:
+ * what shipped is in Done, and the few finished threads the brief says are worth
+ * a look carry a small mark there, with why on hover. Set SPOOL_SHOTS to a folder
+ * to leave pictures of it there, light, dark and at a phone's width.
  */
 
 import assert from 'node:assert/strict';
@@ -29,7 +29,7 @@ function ship(s: Sandbox, id: string, summary: string, files = 1): void {
   s.sp('done', id, '-m', summary);
 }
 
-test('the brief sits above the board: each line opens its thread, it folds, and approving everything clears it', async (t) => {
+test('the board opens on its columns: no brief above them, and the Done cards worth a look carry a mark that says why', async (t) => {
   let browser: Browser;
   try {
     browser = await openChrome();
@@ -78,82 +78,41 @@ test('the brief sits above the board: each line opens its thread, it folds, and 
 
   try {
     const page = await open({ viewport: { width: 1440, height: 900 } });
-    const panel = page.locator('#brief');
-    const head = panel.locator('.bhead');
+    const marks = page.locator('#board .chip.worth');
+    const card = (title: string) => page.locator('#board .card', { hasText: title });
     const ticket = page.locator('#thread');
     await page.goto(url);
-    await head.waitFor();
+    await card('Rebuild the level editor').waitFor();
 
-    // Titled as the brief's headline reads, then the parts in the order the command gives them.
-    assert.match(await head.innerText(), /4 threads shipped since you last looked, over \d+m · 2 need you/);
-    assert.deepEqual((await panel.locator('h2').allInnerTexts()).map((h) => h.replace(/\s+/g, ' ').trim()), ['NEEDS YOU 1', 'WORTH A LOOK 2']);
-    // The question is counted in the headline, and asked on its thread alone: the brief does not list it.
-    assert.equal(await panel.getByText('Fade over one second, or two?').count(), 0);
-    const worth = panel.locator('.card', { hasText: 'Rebuild the level editor' });
-    assert.match(await worth.innerText(), /The editor saves as you go[\s\S]*large · 9 files changed/);
-    await panel.locator('.card', { hasText: 'Make coins readable at sunset' }).getByText('1 call an agent made').waitFor();
-    await panel.locator('.card', { hasText: 'Tighten the jump arc' }).getByText('Last said: “I could not find where the jump arc is set”').waitFor();
-    // The rest is folded shut, a click away, under its sprint.
-    assert.equal(await panel.getByText('Fix the typo on the title screen').count(), 0);
-    await panel.getByRole('button', { name: '▸ Also shipped · 2' }).click();
-    await panel.getByText('🏁 Polish').waitFor();
-    await panel.locator('.card', { hasText: 'Round the menu corners' }).getByText('Menu corners are rounded').waitFor();
-    // It sits above the columns, and is on the Board view only.
-    assert.ok((await panel.boundingBox())!.y < (await page.locator('#board').boundingBox())!.y);
+    // No panel above the columns: the board is the first thing under the bar.
+    assert.equal(await page.locator('#brief').count(), 0);
+    assert.equal(await page.getByText('since you last looked').count(), 0);
+
+    // The two worth a look carry the mark, and its hover says why; the small ones do not.
+    const big = card('Rebuild the level editor').locator('.chip.worth');
+    assert.equal(await big.innerText(), '★ Worth a look');
+    assert.equal(await big.getAttribute('title'), 'Worth a look: large · 9 files changed');
+    assert.equal(await card('Make coins readable at sunset').locator('.chip.worth').getAttribute('title'), 'Worth a look: 1 call an agent made');
+    assert.equal(await card('Fix the typo on the title screen').locator('.chip.worth').count(), 0);
+    assert.equal(await card('Round the menu corners').locator('.chip.worth').count(), 0);
+    assert.equal(await marks.count(), 2);
+    // What needed him in the brief is on its own card: the stopped thread in Build, the question on its thread.
+    await card('Tighten the jump arc').getByRole('button', { name: '▶ Carry on' }).waitFor();
+    assert.equal(await card('Fade the music between levels').locator('.flag').innerText(), 'Needs a call from you');
     await shot(page, 'brief-light');
 
-    // Each line opens its thread.
-    await worth.locator('.title').click();
+    // The mark is a chip like the others: the card still opens its thread.
+    await card('Rebuild the level editor').locator('.title').click();
     await ticket.getByText('Rebuild the level editor').first().waitFor();
     await page.keyboard.press('Escape');
     await ticket.waitFor({ state: 'hidden' });
-    await panel.locator('.card', { hasText: 'Tighten the jump arc' }).locator('.title').click();
-    await ticket.getByText('Tighten the jump arc').first().waitFor();
-    await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Backlog', exact: true }).click();
-    await panel.waitFor({ state: 'hidden' });
-    await page.getByRole('button', { name: 'Board', exact: true }).click();
-    await head.waitFor();
 
-    // Folded, it is its headline alone, and stays so across a reload.
-    await head.click();
-    await panel.locator('h2').first().waitFor({ state: 'detached' });
-    await page.reload();
-    await head.waitFor();
-    assert.equal(await panel.locator('h2').count(), 0);
-    assert.equal(await head.getAttribute('aria-expanded'), 'false');
-    // Until something else is finished: then it opens again, with that in it.
-    const fade = s.id('task', 'Fade the title in', '-s', 'xs');
-    ship(s, fade, 'The title fades in');
-    await panel.getByText('NEEDS YOU').waitFor();
-    assert.match(await head.innerText(), /^▾\s*5 threads shipped/);
-
-    // The question is answered on its thread, opened from its card on the board.
-    const fading = page.locator('#board .card', { hasText: 'Fade the music between levels' });
-    assert.equal(await fading.locator('.flag').innerText(), 'Needs a call from you');
-    await fading.locator('.title').click();
-    await ticket.locator('.post', { hasText: 'Fade over one second, or two?' }).getByRole('button', { name: 'Two seconds' }).click();
-    await fading.locator('.flag').waitFor({ state: 'detached' });
-    await page.keyboard.press('Escape');
-
-    // All good: every finished thread approved, and the call an agent made.
-    await panel.getByRole('button', { name: 'All good: approve everything' }).click();
-    await panel.getByText('Worth a look', { exact: false }).waitFor({ state: 'detached' });
-    assert.match(await head.innerText(), /Nothing shipped since you last looked · 1 needs you/);
-    const review = s.json('review');
-    assert.deepEqual([review.shipped.length, review.assumptions.length], [0, 0]);
-    // With the stopped thread back in the backlog, nothing is left, and the panel is not there at all.
-    s.sp('propose', jump);
-    await panel.waitFor({ state: 'hidden' });
-    assert.equal(await panel.innerHTML(), '');
+    // A thread marked complete is checked, and loses its mark.
+    s.sp('approve', '--all');
+    await marks.first().waitFor({ state: 'detached' });
     await page.close();
 
-    // Dark, and at a phone's width, with the same night's work: a sandbox of its own is not needed,
-    // undoing the approvals would be; so the pictures are of a fresh night.
-    s.sp('build', jump);
-    s.sp('start', jump);
-    s.sp('log', jump, 'The arc is set in two places, and they disagree');
-    s.sp('build', '--abort', jump);
+    // Dark, and at a phone's width, with a fresh night's work.
     for (const [title, summary] of [['Add a pause menu', 'Escape pauses, and the menu says so'], ['Speed up loading', 'Loads in half the time']] as const) {
       ship(s, s.id('task', title, '-s', 'm'), summary, 9);
     }
@@ -165,12 +124,8 @@ test('the brief sits above the board: each line opens its thread, it folds, and 
     ] as const) {
       const p = await open(options);
       await p.goto(url);
-      await p.locator('#brief .bhead').waitFor();
-      await p.locator('#brief').getByRole('button', { name: '▸ Also shipped · 1' }).click();
-      await p.locator('#brief').getByText('Bigger coins').waitFor();
-      // Nothing in it is wider than the phone.
-      const wide = await p.locator('#brief').evaluate((n) => n.scrollWidth <= n.clientWidth);
-      assert.ok(wide, `${name}: the panel fits its width`);
+      await p.locator('#board .card', { hasText: 'Speed up loading' }).locator('.chip.worth').waitFor();
+      assert.equal(await p.locator('#board .card', { hasText: 'Bigger coins' }).locator('.chip.worth').count(), 0);
       await shot(p, name);
       await p.close();
     }
