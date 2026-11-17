@@ -201,13 +201,16 @@ interface Post {
 const BOOKKEEPING = /^(started|builder model: |check passed|moved to build|moved back to proposed|edited: |put on hold|released from hold|approved|picked up after|handed to |agent |session |transcript |reverted|reopened|dropped|agreed|filed |placed )/;
 
 function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['steps']): Post[] {
-  const words: Post[] = said.map((s) => ({
-    // A note knows when it was said; words with no note behind them were there from the start.
-    at: (ws.find(s.note)?.created ?? task.created).slice(0, 16).replace('T', ' ') + 'Z',
-    who: 'human',
-    kind: 'said',
-    text: s.text,
-  }));
+  const words: Post[] = said.map((s) => {
+    const note = ws.find(s.note);
+    const who = note?.by ?? 'human';
+    return {
+      at: (note?.created ?? task.created).slice(0, 16).replace('T', ' ') + 'Z',
+      who,
+      kind: who === 'human' ? 'said' : 'post',
+      text: s.text,
+    };
+  });
   const rest: Post[] = steps.map((s) => {
     const attached = attachLine(s.what);
     if (attached) return { at: s.at, who: s.who, kind: 'picture', text: attached.caption, pictures: attached.names };

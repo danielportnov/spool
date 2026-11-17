@@ -304,6 +304,7 @@ export const CSS = String.raw`  :root {
   .avatar.you { background: var(--ink); color: var(--bg); overflow: hidden; }
   .avatar.you svg, .avatar.who22.you svg { width: 100%; height: 100%; }
   .avatar.claude { background: #fbf3ea; border: 1px solid #ecd9c6; }
+  .avatar.codex { background: var(--chip); color: var(--ink); }
   .avatar svg { width: 26px; height: 26px; }
   .avatar.who22 { width: 22px; height: 22px; font-size: 11px; }
   .avatar.who22 svg { width: 15px; height: 15px; }

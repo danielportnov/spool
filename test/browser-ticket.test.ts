@@ -59,6 +59,9 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
   s.sp('build', shipped);
   s.sp('start', shipped, '--as', 'Claude Fable 5.2');
   s.sp('log', shipped, 'The pause button sits under the score now, at the same size as the coin counter.', '--as', 'Claude Fable 5.2');
+  const review = s.id('capture', 'The pause button is easy to find.', '--as', 'Codex GPT-6.1 Sol');
+  s.sp('file', review, '--into', shipped, '--as', 'Codex GPT-6.1 Sol');
+  s.sp('edit', shipped, '--tag', 'accessibility', '--as', 'Codex GPT-6.1 Sol');
   s.sp('done', shipped, '-m', 'A pause button under the score; it pauses the music too.', '--as', 'Claude Fable 5.2');
 
   // The stand-in agent: on the publish thread it is refused a command and gives up; on the jump it works on and on.
@@ -175,6 +178,10 @@ test('the ticket: replies on Enter, says what it waits on, and a live log that h
     assert.ok(await atFoot(), 'back at its foot, it follows again');
     await shot(page, 'ticket-live');
     await open(shipped);
+    const codex = ticket.locator('.post', { hasText: 'The pause button is easy to find.' });
+    assert.equal(await codex.locator('.avatar.codex svg[aria-label="Codex"]').count(), 1);
+    assert.equal(await codex.locator('.byline .model').innerText(), 'GPT-6.1 Sol');
+    assert.match(await ticket.locator('.event', { hasText: 'edited: tags accessibility' }).innerText(), /Codex GPT-6\.1 Sol/);
     await shot(page, 'ticket-done');
     if (SHOTS) {
       await page.emulateMedia({ colorScheme: 'dark' });
