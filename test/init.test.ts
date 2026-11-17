@@ -12,7 +12,7 @@ test('init lays down the store, the policy and a pointer for agents', () => {
   assert.match(out, /Spool is set up in demo\./);
   assert.deepEqual(JSON.parse(s.read('.spool/config.json')), { version: 1, name: 'demo', about: 'A demo project' });
   assert.match(s.read('.spool/policy.md'), /## Go ahead and assume[\s\S]*## Ask first[\s\S]*## Never/);
-  assert.match(s.read('.spool/.gitignore'), /^# Spool's queue is working state for agents[\s\S]*\n\.lock\n\*\.tmp\n\*\n$/);
+  assert.match(s.read('.spool/.gitignore'), /^# Spool's queue is working state for agents[\s\S]*\n\.lock\n\*\.tmp\n[\s\S]*\/worktrees\/\n\*\n$/);
   assert.match(out, /The queue stays on this machine: git ignores \.spool\/\./);
 
   // The pointer sends any agent to the skills, and one with no skills to the CLI's copy of the rules.
@@ -73,17 +73,17 @@ test('the queue is ignored by git unless someone chooses to share it', () => {
   // Sharing is deliberate, and sticks: a later refresh does not hide the queue again.
   const shared = s.sp('init', '--share');
   assert.match(shared, /The queue is kept in git with the rest of the project/);
-  assert.equal(s.read('.spool/.gitignore'), '.lock\n*.tmp\n');
+  assert.match(s.read('.spool/.gitignore'), /^\.lock\n\*\.tmp\n[\s\S]*\/runs\/\n\/history\/\n\/worktrees\/\n$/);
   assert.ok(untracked().some((f) => f.startsWith('.spool/items/n-')), 'now the queue shows up');
   assert.ok(untracked().includes('.spool/config.json'));
   s.sp('init', '--refresh');
-  assert.equal(s.read('.spool/.gitignore'), '.lock\n*.tmp\n');
+  assert.match(s.read('.spool/.gitignore'), /^\.lock\n\*\.tmp\n[\s\S]*\/runs\/\n\/history\/\n\/worktrees\/\n$/);
   assert.equal(s.json('init', '--refresh').shared, true);
 
   // Or chosen from the start.
   const team = new Sandbox();
   assert.match(team.sp('init', '--share'), /Spool is set up in[\s\S]*The queue is kept in git/);
-  assert.equal(team.read('.spool/.gitignore'), '.lock\n*.tmp\n');
+  assert.match(team.read('.spool/.gitignore'), /\/runs\/\n\/history\/\n\/worktrees\/\n$/);
   team.cleanup();
   s.cleanup();
 });
@@ -266,5 +266,30 @@ test('install can target a project, or any skills directory', () => {
   s.sp('install', '--dir', 'elsewhere/skills');
   assert.ok(s.exists('elsewhere/skills/spool-record/SKILL.md'));
   assert.match(s.fails('install', '--here', '--dir', 'x'), /both say where/);
+  s.cleanup();
+});
+
+test('a shared queue commits only the record, never transcripts, pictures, history or worktrees', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { png } = await import('./pictures-helpers.ts');
+  const s = new Sandbox();
+  s.gitInit();
+  s.sp('init', '--share', '--name', 'demo');
+  const out = s.sp('task', 'Tighten the jump arc', '-s', 'xs');
+  const id = out.match(/t-[a-z0-9]{4}/)![0];
+  fs.writeFileSync(path.join(s.dir, 'shot.png'), png());
+  s.sp('attach', id, 'shot.png', '-m', 'floaty');
+  s.write(`.spool/runs/${id}/stream-1.jsonl`, '{"transcript":true}\n');
+  s.write('.spool/history/j-1.json', '{}');
+  s.write(`.spool/worktrees/${id}/src/a.js`, 'x');
+  s.write('.spool/usage.json', '{}');
+  s.git('add', '-A');
+  const staged = s.git('ls-files', '.spool').split('\n').filter(Boolean);
+  assert.ok(staged.some((f) => f.startsWith('.spool/items/t-')), 'the thread is committed');
+  assert.ok(staged.includes('.spool/config.json') && staged.includes('.spool/policy.md'));
+  assert.deepEqual(staged.filter((f) => /^\.spool\/(runs|history|worktrees)\/|usage\.json|\.lock/.test(f)), []);
+  s.sp('init', '--refresh', '--share');
+  assert.match(s.read('.spool/.gitignore'), /\/worktrees\/\n$/);
   s.cleanup();
 });

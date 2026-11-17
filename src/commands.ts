@@ -178,9 +178,19 @@ export interface Command {
  * `.spool/.gitignore`. The queue is working state for agents, and it holds what
  * the human said word for word, so by default git ignores all of it: the `*`
  * covers every file in the directory, this one included. Sharing the queue is
- * a choice someone makes on purpose, by deleting that line or with `--share`.
+ * a choice someone makes on purpose, by deleting that line or with `--share`, which commits only the
+ * record (threads, decisions, reports, policy, goals, config) and keeps what is private ignored.
  */
-const QUEUE_SHARED = '.lock\n*.tmp\n';
+const QUEUE_SHARED = `.lock
+*.tmp
+*.pid
+usage.json
+# Machine-private, never committed: agent transcripts, run journals and pictures; the edit history;
+# the agents' git worktrees (full nested checkouts).
+/runs/
+/history/
+/worktrees/
+`;
 const QUEUE_LOCAL = `# Spool's queue is working state for agents: what you said, word for word, and
 # the tasks and decisions that came of it. By default git ignores all of it,
 # this file included, so none of it is committed or pushed.

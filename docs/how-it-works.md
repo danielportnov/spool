@@ -741,7 +741,11 @@ at once. Writes are atomic and locked, so several agents and the page can share 
 
 **Private by default.** Git ignores `.spool/`: it is working state, and it holds your words exactly
 as you said them. `spool init --refresh --share` keeps it in git instead, for a team or for its
-history.
+history. `--share` commits only the record: threads, decisions, reports, `policy.md`, `goals.md` and
+`config.json`. It never commits `runs/` (agent transcripts, run journals, pictures and screenshots),
+`history/` (the edit journal), `worktrees/` (the agents' checkouts), the lock, or the usage reading;
+`.spool/.gitignore` keeps them out, and `spool init --refresh --share` rewrites it that way for a
+spool that already shares.
 
 **A folder of projects.** Set Spool up in a folder that holds several projects and each keeps its
 own spool; from the top you see and record into all of them, and from inside one you see just that
