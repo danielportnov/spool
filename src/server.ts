@@ -47,7 +47,7 @@ import { CODE_DIR, CODE_EXT, Upkeep } from './upkeep.ts';
 import { settingsOf } from './settings.ts';
 import { takeOverState } from './takeover.ts';
 import { noticesOf } from './notices.ts';
-import { usageOf } from './usage.ts';
+import { timeLeftOf, usageOf } from './usage.ts';
 import { watched } from './watch.ts';
 
 interface Started {
@@ -261,7 +261,7 @@ export function startPage(
           // Whether the human is AFK: agents take their own recommendation instead of asking.
           // And every setting the Settings panel shows that the board does not carry already.
           const settings = settingsOf(ctx, ws, spool);
-          return send(res, 200, 'application/json', JSON.stringify({ ...shown, takeOver, cleanup, afk: afkOf(ctx), settings, workspace }));
+          return send(res, 200, 'application/json', JSON.stringify({ ...shown, takeOver, cleanup, afk: afkOf(ctx), time: timeLeftOf(ctx), settings, workspace }));
         } finally {
           ws.close();
         }

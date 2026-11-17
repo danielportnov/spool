@@ -110,6 +110,12 @@ export interface UserConfig {
    */
   headroom?: Record<string, string>;
   /**
+   * The time to work: when the agents should be done by, and when that was set. A soft end: the
+   * chat that builds wraps up as it nears, and takes nothing new after it. Set with `spool for 2h`
+   * or `spool until 1:00`, or on the page. See until.ts.
+   */
+  workUntil?: { end: string; from: string };
+  /**
    * For each project, by the path of its folder: `true` where the chat that builds it in Chat mode
    * takes over the backlog, moving threads to Build itself up to the usage target. See takeover.ts.
    */

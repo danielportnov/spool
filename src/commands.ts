@@ -36,6 +36,7 @@ import { manage } from './manage.ts';
 import { markLine } from './mark.ts';
 import { noticesCommand } from './notices.ts';
 import { fableCap, headroomText, refuseOverHeadroom, targetCommand, usageCommand, withinHeadroom } from './usage.ts';
+import { forCommand, untilCommand } from './until.ts';
 import { servePage } from './page.ts';
 import { watch } from './watch.ts';
 import { serve } from './mcp.ts';
@@ -1374,6 +1375,30 @@ export const COMMANDS: Command[] = [
       const { ws, ctx, args, opts } = call;
       if (args.length) throw new SpoolError('a target is given with its flag', 'spool target --weekly 80 --five-hour 90, or --weekly none to take it off');
       return targetCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']), fable: str(opts.fable), headroom: str(opts.headroom) }, () => byTheHuman(call, [ws.home], 'target'));
+    },
+  },
+  {
+    name: 'until',
+    group: 'setup',
+    usage: 'until [<time>|none]',
+    summary: 'Say when the agents should be done by, alongside the usage target: spool until 1:00. A budget like the usage, and a soft end: as it nears the chat starts only what fits, and after it takes nothing new. none takes it off. With nothing after it, says what is set and the time left',
+    human: true,
+    run(call) {
+      const { ws, ctx, args } = call;
+      if (args.length > 1) throw new SpoolError('one time to be done by', 'spool until 1:00, or spool until none');
+      return untilCommand(ctx, args[0], () => byTheHuman(call, [ws.home], 'until'));
+    },
+  },
+  {
+    name: 'for',
+    group: 'setup',
+    usage: 'for [<length>|none]',
+    summary: 'Say how long the agents work from now, alongside the usage target: spool for 2h, 90m or 1h30m. The same soft end as spool until, which says what is set',
+    human: true,
+    run(call) {
+      const { ws, ctx, args } = call;
+      if (args.length > 1) throw new SpoolError('one length of time', 'spool for 2h, or spool for none');
+      return forCommand(ctx, args[0], () => byTheHuman(call, [ws.home], 'for'));
     },
   },
   {

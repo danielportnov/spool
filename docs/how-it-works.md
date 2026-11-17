@@ -289,6 +289,12 @@ pass larger threads by, with a line saying which and why, and `spool usage` tell
 finish and land what it is building, or hand it off, rather than start what it cannot
 finish. `spool target --headroom 80:m,90:s,97:xs` changes the steps; `default` brings them back.
 
+**It works to your time, where you set one** (`spool for 2h` or `spool until 1:00`, or under
+Settings). It counts as a budget like the usage: the share of the window gone
+takes the same steps, so with 2 hours set nothing past M is started in the last 24 minutes, and the
+same lines say why. The nearer of the two ends decides. Once the end has
+passed it says stop, and no claim is taken. A soft end: nothing running is stopped.
+
 **An agent out of usage hands its thread off.** It runs `spool handoff <id> -m "<where it
 stopped>"`, which commits the work so far in the thread's worktree, logs the note and puts the thread
 back in Build, its worktree kept. `--to Codex` keeps it for that agent; `--to sonnet` has the next

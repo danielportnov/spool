@@ -18,6 +18,7 @@ import * as path from 'node:path';
 import { type Ctx, configDir, saveUserConfig, userConfig } from './context.ts';
 import { type Item, SIZES, type Size, SpoolError } from './model.ts';
 import { age } from './render.ts';
+import { type TimeView, timeOf } from './until.ts';
 
 /** The plan's limits a target can be set on. */
 export const LIMITS = ['weekly', 'fiveHour', 'fable'] as const;
@@ -142,20 +143,25 @@ export interface Headroom {
   /** The percent of the budget used, the most of any limit read. */
   used: number;
   upTo: Size;
-  /** "weekly 92% of 100%". */
+  /** "weekly 92% of 100%", or "time to work until 1:00, 25 min left". */
   why: string;
+  /** The time to work has passed: no thread fits, whatever its size. */
+  over?: boolean;
 }
 
 /**
  * The headroom the last reading leaves, or null where it leaves room for any size. Each of the
  * plan's limits counts against its target, or against the whole limit where it has none: the plan
- * runs out at 100% whatever the target. The limit nearest its end decides.
+ * runs out at 100% whatever the target. The time to work (until.ts) is a budget too, the share of
+ * its window gone; once it has passed, nothing fits. The budget nearest its end decides.
  */
 export function headroomOf(ctx: Ctx): Headroom | null {
   const { target, read } = usageOf(ctx);
-  if (!read || ctx.now().getTime() - Date.parse(read.at) > HEADROOM_FRESH_MS) return null;
-  let worst: { used: number; why: string } | null = null;
-  for (const l of STOPS) {
+  const time = timeOf(ctx);
+  if (time?.passed) return { used: 100, upTo: 'xs', why: time.why, over: true };
+  let worst: { used: number; why: string } | null = time ? { used: time.usedPercent, why: time.why } : null;
+  const fresh = read && ctx.now().getTime() - Date.parse(read.at) <= HEADROOM_FRESH_MS;
+  if (fresh) for (const l of STOPS) {
     const used = read.used[l];
     if (used === undefined) continue;
     const of = target[l] ?? 100;
@@ -169,11 +175,13 @@ export function headroomOf(ctx: Ctx): Headroom | null {
 
 /** "near the target, weekly 92% of 100%: only up to S now". */
 export function headroomText(h: Headroom): string {
+  if (h.over) return `past the end of the budget, ${h.why}: nothing new now`;
   return `near the end of the budget, ${h.why}: only up to ${h.upTo.toUpperCase()} now`;
 }
 
 /** Whether a thread fits the headroom. A thread with no size counts as medium. */
 export function fitsHeadroom(h: Headroom | null, size: Size | undefined): boolean {
+  if (h?.over) return false;
   return !h || SIZES.indexOf(size ?? 'm') <= SIZES.indexOf(h.upTo);
 }
 
@@ -200,7 +208,9 @@ export function refuseOverHeadroom(ctx: Ctx, task: Item): void {
   if (fitsHeadroom(h, task.size)) return;
   throw new SpoolError(
     `${task.id} is ${(task.size ?? 'm').toUpperCase()}, and the chat is ${headroomText(h!)}`,
-    'Take one that fits what is left: spool next. Wrap up what you are building. How near is near is the human\'s: spool target --headroom',
+    h!.over
+      ? 'Finish and land what you are building, or hand it off: spool handoff <id> -m "<where it stopped>". The end is the human\'s: spool until'
+      : 'Take one that fits what is left: spool next. Wrap up what you are building. How near is near is the human\'s: spool target --headroom',
   );
 }
 
@@ -209,6 +219,13 @@ const WRAP_UP = (h: Headroom): string =>
   `Near the end: ${h.why}, so take only up to ${h.upTo.toUpperCase()} now; claims pass larger threads by.` +
   // Down to small work, what is in flight is wrapped up too.
   (SIZES.indexOf(h.upTo) <= SIZES.indexOf('s') ? ' Finish and land what you are building, or hand it off: spool handoff <id> -m "<where it stopped>".' : '');
+
+/** The time to work for the board, with the largest size it lets the chat start now (null: any). */
+export function timeLeftOf(ctx: Ctx): (TimeView & { upTo: Size | null }) | null {
+  const time = timeOf(ctx);
+  if (!time) return null;
+  return { ...time, upTo: time.passed ? null : sizeForBudget(time.usedPercent, headroomSteps(ctx)) };
+}
 
 /** "weekly 80%, 5-hour 90%". */
 export function figuresText(figures: Figures): string {
@@ -351,9 +368,19 @@ export function usageCommand(ctx: Ctx, typed: Partial<Record<Limit, string>>, by
   }
   const usage = usageOf(ctx);
   const headroom = headroomOf(ctx);
-  const data = { ...usage, keepBuilding: usage.reached.length === 0, headroom };
+  const data = { ...usage, keepBuilding: usage.reached.length === 0 && !headroom?.over, headroom };
   if (!reported) return { text: targetText(usage, ctx.now()), data };
   const { target, read, reached } = usage;
+  // Past the time to work it is a stop, whatever the usage: a soft one, so what is building lands.
+  if (headroom?.over && !reached.length) {
+    return {
+      text: [
+        `Stop: the ${headroom.why}.`,
+        '  Claim no new thread. Finish and land what is being built, or hand it off; a minute or two past is fine. Tell them once.',
+      ].join('\n'),
+      data,
+    };
+  }
   const fable = fableText(usage);
   // Near the end, what is worth starting shrinks, and what is in flight is wrapped up.
   const near = headroom && !reached.length ? `\n  ${WRAP_UP(headroom)}` : '';

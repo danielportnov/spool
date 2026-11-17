@@ -321,6 +321,13 @@ up what it is building.
 An agent that runs out mid-thread hands it off (`spool handoff`): its work is committed, and the
 thread goes back to Build for another agent or a smaller model to carry on from its note.
 
+Beside the usage, you can give the agents a **time to work**: how long (`spool for 2h`) or until
+when (`spool until 1:00`), under Settings or from the chat. It counts as a budget, like the usage: as
+the end nears the chat starts only threads it can finish (the same steps, by the share of the time
+gone), lands or hands off what it has, and takes nothing new once the end has passed. It is a soft end: nothing
+is stopped, and an agent that needs a minute or two past it to land cleanly does so. The header
+shows the time left beside the usage. `spool until none` takes it off.
+
 Beside it, **Take over** lets the chat fill Build for you. Switched on, from its menu in the header
 or by saying "take over the backlog", the chat that builds moves the top thread you filed to Build
 itself whenever Build is empty and the usage is under the target, and builds it; it stops once the

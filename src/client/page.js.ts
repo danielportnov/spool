@@ -1620,12 +1620,26 @@ function drawTarget(b) {
     chip.append(el('span', { class: 'num fable' + (capped ? ' capped' : '') }, 'Fable ' + (fableUsed == null ? 'to ' + u.target.fable + '%' : Math.round(fableUsed) + '%')));
     chip.title += ' Fable weekly: ' + (fableUsed == null ? 'not read yet' : pct(fableUsed)) + (u.target.fable != null ? ' of a ' + u.target.fable + '% target' : '') + (capped ? ': no thread goes to Fable now, it is built on Opus instead.' : '.');
   }
+  // Beside it, the time left where a time to work is set: warm as it nears, and once it has passed.
+  const t = b.time;
+  if (t) {
+    chip.append(el('span', { class: 'num time' + (t.passed ? ' up' : t.upTo ? ' near' : '') }, t.passed ? 'Time up' : timeLeft(t.leftMinutes) + ' left'));
+    chip.title += ' Time to work: ' + (t.passed
+      ? 'until ' + clockOf(t.end) + ', which has passed. The chat takes no new thread; what is being built lands.'
+      : 'until ' + clockOf(t.end) + ', ' + timeLeft(t.leftMinutes) + ' left.' + (t.upTo ? ' Nearly up: it starts only up to ' + t.upTo.toUpperCase() + ' now, and wraps up the rest.' : ' It starts only what it can finish by then.')) + ' Change it in Settings.';
+    if (!shown) chip.classList.add('set');
+  }
   // Said in words to a screen reader: the meter is only a picture of them.
   const said = shown && (shown[1] + ' usage ' + (usedOf(u, shown[0]) == null ? 'target ' : pct(usedOf(u, shown[0])) + ' of a target of ') + u.target[shown[0]] + '%');
-  chip.setAttribute('aria-label', said || 'Usage target');
+  const saidTime = t ? (t.passed ? ', time to work is up' : ', ' + timeLeft(t.leftMinutes) + ' left to work') : '';
+  chip.setAttribute('aria-label', (said || 'Usage target') + saidTime);
   chip.setAttribute('aria-expanded', String(targetsOpen));
   if (targetsOpen) fillTargets(u);
 }
+
+// The time to work, as the header and Settings say it: "1h 20m", and the end on this machine's clock.
+const timeLeft = (n) => (n < 60 ? n + ' min' : Math.floor(n / 60) + 'h' + (n % 60 ? ' ' + (n % 60) + 'm' : ''));
+const clockOf = (iso) => { const d = new Date(iso); return d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0'); };
 
 // The box under it: for each limit, a switch, a slider and a box to type the number in. The slider
 // shows what is used, shaded in, so the target is set against it. Each change is spool target.
@@ -2018,6 +2032,18 @@ function settingsSections() {
       row.querySelector('p').textContent = what + (used == null ? '' : ' Used now: ' + pct(used) + '.');
     });
   });
+  // The time to work: a length ("2h") or an end ("1:00"), and a button to take it off.
+  const when = el('input', { type: 'text', class: 'when', placeholder: '2h or 1:00', 'aria-label': 'Time to work: how long, or until when',
+    onchange: () => { const v = when.value.trim(); if (v) sendSetting('until', { until: v }, ''); },
+    onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); when.blur(); } } });
+  const clear = el('button', { class: 'clear', onclick: () => { when.value = ''; sendSetting('until', { until: null }, 'No time to work set.'); } }, 'Clear');
+  const timeWhat = 'How long the agents work, or until when. As the end nears they start only what they can finish by it, then land or hand off what they have; after it they take nothing new. A soft end: a minute or two past to land cleanly is fine.';
+  const timeRow = settingRow('Time to work', timeWhat, 'spool for 2h · spool until 1:00', el('span', { class: 'unit' }, when, clear), (b, row) => {
+    const t = b.time;
+    clear.disabled = !t;
+    if (!leave(when)) when.value = t ? clockOf(t.end) : '';
+    row.querySelector('p').textContent = timeWhat + (t ? (t.passed ? ' Until ' + clockOf(t.end) + ': passed, so no new thread is taken.' : ' Until ' + clockOf(t.end) + ': ' + timeLeft(t.leftMinutes) + ' left.') : ' Not set.');
+  });
   const coming = el('p', { class: 'coming' }, 'Coming here as they are built: each agent’s usage limit, and the Usage-to-Development slider.');
 
   // Notifications: each event, a switch.
@@ -2039,7 +2065,7 @@ function settingsSections() {
 
   return [
     section('Building', who, offerRow, atOnce, sizeRow, takeRow, afkRow, rebuildRow, quietRow, stopRow),
-    section('Usage', ...usageRows, coming),
+    section('Usage', ...usageRows, timeRow, coming),
     section('Notifications', ...noticeRows, via),
     section('Replies & style', caveRow, quickRow),
   ];

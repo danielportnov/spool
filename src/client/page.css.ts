@@ -74,6 +74,8 @@ export const CSS = String.raw`  :root {
   .target .num { font-weight: 600; font-variant-numeric: tabular-nums; }
   .target .num.fable { font-weight: 500; color: var(--soft); }
   .target .num.fable.capped { font-weight: 600; color: var(--warn); }
+  .target .num.time { font-weight: 500; color: var(--soft); }
+  .target .num.time.near, .target .num.time.up { font-weight: 600; color: var(--warn); }
   .target.reached { color: var(--warn); border-color: var(--warn); }
   .target.reached .meter .used { background: var(--warn); }
   .target[aria-expanded="true"] { border-color: var(--soft); background: var(--bg); }
@@ -296,6 +298,8 @@ export const CSS = String.raw`  :root {
   #settings input[type=checkbox]:disabled { opacity: .5; cursor: default; }
   #settings input[type=checkbox]:focus-visible, #settings button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   #settings input[type=number] { width: 64px; text-align: right; }
+  #settings input.when { width: 92px; text-align: right; font-variant-numeric: tabular-nums; }
+  #settings .clear:disabled { opacity: .45; cursor: default; }
   #settings .unit { display: inline-flex; align-items: center; gap: 8px; color: var(--soft); font-size: 13px; }
   #settings .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   #settings .seg button { border: 0; border-radius: 0; background: none; padding: 5px 12px; color: var(--soft); }

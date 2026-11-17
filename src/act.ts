@@ -212,6 +212,13 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     }
     return argv.length > 1 ? act(ctx, argv) : { ok: false, text: 'which target?' };
   }
+  if (action === 'until') {
+    // The time to work, from Settings: an end ("1:00"), a length ("2h"), or null to take it off.
+    if (body.until === null || body.for === null) return act(ctx, ['until', 'none']);
+    if (typeof body.until === 'string' && body.until.trim()) return act(ctx, ['until', body.until.trim()]);
+    if (typeof body.for === 'string' && body.for.trim()) return act(ctx, ['for', body.for.trim()]);
+    return { ok: false, text: 'until when, or for how long?' };
+  }
   if (action === 'takeover') {
     // The header's switch: the chat that builds takes over the backlog, or no longer does.
     if (typeof body.on !== 'boolean') return { ok: false, text: 'on, or off?' };

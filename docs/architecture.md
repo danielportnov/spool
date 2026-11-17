@@ -62,6 +62,10 @@ those comments are the detail.
   chat in Chat mode to use, kept in their own settings; and `spool usage`, the plan's usage that
   chat read and reported before a thread, kept beside it in `usage.json`. `usageOf` is both, and
   which limits are reached, for the board's header.
+- `until.ts` is the time to work: `spool until` and `spool for`, the end the human set, kept in their
+  own settings. `timeOf` is where it stands now: the minutes left and the share of the window gone,
+  which `headroomOf` in `usage.ts` reads as one more budget, so claims, `spool next`, `spool usage`
+  and taking over wrap up by it as by the usage. The board's header and Settings show it.
 - `takeover.ts` is `spool takeover`: whether the chat in Chat mode takes over a project's backlog,
   kept in the user's settings beside who builds it. `reasonable` is which threads it may take;
   `buildUnderTakeOver` is `spool build --takeover`, refused unless the switch is on, a chat builds,
