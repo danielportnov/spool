@@ -219,7 +219,7 @@ export interface Live {
   /** A note written on its thread reaches its agent while it works. False for an agent that is only watched. */
   listens: boolean;
   /** Seconds its agent has printed nothing, once that is past the quiet limit; null while it is not quiet. */
-  quiet: number | null;
+  quiet?: number | null;
   /** The tool call its agent needs a yes for and is waiting on, if it is waiting on one: the oldest, where there are several. */
   asking: Asking | null;
 }

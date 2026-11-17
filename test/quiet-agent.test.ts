@@ -32,7 +32,7 @@ test('a quiet agent is marked on the board and notified once, and stopped at the
     await until('it is marked quiet', async () => typeof (await running())?.quiet === 'number');
     await until('the human is told', () => fs.existsSync(marker));
     assert.match(fs.readFileSync(marker, 'utf8'), /^stuck Quiet: Tighten the jump arc/);
-    await until('it is stopped and the thread put back', () => s.json('show', jump).item.state !== 'active', 20_000);
+    await until('it is stopped and the thread put back', () => s.json('show', jump).item.state !== 'active', { timeout: 20_000 });
     assert.match(s.item(jump), /its agent has printed nothing for/);
     assert.equal(fs.readFileSync(marker, 'utf8').trim().split('\n').length, 1, 'told once');
   } finally {
