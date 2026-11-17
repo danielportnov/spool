@@ -16,7 +16,7 @@ import { morning, morningText } from './brief.ts';
 import { DISABLE, ENABLE } from './off.ts';
 import { HARNESSES, describe, harness, installFor, installedAnywhere, others } from './harness.ts';
 import { spawnSync } from 'node:child_process';
-import { type Ctx, notify, saveUserConfig, userConfig } from './context.ts';
+import { type Ctx, cavemanOf, notify, saveUserConfig, userConfig } from './context.ts';
 import { doctor } from './doctor.ts';
 import { GOALS_STARTER, goalsFile, goalsOf, goalsText } from './goals.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
@@ -1232,6 +1232,18 @@ export const COMMANDS: Command[] = [
       if (args.length > 1) throw new SpoolError('too many words', 'spool agents [on | off]');
       const spool = str(opts.project) ? ws.project(str(opts.project)) : ws.home;
       return agentsCommand(ctx, spool, args[0], () => byTheHuman(call, [spool], 'agents on'));
+    },
+  },
+  {
+    name: 'caveman',
+    group: 'setup',
+    usage: 'caveman [on | off]',
+    summary: 'Switch caveman mode on or off: the chat that steers or builds answers in the fewest words, as short fragments. Kept for every project and new chat. With nothing after it, says whether it is on',
+    run({ ctx, args }) {
+      if (args.length > 1 || (args[0] !== undefined && args[0] !== 'on' && args[0] !== 'off')) throw new SpoolError('caveman is on or off', 'spool caveman on');
+      if (args[0]) saveUserConfig(ctx, (config) => { if (args[0] === 'on') config.caveman = true; else delete config.caveman; });
+      const on = cavemanOf(ctx);
+      return { text: on ? 'Caveman mode is on. Chat answer in few words.' : 'Caveman mode is off. Chat answers as usual.', data: { caveman: on } };
     },
   },
   {

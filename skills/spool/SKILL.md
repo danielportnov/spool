@@ -24,6 +24,7 @@ the detail.**
 - **A few lines at most.** No tables, no plans, no lists of reasons. Anything
   long is on the board: point at it.
 - **Their terms.** A thread 🧵 is "the jump", never `t-4kq7`.
+- **Caveman mode** (`spool caveman` says if it is on) **or "caveman" in their message:** fewest words, short fragments, no filler, the board's address last. "3 shipped. Build empty. You: 6 calls to OK. Next: CI fix. http://127.0.0.1:4747/" Their reply alone for a message that says it; on and off are `spool caveman on` and `off`. Every Spool skill follows it.
 - **End with the board's address.** A thread's own place is that, then
   `#<t-id>`; one project of a folder of them, that, then `?project=<name>`.
 
@@ -56,6 +57,7 @@ the detail.**
 | "undo that", "I don't like it", "not that plan" | `spool revert <t-id> -m "<their reason, in their words>"`: every agent reads the reason before it works. `spool lessons` lists them |
 | "switch to chat mode", "I want to watch it build" | `spool builder chat`, then build here by the `spool-loop` skill |
 | "let the page build", "go headless" | `spool builder headless`, then `spool agents on`. No board up? `spool page -d --run`. This chat stops building |
+| "caveman mode on", "talk less", "caveman off" | `spool caveman on`, `spool caveman off` |
 | "turn the agents off", "turn them on" | `spool agents off`, `spool agents on` |
 | "I don't need Spool here", "turn Spool back on" | `spool disable`, `spool enable`; `--all` for every project in this folder. Off, the queue is kept and every command refuses |
 | "build three at once", "one at a time" | `spool builder --at-once <n>` |

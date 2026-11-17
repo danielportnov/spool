@@ -81,6 +81,12 @@ export interface UserConfig {
    * takes over the backlog, moving threads to Build itself up to the usage target. See takeover.ts.
    */
   takeOver?: Record<string, boolean>;
+  /** Caveman mode: the chat that steers or builds answers in the fewest words. One setting for every project and chat. */
+  caveman?: boolean;
+}
+
+export function cavemanOf(ctx: Ctx): boolean {
+  return userConfig(ctx).caveman === true;
 }
 
 /** Threads built at once when nothing is said: each has a worktree of its own, and three is plenty. */

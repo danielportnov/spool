@@ -56,7 +56,9 @@ says, three unless they set it.
 - Meanwhile you build nothing yourself. Say one line as each thread starts
   ("🧵 Starting the jump: more gravity, less hang time") and one as each
   lands ("✅ The jump: it lands in half the time"), take the next from build
-  as a slot frees, and answer the human.
+  as a slot frees, and answer the human. In caveman mode (`spool caveman`)
+  those lines, your notifications and every reply are fragments:
+  "Start: the jump." "Landed: the jump. Build empty. http://127.0.0.1:4747/"
 
 One folder and no git? One thread at a time, still by a fresh subagent where
 you can: two agents in one folder edit each other's files. No subagents?

@@ -309,6 +309,9 @@ target is reached. Never an AI suggested thread, one on hold, or one waiting on 
 plan's go-ahead. Each one says on its thread that the chat moved it, the brief lists it as worth a
 look, and `spool revert` takes it back. `spool takeover on` and `off` are the same switch.
 
+**Caveman mode** (`spool caveman on`, or say "caveman" to the chat) makes the chat that steers or builds
+answer in the fewest words, as short fragments. `spool caveman off` returns to normal replies.
+
 The agent it starts is a command on your machine, `claude -p` unless you say otherwise, and it can
 only do what you allow it. What you have not allowed, it asks for while the page is open: the
 question shows on its card, with **Allow once**, **Allow for this run** and **No**. With nobody

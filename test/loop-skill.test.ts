@@ -38,7 +38,7 @@ test('the loop skill has one job: make this chat the builder', () => {
   // Up to their usage target: read before each thread, reported, and a stop is a stop.
   assert.match(flat, /\*\*Up to their usage target,\*\* where they set one on the board \(`spool target` says\)\. Before you claim each thread, read the plan's usage with your harness's tool \(`get_usage` in the Claude app\) and report it: `spool usage --weekly <n> --five-hour <n>`\. It says keep building, or stop: then claim nothing new, let what is building land, and notify them once\. No usage tool\? Say so once, and build as if no target were set\./);
   // Short enough to be read every time: it was 553 lines, and grew six for the usage target, 29 for questions asked in the chat, two for the model and nine for taking over.
-  assert.ok(loop.trimEnd().split('\n').length <= 171, `${loop.trimEnd().split('\n').length} lines`);
+  assert.ok(loop.trimEnd().split('\n').length <= 173, `${loop.trimEnd().split('\n').length} lines`);
 });
 
 test('the loop watches the spool, and falls back to one scheduled job', () => {
@@ -134,6 +134,21 @@ test('spool builder chat tells the loop how many to build at once, and is not re
     assert.match(s.fails('builder', 'chat', '--at-once', '2'), /human's alone/);
     assert.equal(s.json('builder').builder, 'chat');
     assert.match(s.exec(['builder', '--at-once', '1'], { tty: true }).out, /The chat builds 1 thread at once\.$/);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('caveman mode is a setting every skill reads: spool caveman says and switches it, and the skills say how to answer in it', () => {
+  const s = new Sandbox();
+  try {
+    s.sp('init', '--name', 'skyhop');
+    assert.match(s.sp('caveman'), /Caveman mode is off/);
+    assert.match(s.sp('caveman', 'on'), /Caveman mode is on/);
+    assert.match(s.sp('caveman'), /is on/);
+    assert.match(s.sp('caveman', 'off'), /is off/);
+    s.fails('caveman', 'loud');
+    for (const name of ['spool', 'spool-loop', 'spool-record'] as const) assert.match(shipped(name), /caveman mode/i, name);
   } finally {
     s.cleanup();
   }

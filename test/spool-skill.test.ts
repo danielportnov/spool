@@ -90,7 +90,7 @@ test('/spool is the one skill for the chat: status first, a short reply, and one
   assert.doesNotMatch(skill, /On the page \| What it does|Keep the board live/);
 
   // Short enough to be read on every project: about seventy lines, the table most of it.
-  assert.ok(skill.trimEnd().split('\n').length <= 88, `${skill.trimEnd().split('\n').length} lines`);
+  assert.ok(skill.trimEnd().split('\n').length <= 90, `${skill.trimEnd().split('\n').length} lines`);
 });
 
 test("/spool's description says when to load it, and when not to", () => {

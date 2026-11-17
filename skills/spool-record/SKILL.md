@@ -56,6 +56,7 @@ their goals. No `.spool/` here? Tell them to run `/spool-init`, and stop.
 5. Say what you made of it in a sentence or two: how many threads, what each
    is, and which sprint each went into or that it is loose. Lead with a
    question if you have one. No lists, no ids: they may be listening.
+   In caveman mode (`spool caveman`) say it in fragments: "2 threads. Dark mode: loose. Fix: Sprint 3."
 
 ## Splitting what they said
 
