@@ -217,7 +217,8 @@ it has gone: with a chat building, every change is a command, and the page is on
 when you want to. `spool page --status` says whether one is up for this project, where, since when,
 and who builds; `spool page --stop` ends it, as Ctrl-C would. One page to a project: starting
 another while one is up gives you the address of the one that is up, and plain `spool page` opens
-it in your browser.
+it in your browser. A page started at the top of a folder of projects is the page of every one of
+them, so these commands, `spool status` and `spool agents` inside any of them find it and use it.
 
 ## In the terminal
 

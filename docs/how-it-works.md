@@ -727,7 +727,11 @@ it; what it prints goes to a log beside its record. Every page, detached or not,
 record of where it is under `~/.config/spool/pages/`, one per project folder, and removes it when it
 stops; a record whose process has died is ignored. So a second start for the same project, with
 `-d` or without, gives the address of the one that is up instead of taking the next port, and plain
-`spool page` opens that one in the browser. `spool page --status` says where it is, since when,
+`spool page` opens that one in the browser. A page started at the top of a folder of projects with
+no project named builds every one of them, so its record names each project's folder, kept current
+as it reads the folder, and a command inside any of them looks in the folders above it too: there,
+`spool status`, `spool agents`, `spool page -d` and `--status` find that page and say where it was
+started, and no second page starts beside it. `spool page --status` says where it is, since when,
 whether agents are on (it asks the page) and who builds; `spool page --stop` sends it what Ctrl-C
 does, so the agent it started is ended and its thread put back, and waits for it to go.
 

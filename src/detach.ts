@@ -4,7 +4,9 @@
  * Every page, detached or not, says where it is in one small file on the user's machine, kept by
  * the project's folder: which process holds it, at what address, since when. That is how a second
  * start finds the first instead of taking the next port, and how `--status` and `--stop` find it
- * from any terminal or chat. It lives under `~/.config/spool/pages/`, not in the project, since it
+ * from any terminal or chat. A page started at the top of a folder of projects builds every one of
+ * them, so its record names them all, and a command inside any of them finds that page by looking
+ * up the folders above it: one page to a project, wherever it was started. It lives under `~/.config/spool/pages/`, not in the project, since it
  * is about this machine's processes and nothing in it belongs in a commit.
  */
 
@@ -22,6 +24,12 @@ export interface PageRecord {
   url: string;
   /** The project's folder, as `builderOf` keys it. */
   root: string;
+  /**
+   * Every project the page builds, by its real folder: the one it was started for and, started at
+   * the top with no project named, each one below. A command in any of them finds the page by it.
+   * Missing from a record an older Spool wrote.
+   */
+  roots?: string[];
   project?: string;
   since: string;
   /** Agents were on when it started; the page itself says how they are now. */
@@ -58,15 +66,51 @@ export function alive(pid: number): boolean {
   }
 }
 
-/** The page up for this project, if there is one. A record left by a page that died without a word is ignored. */
-export function pageUp(ctx: Ctx, root: string): PageRecord | undefined {
+/** A folder as the disk has it, links followed, so two ways of naming one folder are one. */
+export function realOf(dir: string): string {
   try {
-    const found = JSON.parse(fs.readFileSync(fileOf(ctx, root, '.json'), 'utf8')) as PageRecord;
+    return fs.realpathSync(dir);
+  } catch {
+    return path.resolve(dir);
+  }
+}
+
+/** The record a living page left for this folder. One left by a page that died without a word is ignored. */
+function recordAt(ctx: Ctx, dir: string): PageRecord | undefined {
+  try {
+    const found = JSON.parse(fs.readFileSync(fileOf(ctx, dir, '.json'), 'utf8')) as PageRecord;
     if (typeof found.pid === 'number' && typeof found.url === 'string' && alive(found.pid)) return found;
   } catch {
     // No record, or not one a page wrote: no page.
   }
   return undefined;
+}
+
+/**
+ * The page up for this project, if there is one: the one started in its own folder, or else one
+ * started in a folder above it that builds it too. The nearest wins, as the nearest spool does.
+ */
+export function pageUp(ctx: Ctx, root: string): PageRecord | undefined {
+  const own = recordAt(ctx, root);
+  if (own) return own;
+  const real = realOf(root);
+  const seen = new Set([root, real]);
+  for (const start of [real, path.resolve(root)]) {
+    for (let dir = path.dirname(start); !seen.has(dir); dir = path.dirname(dir)) {
+      seen.add(dir);
+      const found = recordAt(ctx, dir);
+      if (found && serves(found, real)) return found;
+    }
+  }
+  return undefined;
+}
+
+/** Whether a page started in a folder above builds the project in `real`. */
+function serves(record: PageRecord, real: string): boolean {
+  // Its own word, where it gave one.
+  if (Array.isArray(record.roots)) return record.roots.includes(real);
+  // An older page: started with no project named, it builds every project below it.
+  return !record.project;
 }
 
 export function rememberPage(ctx: Ctx, record: PageRecord): void {
@@ -167,14 +211,20 @@ export function detachPage(ctx: Ctx, root: string, cli: string, args: string[]):
   return { text: '' };
 }
 
+/** A line saying the page was started in a folder above this project, where it was; none where it is this project's own. */
+export function startedAbove(up: PageRecord, root: string): string[] {
+  return realOf(up.root) === realOf(root) ? [] : [`It was started in ${up.root}, and builds this project too.`];
+}
+
 /** `spool page --status`: whether a page is up for this project, where, since when, and who builds. */
 export function pageStatus(ctx: Ctx, root: string): Result {
   const up = pageUp(ctx, root);
   if (!up) return { text: 'No Spool page is up for this project. spool page -d starts one.' };
+  const above = startedAbove(up, root);
   const since = new Date(up.since);
   const when = `${since.toLocaleDateString('en-CA')} ${since.toTimeString().slice(0, 5)}`;
   const builds = builderOf(ctx, root) === 'chat' ? 'A chat builds here (Chat).' : 'The page builds here itself (Headless).';
-  const head = [`Spool page: ${up.url}`, `Up since ${when}, ${up.detached ? 'in the background' : 'in a terminal'} (pid ${up.pid}).`];
+  const head = [`Spool page: ${up.url}`, ...above, `Up since ${when}, ${up.detached ? 'in the background' : 'in a terminal'} (pid ${up.pid}).`];
   // Agents are switched on the page, so the page is asked; the record only knows how they started.
   fetch(new URL('api/board', up.url), { signal: AbortSignal.timeout(3000) })
     .then((res) => res.json() as Promise<{ runner?: { on?: boolean } }>)
@@ -189,6 +239,7 @@ export function pageStatus(ctx: Ctx, root: string): Result {
 export function stopPage(ctx: Ctx, root: string): Result {
   const up = pageUp(ctx, root);
   if (!up) return { text: 'No Spool page is up for this project.' };
+  const above = startedAbove(up, root);
   try {
     process.kill(up.pid, 'SIGTERM');
   } catch (error) {
@@ -197,8 +248,8 @@ export function stopPage(ctx: Ctx, root: string): Result {
   const started = Date.now();
   const look = (): void => {
     if (!alive(up.pid)) {
-      forgetPage(ctx, root, up.pid);
-      ctx.out(`Stopped the Spool page at ${up.url}`);
+      forgetPage(ctx, up.root, up.pid);
+      ctx.out([`Stopped the Spool page at ${up.url}`, ...above].join('\n'));
       return;
     }
     if (Date.now() - started > 10_000) {

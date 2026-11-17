@@ -27,7 +27,7 @@ import { type Column, board, columnOf, diffOf } from './board.ts';
 import { PAGE } from './client/page.html.ts';
 import type { Bare, Result } from './commands.ts';
 import { type Ctx, builderOf, saveBuilder } from './context.ts';
-import { detachPage, forgetPage, pageStatus, pageUp, rememberPage, stopPage } from './detach.ts';
+import { type PageRecord, detachPage, forgetPage, pageStatus, pageUp, realOf, rememberPage, startedAbove, stopPage } from './detach.ts';
 import { Runner } from './engine.ts';
 import { heardRun } from './heard.ts';
 import { type Spool, SpoolError } from './model.ts';
@@ -168,6 +168,11 @@ interface Resume {
   run: boolean;
 }
 
+/** The real folders of the projects a page builds: the one named, or with none named every one of the workspace. */
+export function servedBy(ws: Workspace, project: string | undefined): string[] {
+  return (project ? [ws.project(project)] : ws.spools).map((spool) => realOf(spool.root));
+}
+
 /**
  * Start the page's server. Returns once it is listening.
  *
@@ -176,7 +181,16 @@ interface Resume {
  */
 export function startPage(
   ctx: Ctx,
-  options: { port?: number; project?: string; run?: boolean; agent?: string; resumed?: boolean; restart?: (resume: Resume) => void },
+  options: {
+    port?: number;
+    project?: string;
+    run?: boolean;
+    agent?: string;
+    resumed?: boolean;
+    restart?: (resume: Resume) => void;
+    /** Told the projects the page builds, by their real folders, each time it reads them: a project set up below since is one more. */
+    serves?: (roots: string[]) => void;
+  },
   ready: (started: Started) => void,
 ): http.Server {
   const token = randomBytes(18).toString('base64url');
@@ -209,6 +223,7 @@ export function startPage(
         runner.looked();
         const ws = Workspace.open(ctx.cwd, ctx.now);
         try {
+          options.serves?.(servedBy(ws, options.project));
           // The project asked for, by its name on the workspace's own list; any other is the page's own.
           const spool = named(ws, url.searchParams.get('project')) ?? own(ws);
           const shown = board(ws, spool === ws.home ? undefined : spool.name, runner, upkeep, builderOf(ctx, spool.root), atOnceIn(ctx, spool.root), usageOf(ctx), noticesOf(ctx));
@@ -564,9 +579,11 @@ export function servePage({ ctx, opts }: Bare): Result {
   // Fail now, in words, where there is no spool or no such project.
   const ws = Workspace.open(ctx.cwd, ctx.now);
   let root: string;
+  let roots: string[];
   try {
     board(ws, project);
     root = (project ? ws.project(project) : ws.home).root;
+    roots = servedBy(ws, project);
   } finally {
     ws.close();
   }
@@ -581,7 +598,7 @@ export function servePage({ ctx, opts }: Bare): Result {
   const up = there && (port === undefined || new URL(there.url).port === String(port)) ? there : undefined;
   if (up) {
     if (!opts['no-open'] && !opts.detach) openUrl(up.url);
-    return { text: `The Spool page is already up for this project: ${up.url}` };
+    return { text: [`The Spool page is already up for this project: ${up.url}`, ...startedAbove(up, root)].join('\n') };
   }
   if (opts.detach) {
     const args = [...(port ? ['--port', String(port)] : []), ...(run ? ['--run'] : []), ...(agent ? ['--agent', agent] : []), ...(project ? ['--project', project] : [])];
@@ -610,10 +627,19 @@ export function servePage({ ctx, opts }: Bare): Result {
   };
   // What tells a page it is taking over is for that page alone, not for the agents it starts.
   const own: Ctx = { ...ctx, env: { ...ctx.env, SPOOL_PAGE_RESUME: undefined, SPOOL_PAGE_DETACHED: undefined } };
-  const server = startPage(own, { port, project, run, agent, resumed: !!resumed, restart }, ({ url, token }) => {
+  // The record, once the page is listening. Kept here, so a project set up below later is added to it.
+  let record: PageRecord | undefined;
+  const serves = (now: string[]): void => {
+    if (!record || now.join('\n') === roots.join('\n')) return;
+    roots = now;
+    record = { ...record, roots };
+    rememberPage(ctx, record);
+  };
+  const server = startPage(own, { port, project, run, agent, resumed: !!resumed, restart, serves }, ({ url, token }) => {
     const before = resumed ? pageUp(ctx, root) : undefined;
     const since = before?.pid === owner ? before.since : ctx.now().toISOString();
-    rememberPage(ctx, { pid: owner, url, root, project, since, run, detached: ctx.env.SPOOL_PAGE_DETACHED === '1', token });
+    record = { pid: owner, url, root, roots, project, since, run, detached: ctx.env.SPOOL_PAGE_DETACHED === '1', token };
+    rememberPage(ctx, record);
     if (resumed) {
       ctx.out(`Restarted on the new build: ${url}`);
       return;
