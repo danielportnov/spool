@@ -66,7 +66,8 @@ spool install
 ```
 
 The first builds and installs Spool from GitHub. The second installs its skills for your coding agent.
-Nothing is added to your project yet.
+Nothing is added to your project yet. Once Spool is published to npm, `npm install -g spool-ai` will
+do the first step; until then it fails.
 
 ### Try the demo
 
@@ -90,8 +91,8 @@ In Claude Code, with your project open, type:
 ```
 
 Claude reads your project, creates a `.spool/` folder in it for the threads, and tells you what
-agents may decide for themselves. It asks who builds: the board by itself (**Headless**), or a
-chat where you can watch (**Chat**). It ends by checking that everything a run needs is there.
+agents may decide for themselves. It asks who builds: a chat where you can watch (**Chat**), or
+the board by itself (**Headless**). It ends by checking that everything a run needs is there.
 Claude asks before it runs a command: when it asks about `spool`, choose **Yes, and don't ask
 again**.
 
@@ -104,10 +105,10 @@ again**.
 A board opens in your browser. Press **+ Add** under Backlog and type what you want, in your own
 words. Press **▶ Build** on it.
 
-Who builds it is what you picked at set-up, and you can change it at the top of the board.
-**Chat**: type `/spool-loop` in the chat and Claude builds it there, where you can watch; keep that
-chat open while you want things built. **Headless**: switch **Agents** on and the board builds it
-by itself, with [no chat at all](#no-chat-at-all). Either way the card moves to Building, then
+Who builds it is what you picked at set-up, and you can change it in **Settings**, the gear at the
+top of the board. **Chat**: type `/spool-loop` in the chat and Claude builds it there, where you
+can watch; keep that chat open while you want things built. **Headless**: the board builds it by
+itself, with [no chat at all](#no-chat-at-all). Either way the card moves to Building, then
 Done.
 
 **If something does not work**
@@ -184,21 +185,14 @@ version to narrow the board to it. Reply on a thread, say **Fine** to a call an 
 overrule it in a sentence, and press **Mark as complete** when you have looked at the change. Agents keep working while it is
 open, and you watch threads move.
 
-Rather say it than type it? Press **🎙** beside **+ Add**, `c` or the reply box and speak: your
-words fill the box, and you read them and send them as usual. It is the browser's own speech
-recognition, so it works in Chrome, Edge and Safari and is not offered in Firefox; Spool sends the
-sound nowhere, though the browser may use its maker's service to hear it. Anywhere, macOS's own
-dictation works too: press the dictation key (🎤), or the shortcut under System Settings › Keyboard, in any box.
+Rather say it than type it? Press **🎙** beside **+ Add**, `c` or the reply box and speak. It is
+the browser's own speech recognition (Chrome, Edge, Safari; not Firefox), and Spool sends the sound
+nowhere.
 
-Much feedback is about how something looks, so a picture can go with it: paste a screenshot, or
-drop an image file, into the reply box, **+ Add** or `c`, and it waits under the box until you send.
-It shows under your words in the conversation, a click opens it full size, and the agent that builds
-the thread finds its path in its brief. A file goes the same way, dropped on the thread or picked
-with **Add a file**: a PDF, or plain text such as a log, notes, a CSV or JSON. It shows as a link,
-and a chat that is building the thread is told its path the moment you send it. Agents attach pictures too, with `spool attach`: a before and
-an after of anything that changes what is on screen, shown side by side under the result when the
-thread is done, and counted in the **★ Worth a look** mark on its Done card. Pictures stay on your machine, in
-`.spool/runs/`, out of git.
+A picture can go with your words: paste a screenshot, or drop an image, a PDF or a text file, into
+the reply box, **+ Add** or `c`. The agent that builds the thread finds its path in its brief.
+Agents attach pictures too (`spool attach`): a before and an after of anything that changes what is
+on screen, side by side when the thread is done. They stay on your machine, in `.spool/runs/`.
 
 Keep several projects in one folder, each with its own spool? Start `spool page` in that folder and
 it shows them all: **All projects** first, a row each with what is building and what its agent last
@@ -288,7 +282,7 @@ anywhere.
 spool page --run
 ```
 
-With `--run`, or the **Agents** switch at the top of the page, the page builds what is in Build by
+With `--run`, or **Agents on** in Settings, the page builds what is in Build by
 itself: it starts your agent on each thread the moment it lands there, shows what it prints on the
 card, and puts a Stop on the card that ends that agent and no other. Reply on a thread while it
 is being built and a `claude -p` agent hears you and adjusts. A stopped thread carries on
@@ -301,10 +295,10 @@ the number is for the whole page, shared across them. Close every chat; press �
 to Done. From a terminal or a chat, `spool agents on` and `spool agents off` press the same switch,
 and `spool agents` says where it is.
 
-Next to that switch you pick who builds. **Headless** is the above: the page starts the agent
-itself. **Chat** hands building to a Claude Code chat running `/spool-loop`, where you can watch
-the work and step in; the page then starts nothing, and the switch says whether a chat is building,
-watching, or not there. The pick is kept for the project. Say "switch to chat mode" to a chat and it
+Settings also picks who builds. **Headless** is the above: the page starts the agent itself. It is
+greyed out until you switch on **Offer Headless** there (`spool settings headless on`). **Chat**
+hands building to a Claude Code chat running `/spool-loop`, where you can watch the work and step
+in; the page then starts nothing. The pick is kept for the project. Say "switch to chat mode" to a chat and it
 runs `spool builder chat`; "let the page build" is `spool builder headless`.
 
 In Chat mode Claude and Codex can build at once. The header shows each as its logo in a ring of
@@ -318,27 +312,16 @@ toward development, each size gets a bigger model and more effort. Under it, wha
 now. `spool builder --agent Claude --lean usage` (or `balanced`, `development`) sets it from a chat.
 A thread's own Model still wins.
 
-In Chat mode you can set a **usage target**: how much of your Claude plan the chat may
-use, as a percent of the weekly limit, the 5-hour limit, or both. Set it in Settings, or for one
-agent under its logo. Before each thread the chat reads the plan's usage with its own tool (`get_usage` in the
-Claude app) and reports it with `spool usage`; once a target is reached it takes no new thread, and
-each logo's ring shows the usage against the target. `spool target --weekly 80` sets it from a chat or a
-terminal. Spool never reads your account or calls a service for it: it keeps what the chat reports.
-Codex is the one it reads for itself: Codex writes its ChatGPT plan's limits (a 5-hour and a weekly
-window, apart from Claude's) into its own session logs on this machine, and Spool takes only those
-figures from the newest, so Codex is held to its own plan without reporting anything (`spool usage
---from-codex` reports them as Codex's, and says whether to keep building).
-With several agents on the spool, each reads its own plan and is held to its own target: `spool
-target --agent Codex --weekly 50` holds Codex to half its plan while Claude goes on to 80%, and the
-header shows a ring for each, or a dash where an agent cannot read its usage. Its logo, or Settings, sets each one.
-As the end nears, the chat starts only threads small enough to finish (nothing past S from 90% of
-the target, by default; `spool target --headroom` changes it), says which it passed by, and wraps
-up what it is building.
-An agent that runs out mid-thread hands it off (`spool handoff`): its work is committed, and the
-thread goes back to Build for another agent or a smaller model to carry on from its note.
-`spool open <id>` opens a thread's Claude session in your terminal: the agent lets go, you type to
-it in Claude Code, and when you quit you hand it back to the agent, which finishes it in the same
-session, or leave it stopped.
+In Chat mode you can set a **usage target**: how much of your plan the chat may use, as a percent
+of the weekly limit, the 5-hour limit, or both (`spool target --weekly 80`, Settings, or an agent's
+logo). Before each thread the chat reads its plan's usage with its own tool and reports it with
+`spool usage`; once the target is reached it takes no new thread. Spool never reads your Claude
+account: it keeps what the chat reports. Codex's limits it reads from Codex's own session logs on
+this machine. Each agent is held to its own target (`spool target --agent Codex --weekly 50`). As
+the end nears, the chat starts only threads small enough to finish (`spool target --headroom`
+sets how small). An agent that runs out mid-thread hands it off (`spool handoff`) for another agent
+or a smaller model to carry on. `spool open <id>` opens a thread's Claude session in your terminal,
+to type to it yourself.
 
 Beside the usage, you can give the agents a **time to work**: how long (`spool for 2h`) or until
 when (`spool until 1:00`), under Settings or from the chat. It counts as a budget, like the usage: as
@@ -347,7 +330,7 @@ gone), lands or hands off what it has, and takes nothing new once the end has pa
 is stopped, and an agent that needs a minute or two past it to land cleanly does so. The header
 shows the time left beside the logos. `spool until none` takes it off.
 
-Beside it, **Take over** lets the chat fill Build for you. Switched on, in Settings
+**Take over the backlog** lets the chat fill Build for you. Switched on, in Settings
 or by saying "take over the backlog", the chat that builds moves the next thread to Build itself
 whenever Build is empty and the usage is under the target, and builds it: yours first, then the AI
 suggested ones. It keeps on until the target is reached. Never one on hold, one you undid or moved
@@ -473,10 +456,28 @@ retired, and `spool doctor` says if an old one, or an old Spool block in `AGENTS
 
 ## Not every project
 
-Spool is one tool, not the only way to work. In a project where you don't want it, `spool disable`
-switches it off: the Spool block comes out of `AGENTS.md` and `CLAUDE.md`, so no agent is sent to
-the queue, and its commands refuse. The queue is kept as it was, and `spool enable` turns it back
-on. In a folder of projects, `--all` does every one of them at once.
+In a project where you don't want Spool, `spool disable` switches it off: the Spool block comes out
+of `AGENTS.md` and `CLAUDE.md`, so no agent is sent to the queue, and its commands refuse. The
+queue is kept, and `spool enable` turns it back on. In a folder of projects, `--all` does every one.
+
+## Remove Spool
+
+From a project:
+
+```bash
+spool page --stop      # if a board is up
+spool disable          # takes the Spool block out of AGENTS.md and CLAUDE.md
+rm -rf .spool          # the queue, its history and the agents' worktrees: this cannot be undone
+git worktree prune     # forget the worktrees git still lists
+```
+
+From your machine, take out the skills `spool install` put in place, then Spool itself:
+
+```bash
+rm -rf ~/.claude/skills/spool ~/.claude/skills/spool-*   # and ~/.codex/skills/spool*, ~/.cursor/skills/spool* if you installed there
+npm uninstall -g spool-ai                                 # whether you installed from GitHub or npm
+rm -rf ~/.config/spool                                    # your settings, checks and page records
+```
 
 ## Under the hood
 
@@ -488,22 +489,10 @@ on. In a folder of projects, `--all` does every one of them at once.
 
 The long version, with every idea and every command: [how it works](docs/how-it-works.md).
 
-## Status
-
-Early, and moving fast. Built on macOS with Claude Code. Not on npm yet, and not tested on Windows.
-See the [changelog](CHANGELOG.md).
-
 ## Develop
 
-```bash
-npm install
-npm test        # node --test, straight from the TypeScript sources
-npm run check   # tsc
-```
-
-No runtime dependencies. PRs and issues welcome.
-
-Want to fix something? Start with [CONTRIBUTING](CONTRIBUTING.md) and [a tour of the code](docs/architecture.md).
+No runtime dependencies. PRs and issues welcome: start with [CONTRIBUTING](CONTRIBUTING.md) and
+[a tour of the code](docs/architecture.md).
 
 ## License
 
