@@ -1903,6 +1903,8 @@ let settingsOpen = false;
 // Each row's own fill, run on every board drawn while the panel is open.
 let settingsFills = [];
 // The changes, sent one after another, so the last one made is the one kept.
+// An agent's lean, left to right: Usage to Development.
+const LEANS = ['usage', 'balanced', 'development'];
 let settingSends = Promise.resolve();
 const sendSetting = (action, body, words) => { settingSends = settingSends.then(() => post(action, body, words)); };
 const settingsOf = (b) => b.settings || { caveman: false, quickReply: true, quietMinutes: 10, stopMinutes: 0, rebuild: true, headless: false, parallel: 3, agents: [] };
@@ -2000,6 +2002,25 @@ function settingsSections() {
         return el('span', { class: 'count' }, el('span', { class: 'name' }, a.name), pick);
       }));
     });
+  // Usage or development: each agent's slider, which model and how hard each size gets. Under it, what each size gets now.
+  const leanBox = el('div', { class: 'agents' });
+  const leanRow = settingRow('Usage or development', 'Left saves usage: small threads go to the smallest model (Haiku, Luna) and every size to the cheapest that can do it. Right pushes development: each size gets a bigger model and more effort. A thread’s own Model still wins.',
+    'spool builder --agent Claude --lean usage', leanBox, (b) => {
+      const list = settingsOf(b).agents.filter((a) => a.lean);
+      const shape = list.map((a) => a.name + a.lean).join();
+      if (leanBox.dataset.shape === shape || leanBox.contains(document.activeElement)) return;
+      leanBox.dataset.shape = shape;
+      leanBox.replaceChildren(...list.map((a) => {
+        const gets = (a.table || []).map((t) => t.size.toUpperCase() + ' ' + t.model + (t.effort && t.effort !== 'medium' ? ' · ' + t.effort : '')).join(', ');
+        const slider = el('input', { type: 'range', class: 'lean lean-' + a.lean, min: 0, max: 2, step: 1, 'aria-label': a.name + ', from usage to development', 'aria-valuetext': a.lean,
+          onchange: () => { const to = LEANS[Number(slider.value)]; slider.blur(); if (to !== a.lean) sendSetting('roster', { agent: a.name, lean: to }, ''); } });
+        slider.value = String(Math.max(0, LEANS.indexOf(a.lean)));
+        return el('span', { class: 'count lean-of', title: a.name + ' leans ' + a.lean + '. Each size gets: ' + gets + '.' },
+          el('span', { class: 'name' }, a.name),
+          el('span', { class: 'ends' }, 'Usage'), slider, el('span', { class: 'ends' }, 'Development'),
+          el('span', { class: 'gets' }, gets));
+      }));
+    });
   const take = settingSwitch('Take over the backlog', (on) => sendSetting('takeover', { on }, on ? 'The chat takes over the backlog, up to your usage target.' : 'The chat builds only what you move to Build.'));
   const takeRow = settingRow('Take over the backlog', 'With Build empty and usage under your target, the chat moves the top thread you filed to Build itself, and builds it. Chat only.',
     'spool takeover on', take, (b, row) => {
@@ -2056,7 +2077,7 @@ function settingsSections() {
     if (!leave(when)) when.value = t ? clockOf(t.end) : '';
     row.querySelector('p').textContent = timeWhat + (t ? (t.passed ? ' Until ' + clockOf(t.end) + ': passed, so no new thread is taken.' : ' Until ' + clockOf(t.end) + ': ' + timeLeft(t.leftMinutes) + ' left.') : ' Not set.');
   });
-  const coming = el('p', { class: 'coming' }, 'Coming here as they are built: each agent’s usage limit, and the Usage-to-Development slider.');
+  const coming = el('p', { class: 'coming' }, 'Coming here as it is built: each agent’s usage limit.');
 
   // Notifications: each event, a switch.
   const noticeRows = NOTICES.map(([key, name]) => {
@@ -2076,7 +2097,7 @@ function settingsSections() {
     'spool settings quick-reply off', quick, (b) => { if (!leave(quick)) quick.checked = settingsOf(b).quickReply; });
 
   return [
-    section('Building', who, offerRow, atOnce, sizeRow, takeRow, afkRow, rebuildRow, quietRow, stopRow),
+    section('Building', who, offerRow, atOnce, sizeRow, leanRow, takeRow, afkRow, rebuildRow, quietRow, stopRow),
     section('Usage', ...usageRows, timeRow, coming),
     section('Notifications', ...noticeRows, via),
     section('Replies & style', caveRow, quickRow),

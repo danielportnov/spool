@@ -307,6 +307,12 @@ export const CSS = String.raw`  :root {
   #settings .seg button.on { background: var(--chip); color: var(--ink); font-weight: 600; }
   #settings .seg button[aria-disabled=true] { opacity: .45; cursor: not-allowed; }
   #settings .agents { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  #settings .lean-of { display: grid; grid-template-columns: auto auto auto auto; align-items: center; column-gap: 6px; justify-items: end; }
+  #settings .lean-of .ends { font-size: 0.8em; color: var(--soft); }
+  #settings .lean-of .gets { grid-column: 1 / -1; font-size: 0.8em; color: var(--soft); font-variant-numeric: tabular-nums; }
+  #settings .lean { width: 90px; accent-color: var(--soft); cursor: pointer; }
+  #settings .lean.lean-usage { accent-color: var(--go); }
+  #settings .lean.lean-development { accent-color: var(--accent); }
   #settings .count { display: inline-flex; align-items: center; gap: 6px; }
   #settings .count .name { min-width: 64px; text-align: right; color: var(--soft); font-size: 13px; }
   #settings .count button { width: 26px; height: 26px; padding: 0; }

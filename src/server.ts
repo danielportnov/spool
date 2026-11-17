@@ -40,6 +40,7 @@ import { openRun, taskState, tasks } from './schedule.ts';
 import { readProposals, unanswered } from './proposals.ts';
 import { atOnceIn } from './slots.ts';
 import { SIZES, type Size } from './model.ts';
+import { LEANS } from './agent.ts';
 import { rosterView, saveAgent, sizesText } from './roster.ts';
 import { briefAcross, named, projectsOf } from './projects.ts';
 import { Workspace } from './store.ts';
@@ -398,6 +399,16 @@ export function startPage(
           // One agent's thread count, from its − and + in the header: the human's click, as spool builder --agent sets it.
           if (action === 'roster') {
             const name = text(body.agent).trim();
+            // Its slider, usage to development: what each size is built on, as spool builder --agent --lean sets it.
+            if (body.lean !== undefined) {
+              const lean = LEANS.find((l) => l === body.lean);
+              if (!name || name.length > 40 || !lean) {
+                return send(res, 400, 'application/json', JSON.stringify({ ok: false, text: `which agent, and which lean (${LEANS.join(', ')})?` }));
+              }
+              const entry = saveAgent(ctx, spool.root, name, { lean });
+              const words = lean === 'usage' ? 'saves usage: small threads go to its smallest model' : lean === 'development' ? 'pushes development: each size gets a bigger model' : 'is balanced between usage and development';
+              return send(res, 200, 'application/json', JSON.stringify({ ok: true, text: `${entry.name} ${words}.` }));
+            }
             const n = body.atOnce;
             // Or the largest size it takes, from the chip beside its count: xs to xl, "all" for no limit.
             if (name && name.length <= 40 && typeof body.maxSize === 'string' && n === undefined) {
