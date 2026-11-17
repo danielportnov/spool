@@ -1068,8 +1068,107 @@ function folded(id, feed) {
   }
   return out;
 }
+// ---- the agent's session, like a small terminal: the model that runs, for how long, and its stream as it comes.
+// The page's runner keeps only the newest few lines of a run; the whole of it is read from its transcript
+// (/api/run), by line number, and then only what is new. Nothing of it leaves this machine.
+const heardRuns = new Map();
+// What kind of line it is, from how the stream is read into lines (stream.ts): each is marked apart.
+function lineKind(l) {
+  if (/^session \S+/.test(l)) return 'meta';
+  if (l.startsWith('→ ')) return 'tool';
+  if (l.startsWith('✗ ')) return 'err';
+  if (l.startsWith('you: ')) return 'you';
+  if (/^(asks|allowed|refused|denied) → /.test(l) || l === 'told to stop what it is doing') return 'ask';
+  if (/^(finished|ended: )/.test(l)) return 'end';
+  return 'said';
+}
+const lineNode = (l) => el('span', { class: 'ln l-' + lineKind(l) }, l);
+// Lines into a box that holds them: each a line of its own, a break between, so the box reads as text too.
+function fillLines(box, lines, from) {
+  for (let i = from; i < lines.length; i++) {
+    if (box.childNodes.length) box.append('\n');
+    box.append(lineNode(lines[i]));
+  }
+}
+// The model the session itself says it runs on, from its first line: "session … · claude-opus-5-5".
+function streamModel(lines) {
+  const first = lines.find((l) => /^session \S+ · /.test(l));
+  return first ? first.split(' · ').slice(1).join(' · ') : '';
+}
+// The lines to show for a thread: its transcript as far as it has been read, or else what the runner holds.
+function runLines(c, b) {
+  const heard = heardRuns.get(c.id);
+  if (heard && heard.lines.length) return heard.lines;
+  const run = b && liveOf(c, b);
+  return run ? run.lines : [];
+}
+// Ask for what is new on a thread's run. Fresh, it reads it from its end, as one opened for the first time.
+async function hearRun(id, fresh) {
+  const have = !fresh && heardRuns.get(id);
+  if (have && have.asking) return;
+  if (have) have.asking = true;
+  try {
+    const query = new URLSearchParams({ id, from: String(have ? have.next : -2000) });
+    if (have && have.run) query.set('run', have.run);
+    const answer = await (await fetch('/api/run?' + query)).json();
+    const held = heardRuns.get(id);
+    // Another run than the one held, or not from where that had got to: what is held is replaced.
+    const anew = !held || held.run !== answer.run || answer.from !== held.next;
+    heardRuns.set(id, { run: answer.run, next: answer.next, lines: anew ? answer.lines : held.lines.concat(answer.lines), asking: false, anew });
+    if (anew || answer.lines.length) paintRun(id);
+  } catch (e) {
+    if (have) have.asking = false;
+  }
+}
+// Put a thread's lines in each box on screen that shows them, without a redraw: only what is new is added,
+// and a box at its foot stays there while one scrolled up holds still.
+function paintRun(id) {
+  const c = current && everyCard(current).find((x) => x.id === id);
+  if (!c) return;
+  const lines = runLines(c, current);
+  for (const box of document.querySelectorAll('.livelog[data-run="' + id + '"]')) {
+    const foot = atFoot(box);
+    const top = box.scrollTop;
+    const shown = Number(box.dataset.n || 0);
+    const heard = heardRuns.get(id);
+    if (!lines.length) continue;
+    if (!shown || shown > lines.length || box.dataset.of !== ((heard && heard.run) || '')) { box.replaceChildren(); box.dataset.n = '0'; }
+    fillLines(box, lines, Number(box.dataset.n || 0));
+    box.dataset.n = String(lines.length);
+    box.dataset.of = (heard && heard.run) || '';
+    if (box.dataset.follow) box.scrollTop = foot ? box.scrollHeight : top;
+  }
+  const now = document.querySelector('.livepost[data-run="' + id + '"] .livenow .nowtext');
+  const said = lines.filter((l) => lineKind(l) !== 'meta').at(-1);
+  if (now && said) now.textContent = said;
+  const model = document.querySelector('.term[data-run="' + id + '"] .streammodel');
+  if (model) model.textContent = streamModel(lines) || '';
+}
+// A box of a run's lines, filled from what is held already, so a redraw does not empty it.
+function logBox(c, b, follow) {
+  const box = el('div', { class: 'livelog', 'data-run': c.id, 'data-keep': follow ? 'livelog' : 'runlog', 'data-follow': follow ? 'true' : null });
+  const lines = runLines(c, b);
+  fillLines(box, lines, 0);
+  box.dataset.n = String(lines.length);
+  const heard = heardRuns.get(c.id);
+  box.dataset.of = (heard && heard.run) || '';
+  if (!lines.length) box.append(el('span', { class: 'ln l-meta' }, follow ? 'starting…' : 'Reading the run…'));
+  return box;
+}
+// The head of the panel: live or not, what it was given (the size's pick, or the human's), and what the session says it runs on.
+// How long it has gone is in the line above it.
+function termHead(c, lines, live) {
+  const ran = c.ranWith || [c.run && c.run.model, c.run && c.run.effort].filter(Boolean).join(' · ');
+  const said = streamModel(lines);
+  return el('div', { class: 'termhead' },
+    live ? el('span', { class: 'dot on', title: 'Running now' }) : el('span', { class: 'dot' }),
+    el('b', {}, live ? 'Live' : 'Session'),
+    ran && el('span', { class: 'chip', title: 'The model and effort this run was given' }, ran),
+    el('span', { class: 'streammodel', title: 'The model the session says it runs on' }, said));
+}
 // While an agent works, it is the newest post in the thread: who, for how long, what it is doing now,
-// and its log as it comes. A chat building it has no log here, only the note it last left.
+// and its session as it comes, in a panel like a small terminal. A thread this page is not running has no
+// stream to show: its model, its time, and what it writes on the thread, with why there is no more.
 function livePost(c, b) {
   if (c.column !== 'building' || !c.live) return null;
   const run = liveOf(c, b);
@@ -1078,17 +1177,46 @@ function livePost(c, b) {
   const face = avatar(who);
   face.append(el('span', { class: 'pulse' }));
   const session = c.run && c.run.session;
-  return el('div', { class: 'post livepost' }, face,
+  const lines = runLines(c, b);
+  const term = run
+    ? el('div', { class: 'term', 'data-run': c.id }, termHead(c, lines, true), logBox(c, b, true))
+    : el('div', { class: 'term', 'data-run': c.id }, termHead(c, [], true),
+      el('div', { class: 'termwhy' }, b.runner && b.runner.builder === 'chat'
+        ? 'Built by a subagent of a Claude Code chat: its stream stays in that chat, so here are the lines it writes on the thread.'
+        : 'Built by an agent this page did not start: its stream does not reach the page, so here are the lines it writes on the thread.'),
+      chatLog(c));
+  return el('div', { class: 'post livepost', 'data-run': c.id }, face,
     el('div', {},
       el('div', { class: 'byline' }, el('b', {}, s.name), ranNode(c, 'model') || (s.model && el('span', { class: 'model' }, s.model)), el('span', { class: 'sep' }, '·'),
         el('span', { class: 'at' }, 'working for ', el('span', { 'data-since': c.live.since }, took(c.live.since))),
         c.worktree && el('span', { class: 'at', title: 'Its own git worktree: a checkout apart from yours, that lands on yours when it is done' }, ' · in ' + c.worktree),
         run && run.listens && el('span', { class: 'at', title: 'What you reply on this thread reaches the agent while it works: it reads it at its next step.' }, ' · hears your replies'),
         run && stopNode(c, 'act stop', '■ Stop the agent')),
-      el('div', { class: 'livenow' }, el('span', { class: 'nowtext' }, (run && run.lines.at(-1)) || c.live.note || 'starting…'), el('span', { class: 'caret' })),
+      el('div', { class: 'livenow' }, el('span', { class: 'nowtext' }, lines.filter((l) => lineKind(l) !== 'meta').at(-1) || c.live.note || 'starting…'), el('span', { class: 'caret' })),
       run && run.asking && permitNode(c, run.asking, true),
       session && el('div', { class: 'session' }, 'Session ', el('code', { title: session }, session.slice(0, 8)), copyNode('claude --resume ' + session, 'Copy the command that opens it')),
-      run && el('div', { class: 'livelog', 'data-keep': 'livelog', 'data-follow': 'true' }, run.lines.join('\n') || 'starting…')));
+      term));
+}
+// What an agent the page cannot hear writes on the thread since it took it, a line each, oldest first.
+function chatLog(c) {
+  const steps = c.thread.steps;
+  let from = 0;
+  steps.forEach((st, i) => { if (/^(started|picked up after)/.test(st.what)) from = i; });
+  const at = (when) => { const d = new Date(when); return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) + '  '; };
+  const lines = steps.slice(from).map((st) => (st.at ? at(st.at) : '') + st.what);
+  const box = el('div', { class: 'livelog', 'data-keep': 'livelog', 'data-follow': 'true' });
+  fillLines(box, lines, 0);
+  return box;
+}
+// A finished run, folded: open, it reads the whole transcript back, as it was shown while it ran.
+function runlogNode(c) {
+  if (c.column === 'building' || !c.transcript) return null;
+  const ran = c.ranWith || [c.run && c.run.model, c.run && c.run.effort].filter(Boolean).join(' · ');
+  const box = logBox(c, null, false);
+  return el('details', { class: 'desc runlog', 'data-keep': 'runlog-' + c.id, 'data-run': c.id,
+    ontoggle: (e) => { if (e.target.open) hearRun(c.id); } },
+    el('summary', {}, 'The agent’s run', ran && el('span', { class: 'chip' }, ran), c.run && c.run.session && el('span', { class: 'sid' }, 'session ' + c.run.session.slice(0, 8))),
+    el('div', { class: 'term' }, box));
 }
 
 // "Typing…" under the thread while someone answers what the human just wrote: the page's quick reply
@@ -1405,6 +1533,7 @@ function threadNode(c, b) {
       !t.feed.length && !c.question && !c.live && el('div', { class: 'empty' }, 'Nothing has been said here yet.')),
 
     // Research is read as its summary, in the thread; the full report is kept, a click away.
+    runlogNode(c),
     t.report && el('details', { class: 'desc', open: c.type !== 'research', 'data-keep': 'report' }, el('summary', {}, c.type === 'plan' ? 'The plan' : c.type === 'research' ? 'The full report' : 'The report'), el('pre', {}, rich(t.report))),
 
     linked.length > 0 && [el('h3', {}, 'Linked'), linked.map((l) => el('div', { class: 'note' }, l))],
@@ -1535,19 +1664,7 @@ function drawThread(b) {
 
 // What changes from second to second while an agent works, changed in place: the nodes stay, and so does the reader.
 function liveInPlace(pane, c, b) {
-  const run = liveOf(c, b);
-  const now = pane.querySelector('.livenow .nowtext');
-  if (now && run && run.lines.length) now.textContent = run.lines.at(-1);
-  const log = pane.querySelector('.livelog');
-  if (log && run) {
-    const text = run.lines.join('\n') || 'starting…';
-    if (log.textContent !== text) {
-      const foot = atFoot(log);
-      const top = log.scrollTop;
-      log.textContent = text;
-      log.scrollTop = foot ? log.scrollHeight : top;
-    }
-  }
+  if (liveOf(c, b)) paintRun(c.id);
 }
 
 // ---- the page
@@ -2772,6 +2889,13 @@ document.addEventListener('keydown', (e) => {
 });
 load();
 setInterval(load, 1500);
+// The open thread's run, while this page's runner builds it: what is new in its transcript, each second.
+// Asked for apart from the board, so it streams on while the human types a reply under it.
+setInterval(() => {
+  if (!openId || !current || document.hidden) return;
+  const c = everyCard(current).find((x) => x.id === openId);
+  if (c && c.column === 'building' && liveOf(c, current)) hearRun(c.id);
+}, 1000);
 // The clock: how long an agent has been at it, and how long ago things were said, kept current in place.
 setInterval(() => {
   for (const node of document.querySelectorAll('[data-since]')) node.textContent = took(node.dataset.since);

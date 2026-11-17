@@ -376,6 +376,27 @@ export const CSS = String.raw`  :root {
   .byline .model { background: var(--chip); border-radius: 999px; padding: 0 8px; font-size: 12px; color: var(--soft); }
   .byline .at, .sep { color: var(--soft); font-size: 13px; }
   .byline .stop { margin-left: auto; align-self: center; }
+  /* The agent's session, like a small terminal: a head saying what runs and for how long, then its stream, a line each. */
+  .term { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); overflow: hidden; }
+  .term .livelog { margin: 0; border: 0; border-radius: 0; max-height: 320px; }
+  .termhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--col); font-size: 12px; color: var(--soft); }
+  .termhead b { color: var(--ink); font-weight: 650; }
+  .termhead .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+  .termhead .dot.on { background: var(--go); animation: pulse 1.6s ease-in-out infinite; }
+  .termhead .chip, .runlog summary .chip { background: var(--chip); border-radius: 999px; padding: 0 8px; color: var(--ink); }
+  .termhead .streammodel { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .termhead .streammodel:empty { display: none; }
+  .term .termwhy { padding: 6px 10px 0; font-size: 12px; color: var(--soft); }
+  .livelog .l-said { color: var(--ink); }
+  .livelog .l-tool { color: var(--blue); }
+  .livelog .l-err { color: var(--hot); }
+  .livelog .l-you { color: var(--accent); }
+  .livelog .l-ask { color: var(--warn); }
+  .livelog .l-end { color: var(--go); font-weight: 600; }
+  .livelog .l-meta { color: var(--soft); }
+  .runlog summary .chip, .runlog summary .sid { margin-left: 8px; text-transform: none; letter-spacing: 0; font-size: 12px; }
+  .runlog summary .sid { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--soft); text-transform: none; letter-spacing: 0; }
+  .runlog .term { margin: 8px 0 0; }
   .livepost .session { margin-top: 6px; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--soft); }
   .note .ran { white-space: nowrap; }
   .post pre { margin: 2px 0 0; line-height: 1.5; }
