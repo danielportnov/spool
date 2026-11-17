@@ -31,7 +31,8 @@ them, and whoever builds a thread reads them first: you, or each subagent.
 ## Build what is in Build
 
 **Nothing is built unless the human has moved it to build.** You never move a
-thread to build yourself, whatever it is and whoever thought of it.
+thread to build yourself, whatever it is and whoever thought of it, unless
+they switched **taking over** on: then "When Build is empty" says how.
 
 **Several at once, with subagents.** If your harness can start subagents and
 the project is a git repository, build several threads side by side, each by
@@ -84,6 +85,7 @@ do, and nothing otherwise:
 | `reply: t-4kq7 Tighter jump`, and their words | They wrote on a thread. Being built? It steers that work. Otherwise leave it for whoever builds it |
 | `unfiled: n-9wxa "add a mute button"` | A note nobody has filed. File it, by the `spool-record` skill |
 | `ask: d-3kq2 for t-4kq7 Tighter jump — "Outline, or teal?"`, and its options | An agent needs their call. Ask them in the chat, below |
+| `takeover: skyhop`, and how | They switched taking over on. Build empty? Take the next, below |
 
 - **In Claude Code:** start the `Monitor` tool with the command `spool watch`
   and the longest timeout it allows. Then end your turn: each line wakes you.
@@ -135,6 +137,13 @@ leave it. They wave it off? It waits on the board. No such tools? Nothing
 changes: it waits on the board, and `spool ask` ran their notifier.
 
 ## When Build is empty
+
+**Taking over the backlog?** Where they switched it on (`spool takeover`
+says), read the usage and report it, as above, then `spool build --takeover
+--as "<your model>"`. It moves the top thread they filed to Build, signed by
+you, and says so on the thread: build it, with a line ("🧵 Taking over: the
+jump"). One at a time, as slots free. Refused? It says why: the target is
+reached, or nothing may be taken. Then carry on below.
 
 **Nothing in build?** Do not build. Then, once:
 

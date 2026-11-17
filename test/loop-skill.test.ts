@@ -19,7 +19,10 @@ test('the loop skill has one job: make this chat the builder', () => {
   assert.match(flat, /2\. `spool prime worker --context`: the goals, the policy, what was undone and why, what is ready\. No `\.spool\/` here\? Use the `spool-init` skill\./);
 
   // The gate: only the human moves a thread to build, and nothing else is ever built.
-  assert.match(flat, /\*\*Nothing is built unless the human has moved it to build\.\*\* You never move a thread to build yourself, whatever it is and whoever thought of it\./);
+  assert.match(flat, /\*\*Nothing is built unless the human has moved it to build\.\*\* You never move a thread to build yourself, whatever it is and whoever thought of it, unless they switched \*\*taking over\*\* on: then "When Build is empty" says how\./);
+  // Taking over: the CLI picks the thread and checks the target; the chat signs the move and builds it.
+  assert.match(flat, /\*\*Taking over the backlog\?\*\* Where they switched it on \(`spool takeover` says\), read the usage and report it, as above, then `spool build --takeover --as "<your model>"`\. It moves the top thread they filed to Build, signed by you, and says so on the thread/);
+  assert.match(loop, /^\| `takeover: skyhop`, and how \| They switched taking over on\. Build empty\? Take the next, below \|$/m);
   assert.match(flat, /\*\*Nothing in build\?\*\* Do not build\./);
   // Agents sign their work, the lead and each subagent.
   assert.match(flat, /`--as` signs the work, as in `--as "Claude Fable 5\.2"`: the board shows who built each thread\./);
@@ -34,8 +37,8 @@ test('the loop skill has one job: make this chat the builder', () => {
   assert.match(flat, /\*\*The worker's rules are not in this skill\.\*\* `spool prime worker` prints them, and whoever builds a thread reads them first: you, or each subagent\./);
   // Up to their usage target: read before each thread, reported, and a stop is a stop.
   assert.match(flat, /\*\*Up to their usage target,\*\* where they set one on the board \(`spool target` says\)\. Before you claim each thread, read the plan's usage with your harness's tool \(`get_usage` in the Claude app\) and report it: `spool usage --weekly <n> --five-hour <n>`\. It says keep building, or stop: then claim nothing new, let what is building land, and notify them once\. No usage tool\? Say so once, and build as if no target were set\./);
-  // Short enough to be read every time: it was 553 lines, and grew six for the usage target, 29 for questions asked in the chat and two for the model.
-  assert.ok(loop.trimEnd().split('\n').length <= 162, `${loop.trimEnd().split('\n').length} lines`);
+  // Short enough to be read every time: it was 553 lines, and grew six for the usage target, 29 for questions asked in the chat, two for the model and nine for taking over.
+  assert.ok(loop.trimEnd().split('\n').length <= 171, `${loop.trimEnd().split('\n').length} lines`);
 });
 
 test('the loop watches the spool, and falls back to one scheduled job', () => {

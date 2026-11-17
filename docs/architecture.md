@@ -55,6 +55,10 @@ those comments are the detail.
   chat in Chat mode to use, kept in their own settings; and `spool usage`, the plan's usage that
   chat read and reported before a thread, kept beside it in `usage.json`. `usageOf` is both, and
   which limits are reached, for the board's header.
+- `takeover.ts` is `spool takeover`: whether the chat in Chat mode takes over a project's backlog,
+  kept in the user's settings beside who builds it. `reasonable` is which threads it may take;
+  `buildUnderTakeOver` is `spool build --takeover`, refused unless the switch is on, a chat builds,
+  the usage is freshly read and under the target, and Build is empty.
 - `leave.ts` is `spool leave`: how far agents may go while the human is away, and until when,
   kept in `.spool/leave.json`. `settle` gives the live leave and removes one that has run out.
   `buildUnderLeave` and `dropUnderLeave` are what `spool build --leave` and `spool drop --leave`

@@ -302,6 +302,13 @@ Claude app) and reports it with `spool usage`; once a target is reached it takes
 the header shows the usage against the target. `spool target --weekly 80` sets it from a chat or a
 terminal. Spool never reads your usage or your account itself: it keeps what the chat reports.
 
+Beside it, **Take over** lets the chat fill Build for you. Switched on, from its menu in the header
+or by saying "take over the backlog", the chat that builds moves the top thread you filed to Build
+itself whenever Build is empty and the usage is under the target, and builds it; it stops once the
+target is reached. Never an AI suggested thread, one on hold, or one waiting on a question or a
+plan's go-ahead. Each one says on its thread that the chat moved it, the brief lists it as worth a
+look, and `spool revert` takes it back. `spool takeover on` and `off` are the same switch.
+
 The agent it starts is a command on your machine, `claude -p` unless you say otherwise, and it can
 only do what you allow it. What you have not allowed, it asks for while the page is open: the
 question shows on its card, with **Allow once**, **Allow for this run** and **No**. With nobody

@@ -57,6 +57,7 @@ test('/spool is the one skill for the chat: status first, a short reply, and one
   assert.equal(run('"turn the agents off"'), '`spool agents off`, `spool agents on`');
   assert.match(run('"I don\'t need Spool here"'), /^`spool disable`, `spool enable`; `--all` for every project in this folder/);
   assert.equal(run('"build three at once"'), '`spool builder --at-once <n>`');
+  assert.match(run('"take over the backlog"'), /^`spool takeover on`, `spool takeover off`\. In Chat mode the chat then moves the top thread they filed to Build itself, up to the usage target$/);
   assert.match(run('"use up to 80% of my weekly usage"'), /^`spool target --weekly <n>`, `--five-hour <n>`; `none` takes one off\. A chat building in Chat mode works up to it$/);
   assert.match(run('"what happened overnight"'), /^`spool brief`, as it comes; `--since 8h` or `--since yesterday`/);
   assert.equal(run('"what needs me"'), '`spool review`');
@@ -77,7 +78,7 @@ test('/spool is the one skill for the chat: status first, a short reply, and one
   assert.match(run('"the goal has changed"'), /^`spool goals`; `spool goals --edit -` with their words/);
 
   // The gate: only they start work, and a locked gate is not to be got round.
-  assert.match(flat, /\*\*Only they start work\.\*\* Moving a thread to Build is the only way anything gets built, and `spool build`, `spool play`, `spool release`, `spool leave`, `spool builder` and `spool agents on` are theirs: run one only on their plain word\./);
+  assert.match(flat, /\*\*Only they start work\.\*\* Moving a thread to Build is the only way anything gets built, and `spool build`, `spool play`, `spool release`, `spool leave`, `spool builder`, `spool agents on` and `spool takeover on` are theirs: run one only on their plain word\./);
   assert.match(flat, /Never guess a go, an answer or an approval\. If their reply does not plainly say it, ask in one line\./);
   assert.match(flat, /\*\*Where the gate is locked,\*\* those commands refuse you\.[\s\S]*Do not look for a way round it: that refusal is the point\./);
   // Their commands run as them: signed by an agent, an undo keeps no lesson (test/lessons.test.ts).

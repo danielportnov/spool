@@ -285,6 +285,14 @@ Before it claims each thread it reads your plan's weekly and 5-hour usage with i
 reports it with `spool usage`, which says keep building or stop. Stopped, it claims nothing new and
 lets what is being built land. With no target it builds what is in Build, whatever the usage.
 
+**It can take over the backlog,** where you switch that on (`spool takeover on`, or Take over in
+the header). With Build empty and the usage under the target, it runs `spool build --takeover`,
+which moves the top thread you filed to Build, signed by the chat and saying so on the thread, and
+builds it. The command picks the thread and checks the usage, so the chat cannot stretch the rule:
+nothing AI suggested, on hold or waiting on anything, one at a time, and nothing once the target is
+reached. Switched off, nothing moves to Build without you. Where the gate is locked only you can
+switch it on.
+
 **It reacts; it does not wait on a clock.** `spool watch` stays up and prints a line when a thread
 can be built, when you reply on one, when an agent asks you something, or when a note stays unfiled for a few seconds. In Claude Code the loop listens to that
 with the Monitor tool, so pressing ▶ starts the build within seconds. Where a harness cannot listen,

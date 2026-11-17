@@ -1,6 +1,6 @@
 ---
 name: spool
-description: Steer this project's Spool from the chat - open the board, say what gets built and in what order, answer what agents asked, catch up on what they did, tidy the backlog, and change who builds. Replies are short and the detail is on the board. Use for /spool [what you want], or when the user says "open the board", "show me the spool", "where do things stand", "what needs me", "what's blocked", "catch me up", "what happened overnight", "why is nothing building", "build that one", "not yet", "do X first", "undo that", "play the sprint", "tidy the backlog", "archive that", "switch to chat mode", "let the page build", "turn the agents off" or "build three at once". Not for building, which is /spool-loop, or for filing a new idea, which is /spool-record.
+description: Steer this project's Spool from the chat - open the board, say what gets built and in what order, answer what agents asked, catch up on what they did, tidy the backlog, and change who builds. Replies are short and the detail is on the board. Use for /spool [what you want], or when the user says "open the board", "show me the spool", "where do things stand", "what needs me", "what's blocked", "catch me up", "what happened overnight", "why is nothing building", "build that one", "not yet", "do X first", "undo that", "play the sprint", "tidy the backlog", "archive that", "switch to chat mode", "let the page build", "turn the agents off" or "build three at once" or "take over the backlog". Not for building, which is /spool-loop, or for filing a new idea, which is /spool-record.
 ---
 
 # Spool
@@ -59,6 +59,7 @@ the detail.**
 | "turn the agents off", "turn them on" | `spool agents off`, `spool agents on` |
 | "I don't need Spool here", "turn Spool back on" | `spool disable`, `spool enable`; `--all` for every project in this folder. Off, the queue is kept and every command refuses |
 | "build three at once", "one at a time" | `spool builder --at-once <n>` |
+| "take over the backlog", "stop taking over" | `spool takeover on`, `spool takeover off`. In Chat mode the chat then moves the top thread they filed to Build itself, up to the usage target |
 | "use up to 80% of my weekly usage", "stop at 90% of the 5-hour limit" | `spool target --weekly <n>`, `--five-hour <n>`; `none` takes one off. A chat building in Chat mode works up to it |
 | "what is this project for", "the goal has changed" | `spool goals`; `spool goals --edit -` with their words |
 | "where is this heading", "how is the sprint going" | The Roadmap on the board: its address, then `?view=roadmap`. A sprint that is reached has its review there, `?review=<r-id>`: send them to it, and do not walk its threads in the chat |
@@ -68,7 +69,7 @@ the detail.**
 
 **Only they start work.** Moving a thread to Build is the only way anything
 gets built, and `spool build`, `spool play`, `spool release`, `spool leave`,
-`spool builder` and `spool agents on` are theirs: run one only on their plain
+`spool builder`, `spool agents on` and `spool takeover on` are theirs: run one only on their plain
 word. Never guess a go, an answer or an approval. If their reply does not
 plainly say it, ask in one line. **Where the gate is locked,** those commands
 refuse you. Give them the thread's place on the board and they press ▶. Do
