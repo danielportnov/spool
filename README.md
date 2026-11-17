@@ -154,6 +154,12 @@ Two threads land in the backlog, in your words, each in the sprint it serves if 
 3. **It gets built,** by the board's own agents or by a chat running `/spool-loop`, whichever you picked. In order, three threads at a time where the project is a git repository, each in a worktree of its own; one at a time otherwise. A chat says a line when a thread starts and a line when it ships.
 4. **You can take it back.** "Undo that" reverts everything that thread changed, and nothing else. The thread goes back to the backlog, and nothing builds it until you move it to Build. Say why, and the reason is kept as a lesson: every agent reads it before it works, so you never say it twice. `spool lessons` lists them; `spool lessons --drop <n>` forgets one.
 
+The queue has its own local history. Run `spool history <id>` for a thread, note or decision, or
+use `policy`, `config` or `goals` for a project file. `spool undo <entry>` restores a previous
+copy when the file still matches the entry and records the undo in its history. For a switch or
+a change tied to Git or a worktree, the entry points you to the corresponding Spool command.
+The journal starts with the next write after the upgrade and records changes made through Spool.
+
 **Nothing is built unless you put it in Build.** That is the contract.
 
 Want that enforced, not just promised? `spool init --lock`. Then the commands that start work run

@@ -45,7 +45,7 @@ export const ATTACH: Command = {
     const by = typeof call.opts.by === 'string' && call.opts.by.trim() ? call.opts.by.trim() : call.ctx.env.SPOOL_ACTOR;
     const actor = side || by ? signAs(by, task.status === 'active' ? task.by : undefined, 'agent') : call.actor;
     const added = attach(task, files, (side || null) as As | null, caption, actor, call.ws.now());
-    call.ws.save(task);
+    call.ws.save(task, { actor, command: 'attach' });
     const lines = [`Attached to ${task.id}:`, ...added.map((p) => `  ${p.path}`)];
     return { text: lines.join('\n'), data: { id: task.id, pictures: added } };
   },

@@ -220,7 +220,7 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
   const scoped: Ctx = { ...ctx, cwd: path.resolve(ctx.cwd, cwd ?? '.'), color: ctx.color && !json };
   const base = { ctx: scoped, args: positionals, opts: values, follows, actor, p: paint(scoped.color) };
   // Where Spool is switched off (spool disable), nothing works its queue until spool enable.
-  const off = command.bare ? command.refusedWhenOff : true;
+  const off = command.refusedWhenOff ?? !command.bare;
   if (off === true || (typeof off === 'function' && off(base))) refuseIfOff(scoped.cwd);
   if (command.bare) return { result: command.bare(base), json };
 
@@ -230,8 +230,12 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
     const ws = Workspace.open(scoped.cwd, scoped.now, !!command.write);
     try {
       // Under a run (SPOOL_RUN), what the command writes is kept, so the whole run can be undone as one.
-      if (command.write) record(ws, scoped.env, command.name);
-      const result = command.run!({ ...base, actor: signed(ws, command, base, given), ws, before });
+      const signer = signed(ws, command, base, given);
+      if (command.write) {
+        ws.writer = { actor: signer, command: command.name };
+        record(ws, scoped.env, command.name);
+      }
+      const result = command.run!({ ...base, actor: signer, ws, before });
       if (!bare || !art) return { result, json };
       // Typed with nothing after it, the status opens under the mark, with the version and the project beside it.
       const head = mark(scoped, { lines: [...versioned(), ws.home.name, beside.dim('spool help lists the commands')] });

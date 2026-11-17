@@ -372,7 +372,7 @@ export class Runner {
         task.status = 'open';
         task.by = undefined;
         addLog(task, 'page', why, ws.now());
-        ws.save(task);
+        ws.save(task, { actor: 'page', command: 'page' });
       } finally {
         ws.close();
       }
@@ -450,7 +450,7 @@ export class Runner {
         task.started = timestamp(ws.now());
         addLog(task, 'page', 'its page had stopped with nobody working it; carried on where it was', ws.now());
         addLog(task, 'page', `handed to \`${again.command}\``, ws.now());
-        ws.save(task);
+        ws.save(task, { actor: 'page', command: 'page' });
         fresh.prompt = this.opening(ws, fresh.command, brief(ws, task, paint(false)));
       } finally {
         ws.close();
@@ -904,7 +904,7 @@ export class Runner {
             // Not this tick, and not every second after: it waits in Build until something about it changes.
             const e = error as SpoolError;
             addLog(task, 'page', `not started: it could not have a worktree of its own (${e.message}${e.hint ? `. ${e.hint}` : ''})`, ws.now());
-            ws.save(task);
+            ws.save(task, { actor: 'page', command: 'page' });
             this.gaveUp.set(task.id, task.updated);
             return 'skipped';
           }
@@ -942,7 +942,7 @@ export class Runner {
         fresh.command = this.afresh(this.command(pick));
         if (stepped) addLog(task, 'page', stepped, ws.now());
         addLog(task, 'page', `handed to \`${(again ?? fresh).command}\``, ws.now());
-        ws.save(task);
+        ws.save(task, { actor: 'page', command: 'page' });
         fresh.prompt = this.opening(ws, fresh.command, brief(ws, task, paint(false)));
       } finally {
         ws.close();
@@ -1034,7 +1034,7 @@ export class Runner {
         if (now?.status !== 'active') return false;
         addLog(now, 'page', `session ${run.session.id} could not be picked up again; starting afresh`, ws.now());
         addLog(now, 'page', `handed to \`${afresh.command}\``, ws.now());
-        ws.save(now);
+        ws.save(now, { actor: 'page', command: 'page' });
       } finally {
         ws.close();
       }
@@ -1055,7 +1055,7 @@ export class Runner {
         const task = ws.find(id);
         if (task) {
           for (const n of notes) addLog(task, 'page', n, ws.now());
-          ws.save(task);
+          ws.save(task, { actor: 'page', command: 'page' });
         }
         notes.length = 0;
       } finally {
@@ -1082,7 +1082,7 @@ export class Runner {
           // A check that refused it and was still failing when it left: the output stays on the thread for whoever picks it up.
           if (!run.stopped && run.session?.failedCheck) addLog(now, 'page', `the check ${run.retried ? 'failed again after one more go' : 'failed'}: ${run.session.failedCheck.slice(-1200)}`, ws.now());
           addLog(now, 'page', run.stopped ? 'stopped from the page; back in build' : `agent ${how} without finishing; back in build`, ws.now());
-          ws.save(now);
+          ws.save(now, { actor: 'page', command: 'page' });
           if (!run.stopped) this.gaveUp.set(now.id, now.updated);
           outcome = run.stopped ? 'stopped' : `unfinished: the agent ${how}${run.lines.length ? ` — ${run.lines.at(-1)}` : ''}`;
         } else if (now?.status === 'open' && run.stopped && !now.needs.length) {

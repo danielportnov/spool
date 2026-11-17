@@ -859,8 +859,7 @@ export function manage(call: Call): Result {
     }
     const { text, counts } = reportText(run, headline, said, readJournal(run).entries, handsOffLine(handsOffIn(ws, run.spool)));
     const file = reportFile(run);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, text);
+    ws.writeQueue(run.spool, `report-${run.id}`, text);
     run.status = 'done';
     run.place = undefined;
     run.summary = headline;

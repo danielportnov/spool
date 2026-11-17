@@ -92,19 +92,12 @@ export function withoutLessons(policy: string): string {
   return [...lines.slice(0, section[0]), ...lines.slice(section[1])].join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-function write(file: string, text: string): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const temp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(temp, text);
-  fs.renameSync(temp, file);
-}
-
 /** Keep the human's reason for undoing a thread, at the top of its project's lessons. */
-export function keepLesson(task: Item, words: string, now: Date): Lesson {
+function keepLesson(ws: Workspace, task: Item, words: string): Lesson {
   const file = policyFile(task.spool);
   const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : DEFAULT_POLICY;
   const lines = text.replace(/\s+$/, '').split('\n');
-  const line = lineOf(words, task.id, now.toISOString().slice(0, 10));
+  const line = lineOf(words, task.id, ws.now().toISOString().slice(0, 10));
   const section = sectionOf(lines);
   if (!section) {
     lines.push('', HEADING, '', ...INTRO.split('\n'), '', line);
@@ -122,7 +115,7 @@ export function keepLesson(task: Item, words: string, now: Date): Lesson {
     }
     lines.splice(at, 0, line);
   }
-  write(file, `${lines.join('\n')}\n`);
+  ws.writeQueue(task.spool, 'policy', `${lines.join('\n')}\n`);
   return lessonsIn(task.spool).find((l) => l.thread === task.id)!;
 }
 
@@ -132,7 +125,7 @@ export function keepLesson(task: Item, words: string, now: Date): Lesson {
  */
 export function learn(ws: Workspace, task: Item, actor: string, why: string): { lesson?: Lesson; line?: string } {
   if (!why || actor !== 'human') return {};
-  const lesson = keepLesson(task, why, ws.now());
+  const lesson = keepLesson(ws, task, why);
   const n = lessons(ws).findIndex((l) => l.spool === lesson.spool && l.line === lesson.line) + 1;
   return { lesson, line: `Your reason is kept as a lesson every agent here reads first. To forget it: spool lessons --drop ${n}` };
 }
@@ -150,7 +143,7 @@ export function dropLesson(ws: Workspace, n: number): Lesson {
   const file = policyFile(lesson.spool);
   const lines = fs.readFileSync(file, 'utf8').split('\n');
   lines.splice(lesson.line, 1);
-  write(file, lines.join('\n'));
+  ws.writeQueue(lesson.spool, 'policy', lines.join('\n'));
   return lesson;
 }
 

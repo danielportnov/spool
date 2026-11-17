@@ -16,7 +16,8 @@ import type { Bare, Command, Result } from './commands.ts';
 import { pageUp } from './detach.ts';
 import { type Config, SpoolError } from './model.ts';
 import { AGENT_FILES, upsertBlock, withoutBlock } from './prime.ts';
-import { SPOOL_DIR, findHome, readConfig, spoolsUnder, worktreeOwner } from './store.ts';
+import { writeQueue } from './queue-journal.ts';
+import { SPOOL_DIR, findHome, readConfig, spoolsUnder, withSpoolLock, worktreeOwner } from './store.ts';
 
 interface Switched {
   root: string;
@@ -31,8 +32,8 @@ interface Switched {
   page?: string;
 }
 
-function writeConfig(root: string, config: Config): void {
-  fs.writeFileSync(path.join(root, SPOOL_DIR, 'config.json'), `${JSON.stringify(config, null, 2)}\n`);
+function writeConfig(call: Bare, root: string, config: Config, command: 'disable' | 'enable'): void {
+  writeQueue(path.join(root, SPOOL_DIR), 'config', `${JSON.stringify(config, null, 2)}\n`, { actor: call.actor, command }, call.ctx.now());
 }
 
 /** The spools to switch: the one this folder is in, or with `--all`, every one in it and below it. */
@@ -69,12 +70,12 @@ function switchOff(call: Bare, root: string): Switched {
   const was = config.disabled;
   if (!was || files.length) {
     const block = [...new Set([...(was?.block ?? []), ...files])];
-    writeConfig(root, { ...config, disabled: { since: was?.since ?? call.ctx.now().toISOString(), block } });
+    writeConfig(call, root, { ...config, disabled: { since: was?.since ?? call.ctx.now().toISOString(), block } }, 'disable');
   }
   return { root, name: config.name || path.basename(root), changed: !was || !!files.length, files, whole, page: pageUp(call.ctx, root)?.url };
 }
 
-function switchOn(root: string): Switched {
+function switchOn(call: Bare, root: string): Switched {
   const config = readConfig(root);
   const name = config.name || path.basename(root);
   const { disabled, ...on } = config;
@@ -93,7 +94,7 @@ function switchOn(root: string): Switched {
     files.push(want);
     if (!there) whole.push(want);
   }
-  writeConfig(root, on);
+  writeConfig(call, root, on, 'enable');
   return { root, name, changed: true, files, whole };
 }
 
@@ -156,8 +157,9 @@ export const DISABLE: Command = {
   group: 'setup',
   usage: 'disable [--all]',
   summary: "Switch Spool off in this project: agents are not sent to it and its commands refuse, its queue kept as it was; --all does every spool in this folder and below",
+  human: true,
   options: { all: { type: 'boolean' } },
-  bare: (call) => report(call, targets(call).map((root) => switchOff(call, root)), true),
+  bare: (call) => report(call, targets(call).map((root) => withSpoolLock(path.join(root, SPOOL_DIR), () => switchOff(call, root))), true),
 };
 
 export const ENABLE: Command = {
@@ -165,6 +167,7 @@ export const ENABLE: Command = {
   group: 'setup',
   usage: 'enable [--all]',
   summary: 'Switch Spool back on where spool disable switched it off, putting the agents\' pointer back; --all does every spool in this folder and below',
+  human: true,
   options: { all: { type: 'boolean' } },
-  bare: (call) => report(call, targets(call).map((root) => switchOn(root)), false),
+  bare: (call) => report(call, targets(call).map((root) => withSpoolLock(path.join(root, SPOOL_DIR), () => switchOn(call, root))), false),
 };

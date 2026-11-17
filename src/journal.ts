@@ -231,8 +231,8 @@ export function startJournal(run: Item): void {
  */
 export function record(ws: Workspace, env: Record<string, string | undefined>, command: string): void {
   const id = env.SPOOL_RUN?.trim();
-  // `spool manage` opens and closes runs itself, and is never made under one.
-  if (!id || command === 'manage') return;
+  // Manage handles its own runs. Undo writes a separate receipt and must not extend a manager run.
+  if (!id || command === 'manage' || command === 'undo') return;
   const run = /^t-[a-z0-9]+$/.test(id) ? ws.find(id) : undefined;
   if (!run || run.kind !== 'task') {
     throw new SpoolError(`SPOOL_RUN names "${id}", which is not a thread here`, 'Unset it, or set it to the id of the thread this run belongs to');
@@ -309,13 +309,11 @@ export function undoRun(ws: Workspace, run: Item, actor: string, why: string, p:
       continue;
     }
     if (copy) {
-      const temp = `${file}.${process.pid}.tmp`;
-      fs.writeFileSync(temp, copy);
-      fs.renameSync(temp, file);
+      ws.writeQueue(spool, id, copy.toString('utf8'));
       restored.push(id);
       if (mine.some((e) => e.since)) partly.push({ id, title: last.title });
     } else {
-      fs.rmSync(file, { force: true });
+      ws.writeQueue(spool, id, null);
       removed.push(id);
     }
   }

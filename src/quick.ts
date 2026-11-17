@@ -205,7 +205,7 @@ export class QuickReplies {
         const task = ws.find(id);
         if (task) {
           addLog(task, who, text, ws.now());
-          ws.save(task);
+          ws.save(task, { actor: who, command: 'quick-reply' });
         }
       } finally {
         ws.close();

@@ -16,6 +16,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomInt } from 'node:crypto';
 import { parseFrontmatter } from './frontmatter.ts';
+import { type QueueWriter, writeQueue } from './queue-journal.ts';
 import {
   type Config,
   type Item,
@@ -225,6 +226,40 @@ function sleep(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
+/** Take the same project lock for setup writes that do not open a workspace. */
+export function withSpoolLock<T>(dir: string, action: () => T): T {
+  const release = lockSpool(dir);
+  try {
+    return action();
+  } finally {
+    release();
+  }
+}
+
+function lockSpool(dir: string): () => void {
+  const file = path.join(dir, '.lock');
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  for (;;) {
+    try {
+      fs.closeSync(fs.openSync(file, 'wx'));
+      return () => fs.rmSync(file, { force: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+    // Someone else is writing. A lock older than any command should take was left by a crash.
+    try {
+      if (Date.now() - fs.statSync(file).mtimeMs > LOCK_STALE_MS) {
+        fs.rmSync(file, { force: true });
+        continue;
+      }
+    } catch {
+      continue;
+    }
+    if (Date.now() > deadline) throw new SpoolError(`another spool command is holding ${file}`, 'Try again in a moment.');
+    sleep(20);
+  }
+}
+
 export class Workspace {
   readonly spools: Spool[] = [];
   readonly items: Item[] = [];
@@ -234,8 +269,9 @@ export class Workspace {
   readonly now: () => Date;
   /** Set for a command run under a run (`SPOOL_RUN`). */
   recorder?: Recorder;
+  writer: QueueWriter = { actor: 'agent', command: 'workspace' };
   private readonly byId = new Map<string, Item>();
-  private held: string[] = [];
+  private held: (() => void)[] = [];
 
   private constructor(home: Spool, now: () => Date) {
     this.home = home;
@@ -272,7 +308,7 @@ export class Workspace {
   }
 
   close(): void {
-    for (const file of this.held) fs.rmSync(file, { force: true });
+    for (const release of this.held) release();
     this.held = [];
   }
 
@@ -350,35 +386,12 @@ export class Workspace {
   // ---------------------------------------------------------------- locking
 
   private lock(): void {
-    const targets = this.spools.map((s) => path.join(s.dir, '.lock')).sort();
-    for (const file of targets) {
-      const deadline = Date.now() + LOCK_WAIT_MS;
-      for (;;) {
-        try {
-          fs.closeSync(fs.openSync(file, 'wx'));
-          this.held.push(file);
-          break;
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-            this.close();
-            throw error;
-          }
-        }
-        // Someone else is writing. A lock older than any command should take was left by a crash.
-        try {
-          if (Date.now() - fs.statSync(file).mtimeMs > LOCK_STALE_MS) {
-            fs.rmSync(file, { force: true });
-            continue;
-          }
-        } catch {
-          continue;
-        }
-        if (Date.now() > deadline) {
-          this.close();
-          throw new SpoolError(`another spool command is holding ${file}`, 'Try again in a moment.');
-        }
-        sleep(20);
-      }
+    const targets = this.spools.map((s) => s.dir).sort();
+    try {
+      for (const dir of targets) this.held.push(lockSpool(dir));
+    } catch (error) {
+      this.close();
+      throw error;
     }
   }
 
@@ -493,15 +506,18 @@ export class Workspace {
     return item;
   }
 
-  save(item: Item): void {
-    item.updated = timestamp(this.now());
+  /** Write queue data that the manager's run recorder does not own. */
+  writeQueue(spool: Spool, target: string, text: string | null, writer = this.writer): void {
+    writeQueue(spool.dir, target, text, writer, this.now());
+  }
+
+  save(item: Item, writer = this.writer): void {
+    const now = this.now();
+    item.updated = timestamp(now);
     const file = this.file(item);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
     const text = serialize(item);
     this.recorder?.keep(item, file);
-    const temp = `${file}.${process.pid}.tmp`;
-    fs.writeFileSync(temp, text);
-    fs.renameSync(temp, file);
-    this.recorder?.wrote(item, file, text);
+    const entry = writeQueue(item.spool.dir, item.id, text, writer, now);
+    if (entry) this.recorder?.wrote(item, file, text);
   }
 }

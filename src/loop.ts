@@ -106,7 +106,7 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
         task.started = timestamp(ws.now());
         if (given.stepped) addLog(task, 'loop', given.stepped, ws.now());
         addLog(task, 'loop', `handed to \`${command}\``, ws.now());
-        ws.save(task);
+        ws.save(task, { actor: 'loop', command: 'loop' });
         prompt = `${PREAMBLE}\n${prime(ws, 'worker')}\n\nYOUR TASK\n\n${brief(ws, task, paint(false))}\n`;
       } else if (!toldIdle && review(ws, project).questions.length) {
         toldIdle = notify(ctx, 'idle', `Spool is idle with ${review(ws, project).questions.length} question(s) waiting on you`);
@@ -149,7 +149,7 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
         now.by = undefined;
         const how = run.error ? `could not start (${run.error.message})` : `exited ${run.status ?? run.signal}`;
         addLog(now, 'loop', `agent ${how} without finishing`, after.now());
-        after.save(now);
+        after.save(now, { actor: 'loop', command: 'loop' });
         gaveUp.set(now.id, now.updated);
         tally.unfinished++;
         ctx.out(`  ${p.yellow('↺')} unfinished — agent ${how}; released`);

@@ -61,6 +61,8 @@ import {
 } from './model.ts';
 import { DEFAULT_POLICY, type Role, about, prime, upsertBlock } from './prime.ts';
 import { journaled, undoRun } from './journal.ts';
+import { HISTORY, UNDO } from './history.ts';
+import { writeQueue } from './queue-journal.ts';
 import {
   type Paint,
   brief,
@@ -94,7 +96,7 @@ import {
   taskState,
 } from './schedule.ts';
 import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, writeSkill } from './skills.ts';
-import { SPOOL_DIR, Workspace, findFolder, findHome, readConfig, skillsDir, worktreeOwner } from './store.ts';
+import { SPOOL_DIR, Workspace, findFolder, findHome, readConfig, skillsDir, withSpoolLock, worktreeOwner } from './store.ts';
 import { alikeIn, alikeLines, similarLines, similarTo } from './similar.ts';
 import { addQuote, setLine, visionQuote } from './sprints.ts';
 import { SUGGEST, suggestSkills } from './suggest.ts';
@@ -154,8 +156,8 @@ export interface Command {
   /** Runs last, whatever happened, with what `before` gave back: to let go of anything it took. */
   after?: (before: unknown) => void;
   /**
-   * A bare command that works the queue, refused where Spool is switched off (`spool disable`), as
-   * every command that opens the store is. A function says, from the call, whether this run is.
+   * Whether to refuse where Spool is switched off (`spool disable`). By default, commands
+   * that open the queue refuse and bare commands run. A function can decide from the call.
    */
   refusedWhenOff?: boolean | ((call: Bare) => boolean);
 }
@@ -927,6 +929,8 @@ export const COMMANDS: Command[] = [
     },
   },
 
+  HISTORY,
+  UNDO,
   {
     name: 'lessons',
     group: 'you',
@@ -967,7 +971,7 @@ export const COMMANDS: Command[] = [
       if (typeof opts.edit === 'string') {
         const text = (opts.edit === '-' ? call.ctx.stdin() : opts.edit).trim();
         if (!text) throw new SpoolError('the goals are missing', 'spool goals --edit - with the page on stdin');
-        fs.writeFileSync(file, `${text}\n`);
+        ws.writeQueue(spool, 'goals', `${text}\n`);
       }
       const goals = goalsOf(spool);
       const text = goalsText(spool);
@@ -1708,8 +1712,7 @@ export const COMMANDS: Command[] = [
       }
 
       if (report !== undefined) {
-        fs.mkdirSync(path.dirname(reportPath), { recursive: true });
-        fs.writeFileSync(reportPath, `${report.trim()}\n`);
+        ws.writeQueue(t.spool, `report-${t.id}`, `${report.trim()}\n`);
       }
       t.status = 'done';
       t.place = undefined;
@@ -2433,112 +2436,121 @@ export const COMMANDS: Command[] = [
       gate: { type: 'boolean' },
       lock: { type: 'boolean' },
     },
-    bare({ ctx, args, opts, p }) {
+    bare({ ctx, args, opts, p, actor }) {
       // A folder may be named the way a person says it: "sky hop" finds games/sky_hop.
       const named = args.length ? findFolder(ctx.cwd, args.join(' ')) : ctx.cwd;
       // Inside a thread's worktree, the project is the one the worktree belongs to: its copy of the queue is never set up or read.
       const root = worktreeOwner(named) ?? named;
       const dir = path.join(root, SPOOL_DIR);
       const where = path.relative(ctx.cwd, root);
-      const wrote: string[] = [];
-      const write = (file: string, text: string, overwrite = false): void => {
-        if (!overwrite && fs.existsSync(file)) return;
-        fs.mkdirSync(path.dirname(file), { recursive: true });
-        fs.writeFileSync(file, text);
-        wrote.push(path.relative(root, file));
-      };
-
-      const fresh = !fs.existsSync(path.join(dir, 'config.json'));
-      // Switched off, it stays off: nothing here puts the agents' pointer back but spool enable.
-      if (!fresh && readConfig(root).disabled) {
-        const name = readConfig(root).name ?? path.basename(root);
-        return {
-          text: [
-            `Spool is set up in ${p.bold(name)}${where ? p.dim(`  · ${where}`) : ''}, but switched off. Nothing was changed.`,
-            p.dim(`  spool enable${where ? ` -C ${where}` : ''} turns it back on`),
-          ].join('\n'),
-          data: { root, created: false, wrote, off: true },
+      fs.mkdirSync(dir, { recursive: true });
+      return withSpoolLock(dir, () => {
+        const wrote: string[] = [];
+        const write = (file: string, text: string, overwrite = false): void => {
+          if (!overwrite && fs.existsSync(file)) return;
+          fs.mkdirSync(path.dirname(file), { recursive: true });
+          fs.writeFileSync(file, text);
+          wrote.push(path.relative(root, file));
         };
-      }
-      // Run by accident where a spool exists, this changes nothing. --refresh is the deliberate version:
-      // after an upgrade, it brings the agents' pointer up to date and puts back anything missing.
-      if (!fresh && !opts.refresh && !opts.share && !opts.gate && !opts.lock) {
-        const name = readConfig(root).name ?? path.basename(root);
-        return {
-          text: [
-            `Spool is already set up in ${p.bold(name)}${where ? p.dim(`  · ${where}`) : ''}. Nothing was changed.`,
-            p.dim(`  see where it stands: spool overview${where ? ` -C ${where}` : ''}`),
-          ].join('\n'),
-          data: { root, created: false, wrote },
-        };
-      }
-      const parent = findHome(path.dirname(root));
-      if (fresh) {
-        const config: Config = { version: 1, name: str(opts.name) ?? path.basename(root) };
-        if (str(opts.about)) config.about = str(opts.about);
-        if (opts.gate) config.gate = true;
-        if (opts.lock) config.gate = 'locked';
-        write(path.join(dir, 'config.json'), `${JSON.stringify(config, null, 2)}\n`);
-      } else if ((opts.lock && readConfig(root).gate !== 'locked') || (opts.gate && !readConfig(root).gate)) {
-        // Turning the gate on, or locking it, for a project that has a spool: one key, nothing else touched.
-        // --gate never loosens a lock; taking a lock off is done by hand, in the file, by a person.
-        write(path.join(dir, 'config.json'), `${JSON.stringify({ ...readConfig(root), gate: opts.lock ? 'locked' : true }, null, 2)}\n`, true);
-      }
-      write(path.join(dir, 'policy.md'), DEFAULT_POLICY);
-      write(path.join(dir, 'goals.md'), GOALS_STARTER);
-      // An existing .gitignore is someone's choice and is kept; --share is the one thing that rewrites it.
-      write(path.join(dir, '.gitignore'), opts.share ? QUEUE_SHARED : QUEUE_LOCAL, !!opts.share);
-      fs.mkdirSync(path.join(dir, 'items'), { recursive: true });
-      const config = readConfig(root);
-      const spool: Spool = { root, dir, name: config.name ?? path.basename(root), home: true, config };
 
-      if (!opts['no-agents-file']) {
-        const present = ['CLAUDE.md', 'AGENTS.md'].filter((f) => fs.existsSync(path.join(root, f)));
-        for (const name of present.length ? present : ['AGENTS.md']) {
-          const file = path.join(root, name);
-          const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-          const after = upsertBlock(before);
-          if (after !== before) write(file, after, true);
+        const setup = (target: 'config' | 'policy' | 'goals', text: string, overwrite = false): void => {
+          const file = path.join(dir, target === 'config' ? 'config.json' : `${target}.md`);
+          if (!overwrite && fs.existsSync(file)) return;
+          if (writeQueue(dir, target, text, { actor, command: 'init' }, ctx.now())) wrote.push(path.relative(root, file));
+        };
+
+        const fresh = !fs.existsSync(path.join(dir, 'config.json'));
+        // Switched off, it stays off: nothing here puts the agents' pointer back but spool enable.
+        if (!fresh && readConfig(root).disabled) {
+          const name = readConfig(root).name ?? path.basename(root);
+          return {
+            text: [
+              `Spool is set up in ${p.bold(name)}${where ? p.dim(`  · ${where}`) : ''}, but switched off. Nothing was changed.`,
+              p.dim(`  spool enable${where ? ` -C ${where}` : ''} turns it back on`),
+            ].join('\n'),
+            data: { root, created: false, wrote, off: true },
+          };
         }
-      }
+        // Run by accident where a spool exists, this changes nothing. --refresh is the deliberate version:
+        // after an upgrade, it brings the agents' pointer up to date and puts back anything missing.
+        if (!fresh && !opts.refresh && !opts.share && !opts.gate && !opts.lock) {
+          const name = readConfig(root).name ?? path.basename(root);
+          return {
+            text: [
+              `Spool is already set up in ${p.bold(name)}${where ? p.dim(`  · ${where}`) : ''}. Nothing was changed.`,
+              p.dim(`  see where it stands: spool overview${where ? ` -C ${where}` : ''}`),
+            ].join('\n'),
+            data: { root, created: false, wrote },
+          };
+        }
+        const parent = findHome(path.dirname(root));
+        if (fresh) {
+          const config: Config = { version: 1, name: str(opts.name) ?? path.basename(root) };
+          if (str(opts.about)) config.about = str(opts.about);
+          if (opts.gate) config.gate = true;
+          if (opts.lock) config.gate = 'locked';
+          setup('config', `${JSON.stringify(config, null, 2)}\n`);
+        } else if ((opts.lock && readConfig(root).gate !== 'locked') || (opts.gate && !readConfig(root).gate)) {
+          // Turning the gate on, or locking it, for a project that has a spool: one key, nothing else touched.
+          // --gate never loosens a lock; taking a lock off is done by hand, in the file, by a person.
+          setup('config', `${JSON.stringify({ ...readConfig(root), gate: opts.lock ? 'locked' : true }, null, 2)}\n`, true);
+        }
+        setup('policy', DEFAULT_POLICY);
+        setup('goals', GOALS_STARTER);
+        // An existing .gitignore is someone's choice and is kept; --share is the one thing that rewrites it.
+        write(path.join(dir, '.gitignore'), opts.share ? QUEUE_SHARED : QUEUE_LOCAL, !!opts.share);
+        fs.mkdirSync(path.join(dir, 'items'), { recursive: true });
+        const config = readConfig(root);
+        const spool: Spool = { root, dir, name: config.name ?? path.basename(root), home: true, config };
 
-      const out = [
-        fresh
-          ? `Spool is set up in ${p.bold(spool.name)}${where ? p.dim(`  · ${where}`) : ''}.`
-          : `${p.bold(spool.name)}: ${wrote.length ? 'refreshed.' : 'already up to date.'}`,
-      ];
-      if (wrote.length) out.push(...wrote.map((f) => p.dim(`  wrote ${f}`)));
-      if (fresh && parent) out.push(`It sits under ${path.basename(parent)} and shows up there as a project.`);
-      const local = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8').split('\n').includes('*');
-      if (config.gate && (fresh || opts.gate || opts.lock)) {
-        out.push('The build gate is on: new work starts as proposed, and nothing is built until you move it to build.');
-      }
-      if (config.gate === 'locked' && (fresh || opts.lock)) {
-        out.push('It is locked: moving work to build takes you, on the Spool page or at your own terminal. An agent is refused.');
-      }
-      if (fresh || opts.share) {
-        out.push(
-          local
-            ? `The queue stays on this machine: git ignores ${SPOOL_DIR}/.  ${p.dim('(spool init --refresh --share keeps it in git)')}`
-            : `The queue is kept in git with the rest of the project: ${SPOOL_DIR}/ is not ignored.`,
-        );
-      }
-      const skills = installedAnywhere(ctx, root);
-      if (!skills) out.push('', 'The Spool skills are not installed for your agent yet. Once per machine:  spool install');
-      if (fresh) {
-        out.push(
-          '',
-          ...[markLine(ctx)].filter(Boolean),
-          'Next, in your agent. You should not need this command line again.',
-          '  /spool            say what you want: "open the board", "build that one", "catch me up", "why is nothing building"',
-          '  /spool-loop       makes that chat the builder: it builds what is in build, and tells you when it needs you',
-          '  /spool-lazy       lazy dev mode: it decides, builds and shows you screenshots; you react',
-          '  /spool-record     put it in front of anything you type or say, and that message is filed as threads',
-          `  ${path.join(SPOOL_DIR, 'policy.md')} says what agents may decide without you — worth two minutes.`,
-          `  ${path.join(SPOOL_DIR, 'goals.md')} says where the project is heading: your agent asks you, in one question.`,
-        );
-      }
-      return { text: out.join('\n'), data: { root, created: fresh, wrote, skills, shared: !local } };
+        if (!opts['no-agents-file']) {
+          const present = ['CLAUDE.md', 'AGENTS.md'].filter((f) => fs.existsSync(path.join(root, f)));
+          for (const name of present.length ? present : ['AGENTS.md']) {
+            const file = path.join(root, name);
+            const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+            const after = upsertBlock(before);
+            if (after !== before) write(file, after, true);
+          }
+        }
+
+        const out = [
+          fresh
+            ? `Spool is set up in ${p.bold(spool.name)}${where ? p.dim(`  · ${where}`) : ''}.`
+            : `${p.bold(spool.name)}: ${wrote.length ? 'refreshed.' : 'already up to date.'}`,
+        ];
+        if (wrote.length) out.push(...wrote.map((f) => p.dim(`  wrote ${f}`)));
+        if (fresh && parent) out.push(`It sits under ${path.basename(parent)} and shows up there as a project.`);
+        const local = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8').split('\n').includes('*');
+        if (config.gate && (fresh || opts.gate || opts.lock)) {
+          out.push('The build gate is on: new work starts as proposed, and nothing is built until you move it to build.');
+        }
+        if (config.gate === 'locked' && (fresh || opts.lock)) {
+          out.push('It is locked: moving work to build takes you, on the Spool page or at your own terminal. An agent is refused.');
+        }
+        if (fresh || opts.share) {
+          out.push(
+            local
+              ? `The queue stays on this machine: git ignores ${SPOOL_DIR}/.  ${p.dim('(spool init --refresh --share keeps it in git)')}`
+              : `The queue is kept in git with the rest of the project: ${SPOOL_DIR}/ is not ignored.`,
+          );
+        }
+        const skills = installedAnywhere(ctx, root);
+        if (!skills) out.push('', 'The Spool skills are not installed for your agent yet. Once per machine:  spool install');
+        if (fresh) {
+          out.push(
+            '',
+            ...[markLine(ctx)].filter(Boolean),
+            'Next, in your agent. You should not need this command line again.',
+            '  /spool            say what you want: "open the board", "build that one", "catch me up", "why is nothing building"',
+            '  /spool-loop       makes that chat the builder: it builds what is in build, and tells you when it needs you',
+            '  /spool-lazy       lazy dev mode: it decides, builds and shows you screenshots; you react',
+            '  /spool-record     put it in front of anything you type or say, and that message is filed as threads',
+            `  ${path.join(SPOOL_DIR, 'policy.md')} says what agents may decide without you — worth two minutes.`,
+            `  ${path.join(SPOOL_DIR, 'goals.md')} says where the project is heading: your agent asks you, in one question.`,
+          );
+        }
+        return { text: out.join('\n'), data: { root, created: fresh, wrote, skills, shared: !local } };
+      });
     },
   },
   DISABLE,
