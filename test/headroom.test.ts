@@ -42,7 +42,7 @@ test('at 92% of the target the chat passes a large thread by, saying why, takes 
 
     // Started by name, the large one is refused in words; the one being built goes on.
     assert.match(s.fails('start', large, '--as', 'Claude Opus 5.5'), new RegExp(`${large} is L, and the chat is near the end of the budget[\\s\\S]*Wrap up what you are building`));
-    s.sp('start', small, '--as', 'Claude Opus 5.5');
+    s.sp('start', small, '--as', 'Claude Opus 5.5', '--force');
 
     // Nothing more that fits: it is told to wrap up, not handed the large one.
     s.sp('done', small, '-m', 'Tighter', '--as', 'Claude Opus 5.5');
