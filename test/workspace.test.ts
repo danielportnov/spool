@@ -92,7 +92,7 @@ test('the recorder is briefed with the projects and what is waiting', () => {
   assert.match(worker, /# Spool · worker protocol/);
   assert.match(worker, /POLICY \(\.spool\/policy\.md\)[\s\S]*## Ask first/);
   assert.match(worker, /games\/sky_hop\/\.spool\/policy\.md/);
-  assert.match(s.fails('prime', 'manager'), /no role "manager"/);
+  assert.match(s.fails('prime', 'janitor'), /no role "janitor"/);
   s.cleanup();
 });
 
