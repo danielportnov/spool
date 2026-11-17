@@ -99,7 +99,7 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     await shot(page, '1b-chat-builds');
     // Headless is off for now: greyed, it does nothing when clicked, and the chat stays the builder.
     assert.equal(await picks.nth(0).getAttribute('aria-disabled'), 'true');
-    assert.match((await picks.nth(0).getAttribute('title'))!, /Off for now\. To use it: spool builder headless/);
+    assert.match((await picks.nth(0).getAttribute('title'))!, /Not offered\. Switch on Offer Headless in Settings to pick it, or: spool builder headless/);
     await picks.nth(0).click({ force: true });
     assert.equal(await picks.nth(1).getAttribute('aria-pressed'), 'true');
     assert.equal(await picks.nth(0).getAttribute('aria-pressed'), 'false');

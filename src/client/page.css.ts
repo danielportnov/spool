@@ -272,6 +272,47 @@ export const CSS = String.raw`  :root {
   .need ul { margin: 6px 0 0; padding-left: 18px; color: var(--soft); font-size: 13px; }
 
   /* the ticket */
+  /* Settings: one panel over the page, a section a kind of setting, a row each. */
+  #settingsveil { position: fixed; inset: 0; background: rgba(0, 0, 0, .35); z-index: 5; }
+  #settings { position: fixed; z-index: 6; top: 5vh; left: 50%; transform: translateX(-50%); width: min(720px, calc(100vw - 32px)); max-height: 90vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 24px 64px rgba(0, 0, 0, .3); padding: 18px 22px 22px; }
+  #settings .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  #settings h2 { margin: 0; font-size: 19px; }
+  #settings .shut { border: 0; background: none; color: var(--soft); padding: 2px 6px; font-size: 18px; line-height: 1; }
+  #settings .what { margin: 4px 0 6px; font-size: 13px; color: var(--soft); }
+  #settings .ssec h3 { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); margin: 20px 0 4px; }
+  #settings .srow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 18px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+  #settings .srow.slim { padding: 6px 0; }
+  #settings .srow.dim .stext { opacity: .55; }
+  #settings .sname { font-weight: 600; }
+  #settings .stext p { margin: 2px 0 0; font-size: 12px; color: var(--soft); }
+  #settings .stext p:empty { display: none; }
+  #settings .cmd { display: inline-block; margin-top: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--soft); background: var(--chip); border-radius: 4px; padding: 1px 5px; }
+  #settings .sctl { display: flex; justify-content: flex-end; }
+  #settings input[type=checkbox] { appearance: none; width: 34px; height: 20px; border-radius: 10px; background: var(--line); position: relative; cursor: pointer; margin: 0; flex: none; transition: background .15s; }
+  #settings input[type=checkbox]::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: var(--shadow); transition: left .15s; }
+  #settings input[type=checkbox]:checked { background: var(--go); }
+  #settings input[type=checkbox]:checked::after { left: 16px; }
+  #settings input[type=checkbox]:disabled { opacity: .5; cursor: default; }
+  #settings input[type=checkbox]:focus-visible, #settings button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  #settings input[type=number] { width: 64px; text-align: right; }
+  #settings .unit { display: inline-flex; align-items: center; gap: 8px; color: var(--soft); font-size: 13px; }
+  #settings .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  #settings .seg button { border: 0; border-radius: 0; background: none; padding: 5px 12px; color: var(--soft); }
+  #settings .seg button + button { border-left: 1px solid var(--line); }
+  #settings .seg button.on { background: var(--chip); color: var(--ink); font-weight: 600; }
+  #settings .seg button[aria-disabled=true] { opacity: .45; cursor: not-allowed; }
+  #settings .agents { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  #settings .count { display: inline-flex; align-items: center; gap: 6px; }
+  #settings .count .name { min-width: 64px; text-align: right; color: var(--soft); font-size: 13px; }
+  #settings .count button { width: 26px; height: 26px; padding: 0; }
+  #settings .count .n { min-width: 18px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+  #settings .coming { margin: 0; padding: 8px 0 0; border-top: 1px solid var(--line); font-size: 12px; color: var(--soft); font-style: italic; }
+  #settings .coming.via { font-style: normal; }
+  @media (max-width: 760px) {
+    #settings { top: 0; bottom: 0; max-height: none; width: 100vw; border: 0; border-radius: 0; padding: 16px; }
+    #settings .srow { grid-template-columns: 1fr; }
+    #settings .sctl, #settings .agents { justify-content: flex-start; align-items: flex-start; }
+  }
   #veil { position: fixed; inset: 0; background: rgba(0, 0, 0, .35); z-index: 3; }
   #thread { position: fixed; z-index: 4; top: 5vh; left: 50%; transform: translateX(-50%); width: min(1000px, 96vw); max-height: 90vh; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow-y: auto; padding: 22px 24px 26px; box-shadow: 0 24px 64px rgba(0, 0, 0, .3); }
   .ticket { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 28px; }
@@ -460,6 +501,7 @@ export const CSS = String.raw`  :root {
     .roster { order: 6; margin: 0 0 8px; }
     .runner { order: 7; margin-bottom: 8px; }
     .themer { order: 8; margin: 0 0 8px auto; width: 36px; height: 36px; }
+    .gear + .themer { margin-left: 0; }
     /* No room for the bell on either row: on a phone, what notifies him is said to the chat. */
     .notifier { display: none; }
     #notices { left: 16px; right: 16px; width: auto; }

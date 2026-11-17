@@ -59,6 +59,7 @@ ${CSS + ROADMAP_CSS + REVIEW_CSS + PROJECTS_CSS + PICTURES_CSS}</style>
   <button class="target" id="target" aria-haspopup="dialog" aria-expanded="false" aria-controls="targets" hidden></button>
   <button class="takeover" id="takeover" aria-haspopup="dialog" aria-expanded="false" aria-controls="takeovers" hidden></button>
   <button class="themer notifier" id="notifier" aria-haspopup="dialog" aria-expanded="false" aria-controls="notices" hidden></button>
+  <button class="themer gear" id="gear" title="Settings" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings"></button>
   <button class="themer" id="themer"></button>
   <div id="targets" role="dialog" aria-label="Usage target" hidden></div>
   <div id="takeovers" role="dialog" aria-label="Take over the backlog" hidden></div>
@@ -74,6 +75,8 @@ ${CSS + ROADMAP_CSS + REVIEW_CSS + PROJECTS_CSS + PICTURES_CSS}</style>
 <div id="veil" hidden></div>
 <aside id="thread" hidden></aside>
 <div id="said"></div>
+<div id="settingsveil" hidden></div>
+<aside id="settings" role="dialog" aria-modal="true" aria-label="Settings" hidden></aside>
 <div id="layerveil" hidden></div>
 <div id="layer" role="dialog" aria-modal="true" hidden></div>
 <script>

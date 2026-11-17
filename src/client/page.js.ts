@@ -1508,13 +1508,13 @@ function draw(b) {
   builder.hidden = false;
   for (const pick of builder.children) {
     const mine = pick.dataset.builder === b.runner.builder;
-    // Headless is greyed out for now: the board cannot switch to it, but it still shows as the pick when the project is set to it.
-    const off = pick.dataset.builder === 'headless';
+    // Headless is greyed out unless Settings offers it: it still shows as the pick when the project is set to it.
+    const off = pick.dataset.builder === 'headless' && !(b.settings && b.settings.headless);
     pick.className = (mine ? 'on' : '') + (off ? ' off' : '');
     pick.setAttribute('aria-pressed', String(mine));
     pick.setAttribute('aria-disabled', String(off));
     pick.title = off
-      ? 'Off for now. To use it: spool builder headless'
+      ? 'Not offered. Switch on Offer Headless in Settings to pick it, or: spool builder headless'
       : pick.dataset.builder === 'chat'
         ? 'A Claude Code chat builds what is in Build: one running /spool-loop in this project. This page starts no agents.'
         : 'This page builds what is in Build itself, with no chat open. It runs: ' + b.runner.agent;
@@ -1547,6 +1547,8 @@ function draw(b) {
   drawTarget(b);
   drawTakeOver(b);
   drawNotices(b);
+  drawGear();
+  if (settingsOpen) fillSettings(b);
   drawElsewhere(b);
   document.getElementById('board').hidden = view !== 'board';
   document.getElementById('backlog').hidden = view !== 'backlog';
@@ -1867,6 +1869,189 @@ function fillNotices(b) {
 document.addEventListener('click', (e) => {
   if (noticesOpen && !e.composedPath().some((node) => ['notices', 'notifier', 'layer'].includes(node.id))) closeNotices();
 });
+
+// ---- Settings: every choice about how this spool runs, in one place, each with what it does and its command
+
+const GEAR = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M3.4 12.6l1.3-1.3M11.3 4.7l1.3-1.3"/></svg>';
+let settingsOpen = false;
+// Each row's own fill, run on every board drawn while the panel is open.
+let settingsFills = [];
+// The changes, sent one after another, so the last one made is the one kept.
+let settingSends = Promise.resolve();
+const sendSetting = (action, body, words) => { settingSends = settingSends.then(() => post(action, body, words)); };
+const settingsOf = (b) => b.settings || { caveman: false, quickReply: true, quietMinutes: 10, stopMinutes: 0, rebuild: true, headless: false, parallel: 3, agents: [] };
+
+function drawGear() {
+  const gear = document.getElementById('gear');
+  gear.innerHTML = GEAR;
+  gear.setAttribute('aria-expanded', String(settingsOpen));
+  gear.onclick = () => (settingsOpen ? closeSettings() : openSettings());
+}
+
+// One row: the setting, a line on what it does, the command that does the same, and its control.
+function settingRow(name, says, command, control, fill, extra) {
+  const row = el('div', { class: 'srow' },
+    el('div', { class: 'stext' }, el('div', { class: 'sname' }, name), el('p', {}, says), command && el('code', { class: 'cmd', title: 'The same, from the command line' }, command)),
+    el('div', { class: 'sctl' }, control));
+  settingsFills.push((b) => fill(b, row));
+  if (extra) row.append(extra);
+  return row;
+}
+// A switch: a checkbox drawn as one, its state from the board, left alone while it has the focus.
+function settingSwitch(label, on) {
+  const box = el('input', { type: 'checkbox', role: 'switch', 'aria-label': label, onchange: () => on(box.checked) });
+  return box;
+}
+const leave = (node) => document.activeElement === node;
+// A whole number box, sent when it is left or Enter is pressed.
+function settingNumber(label, min, max, on) {
+  const box = el('input', { type: 'number', min: String(min), max: String(max), step: '1', inputmode: 'numeric', 'aria-label': label,
+    onchange: () => { const n = Math.min(max, Math.max(min, Math.round(Number(box.value)) || 0)); box.value = String(n); on(n); },
+    onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); box.blur(); } } });
+  return box;
+}
+
+function settingsSections() {
+  settingsFills = [];
+  const section = (title, ...rows) => el('section', { class: 'ssec' }, el('h3', {}, title), ...rows);
+
+  // Who builds: Chat, or Headless where it is offered.
+  const picks = el('div', { class: 'seg', role: 'group', 'aria-label': 'Who builds' },
+    ...['chat', 'headless'].map((w) => el('button', { 'data-builder': w, onclick: (e) => {
+      const b = current;
+      if (!b || e.currentTarget.getAttribute('aria-disabled') === 'true' || b.runner.builder === w) return;
+      sendSetting('builder', { builder: w }, '');
+    } }, w === 'chat' ? 'Chat' : 'Headless')));
+  const who = settingRow('Who builds', 'Chat: a Claude Code or Codex chat running /spool-loop builds what is in Build. Headless: this page starts the agents itself, with no chat open.',
+    'spool builder chat', picks, (b, row) => {
+      const offered = settingsOf(b).headless;
+      for (const p of picks.children) {
+        const mine = p.dataset.builder === b.runner.builder;
+        const off = p.dataset.builder === 'headless' && !offered && !mine;
+        p.className = mine ? 'on' : '';
+        p.setAttribute('aria-pressed', String(mine));
+        p.setAttribute('aria-disabled', String(off));
+        p.title = off ? 'Not offered. Switch on Offer Headless below to pick it.' : '';
+      }
+    });
+  const offer = settingSwitch('Offer Headless', (on) => sendSetting('setting', { name: 'headless', value: on }, ''));
+  const offerRow = settingRow('Offer Headless', 'Let Headless be picked here and in the header. Off, it is greyed out: you build with a chat.',
+    'spool settings headless on', offer, (b) => { if (!leave(offer)) offer.checked = settingsOf(b).headless; });
+
+  // Threads at once: one count for each agent on the roster; Headless, the page's own number.
+  const agents = el('div', { class: 'agents' });
+  const atOnce = settingRow('Threads at once', 'How many threads each agent builds side by side, each in a worktree of its own. A claim past its count is refused.',
+    'spool builder --agent Claude --at-once 3', agents, (b, row) => {
+      const s = settingsOf(b);
+      const list = s.agents.length ? s.agents : [];
+      const shape = list.map((a) => a.name + a.atOnce).join() + '|' + s.parallel + b.runner.builder;
+      if (agents.dataset.shape === shape) return;
+      agents.dataset.shape = shape;
+      const step = (label, n, set) => el('span', { class: 'count' },
+        el('span', { class: 'name' }, label),
+        el('button', { 'aria-label': 'One thread fewer for ' + label, disabled: n <= 1, onclick: () => set(n - 1) }, '−'),
+        el('span', { class: 'n' }, String(n)),
+        el('button', { 'aria-label': 'One thread more for ' + label, disabled: n >= 20, onclick: () => set(n + 1) }, '+'));
+      agents.replaceChildren(...(b.runner.builder === 'chat'
+        ? list.map((a) => step(a.name, a.atOnce, (n) => sendSetting('roster', { agent: a.name, atOnce: n }, a.name + ' builds up to ' + n + ' at once.')))
+        : [step('This page', s.parallel, (n) => sendSetting('parallel', { atOnce: n }, 'This page builds up to ' + n + ' at once.'))]));
+      row.querySelector('.cmd').textContent = b.runner.builder === 'chat' ? 'spool builder --agent ' + (list[0] ? list[0].name : 'Claude') + ' --at-once <n>' : 'spool builder --at-once <n>';
+    });
+  const take = settingSwitch('Take over the backlog', (on) => sendSetting('takeover', { on }, on ? 'The chat takes over the backlog, up to your usage target.' : 'The chat builds only what you move to Build.'));
+  const takeRow = settingRow('Take over the backlog', 'With Build empty and usage under your target, the chat moves the top thread you filed to Build itself, and builds it. Chat only.',
+    'spool takeover on', take, (b, row) => {
+      const chat = b.runner.builder === 'chat';
+      if (!leave(take)) take.checked = takeOverOf(b).on;
+      take.disabled = !chat;
+      row.classList.toggle('dim', !chat);
+    });
+  const rebuild = settingSwitch('Rebuild after each landing', (on) => sendSetting('setting', { name: 'rebuild', value: on }, ''));
+  const rebuildRow = settingRow('Rebuild after each landing', 'Where this page runs from Spool’s own checkout, it rebuilds Spool after a thread lands (headless, once Build is empty), and reloads onto it.',
+    'spool settings rebuild off', rebuild, (b) => { if (!leave(rebuild)) rebuild.checked = settingsOf(b).rebuild; });
+  const quiet = settingNumber('Minutes before an agent is quiet', 0, 1440, (n) => sendSetting('setting', { name: 'quiet-minutes', value: n }, ''));
+  const quietRow = settingRow('Quiet agent', 'Minutes an agent this page started may print nothing before its card says it is quiet and you are told it is stuck. 0 for never. Headless only.',
+    'spool settings quiet-minutes 10', el('span', { class: 'unit' }, quiet, 'min'), (b, row) => { if (!leave(quiet)) quiet.value = String(settingsOf(b).quietMinutes); row.classList.toggle('dim', b.runner.builder === 'chat'); });
+  const stop = settingNumber('Minutes before a silent agent is stopped', 0, 1440, (n) => sendSetting('setting', { name: 'stop-minutes', value: n }, ''));
+  const stopRow = settingRow('Stop a silent agent', 'Minutes of silence after which this page stops the agent and puts its thread back in Build. 0 for never. Headless only.',
+    'spool settings stop-minutes 30', el('span', { class: 'unit' }, stop, 'min'), (b, row) => { if (!leave(stop)) stop.value = String(settingsOf(b).stopMinutes); row.classList.toggle('dim', b.runner.builder === 'chat'); });
+  // Away from keyboard: shown once the board carries it (being built in its own thread).
+  const afk = settingSwitch('Away from keyboard', (on) => sendSetting('afk', { on }, ''));
+  const afkRow = settingRow('Away from keyboard', 'While you are away, the chat takes the recommended answer instead of waiting on you, and says so on the thread.',
+    'spool afk on', afk, (b, row) => {
+      const a = b.afk;
+      row.hidden = a === undefined || a === null;
+      if (!leave(afk)) afk.checked = a === true || !!(a && a.on);
+    });
+
+  // Usage: the target the chat works up to, one row a limit.
+  const usageRows = LIMITS.map(([key, name]) => {
+    const on = settingSwitch(name + ' target', (yes) => sendSetting('target', { [key]: yes ? (Number(num.value) || TARGET_START) : null }, yes ? name + ' target: ' + (Number(num.value) || TARGET_START) + '%.' : 'No ' + name.toLowerCase() + ' target.'));
+    const num = settingNumber(name + ' target, in percent', 1, 100, (n) => sendSetting('target', { [key]: n }, name + ' target: ' + n + '%. The chat works up to it.'));
+    return settingRow(name + ' usage target', 'How much of your Claude plan’s ' + name.toLowerCase() + ' limit the chat that builds may use. Past it, it takes no new thread.',
+      'spool target --' + (key === 'weekly' ? 'weekly' : 'five-hour') + ' 80', el('span', { class: 'unit' }, on, num, '%'), (b, row) => {
+        const u = b.usage;
+        const goal = u.target[key];
+        if (!leave(on)) on.checked = goal != null;
+        num.disabled = goal == null;
+        if (!leave(num)) num.value = String(goal != null ? goal : (Number(num.value) || TARGET_START));
+        const used = usedOf(u, key);
+        row.querySelector('p').textContent = 'How much of your Claude plan’s ' + name.toLowerCase() + ' limit the chat that builds may use. Past it, it takes no new thread.' + (used == null ? '' : ' Used now: ' + pct(used) + '.');
+      });
+  });
+  const coming = el('p', { class: 'coming' }, 'Coming here as they are built: each agent’s sizes and usage limit, and the Usage-to-Development slider.');
+
+  // Notifications: each event, a switch.
+  const noticeRows = NOTICES.map(([key, name]) => {
+    const on = settingSwitch(name, (yes) => sendSetting('notify', { event: key, on: yes }, (yes ? 'Notifies you: ' : 'Quiet: ') + name.toLowerCase() + '.'));
+    return settingRow(name, '', 'spool notify on ' + key, on, (b) => { if (!leave(on)) on.checked = b.notices.on.includes(key); });
+  });
+  for (const row of noticeRows) row.classList.add('slim');
+  const via = el('p', { class: 'coming via' });
+  settingsFills.push((b) => { via.textContent = noticesVia(b); });
+
+  // Replies and style.
+  const cave = settingSwitch('Caveman mode', (on) => sendSetting('caveman', { on }, on ? 'Caveman mode is on.' : 'Caveman mode is off.'));
+  const caveRow = settingRow('Caveman mode', 'The chat that steers or builds answers in the fewest words, as short fragments. For every project and new chat.',
+    'spool caveman on', cave, (b) => { if (!leave(cave)) cave.checked = settingsOf(b).caveman; });
+  const quick = settingSwitch('Quick replies', (on) => sendSetting('setting', { name: 'quick-reply', value: on }, ''));
+  const quickRow = settingRow('Quick replies', 'Where nobody is building a thread, a small model answers what you write on it within seconds.',
+    'spool settings quick-reply off', quick, (b) => { if (!leave(quick)) quick.checked = settingsOf(b).quickReply; });
+
+  return [
+    section('Building', who, offerRow, atOnce, takeRow, afkRow, rebuildRow, quietRow, stopRow),
+    section('Usage', ...usageRows, coming),
+    section('Notifications', ...noticeRows, via),
+    section('Replies & style', caveRow, quickRow),
+  ];
+}
+
+function openSettings() {
+  closeTargets(); closeTakeOvers(); closeNotices();
+  const box = document.getElementById('settings');
+  settingsOpen = true;
+  const shut = el('button', { class: 'shut', title: 'Close', 'aria-label': 'Close', onclick: closeSettings }, '×');
+  box.replaceChildren(
+    el('div', { class: 'head' }, el('h2', {}, 'Settings'), shut),
+    el('p', { class: 'what' }, 'How this spool runs. Each is kept on this machine, and the command under it does the same.'),
+    ...settingsSections());
+  box.hidden = document.getElementById('settingsveil').hidden = false;
+  document.getElementById('gear').setAttribute('aria-expanded', 'true');
+  if (current) fillSettings(current);
+  shut.focus();
+}
+function closeSettings() {
+  if (!settingsOpen) return;
+  settingsOpen = false;
+  settingsFills = [];
+  const box = document.getElementById('settings');
+  box.hidden = document.getElementById('settingsveil').hidden = true;
+  box.replaceChildren();
+  document.getElementById('gear').setAttribute('aria-expanded', 'false');
+}
+function fillSettings(b) {
+  for (const fill of settingsFills) fill(b);
+}
+document.getElementById('settingsveil').addEventListener('click', closeSettings);
 
 // The board lives in a background tab, where its title and icon are all that shows. Both say what
 // waits on him, as a count: an open question, a plan wanting its go-ahead, an agent that stopped
@@ -2205,6 +2390,7 @@ function actionsOf(b) {
     !chat && { name: b.runner.on ? 'Switch agents off' : 'Switch agents on', run: () => post('runner', { on: !b.runner.on }, '') },
     chat && { name: 'Set the usage target', run: () => openTargets() },
     { name: 'Choose what notifies you', run: () => openNotices() },
+    { name: 'Open settings', run: () => openSettings() },
     ...b.sprints.filter((x) => x.waiting > 0).map((x) => ({ name: 'Play sprint: ' + x.name, run: () => post('play', { id: x.id }, x.name + ' is running') })),
     { name: 'Add a thread', hint: 'c', run: () => openLayer('add') },
     { name: 'Show the keys', hint: '?', run: () => openLayer('keys') },
@@ -2312,6 +2498,7 @@ function quickAddNode() {
 // Esc closes the nearest thing: a box over the page, then the search, then the ticket, then lets go of the thread.
 function escape(at, typing) {
   if (layer) return closeLayer();
+  if (settingsOpen) { closeSettings(); document.getElementById('gear').focus(); return; }
   if (targetsOpen) { closeTargets(); document.getElementById('target').focus(); return; }
   if (noticesOpen) { closeNotices(); document.getElementById('notifier').focus(); return; }
   if (at && at.id === 'search') { at.value = ''; query = ''; at.blur(); redraw(); return; }
