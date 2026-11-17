@@ -306,7 +306,10 @@ there and on the page, and a group's numbers can skip.
     Spool: t-4kq7
 
 That is how `spool revert t-4kq7` finds exactly that thread's work and undoes all of it, and
-nothing else. It never touches `.spool/`; if a later change conflicts, nothing is undone at all.
+nothing else. It never touches `.spool/`; if a later change conflicts, nothing is undone at all,
+and it names the later threads that touched those lines. `spool revert t-4kq7 --with-later` takes
+them back too, newest first, in one commit, and logs why on each; they wait in the backlog for
+you to move to Build. Reverting any of them again puts the whole group back.
 
 **Work on no thread is named.** A commit with no `Spool:` trailer, listed by no thread, has
 nothing to undo it by or say why it is there. `spool status`, the brief and `spool doctor` name the
@@ -913,7 +916,7 @@ ones marked 🔒:
 | `spool approve <id…>` | Accept a call, finished work or a new skill; give a plan its go-ahead |
 | `spool history <id \| policy \| config \| goals>` · `undo <entry>` | Every edit to an item or a project file, newest first, with who and the lines it changed; undo one, if nothing has changed the file since. An entry with effects beyond the file (a switch, commits, a claim) names the command that takes it back instead |
 | `spool why <commit \| file:line \| thread>` | See what led to a change, from the original feedback through the calls, commits and reverts. File paths are relative to your current folder and line numbers refer to HEAD |
-| `spool revert <t-id> [-m why] [--now]` | Undo a thread's commits and put it back in the backlog with your reason, for you to move to Build (`--now`: straight back to Build). The reason is kept as a lesson every agent reads first. Given a run's thread, it puts back every item the run changed and touches no code |
+| `spool revert <t-id> [-m why] [--now] [--with-later]` | Undo a thread's commits and put it back in the backlog with your reason, for you to move to Build (`--now`: straight back to Build). Where later threads changed the same lines, it names them; `--with-later` undoes them too, in the same commit, and puts them in the backlog. The reason is kept as a lesson every agent reads first. Given a run's thread, it puts back every item the run changed and touches no code |
 | `spool goals [--edit <text> \| -]` | Where the project is going: what it is for and the two or three things it is heading towards, as every agent reads it first (kept in `.spool/goals.md`); `--edit` replaces it |
 | `spool lessons [--drop <n>]` | What you undid and why, newest first, as agents read it (kept in `.spool/policy.md`, yours to edit); `--drop` forgets one |
 | `spool review` | Everything waiting on you, most blocking first |

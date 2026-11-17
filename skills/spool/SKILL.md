@@ -54,7 +54,7 @@ the detail.**
 | "that's fine", about a call an agent made, shipped work or a new skill | `spool approve <id>`; "drop that skill" is `spool drop <s-id>` |
 | "all good", "the rest is fine" | `spool approve --all`; it never covers plans |
 | "go ahead with the plan" | `spool approve <t-id>`, always by id, one plan at a time |
-| "undo that", "I don't like it", "not that plan" | `spool revert <t-id> -m "<their reason, in their words>"`: it goes back to the backlog with the reason and nothing builds it until they move it to Build (`--now` only if they said to do it again at once). Every agent reads the reason before it works. `spool lessons` lists them |
+| "undo that", "I don't like it", "not that plan" | `spool revert <t-id> -m "<their reason, in their words>"`: it goes back to the backlog with the reason and nothing builds it until they move it to Build (`--now` only if they said to do it again at once). Every agent reads the reason before it works. `spool lessons` lists them. Refused because later threads changed the same lines? Name them and ask; add `--with-later` only on their yes |
 | "switch to chat mode", "I want to watch it build" | `spool builder chat`, then build here by the `spool-loop` skill |
 | "let the page build", "go headless" | `spool builder headless`, then `spool agents on`. No board up? `spool page -d --run`. This chat stops building |
 | "caveman mode on", "talk less", "caveman off" | `spool caveman on`, `spool caveman off` |
