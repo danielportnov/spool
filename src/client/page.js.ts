@@ -1780,13 +1780,13 @@ function drawStatus(b) {
       const building = b.columns.building.length > 0;
       const live = building || b.runner.watching;
       runner.className = 'runner' + (live ? ' on' : '');
-      runner.textContent = building ? '● Building' : b.runner.watching ? '● Watching' : 'Agents: off';
+      runner.textContent = building ? '● Agents: building' : b.runner.watching ? '● Agents: watching' : 'Agents: off';
       runner.title = building ? 'A thread is being built.' : b.runner.watching ? 'A chat is watching this spool. It builds what you move to Build.'
         : 'No chat is watching this spool, so nothing in Build is built. Say /spool-loop in one, in this project.';
     } else {
       const lately = b.runner.recent.length ? ' Last: ' + b.runner.recent[0].title + ' — ' + b.runner.recent[0].outcome : '';
       runner.className = 'runner' + (b.runner.on ? ' on' : '');
-      runner.textContent = b.runner.on ? (running ? '● Building' + (running > 1 ? ' ' + running : '') : '● Agents: on') : 'Agents: off';
+      runner.textContent = b.runner.on ? (running ? '● Agents: building' + (running > 1 ? ' ' + running : '') : '● Agents: on') : 'Agents: off';
       runner.title = (b.runner.on ? 'This page builds what is in Build.' : 'This page builds nothing now.') + ' It runs: ' + b.runner.agent
         + (b.runner.parallel > 1 ? ', on up to ' + b.runner.parallel + ' threads at once' : '') + '.' + lately + ' Click to switch it in Settings.';
     }
