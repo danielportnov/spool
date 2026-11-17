@@ -42,7 +42,9 @@ says, three unless they set it.
 - Claim each with `spool next --claim --worktree --as "<your model>"`, or
   `spool start <t-id> --worktree --as "<your model>"`. It prints the brief,
   and the brief names the folder to work in. `--as` signs the work, as in
-  `--as "Claude Fable 5.2"`: the board shows who built each thread.
+  `--as "Claude Fable 5.2"`: the board shows who built each thread. Add
+  `--model <model>` with the model you start its subagent on, so the thread
+  logs what it was built on.
 - Give each to a fresh subagent, in the background, with: the brief as
   printed, that folder, the worker's rules (`spool prime worker`), and this:
   work only in that folder; commit there, every commit ending with the

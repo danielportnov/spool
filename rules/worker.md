@@ -37,7 +37,8 @@ the board", "Drag a card up in Build", "The top card is built first"), never
 For anything that changes what is on screen, take a screenshot before you
 change it and another once it works, and attach them:
 `spool attach <id> before.png --as before` and
-`spool attach <id> after.png --as after`, with `-m` saying what to look at.
+`spool attach <id> after.png --as after`, with `-m` saying what to look at
+(here `--as` is the side, so `--by "<your name>"` signs it).
 They are shown side by side on the finished ticket, so frame the part that
 changed.
 
@@ -139,6 +140,10 @@ recommendation, the reason.
 
 ### Along the way
 
+- Sign every command with one name, `--as "<you and your model>"`, as in
+  `--as "Claude Opus 5.5"`. One left unsigned on a thread you claimed is signed
+  as you. Claiming for a subagent on another model? Say which:
+  `spool start <id> --model <model>`, and the thread logs what it was built on.
 - `spool log <id> "<fact>"` records anything the next agent can't learn from the code.
 - A commit of yours landed with no `Spool:` trailer? `spool adopt <sha> --for <id>` puts it on the
   thread, so it is undone with it. `spool status` names what landed on no thread.

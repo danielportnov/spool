@@ -321,7 +321,10 @@ know about, and does not ignore, are named the same way; the folders an agent ha
 keeps its own settings in (`.claude/`, `.codex/`, `.cursor/`, `.vscode/` and the like) are left out.
 
 **Agents sign their work**: `--as "Claude Fable 5.2"` on the commands they run, so a ticket says
-who built it.
+who built it. A command left unsigned on a claimed thread (named by its id, run from its worktree,
+or by the agent the page or the loop started on it) is signed as the claimer, and an agent that
+signs as "Codex" on a thread "Codex GPT-6" claimed is the same name, so a thread has one name per
+agent. `spool attach --as before|after` uses `--as` for the side, so `--by` signs it.
 
 **What shipped gets a version.** At the end of a run that shipped something: a bump in the
 project's own version file (minor for something new, patch for fixes; a major is your call), a
@@ -812,7 +815,9 @@ named none, the boxes are for the next run), or `spool edit <id> --model opus --
 not set them itself; any other agent command can take `{model}` and `{effort}` where it wants them.
 In Chat mode, `spool start` and `spool next --claim` print the pick on a `MODEL` line under the
 brief, and log it on the thread ("builder model: haiku · medium, by its size"): the chat starts
-the subagent that builds the thread on it. In `~/.config/spool/config.json`, change the table under
+the subagent that builds the thread on it. A claim that says what it starts the subagent on,
+`--model sonnet`, logs that instead ("built on sonnet; Spool suggested haiku · medium, by its
+size"), and a step up goes one up from the model that really ran. In `~/.config/spool/config.json`, change the table under
 `models`, as `{ "xs": { "model": "sonnet", "effort": "low" } }`, or set `"models": false` to leave
 the command alone altogether. `spool loop --dry-run` shows the command each thread would get.
 
@@ -879,10 +884,10 @@ ones marked 🔒:
 | --- | --- |
 | `spool task` · `audit` · `plan` | File a change, a look-and-report, or something big; `--suggested why` marks an agent's own idea, `--sprint <name>` puts it in a sprint |
 | `spool file <n-id> --into <id>` | Attach a note to a thread, or set it aside |
-| `spool next [--claim]` · `start <t-id>` | The next thread in Build with its brief; claim it. `--worktree` gives it a git worktree of its own |
+| `spool next [--claim]` · `start <t-id>` | The next thread in Build with its brief; claim it. `--worktree` gives it a git worktree of its own; `--model <model>` says what builds it |
 | `spool log <id> <fact>` | Leave a note for whoever comes next |
 | `spool adopt <sha…> --for <t-id>` | Put a commit that landed on no thread on the thread it belongs to: it joins the thread's commits, so `spool revert` takes it back with the rest, and the thread's log says so. Refused for a commit on a thread already, or not on this branch |
-| `spool attach <t-id> <file…> [--as before\|after] [-m caption]` | Keep a picture or a file with a thread: a PNG, JPEG, GIF or WebP picture or a PDF, told by its bytes, or plain text (`.txt .md .csv .json .log`, UTF-8), 5 MB and 20 a thread at most. A file keeps its own name after Spool's number, and text is only ever served as plain text. It is copied into `.spool/runs/<id>/files/` under a name Spool gives, a line on the thread's log says who attached it and the caption, and the thread's brief names its path. `--as before` and `--as after` are the proof of a change you can see, shown side by side when it is done. A picture pasted or dropped into a box on the page, or a file dropped on a thread or picked with Add a file, is attached the same way, and `spool watch` prints a `reply:` line with its path |
+| `spool attach <t-id> <file…> [--as before\|after] [--by <name>] [-m caption]` | Keep a picture or a file with a thread: a PNG, JPEG, GIF or WebP picture or a PDF, told by its bytes, or plain text (`.txt .md .csv .json .log`, UTF-8), 5 MB and 20 a thread at most. A file keeps its own name after Spool's number, and text is only ever served as plain text. It is copied into `.spool/runs/<id>/files/` under a name Spool gives, a line on the thread's log says who attached it and the caption, and the thread's brief names its path. `--as before` and `--as after` are the proof of a change you can see, shown side by side when it is done. A picture pasted or dropped into a box on the page, or a file dropped on a thread or picked with Add a file, is attached the same way, and `spool watch` prints a `reply:` line with its path |
 | `spool ask` · `assume` | Put a call to the human; or make it and leave a receipt |
 | `spool done <t-id> -m <summary> [--steps <step>…]` | Finish: record the commits, or hand in a report. The summary keeps its line breaks, so a list in it stays a list. Work in a worktree of its own is landed first. `--steps` (each word after it is a step, as in `--steps "Open the board" "The card is at the top"`, or `-` for one a line from stdin) says how to see a change working; a change finished without them says so |
 | `spool edit <id>` | Change a title, priority, size, kind, model, effort, tags, version, sprint, or the steps to check it by (`--steps`, `none` clears them); a sprint's version stamps its finished threads too |
