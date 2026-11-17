@@ -24,7 +24,7 @@ test('with no page up, status says so and that nothing in Build moves without on
     ]);
     assert.ok(Date.now() - started < 1000, 'no page, no request');
     const board = s.json('status').projects[0].board;
-    assert.deepEqual(board, { page: null, answering: null, builder: 'headless', agents: null, building: 0, watching: null, stuck: 'no page is up to build it. spool page -d --run starts one with agents on.' });
+    assert.deepEqual(board, { page: null, answering: null, builder: 'headless', agents: null, building: 0, watching: null, landing: null, stuck: 'no page is up to build it. spool page -d --run starts one with agents on.' });
   } finally {
     s.cleanup();
   }
