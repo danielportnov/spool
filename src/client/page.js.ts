@@ -2199,7 +2199,9 @@ function unknown() {
 async function load(now) {
   // Never redraw under someone's typing or choosing; a redraw that was asked for goes ahead.
   const at = document.activeElement;
-  if (!now && (busy || (at && at.id !== 'search' && (['TEXTAREA', 'INPUT', 'SELECT'].includes(at.tagName) || at.isContentEditable)))) return;
+  // A switch in Settings is not being typed in: each row there leaves the one with the focus alone.
+  const switched = at && at.type === 'checkbox' && !!at.closest('#settings');
+  if (!now && (busy || (at && at.id !== 'search' && !switched && (['TEXTAREA', 'INPUT', 'SELECT'].includes(at.tagName) || at.isContentEditable)))) return;
   try {
     const res = await fetch(boardUrl());
     if (!res.ok) throw new Error('no board');

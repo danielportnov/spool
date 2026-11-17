@@ -503,6 +503,11 @@ export const CSS = String.raw`  :root {
     .runner { order: 7; margin-bottom: 8px; }
     .themer { order: 8; margin: 0 0 8px auto; width: 36px; height: 36px; }
     .gear + .themer { margin-left: 0; }
+    /* The gear and the theme sit close, and the picks a little tighter, so both fit on the row. */
+    .gear { margin-right: -4px; }
+    .builder button { padding-left: 8px; padding-right: 8px; }
+    /* The agents' counts are in Settings, behind the gear: no room for them here. */
+    #roster { display: none; }
     /* No room for the bell on either row: on a phone, what notifies him is said to the chat. */
     .notifier { display: none; }
     #notices { left: 16px; right: 16px; width: auto; }
