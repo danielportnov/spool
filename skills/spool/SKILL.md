@@ -58,6 +58,7 @@ the detail.**
 | "switch to chat mode", "I want to watch it build" | `spool builder chat`, then build here by the `spool-loop` skill |
 | "let the page build", "go headless" | `spool builder headless`, then `spool agents on`. No board up? `spool page -d --run`. This chat stops building |
 | "caveman mode on", "talk less", "caveman off" | `spool caveman on`, `spool caveman off` |
+| "I'm AFK", "don't ask me, I'm away"; "I'm back" | `spool afk on`, `spool afk off`. While on, agents take their own recommendation and record it as a call; only what is truly theirs (money, pushing, deleting, accounts, what the product is) still asks |
 | "turn the agents off", "turn them on" | `spool agents off`, `spool agents on` |
 | "I don't need Spool here", "turn Spool back on" | `spool disable`, `spool enable`; `--all` for every project in this folder. Off, the queue is kept and every command refuses |
 | "build three at once", "one at a time" | `spool builder --at-once <n>` |

@@ -92,8 +92,8 @@ test('/spool is the one skill for the chat: status first, a short reply, and one
   assert.match(flat, /never stop and start it yourself: that ends the agents it is running\. `spool page --stop` only when they ask\./);
   assert.doesNotMatch(skill, /On the page \| What it does|Keep the board live/);
 
-  // Short enough to be read on every project: about seventy lines, the table most of it, and a row for notifications.
-  assert.ok(skill.trimEnd().split('\n').length <= 91, `${skill.trimEnd().split('\n').length} lines`);
+  // Short enough to be read on every project: about seventy lines, the table most of it, and a row for notifications and one for AFK.
+  assert.ok(skill.trimEnd().split('\n').length <= 92, `${skill.trimEnd().split('\n').length} lines`);
 });
 
 test("/spool's description says when to load it, and when not to", () => {

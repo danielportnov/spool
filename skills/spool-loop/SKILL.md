@@ -119,7 +119,8 @@ other prompt. It is a check back in, never a deadline.
 A subagent that needs a call runs `spool ask … --for <t-id>` and stops. The
 watch prints `ask:`, and its report says so too: ask each question once,
 whichever tells you first. Building alone? Ask your own the same way. Lazy
-dev on? The `spool-lazy` skill says when.
+dev on? The `spool-lazy` skill says when. AFK on (`spool afk`)? Only a
+question marked `--human` comes here; tell each subagent to `--recommend`.
 
 1. **Notify them,** in one line, where they picked `question`: "Spool needs
    you: outline the coins, or teal?" In Claude Code it is the

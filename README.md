@@ -326,6 +326,14 @@ look, and `spool revert` takes it back. `spool takeover on` and `off` are the sa
 **Caveman mode** (`spool caveman on`, or say "caveman" to the chat) makes the chat that steers or builds
 answer in the fewest words, as short fragments. `spool caveman off` returns to normal replies.
 
+**AFK** (`spool afk on`, say "I'm AFK" to the chat, or tick "I'm AFK" in the take-over menu) is for
+when you are away and don't want to be pinged. An agent that would ask you takes its own
+recommendation instead, records it as a call you can overrule in your review, and keeps going, in
+every project, Headless or Chat. Only what is truly yours still asks and notifies: spending money,
+publishing or pushing, deleting what cannot come back, a new account or service, what the product
+is, and your own accounts or machine. The agent marks those `spool ask --human <kind>`.
+`spool afk off`, or "I'm back", and questions are asked again.
+
 The **bell** by the theme picks what notifies you, in every project: a thread started, a thread
 done, a question, a sprint finished, Build empty, an agent stuck or refused, a run stopped at its
 usage target. Out of the box, only what needs you: questions, Build empty, stuck, the target. In

@@ -138,6 +138,14 @@ Check it wasn't settled already: `spool list -k decision --search "<topic>"`
 
   That thread now waits and the human is told. Do not wait for them: take the next thread.
 
+- **Truly theirs, even while they are away?** Add `--human <kind>`: `money` (it
+  spends money), `publish` (publishing, pushing or sending outside the repo),
+  `delete` (what cannot come back), `account` (a new account, service or
+  dependency), `product` (what the product is), `machine` (their own accounts
+  or machine). While they are AFK (`spool afk` says), a question without it is
+  not put to them: `spool ask` takes your recommendation, records it as a
+  call, and you carry on. So always give `--recommend`.
+
 Every question stops work until a person turns up, so ask only what is truly
 theirs to decide, and make it answerable in one word: real options, your
 recommendation, the reason.

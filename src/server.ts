@@ -28,7 +28,7 @@ import { settle } from './leave.ts';
 import { type Column, board, columnOf, diffOf } from './board.ts';
 import { PAGE } from './client/page.html.ts';
 import type { Bare, Result } from './commands.ts';
-import { type Ctx, builderOf, saveBuilder } from './context.ts';
+import { type Ctx, afkOf, builderOf, saveBuilder } from './context.ts';
 import { type PageRecord, detachPage, forgetPage, pageStatus, pageUp, realOf, rememberPage, startedAbove, stopPage } from './detach.ts';
 import { Runner } from './engine.ts';
 import { heardRun } from './heard.ts';
@@ -256,7 +256,8 @@ export function startPage(
             leave: live ? live.words : null,
             waiting: waits ? { id: waits.id, count: unanswered(readProposals(waits)).length } : null,
           };
-          return send(res, 200, 'application/json', JSON.stringify({ ...shown, takeOver, cleanup, workspace }));
+          // Whether the human is AFK: agents take their own recommendation instead of asking.
+          return send(res, 200, 'application/json', JSON.stringify({ ...shown, takeOver, cleanup, afk: afkOf(ctx), workspace }));
         } finally {
           ws.close();
         }

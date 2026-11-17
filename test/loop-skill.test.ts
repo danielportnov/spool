@@ -39,8 +39,8 @@ test('the loop skill has one job: make this chat the builder', () => {
   // Up to their usage target: read before each thread, reported, and a stop is a stop.
   assert.match(flat, /\*\*Up to their usage target,\*\* where they set one on the board \(`spool target` says\)\. Before you claim each thread, read the plan's usage with your harness's tool \(`get_usage` in the Claude app\) and report it: `spool usage --weekly <n> --five-hour <n> --fable <n>` \(Fable's own weekly figure, where your tool shows one\)\. It says keep building, or stop: then claim nothing new, let what is building land, and notify them once \(`budget`\)\. No usage tool\? Say so once, and build as if no target were set\./);
   // Short enough to be read every time: it was 553 lines, and grew six for the usage target, 29 for questions asked in the chat, two for the model,
-  // nine for taking over, ten for the notifications the human picks, and one for Clean Up on the board.
-  assert.ok(loop.trimEnd().split('\n').length <= 184, `${loop.trimEnd().split('\n').length} lines`);
+  // nine for taking over, ten for the notifications the human picks, one for Clean Up on the board, and one for AFK.
+  assert.ok(loop.trimEnd().split('\n').length <= 185, `${loop.trimEnd().split('\n').length} lines`);
 });
 
 test('the loop watches the spool, and falls back to one scheduled job', () => {

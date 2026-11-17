@@ -1741,6 +1741,10 @@ function openTakeOvers() {
     ? 'The chat takes over the backlog, up to your usage target.'
     : 'The chat builds only what you move to Build.'));
   const change = el('button', { class: 'link', onclick: (e) => { e.stopPropagation(); closeTakeOvers(); openTargets(); } }, 'Change');
+  const afk = el('input', { type: 'checkbox' });
+  afk.addEventListener('change', () => post('afk', { on: afk.checked }, afk.checked
+    ? 'AFK: agents take their own recommendation and keep going.'
+    : 'Back: agents ask you again.'));
   box.replaceChildren(
     el('div', { class: 'head' }, el('h3', {}, 'Take over the backlog'), shut),
     el('div', { class: 'entry switch' },
@@ -1752,7 +1756,10 @@ function openTakeOvers() {
     el('div', { class: 'entry takes' },
       el('div', { class: 'name' }, 'Takes'),
       el('p', {}, 'Threads you filed, top of the backlog first, one at a time. Never an AI suggested one, one on hold, or one waiting on a question or a plan’s go-ahead.'),
-      el('p', { class: 'now' })));
+      el('p', { class: 'now' })),
+    el('div', { class: 'entry switch afk' },
+      el('label', { class: 'name' }, afk, 'I’m AFK'),
+      el('p', {}, 'Agents don’t ask you: each takes its own recommendation and records it as a call for your review. Only money, publishing or pushing, deleting, new accounts, what the product is and your own machine still ask.')));
   box.hidden = false;
   document.getElementById('takeover').setAttribute('aria-expanded', 'true');
   if (current) fillTakeOvers(current);
@@ -1768,8 +1775,10 @@ function closeTakeOvers() {
 function fillTakeOvers(b) {
   const box = document.getElementById('takeovers');
   const t = takeOverOf(b);
-  const on = box.querySelector('.switch input');
+  const on = box.querySelector('.switch:not(.afk) input');
   if (on && document.activeElement !== on) on.checked = t.on;
+  const afk = box.querySelector('.afk input');
+  if (afk && document.activeElement !== afk) afk.checked = b.afk === true;
   box.classList.toggle('off', !t.on);
   const u = b.usage;
   const set = LIMITS.filter(([key]) => u.target[key] != null);

@@ -18,7 +18,7 @@ import { morning, morningText } from './brief.ts';
 import { DISABLE, ENABLE } from './off.ts';
 import { HARNESSES, describe, harness, installFor, installedAnywhere, others } from './harness.ts';
 import { spawnSync } from 'node:child_process';
-import { type Ctx, builderOf, cavemanOf, notify, saveUserConfig, userConfig } from './context.ts';
+import { type Ctx, afkOf, builderOf, cavemanOf, notify, saveUserConfig, userConfig } from './context.ts';
 import { doctor } from './doctor.ts';
 import { GOALS_STARTER, goalsFile, goalsOf, goalsText } from './goals.ts';
 import { isReverted, repoRoot, resolveCommit, trailerCommits } from './git.ts';
@@ -360,6 +360,37 @@ function beforeDone(call: Bare): Finishing | undefined {
  * user can do whatever the user can. What it changes is that getting past it
  * takes a deliberate act, where before it took none.
  */
+/** What only the human can decide, even while they are AFK: the policy's Ask first, and what is theirs. */
+export const HUMAN_KINDS = ['money', 'publish', 'delete', 'account', 'product', 'machine'] as const;
+type HumanKind = (typeof HUMAN_KINDS)[number];
+const HUMAN_KINDS_SAID: Record<HumanKind, string> = {
+  money: 'it spends money',
+  publish: 'it publishes, pushes or sends something outside the repo',
+  delete: 'it deletes what cannot come back',
+  account: 'a new account, service or dependency',
+  product: 'it changes what the product is',
+  machine: 'their own accounts or machine',
+};
+
+/** A call an agent made itself, on record for the human's review, and on its thread. */
+function assumed(call: Call, question: string, chose: string, why: string | undefined, task: Item | undefined): Item {
+  const { ws, actor } = call;
+  const spool = task?.spool ?? ws.project(str(call.opts.project));
+  const d = ws.create(spool, 'decision', {
+    title: question,
+    status: 'assumed',
+    choice: chose,
+    by: actor,
+    body: [why, task ? `For [[${task.id}]] — ${task.title}` : ''].filter(Boolean).join('\n\n'),
+  });
+  if (task) {
+    task.needs = uniq([...task.needs, d.id]);
+    addLog(task, actor, `assumed ${d.id}: ${question} → ${chose}`, ws.now());
+    ws.save(task);
+  }
+  return d;
+}
+
 function byTheHuman(call: Call, spools: Spool[], verb: string): void {
   if (call.ctx.tty || call.ctx.human) return;
   const locked = spools.find((s) => s.config.gate === 'locked');
@@ -1285,6 +1316,27 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: 'afk',
+    group: 'you',
+    usage: 'afk [on | off]',
+    summary:
+      "Say you are away: while AFK is on, an agent's question is not put to you. It takes its recommendation, records it as a call for your review, and carries on; only what is truly yours (money, publishing or pushing, deleting, new accounts, what the product is, your own machine) still asks. One setting for every project. Switching it on is yours; with nothing after it, says whether it is on",
+    human: true,
+    run(call) {
+      const { ctx, args } = call;
+      if (args.length > 1 || (args[0] !== undefined && args[0] !== 'on' && args[0] !== 'off')) throw new SpoolError('afk is on or off', 'spool afk on');
+      if (args[0] === 'on') byTheHuman(call, call.ws.spools, 'afk on');
+      if (args[0]) saveUserConfig(ctx, (config) => { if (args[0] === 'on') config.afk = true; else delete config.afk; });
+      const on = afkOf(ctx);
+      return {
+        text: on
+          ? 'AFK is on. Agents take their own recommendation and record it as a call; only money, publishing, deleting, new accounts, what the product is and your own machine still ask.'
+          : 'AFK is off. Agents ask you as usual.',
+        data: { afk: on },
+      };
+    },
+  },
+  {
     name: 'target',
     group: 'setup',
     usage: 'target [--weekly <percent>|none] [--five-hour <percent>|none] [--fable <percent>|none]',
@@ -1512,14 +1564,15 @@ export const COMMANDS: Command[] = [
   {
     name: 'ask',
     group: 'agents',
-    usage: 'ask <question…> --option <A> --option <B> [--recommend <n>] [--why <reason>] [--for <t-id>]',
-    summary: 'Put a call to the human; the task waits, you move on',
+    usage: 'ask <question…> --option <A> --option <B> [--recommend <n>] [--why <reason>] [--for <t-id>] [--human <kind>]',
+    summary: `Put a call to the human; the task waits, you move on. While they are AFK, your recommendation is taken and recorded as a call instead, unless --human says it is truly theirs: ${HUMAN_KINDS.join(', ')}`,
     write: true,
     options: {
       option: { type: 'string', short: 'o', multiple: true },
       recommend: { type: 'string', short: 'r' },
       why: { type: 'string' },
       for: { type: 'string' },
+      human: { type: 'string' },
       ...PROJECT,
     },
     run(call) {
@@ -1533,15 +1586,35 @@ export const COMMANDS: Command[] = [
           throw new SpoolError(`--recommend must be an option number from 1 to ${options.length}`);
         }
       }
+      const human = str(call.opts.human);
+      if (human !== undefined && !(HUMAN_KINDS as readonly string[]).includes(human)) {
+        throw new SpoolError(`--human is one of ${HUMAN_KINDS.join(', ')}`, 'Mark only a call that is truly theirs; otherwise leave --human off');
+      }
       const task = str(call.opts.for) ? ws.get(str(call.opts.for)!, 'task') : undefined;
       if (task && isClosed(task)) throw new SpoolError(`${task.id} is already ${task.status}`);
+      if (afkOf(call.ctx) && !human) {
+        // The human is away: a call that is not truly theirs is not put to them. The agent's own pick is taken, on record, and the thread goes on.
+        const pick = recommend ?? (options.length === 1 ? 1 : undefined);
+        if (!pick) {
+          throw new SpoolError(
+            'AFK is on: the human is away, so this is not put to them',
+            `Give your recommendation (--recommend <n>) and it is taken and recorded. Truly theirs? Add --human <kind>: ${HUMAN_KINDS.join(', ')}`,
+          );
+        }
+        const chose = options[pick - 1]!;
+        const d = assumed(call, question, chose, [str(call.opts.why), 'Taken while you were AFK: the agent would have asked you.'].filter(Boolean).join('\n\n'), task);
+        return {
+          text: `AFK: took your recommendation, "${chose}", recorded as ${p.bold(d.id)}. Carry on${task ? ` with ${task.id}` : ''}: the human will see it in their review.`,
+          data: { decision: itemJson(ws, d, true), afk: true, notified: false },
+        };
+      }
       const spool = task?.spool ?? ws.project(str(call.opts.project));
       const d = ws.create(spool, 'decision', {
         title: question,
         options,
         recommend,
         by: actor,
-        body: [str(call.opts.why), task ? `For [[${task.id}]] — ${task.title}` : ''].filter(Boolean).join('\n\n'),
+        body: [str(call.opts.why), human ? `Truly the human's: ${HUMAN_KINDS_SAID[human as HumanKind]}.` : '', task ? `For [[${task.id}]] — ${task.title}` : ''].filter(Boolean).join('\n\n'),
       });
       if (task) {
         task.needs = uniq([...task.needs, d.id]);
@@ -1571,19 +1644,7 @@ export const COMMANDS: Command[] = [
       const chose = str(call.opts.chose);
       if (!chose) throw new SpoolError('--chose is missing', 'Say what you decided: --chose "<what you did>"');
       const task = str(call.opts.for) ? ws.get(str(call.opts.for)!, 'task') : undefined;
-      const spool = task?.spool ?? ws.project(str(call.opts.project));
-      const d = ws.create(spool, 'decision', {
-        title: question,
-        status: 'assumed',
-        choice: chose,
-        by: actor,
-        body: [str(call.opts.why), task ? `For [[${task.id}]] — ${task.title}` : ''].filter(Boolean).join('\n\n'),
-      });
-      if (task) {
-        task.needs = uniq([...task.needs, d.id]);
-        addLog(task, actor, `assumed ${d.id}: ${question} → ${chose}`, ws.now());
-        ws.save(task);
-      }
+      const d = assumed(call, question, chose, str(call.opts.why), task);
       return {
         text: `${p.bold(d.id)} recorded — carry on. The human will see it in their review.`,
         data: { decision: itemJson(ws, d, true) },

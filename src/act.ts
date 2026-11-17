@@ -217,6 +217,11 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     if (typeof body.on !== 'boolean') return { ok: false, text: 'on, or off?' };
     return act(ctx, ['takeover', body.on ? 'on' : 'off']);
   }
+  if (action === 'afk') {
+    // The switch in the take-over menu: the human is away, so agents take their own recommendation.
+    if (typeof body.on !== 'boolean') return { ok: false, text: 'on, or off?' };
+    return act(ctx, ['afk', body.on ? 'on' : 'off']);
+  }
   if (action === 'notify') {
     // What tells him, from its box on the page: one event switched on or off, or back to the defaults.
     if (body.default === true) return act(ctx, ['notify', 'default']);

@@ -110,10 +110,20 @@ export interface UserConfig {
   takeOver?: Record<string, boolean>;
   /** Caveman mode: the chat that steers or builds answers in the fewest words. One setting for every project and chat. */
   caveman?: boolean;
+  /**
+   * AFK: the human is away. An agent's question is not put to them: `spool ask` takes its
+   * recommended option and records it as a call, unless the agent marks it `--human`. One setting
+   * for every project and agent.
+   */
+  afk?: boolean;
 }
 
 export function cavemanOf(ctx: Ctx): boolean {
   return userConfig(ctx).caveman === true;
+}
+
+export function afkOf(ctx: Ctx): boolean {
+  return userConfig(ctx).afk === true;
 }
 
 /** Threads built at once when nothing is said: each has a worktree of its own, and three is plenty. */
