@@ -46,6 +46,7 @@ import {
 import { PROPOSABLE, type Proposal, type Verb, proposalKey, proposalLine, readProposals, unanswered, writeProposals } from './proposals.ts';
 import { OVERVIEW_SPEC, applyOrder, directionText, gatherDirection, proposeWhole } from './direction.ts';
 import { type Paint, age, itemJson, itemLine, paint } from './render.ts';
+import { COLD_DAYS, coldDays } from './irrelevant.ts';
 import { type Entry, readJournal, startJournal } from './journal.ts';
 import { buildLine, effort, openRun, taskState, tasks } from './schedule.ts';
 import { SIMILAR, alikeIn, compare, droppedBecause, wordsOf } from './similar.ts';
@@ -56,7 +57,7 @@ import { agentOf } from './usage.ts';
 /** The numbers, in one place so they are easy to change. */
 export const MANAGE = {
   /** Proposed, and untouched this many days, is cold. */
-  coldDays: 30,
+  coldDays: COLD_DAYS,
   /** A thread the human wrote on this lately is theirs to move. */
   handsOffDays: 7,
   /** New ideas a run may file. */
@@ -313,51 +314,6 @@ function testsOf(spool: Spool): { file: string; name: string; words: Set<string>
       if (name) out.push({ file, name, words: tokens(name) });
     }
   }
-  return out;
-}
-
-/** When someone other than a run last touched a thread: a run's own sizing must not keep a thread warm for ever. */
-function touched(t: Item, byRuns: Map<string, Set<string>>): number {
-  const minutes = byRuns.get(t.id);
-  if (!minutes?.has(t.updated.slice(0, 16))) return Date.parse(t.updated);
-  const own = logOf(t).filter((n) => !minutes.has(n.minute)).at(-1);
-  return Math.max(Date.parse(t.created), own?.at ?? 0);
-}
-
-/** The proposed threads gone cold by `now`, untouched for MANAGE.coldDays or more but by a run's own sizing, and for how many days. */
-function coldDays(ws: Workspace, open: Item[], runs: Item[], journals: Map<string, { entries: Entry[] }>, now = ws.now()): Map<string, number> {
-  // Only a run from the last weeks can be what last touched a thread that might still be warm.
-  const byRuns = new Map<string, Set<string>>();
-  for (const r of runs.filter((r) => now.getTime() - Date.parse(r.created) < (MANAGE.coldDays + 1) * DAY)) {
-    for (const entry of journals.get(r.id)!.entries) byRuns.set(entry.item, (byRuns.get(entry.item) ?? new Set()).add(entry.at.slice(0, 16)));
-  }
-  const out = new Map<string, number>();
-  for (const t of open.filter((t) => taskState(ws, t) === 'proposed')) {
-    const days = Math.floor((now.getTime() - touched(t, byRuns)) / DAY);
-    if (days >= MANAGE.coldDays) out.set(t.id, days);
-  }
-  return out;
-}
-
-/**
- * The threads a pass over the backlog has marked potentially irrelevant, and why: a drop or an
- * archive a run proposed that the human has not answered, or named gone cold on the last pass's
- * worksheet and untouched since. Taking
- * over leaves these; when they are all that is left, the chat stops.
- */
-export function potentiallyIrrelevant(ws: Workspace, spool: Spool): Map<string, string> {
-  const runs = tasks(ws, spool).filter(isRun);
-  const journals = new Map(runs.map((r) => [r.id, readJournal(r)]));
-  const out = new Map<string, string>();
-  for (const r of runs) {
-    if (journals.get(r.id)!.undone) continue;
-    for (const p of unanswered(readProposals(r))) if (p.verb !== 'build' && !out.has(p.id)) out.set(p.id, `${r.id} proposes to ${p.verb} it`);
-  }
-  // Gone cold counts once a pass's worksheet named it so: as of the last pass. Touched since, it is warm again.
-  const last = runs.sort((a, b) => b.created.localeCompare(a.created))[0];
-  if (!last) return out;
-  const open = tasks(ws, spool).filter((t) => !isRun(t) && t.status === 'proposed');
-  for (const [id, days] of coldDays(ws, open, runs, journals, new Date(last.updated))) if (!out.has(id)) out.set(id, `gone cold, untouched for ${days} days when ${last.id} looked`);
   return out;
 }
 

@@ -25,7 +25,7 @@
 import type { Call, Result } from './commands.ts';
 import { type Ctx, builderOf, saveUserConfig, userConfig } from './context.ts';
 import { type Item, SUGGESTED_HOLD, type Spool, SpoolError, isRun, oneLine, splitBody } from './model.ts';
-import { potentiallyIrrelevant } from './manage.ts';
+import { potentiallyIrrelevant } from './irrelevant.ts';
 import { queueHistory } from './queue-journal.ts';
 import { rosterOf, withinSizes } from './roster.ts';
 import { age } from './render.ts';

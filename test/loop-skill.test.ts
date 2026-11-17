@@ -22,7 +22,7 @@ test('the loop skill has one job: make this chat the builder', () => {
   // The gate: only the human moves a thread to build, and nothing else is ever built.
   assert.match(flat, /\*\*Nothing is built unless the human has moved it to build\.\*\* You never move a thread to build yourself, whatever it is and whoever thought of it, unless they switched \*\*taking over\*\* on: then "When Build is empty" says how\./);
   // Taking over: the CLI picks the thread and checks the target; the chat signs the move and builds it.
-  assert.match(flat, /\*\*Taking over the backlog\?\*\* Where they switched it on \(`spool takeover` says\), read the usage and report it, as above, then `spool build --takeover --as "<your model>"`\. It moves the top thread they filed to Build, signed by you, and says so on the thread/);
+  assert.match(flat, /\*\*Taking over the backlog\?\*\* Where they switched it on \(`spool takeover` says\), read the usage and report it, as above, then `spool build --takeover --as "<your model>"`\. It moves the next thread to Build, theirs first, then AI suggested, signed by you: build it[\s\S]*Keep on until it refuses; never judge one not worth the usage\./);
   assert.match(loop, /^\| `takeover: skyhop`, and how \| They switched taking over on\. Build empty\? Take the next, below \|$/m);
   assert.match(flat, /\*\*Nothing in build\?\*\* Do not build\./);
   // Agents sign their work, the lead and each subagent.
@@ -55,7 +55,7 @@ test('the loop watches the spool, and falls back to one scheduled job', () => {
   assert.match(loop, /^\| `unfiled: n-9wxa "add a mute button"` \| A note nobody has filed\. File it, by the `spool-record` skill \|$/m);
   assert.match(loop, /^\| `cleanup: skyhop`, and their words, or `tidy: skyhop` \| They pressed Clean Up, or a tidy is due while you take over\. Run the pass by `spool prime manager` \(a tidy: `spool manage --start --takeover`\), every drop and archive a proposal, and reply with the run's link \|$/m);
   // Taking over, a refusal that says a tidy is due sends the chat to that pass first.
-  assert.match(flat, /Refused\? It says why, and if a tidy of the backlog is due: run that pass first\./);
+  assert.match(flat, /Refused\? It says why, and if a tidy is due: run that pass first\./);
   assert.match(loop, /^\| `ask: d-3kq2 for t-4kq7 Tighter jump — "Outline, or teal\?"`, and its options \| An agent needs their call\. Ask them in the chat, below \|$/m);
   assert.match(flat, /start the `Monitor` tool with the command `spool watch --as "<your model>"` \(the board shows who watches\) and the longest timeout it allows\. Then end your turn: each line wakes you\./);
   assert.match(flat, /\*\*The watch runs out\*\* after a while, and the harness tells you\. Look once \(`spool next`\), then start it again, until they say stop\./);
