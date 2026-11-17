@@ -21,7 +21,7 @@ Spool itself has no cloud and no account of its own: it is plain files in your r
 ## Already use Claude Code?
 
 ```bash
-npm install -g github:danielportnov/spool && spool install
+npm install -g spool-ai && spool install
 ```
 
 Then, in Claude Code inside your project: `/spool-init`, and after it `/spool open the board`. That's it.
@@ -70,14 +70,15 @@ node --version
 In a terminal, anywhere:
 
 ```bash
-npm install -g github:danielportnov/spool
+npm install -g spool-ai
 ```
 
 ```bash
 spool install
 ```
 
-The first downloads and builds Spool, which takes a minute. The second gives Claude Code five new
+The first downloads Spool, which takes a few seconds. (Prefer the latest source? `npm install -g github:danielportnov/spool`
+builds it from GitHub instead, which takes a minute.) The second gives Claude Code five new
 commands, called skills. Nothing is added to your project yet.
 
 **Try it first, if you like**

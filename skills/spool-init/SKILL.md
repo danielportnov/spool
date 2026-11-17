@@ -15,7 +15,7 @@ None of their own code is touched.
 1. **Check the engine.** `spool --version`. Not found? It is a one-time install
    on this machine. Ask before running it, since it installs a global package:
 
-       npm install -g github:danielportnov/spool
+       npm install -g spool-ai
        spool install
 
 2. **Settle which folder.** With no folder named, it is the one this chat is in.

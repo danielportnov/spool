@@ -1,5 +1,5 @@
 {
-  "name": "@danielportnov/spool",
+  "name": "spool-ai",
   "version": "0.22.0",
   "description": "Agent skills, and the small CLI under them, that keep coding agents working on their own: you talk, they turn it into tasks, work them around the clock, and come back only for the calls that are yours.",
   "keywords": [
@@ -38,7 +38,8 @@
     "build": "tsc -p tsconfig.build.json",
     "check": "tsc -p tsconfig.json",
     "test": "node --test test/*.test.ts",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "prepublishOnly": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && npm run check && npm run build"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
