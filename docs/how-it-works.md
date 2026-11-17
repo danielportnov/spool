@@ -646,7 +646,19 @@ ticket says **hears your replies** beside the agent where this works. The agent 
 may write to it, and that a question still goes through `spool ask`, since you may not be reading
 what it says. When its turn ends it goes, as an agent always did; one that stops with the thread
 unfinished just after you wrote to it is kept five minutes for what you say next. Any other agent
-command is watched only: your reply waits on the thread for its next run.
+command is watched only: your reply waits on the thread for its next run. Either way the ticket
+shows **Typing…** the moment you send, until the agent is heard again.
+
+**A reply where nobody is building gets a quick answer.** Write on a thread no agent of the page
+is building, and **Typing…** shows at once; within seconds a small model answers on the thread:
+Haiku for a one-line message, Sonnet for anything longer, signed with its model. It is given the
+thread's brief, its recent log and your words, and answers a question or says your idea or change
+was added to the thread. It never builds and never moves the thread. Each is one short call of the
+same `claude` your agent command runs, at low effort, able only to read the project (Read, Grep,
+Glob), given up after a minute, and no more than three at once; one that fails says so on the
+thread. It answers in Chat mode too, and with Agents off, since it builds nothing. Turn it off with
+`"quickReply": false` in `~/.config/spool/config.json`. An agent command that is not `claude -p`
+gets no quick reply.
 
 **It asks you before a tool it may not use.** A `claude -p` agent can only do what your agent
 command allows it. Until now a tool call outside that was refused in silence, and you found out
