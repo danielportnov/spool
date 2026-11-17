@@ -210,9 +210,10 @@ test('each agent is held to its own target: Codex stops at 50% while Claude keep
     assert.deepEqual(s.json('usage', '--as', 'Codex').target, { weekly: 80, fiveHour: 90 });
 
     // A reading from the last half hour only: an old one refuses nothing, the agent reads it again first.
+    // (Six hours on, so the headroom near the end of the budget does not hold it either.)
     s.sp('target', '--agent', 'Codex', '--weekly', '50');
     s.sp('usage', '--weekly', '55', '--as', 'Codex');
-    s.advance(1);
+    s.advance(6);
     assert.match(s.sp('next', '--claim', '--as', 'Codex GPT-6'), /^t-/);
   } finally {
     s.cleanup();

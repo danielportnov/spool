@@ -1567,6 +1567,8 @@ export const COMMANDS: Command[] = [
       const chat = all.length > 0 && builderOf(call.ctx, all[0]!.spool.root) === 'chat';
       // A thread handed off to another agent waits for that agent.
       const sized = (chat ? withinSizes(call.ctx, all[0]!.spool.root, call.actor, all) : all).filter((t) => !handedToOther(t, call.actor));
+      // Past its own usage target an agent claims nothing, whatever the size: said as that, first.
+      if (chat && call.opts.claim) refuseOverTarget(call.ctx, call.actor);
       // And near the end of the budget, only what fits what is left; the first passed by is said.
       const room = chat ? withinHeadroom(call.ctx, sized, agentOf(call.actor)) : { fits: sized, passed: null, headroom: null };
       const list = room.fits;
