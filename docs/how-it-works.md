@@ -119,6 +119,11 @@ in Build with **Carry on**, and a manager's run says **Needs a call from you**.
 - A move between Backlog and Build, or an archive, can be taken back: its toast has **Undo** for
   about five seconds, longer while the pointer is on it.
 - **+ Add** at the foot of Backlog or Build adds a thread to that column.
+- **🎙** beside + Add, quick add (`c`) and the reply box dictates: what is said fills the box as it
+  is heard, and it is sent as anything typed. Press it again, or send, to stop. It is the browser's
+  own speech recognition (Chrome, Edge, Safari); where there is none, as in Firefox, there is no 🎙,
+  and macOS's own dictation (the dictation key, or Fn twice) does the same in any box. A long
+  dictation with several ideas in it is saved as one thread: `/spool-record` is what splits one.
 - **Add to Build** at the foot of the backlog moves everything the backlog is *showing*, after
   every filter, and asks once first.
 - Each column has its own **Sort** and **Show**; a **search** (press `/`) and a pill for each

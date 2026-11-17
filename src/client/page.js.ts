@@ -400,6 +400,59 @@ function rowNode(c, b) {
   return node;
 }
 
+// Dictation: 🎙 beside a box fills it with what is said, by the browser's own speech recognition, and
+// they read it and send it as they would anything typed. Spool sends the sound nowhere; the browser may
+// use its maker's service to hear it. Where the browser cannot listen (Firefox), there is no button.
+const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+let dictating = null;
+function stopDictating() {
+  if (!dictating) return;
+  const d = dictating;
+  dictating = null;
+  d.button.classList.remove('on');
+  d.button.title = MIC_TITLE;
+  try { d.rec.stop(); } catch {}
+}
+const MIC_TITLE = 'Dictate: speak, and what you say is typed into the box. Press again to stop.';
+function micNode(key, box) {
+  if (!Speech) return null;
+  const button = el('button', { class: 'mic', type: 'button', title: MIC_TITLE, 'aria-label': 'Dictate',
+    onclick: () => (dictating && dictating.key === key ? stopDictating() : startDictating(key, box, button)) }, '🎙');
+  // A redraw makes a new box: dictation carries on into it.
+  if (dictating && dictating.key === key) { Object.assign(dictating, { box, button }); listening(button); }
+  box.addEventListener('keydown', (e) => { if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Escape') if (dictating && dictating.key === key) stopDictating(); });
+  return button;
+}
+function listening(button) { button.classList.add('on'); button.title = 'Listening… press to stop'; }
+function startDictating(key, box, button) {
+  stopDictating();
+  const rec = new Speech();
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.lang = navigator.language || 'en-US';
+  const d = dictating = { key, rec, box, button, base: box.value, from: 0, last: box.value };
+  rec.onresult = (e) => {
+    if (dictating !== d) return;
+    if (!d.box.isConnected) return stopDictating();
+    // They changed the box meanwhile (typed, or sent it): what is said next goes after what is there now.
+    if (d.box.value !== d.last) { d.base = d.box.value; d.from = e.resultIndex; }
+    const spoken = Array.from(e.results).slice(d.from).map((r) => r[0].transcript).join(' ').replace(/\s+/g, ' ').trim();
+    const text = d.base + (d.base && spoken && !/\s$/.test(d.base) ? ' ' : '') + spoken;
+    d.box.value = text;
+    d.last = text;
+    d.box.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  rec.onerror = (e) => {
+    if (dictating !== d) return;
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') say('The browser was not allowed to use the microphone');
+    else if (e.error !== 'no-speech' && e.error !== 'aborted') say('Dictation stopped: ' + e.error);
+  };
+  rec.onend = () => { if (dictating === d) stopDictating(); };
+  listening(button);
+  box.focus();
+  try { rec.start(); } catch (error) { stopDictating(); say('Dictation could not start: ' + error.message); }
+}
+
 // "+ Add": a thread added under a column starts in that column.
 function addNode(column, placeholder) {
   if (adding !== column) {
@@ -428,7 +481,7 @@ function addNode(column, placeholder) {
   box.value = addDraft;
   takePictures(box, 'add:' + column);
   return el('div', { class: 'adding' }, box, trayNode('add:' + column),
-    el('div', { class: 'acts' }, el('button', { class: 'go', onclick: save }, 'Add'), el('button', { onclick: close }, 'Cancel')));
+    el('div', { class: 'acts' }, el('button', { class: 'go', onclick: save }, 'Add'), el('button', { onclick: close }, 'Cancel'), micNode('add:' + column, box)));
 }
 
 // Clean Up: an agent goes through the backlog by the manager's rules, and what it would drop or archive
@@ -1355,7 +1408,7 @@ function threadNode(c, b) {
 
     el('div', { class: 'compose' }, avatar('human'),
       el('div', {}, box, trayNode(c.id, ready),
-        el('div', { class: 'acts' }, el('span', { class: 'hint' }, 'Enter to send · Shift+Enter for a new line · Paste or drop a picture or a file'), pickNode(c.id), send))),
+        el('div', { class: 'acts' }, el('span', { class: 'hint' }, 'Enter to send · Shift+Enter for a new line · Paste or drop a picture or a file'), micNode(c.id, box), pickNode(c.id), send))),
     changesNode(c),
     c.done && el('div', { class: 'finish' }, c.complete
       ? el('div', { class: 'ok' }, '✓ Complete. You approved this change.')
@@ -2668,7 +2721,8 @@ function quickAddNode() {
   box.value = quickDraft;
   show();
   takePictures(box, 'quick');
-  return [box, chips, trayNode('quick'), el('div', { class: 'foot' }, 'Enter adds it to the backlog. Shift+Enter is a new line. Paste or drop a picture or a file to send it too. Esc closes, and keeps what you typed.')];
+  const mic = micNode('quick', box);
+  return [box, chips, trayNode('quick'), mic && el('div', { class: 'acts' }, mic), el('div', { class: 'foot' }, 'Enter adds it to the backlog. Shift+Enter is a new line. Paste or drop a picture or a file to send it too. Esc closes, and keeps what you typed.')];
 }
 
 // Esc closes the nearest thing: a box over the page, then the search, then the ticket, then lets go of the thread.

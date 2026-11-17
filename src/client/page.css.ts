@@ -228,6 +228,12 @@ export const CSS = String.raw`  :root {
   .add:hover { color: var(--ink); }
   .adding textarea, .adding input { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); resize: vertical; }
   .acts { display: flex; gap: 6px; margin-top: 6px; }
+  /* Dictation: the 🎙 sits at the end of a box's buttons, and glows while it listens. */
+  .mic { margin-left: auto; padding: 4px 8px; line-height: 1; }
+  .compose .mic { margin-left: 0; }
+  .mic.on { border-color: var(--hot); color: var(--hot); box-shadow: 0 0 0 3px color-mix(in srgb, var(--hot) 20%, transparent); animation: listen 1.4s ease-in-out infinite; }
+  @keyframes listen { 50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--hot) 10%, transparent); } }
+  @media (prefers-reduced-motion: reduce) { .mic.on { animation: none; } }
   .foot { width: 100%; margin-bottom: 8px; }
   .addall { margin-bottom: 0; }
   .history { background: none; border: 0; padding: 6px; color: var(--soft); font-size: 13px; width: 100%; text-align: left; }

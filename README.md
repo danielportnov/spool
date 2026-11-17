@@ -188,6 +188,12 @@ version to narrow the board to it. Reply on a thread, say **Fine** to a call an 
 overrule it in a sentence, and press **Mark as complete** when you have looked at the change. Agents keep working while it is
 open, and you watch threads move.
 
+Rather say it than type it? Press **🎙** beside **+ Add**, `c` or the reply box and speak: your
+words fill the box, and you read them and send them as usual. It is the browser's own speech
+recognition, so it works in Chrome, Edge and Safari and is not offered in Firefox; Spool sends the
+sound nowhere, though the browser may use its maker's service to hear it. Anywhere, macOS's own
+dictation works too: press the dictation key (🎤, or Fn twice) in any box.
+
 Much feedback is about how something looks, so a picture can go with it: paste a screenshot, or
 drop an image file, into the reply box, **+ Add** or `c`, and it waits under the box until you send.
 It shows under your words in the conversation, a click opens it full size, and the agent that builds
