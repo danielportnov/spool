@@ -1,6 +1,28 @@
 # Changelog
 
-What shipped in each version of Spool, newest first.
+Spool is a CLI and board for turning your ideas into a work queue for coding agents.
+You choose what to build, agents work on threads, and the results stay connected to
+their original requests. It is early software and is moving quickly. These notes
+show what changed in each version, newest first.
+
+## 0.25.0 · 2026-11-17
+
+- An overview can propose goals, sprints and their order for your approval. Take-over
+  works toward the usage target, starting with your threads.
+- Choose a named mode for agent settings. Hands-on is the default.
+- Watch an agent’s live session on its thread and see what each run was given.
+- The board puts agent usage around each logo and gathers the controls in Settings.
+- Codex usage comes from its own session logs, informing targets and headroom.
+- A landing check that exceeds its time limit stops, so later landings can proceed.
+  The board and status show who is waiting.
+- A thread already claimed by a chat cannot be claimed by another, and held
+  proposed threads stay visible as held.
+- The board rejects cross-origin changes and framing. Security and contribution
+  guidance, issue templates, and automated checks are included for contributors.
+- A shared queue can keep its records in git while excluding local runs, history,
+  worktrees and usage. A clean-install check exercises setup on macOS and Ubuntu.
+- The README now includes a quickstart and a demo board. The guides describe
+  current settings, skills and how to remove Spool.
 
 ## 0.24.0 · 2026-11-17
 
@@ -14,15 +36,14 @@ any of them, and open any in Claude Code.
 **Many agents, your limits**
 - A roster: Claude and Codex each with their own thread count, sizes and usage target, and who is watching.
 - A Usage-to-Development slider per brand moves each size's model down to save usage or up for power.
-- Fable's own weekly usage is counted; near its limit, a thread goes to Opus instead.
+- Weekly usage is counted for the largest model; near its limit, work goes to Opus instead.
 - Near the usage limit or the end of a time budget (`spool for 2h`, `spool until 1:00`), agents take only
   what fits and wrap up; `spool handoff` passes a thread to an agent with usage left.
 - AFK mode: agents take their own recommendation and leave a call, asking only what truly needs you.
 
 **The board**
 - Settings: one panel for every setting, each row with its command.
-- A 🧹 Clean Up button: an agent proposes what to archive, delete and re-prioritize, and you say yes or no;
-  under take-over the chat tidies the backlog itself once a day.
+- The board offered a Clean Up button for proposed backlog changes (removed in 0.25.0).
 - Dictate a thread or a reply with 🎙.
 - Research mode: a thread whose agent researches and brings back a report, kept for later work.
 - Posts on a thread read in the order they happened, and Spool's own lines read in plain words.
@@ -33,7 +54,7 @@ any of them, and open any in Claude Code.
 - A thread's worktree refuses `git push`.
 - The board remembers threads an agent walked away from across restarts.
 - A drag on the board no longer gets lost when a slow refresh lands mid-drag.
-- `.spool/` is never committed: the queue is private, and it has been removed from the whole history.
+- The queue was kept private in this project. Version 0.25.0 also supports sharing queue records in git.
 
 ## 0.23.0 · 2026-11-17
 

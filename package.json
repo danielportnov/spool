@@ -1,6 +1,6 @@
 {
   "name": "spool-ai",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "A small CLI and agent skills that turn what you say into tasks, have coding agents work them on their own, and come back only for the calls that are yours.",
   "keywords": [
     "ai-agents",
