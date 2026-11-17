@@ -126,7 +126,7 @@ function lastSaid(t: Item): string | null {
       .filter((l) => !/^(→ |✗ |session |denied → |asks → |allowed → |refused → |you: |told to stop )/.test(l));
     if (said.length) return said.at(-1)!;
   }
-  const own = entries(t).filter((e) => !['page', 'loop', 'human'].includes(e.actor) && !/^(started|builder model: |handed to|done:|moved to build)/.test(e.text));
+  const own = entries(t).filter((e) => !['page', 'loop', 'human'].includes(e.actor) && !/^(started|builder model: |built on |handed to|done:|moved to build)/.test(e.text));
   return own.at(-1)?.text ?? null;
 }
 

@@ -25,6 +25,9 @@ import { Workspace } from './store.ts';
 
 export const DEFAULT_AGENT = 'claude -p';
 
+/** What the agent signs as on the thread, where nobody said: the program it is ("claude", "codex"), as the page names it too. */
+const agentName = (command: string): string => path.basename(command.trim().split(/\s+/)[0] ?? '') || 'agent';
+
 export const PREAMBLE = `You are working one task from a Spool queue, unattended. Nobody is reading your
 replies, so nothing you say in chat reaches the human: a question goes through
 \`spool ask\`, a call you make yourself goes through \`spool assume\`. The task
@@ -130,7 +133,7 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
       encoding: 'utf8',
       maxBuffer: 256 * 1024 * 1024,
       stdio: ['pipe', ctx.inherit ? 'inherit' : 'pipe', ctx.inherit ? 'inherit' : 'pipe'],
-      env: { ...ctx.env, SPOOL_ACTOR: ctx.env.SPOOL_ACTOR ?? 'agent', SPOOL_TASK: task.id, SPOOL_PROMPT_FILE: promptFile },
+      env: { ...ctx.env, SPOOL_ACTOR: ctx.env.SPOOL_ACTOR ?? agentName(agent), SPOOL_TASK: task.id, SPOOL_PROMPT_FILE: promptFile },
     });
     fs.rmSync(promptFile, { force: true });
 

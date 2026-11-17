@@ -16,6 +16,7 @@ import { version } from './builtin.ts';
 import type { Ctx } from './context.ts';
 import { canUnwind, inColor, mark, unwind } from './mark.ts';
 import { SpoolError } from './model.ts';
+import { signAs } from './agent.ts';
 import { paint } from './render.ts';
 import { record } from './journal.ts';
 import { Workspace, findHome, isOff, refuseIfOff } from './store.ts';
@@ -211,7 +212,9 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
   }
   if (wantHelp || values.help) return { result: { text: commandHelp(command) }, json };
   json ||= !!values.json;
-  actor = (typeof values.as === 'string' ? values.as : actor) ?? ctx.env.SPOOL_ACTOR ?? (command.human ? 'human' : 'agent');
+  // Who signed it, if anyone did: --as, or SPOOL_ACTOR as the page and the loop set it.
+  const given = (typeof values.as === 'string' ? values.as : actor) ?? ctx.env.SPOOL_ACTOR;
+  actor = given ?? (command.human ? 'human' : 'agent');
   cwd = typeof values.cwd === 'string' ? values.cwd : cwd;
 
   const scoped: Ctx = { ...ctx, cwd: path.resolve(ctx.cwd, cwd ?? '.'), color: ctx.color && !json };
@@ -228,7 +231,7 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
     try {
       // Under a run (SPOOL_RUN), what the command writes is kept, so the whole run can be undone as one.
       if (command.write) record(ws, scoped.env, command.name);
-      const result = command.run!({ ...base, ws, before });
+      const result = command.run!({ ...base, actor: signed(ws, command, base, given), ws, before });
       if (!bare || !art) return { result, json };
       // Typed with nothing after it, the status opens under the mark, with the version and the project beside it.
       const head = mark(scoped, { lines: [...versioned(), ws.home.name, beside.dim('spool help lists the commands')] });
@@ -240,6 +243,33 @@ function dispatch(argv: string[], ctx: Ctx): { result: Result; json: boolean } {
     // Whatever `before` took to do its work is let go of here, however the command ended.
     command.after?.(before);
   }
+}
+
+/**
+ * Who a command signs as, once the queue is open: on a thread someone has claimed, a command
+ * nobody signed is the claimer's, and so is one signed with another form of the claimer's name
+ * (agent.ts, signAs). The thread is the one it names (its id, or --for), else the one its agent
+ * was started on (SPOOL_TASK), else the one whose worktree it is run in. Claiming is not
+ * inferred: a start nobody signed does not become the claimer's.
+ */
+function signed(ws: Workspace, command: Command, base: { ctx: Ctx; args: string[]; opts: Values; actor: string }, given: string | undefined): string {
+  if (command.human) return base.actor;
+  const claiming = command.name === 'start' || command.name === 'next';
+  if (claiming && given === undefined) return base.actor;
+  const worktree = /[\\/]\.spool[\\/]worktrees[\\/]([a-z]-[a-z0-9]+)(?:[\\/]|$)/.exec(base.ctx.cwd)?.[1];
+  const refs = [typeof base.opts.for === 'string' ? base.opts.for : undefined, base.args[0], base.ctx.env.SPOOL_TASK, worktree];
+  for (const ref of refs) {
+    if (!ref) continue;
+    let task;
+    try {
+      task = ws.get(ref, 'task');
+    } catch {
+      continue;
+    }
+    if (task.status !== 'active' || !task.by) return base.actor;
+    return signAs(given, task.by, base.actor);
+  }
+  return base.actor;
 }
 
 /** Run one command. Returns the exit code. */

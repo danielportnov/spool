@@ -128,6 +128,9 @@ const said = (line: string): string => /^- \S+ \S+ .+?: (.*)$/.exec(line)?.[1] ?
 /** How a claim's log line names what a chat's subagent is to be started on. */
 const BUILDER = 'builder model: ';
 
+/** How a claim's log line names the model that builds the thread, where the claim said so. */
+const BUILT = 'built on ';
+
 /** The value of a command's `--name` flag. */
 const flagOf = (command: string, name: string): string | undefined => new RegExp(`(?:^|\\s)--${name}[ =](\\S+)`).exec(command)?.[1];
 
@@ -138,6 +141,10 @@ const flagOf = (command: string, name: string): string | undefined => new RegExp
 function givenBy(what: string): Pick | undefined {
   const handed = /^handed to `(.*)`$/.exec(what)?.[1];
   if (handed !== undefined) return { model: safeModel(flagOf(handed, 'model')), effort: safeEffort(flagOf(handed, 'effort')) };
+  if (what.startsWith(BUILT)) {
+    const [model, effort] = what.slice(BUILT.length).split(/[,;]/)[0]!.split(' · ');
+    return { model: safeModel(model?.trim()), effort: safeEffort(effort?.trim()) };
+  }
   if (!what.startsWith(BUILDER)) return undefined;
   const [model, effort] = what.slice(BUILDER.length).split(',')[0]!.split(' · ');
   return { model: safeModel(model?.trim()), effort: safeEffort(effort?.trim()) };
@@ -215,8 +222,45 @@ export function stepNote(pick: Picked): string | undefined {
  * on: "builder model: sonnet · medium, by its size". The next step up reads it back. Nothing
  * where there is no pick to say.
  */
-export function builderLine(pick: Picked): string | undefined {
-  return pick.model || pick.effort ? `${BUILDER}${pickLabel(pick)}, ${pick.why}` : undefined;
+export function builderLine(pick: Picked, ran?: string): string | undefined {
+  const suggested = pick.model || pick.effort ? `${pickLabel(pick)}, ${pick.why}` : '';
+  // What the claim says it is built on is the fact; what Spool would pick stays beside it, as its suggestion.
+  if (ran) return `${BUILT}${ran}${suggested ? `; Spool suggested ${suggested}` : ''}`;
+  return suggested ? `${BUILDER}${suggested}` : undefined;
+}
+
+// ------------------------------------------------------------ who signs
+
+/** Words that name a model, after an agent's own name: "Claude Opus 5.5", "Codex GPT-6". */
+const MODEL_WORD = /^(opus|sonnet|haiku|fable|claude-|gpt|o\d|gemini|grok|llama|mistral|qwen|deepseek|\d)/i;
+
+/**
+ * An agent's name and the model in it, where it names one: "Claude Opus 5.5" is Claude on
+ * opus-5.5, "Codex GPT-6" is Codex on gpt-6, "Codex" is Codex on nothing it says.
+ */
+export function signer(name: string): { agent: string; model?: string } {
+  const words = name.trim().split(/\s+/);
+  const at = words.findIndex((w, i) => i > 0 && MODEL_WORD.test(w));
+  if (at < 0) return { agent: name.trim() };
+  const model = words.slice(at).join('-').toLowerCase();
+  return { agent: words.slice(0, at).join(' '), model: safeModel(model) };
+}
+
+/** Names that are not an agent's: the human, Spool's own page and loop, and nobody. */
+const NOT_AGENTS = new Set(['human', 'page', 'loop', 'agent', '']);
+
+/**
+ * Who a line is signed by, on a thread claimed by `by`: a command nobody signed (`given` is
+ * undefined) signs as the claimer, and an agent that signs as itself in another form ("Codex"
+ * for "Codex GPT-6", or the other way) signs as the claimer too, so a thread has one name per
+ * agent. Anyone else signs as they said.
+ */
+export function signAs(given: string | undefined, by: string | undefined, fallback: string): string {
+  const claimer = by?.trim() ?? '';
+  if (NOT_AGENTS.has(claimer.toLowerCase())) return given ?? fallback;
+  if (given === undefined || given.trim().toLowerCase() === 'agent') return claimer;
+  if (NOT_AGENTS.has(given.trim().toLowerCase())) return given;
+  return signer(given).agent.toLowerCase() === signer(claimer).agent.toLowerCase() ? claimer : given;
 }
 
 /** Whether an agent command takes the pick at all: a `claude` command, or one that names `{model}` or `{effort}`. */

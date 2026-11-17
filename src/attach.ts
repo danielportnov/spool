@@ -7,16 +7,17 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { Command } from './commands.ts';
+import { signAs } from './agent.ts';
 import { SpoolError } from './model.ts';
 import { type As, MAX_BYTES, attach, tooBig } from './pictures.ts';
 
 export const ATTACH: Command = {
   name: 'attach',
   group: 'agents',
-  usage: 'attach <t-id> <file…> [--as before|after] [-m "<caption>"]',
+  usage: 'attach <t-id> <file…> [--as before|after] [--by <your name>] [-m "<caption>"]',
   summary: 'Keep a picture or a file (PDF, text) with a thread: what you mean, or the before and after of a change you can see. Its agent finds the path in its brief',
   write: true,
-  options: { as: { type: 'string' }, message: { type: 'string', short: 'm' } },
+  options: { as: { type: 'string' }, by: { type: 'string' }, message: { type: 'string', short: 'm' } },
   run(call) {
     const ref = call.args[0];
     if (!ref) throw new SpoolError('which thread?', 'spool attach <t-id> <file…>');
@@ -40,8 +41,9 @@ export const ATTACH: Command = {
       return { bytes: fs.readFileSync(full), shown };
     });
     const caption = typeof call.opts.message === 'string' ? call.opts.message : '';
-    // With --as taken for the side, who attached it is the environment's word, or an agent's.
-    const actor = side ? (call.ctx.env.SPOOL_ACTOR ?? 'agent') : call.actor;
+    // With --as taken for the side, who attached it is --by, or the environment's word, or the one who claimed the thread.
+    const by = typeof call.opts.by === 'string' && call.opts.by.trim() ? call.opts.by.trim() : call.ctx.env.SPOOL_ACTOR;
+    const actor = side || by ? signAs(by, task.status === 'active' ? task.by : undefined, 'agent') : call.actor;
     const added = attach(task, files, (side || null) as As | null, caption, actor, call.ws.now());
     call.ws.save(task);
     const lines = [`Attached to ${task.id}:`, ...added.map((p) => `  ${p.path}`)];

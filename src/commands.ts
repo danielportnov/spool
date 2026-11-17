@@ -600,7 +600,7 @@ function likelyProjects(ws: Workspace, text: string): Spool[] {
  * Claim a thread for whoever is calling. With `worktree`, or where the thread has one from an
  * earlier start, it is given a git worktree of its own to be built in, and that is returned.
  */
-function claim(call: Call, task: Item, force: boolean, worktree = false): { opened?: Opened; pick: Picked } {
+function claim(call: Call, task: Item, force: boolean, worktree = false): { opened?: Opened; pick: Picked; ran?: string } {
   const { ws, actor } = call;
   const state = taskState(ws, task);
   if (state === 'done' || state === 'dropped') throw new SpoolError(`${task.id} is already ${state}`);
@@ -626,7 +626,10 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
   const opened = worktree || task.worktree ? openWorktree(task) : undefined;
   // What the subagent that builds it is started on, read from the log as it stands, before this claim is on it.
   const pick = pickFor(task, userConfig(call.ctx).models);
-  const given = builderLine(pick);
+  // The model that builds it, where the claim says (--model). Not read from the claimer's name: a
+  // chat that claims for a subagent is not the model the subagent runs on.
+  const ran = modelOf(call.opts.model);
+  const given = builderLine(pick, ran);
   task.status = 'active';
   task.by = actor;
   task.started = timestamp(ws.now());
@@ -636,19 +639,20 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
   addLog(task, actor, opened ? `${how}, in its own worktree on ${opened.branch}` : how, ws.now());
   if (given) addLog(task, actor, given, ws.now());
   ws.save(task);
-  return { opened, pick };
+  return { opened, pick, ran: ran || undefined };
 }
 
 /**
  * What a start or a claim says about the model, under the brief: the one the size gives, or one up
  * where the last run did not work, or the human's. A chat that builds starts the thread's subagent on it.
  */
-function modelNote(pick: Picked, p: Paint): string | undefined {
+function modelNote(pick: Picked, p: Paint, ran?: string): string | undefined {
+  if (ran) return `${p.bold('MODEL')} — built on ${ran}, as the claim says${pick.model ? ` (Spool would pick ${pickLabel(pick)}, ${pick.why})` : ''}.`;
   if (!pick.model && !pick.effort) return undefined;
   return `${p.bold('MODEL')} — ${pickLabel(pick)}, ${pick.why}. Start the subagent that builds it on that model, at that effort.`;
 }
 
-const modelJson = (pick: Picked) => ({ model: pick.model ?? '', effort: pick.effort ?? '', why: pick.why });
+const modelJson = (pick: Picked, ran?: string) => ({ model: pick.model ?? '', effort: pick.effort ?? '', why: pick.why, ...(ran ? { ran } : {}) });
 
 /** What a start says about the worktree it made or found, under the brief. */
 function worktreeNote(task: Item, opened: Opened, p: Paint): string {
@@ -1455,13 +1459,14 @@ export const COMMANDS: Command[] = [
   {
     name: 'next',
     group: 'agents',
-    usage: 'next [--claim [--worktree]] [-P <project>]',
-    summary: 'The most important ready task, with all its context; --claim --worktree gives it a git worktree of its own to be built in',
+    usage: 'next [--claim [--worktree] [--model <model>]] [-P <project>]',
+    summary: 'The most important ready task, with all its context; --claim --worktree gives it a git worktree of its own to be built in, and --model says what builds it',
     write: true,
-    options: { claim: { type: 'boolean', short: 'c' }, worktree: { type: 'boolean' }, ...PROJECT },
+    options: { claim: { type: 'boolean', short: 'c' }, worktree: { type: 'boolean' }, model: { type: 'string' }, ...PROJECT },
     run(call) {
       const { ws, p } = call;
       if (call.opts.worktree && !call.opts.claim) throw new SpoolError('--worktree goes with --claim', 'spool next --claim --worktree');
+      if (call.opts.model !== undefined && !call.opts.claim) throw new SpoolError('--model goes with --claim', 'spool next --claim --model <model>');
       const project = str(call.opts.project);
       const list = ready(ws, project);
       const task = list[0];
@@ -1469,29 +1474,29 @@ export const COMMANDS: Command[] = [
       const claimed = call.opts.claim ? claim(call, task, true, !!call.opts.worktree) : undefined;
       const pick = claimed?.pick ?? pickFor(task, userConfig(call.ctx).models);
       const out = [brief(ws, task, p)];
-      const model = modelNote(pick, p);
+      const model = modelNote(pick, p, claimed?.ran);
       if (model) out.push('', model);
       if (claimed?.opened) out.push(worktreeNote(task, claimed.opened, p));
       if (!call.opts.claim) out.push(p.dim(`claim it        spool start ${task.id}`));
       if (list.length > 1) out.push(p.dim(`${list.length - 1} more ready behind it`));
-      return { text: out.join('\n'), data: { task: itemJson(ws, task, true), brief: brief(ws, task, p), model: modelJson(pick), ready: list.length } };
+      return { text: out.join('\n'), data: { task: itemJson(ws, task, true), brief: brief(ws, task, p), model: modelJson(pick, claimed?.ran), ready: list.length } };
     },
   },
   {
     name: 'start',
     group: 'agents',
-    usage: 'start <t-id> [--worktree] [--force]',
-    summary: 'Claim a specific task; --worktree gives it a git worktree of its own, so several can be built at once',
+    usage: 'start <t-id> [--worktree] [--force] [--model <model>]',
+    summary: 'Claim a specific task; --worktree gives it a git worktree of its own, so several can be built at once, and --model says what builds it',
     write: true,
-    options: { force: { type: 'boolean' }, worktree: { type: 'boolean' } },
+    options: { force: { type: 'boolean' }, worktree: { type: 'boolean' }, model: { type: 'string' } },
     run(call) {
       const t = first(call, 'which task', 'task');
-      const { opened, pick } = claim(call, t, !!call.opts.force, !!call.opts.worktree);
+      const { opened, pick, ran } = claim(call, t, !!call.opts.force, !!call.opts.worktree);
       const out = [brief(call.ws, t, call.p)];
-      const model = modelNote(pick, call.p);
+      const model = modelNote(pick, call.p, ran);
       if (model) out.push('', model);
       if (opened) out.push(worktreeNote(t, opened, call.p));
-      return { text: out.join('\n'), data: { task: itemJson(call.ws, t, true), model: modelJson(pick) } };
+      return { text: out.join('\n'), data: { task: itemJson(call.ws, t, true), model: modelJson(pick, ran) } };
     },
   },
   {

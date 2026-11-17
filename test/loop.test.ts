@@ -20,7 +20,7 @@ test('the loop hands each ready task to the agent until none are left', () => {
   const worker = agent(s, 'worker.sh', 'spool done "$SPOOL_TASK" -m "finished by $SPOOL_ACTOR" > /dev/null');
 
   const out = s.sp('loop', '--agent', worker);
-  assert.match(out, new RegExp(`▶ ${urgent}  Urgent[\\s\\S]*✓ done — finished by agent[\\s\\S]*▶ ${normal}  Normal`));
+  assert.match(out, new RegExp(`▶ ${urgent}  Urgent[\\s\\S]*✓ done — finished by worker.sh[\\s\\S]*▶ ${normal}  Normal`));
   assert.match(out, /Loop stopped after 2 run\(s\): 2 done, 0 waiting, 0 unfinished\. 0 still ready\./);
   assert.equal(s.json('review').shipped.length, 2);
 
