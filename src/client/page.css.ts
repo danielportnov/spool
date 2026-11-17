@@ -81,7 +81,30 @@ export const CSS = String.raw`  :root {
   #targets input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--accent); }
   #targets input[type="range"]:disabled { cursor: default; }
   #targets .foot { margin: 6px 0 0; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; color: var(--soft); }
-  @media (max-width: 1100px) { .target .label { display: none; } }
+  /* Taking over the backlog, in Chat mode: a switch in the header that opens its menu. */
+  .takeover { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--soft); margin-left: -8px; }
+  .takeover .knob { position: relative; flex: none; width: 22px; height: 12px; border-radius: 6px; background: var(--line); transition: background .15s; }
+  .takeover .knob::after { content: ''; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--panel); transition: left .15s; }
+  .takeover.on { color: var(--ink); font-weight: 600; }
+  .takeover.on .knob { background: var(--go); }
+  .takeover.on .knob::after { left: 12px; }
+  .takeover[aria-expanded="true"] { border-color: var(--soft); background: var(--bg); }
+  #takeovers { position: absolute; z-index: 3; top: calc(100% + 6px); right: 20px; width: 360px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); padding: 12px 16px 14px; }
+  #takeovers .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  #takeovers h3 { margin: 0; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--soft); }
+  #takeovers .shut { border: 0; background: none; color: var(--soft); padding: 2px 6px; font-size: 16px; line-height: 1; }
+  /* Each setting is an entry of its own: more can be added below without changing these. */
+  #takeovers .entry { padding: 10px 0 8px; border-top: 1px solid var(--line); }
+  #takeovers .entry:first-of-type { margin-top: 8px; }
+  #takeovers .entry .name { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; }
+  #takeovers .entry label.name { cursor: pointer; justify-content: flex-start; }
+  #takeovers .entry label.name input { margin: 0; accent-color: var(--accent); }
+  #takeovers .entry p { margin: 4px 0 0; font-size: 12px; color: var(--soft); }
+  #takeovers .entry .now { color: var(--ink); }
+  #takeovers .entry .now.not { color: var(--warn); }
+  #takeovers .entry button.link { border: 0; background: none; padding: 0; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; }
+  #takeovers.off .entry.takes, #takeovers.off .entry.usage { opacity: .55; }
+  @media (max-width: 1100px) { .target .label, .takeover .label { display: none; } }
   .live { margin-top: 6px; display: flex; align-items: center; gap: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--soft); }
   .live .now { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .live .for { color: var(--blue); white-space: nowrap; }

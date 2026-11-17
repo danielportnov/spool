@@ -1477,6 +1477,7 @@ function draw(b) {
     runner.onclick = () => post('runner', { on: !b.runner.on }, '');
   }
   drawTarget(b);
+  drawTakeOver(b);
   drawElsewhere(b);
   document.getElementById('board').hidden = view !== 'board';
   document.getElementById('backlog').hidden = view !== 'backlog';
@@ -1550,6 +1551,7 @@ function drawTarget(b) {
 // The box under it: for each limit, a switch, a slider and a box to type the number in. The slider
 // shows what is used, shaded in, so the target is set against it. Each change is spool target.
 function openTargets() {
+  closeTakeOvers();
   const box = document.getElementById('targets');
   targetsOpen = true;
   const shut = el('button', { class: 'shut', title: 'Close', 'aria-label': 'Close', onclick: closeTargets }, '×');
@@ -1624,6 +1626,84 @@ function fillTargets(u) {
 // the palette's own row is gone by now, having opened this box.
 document.addEventListener('click', (e) => {
   if (targetsOpen && !e.composedPath().some((node) => ['targets', 'target', 'layer'].includes(node.id))) closeTargets();
+});
+
+// ---- taking over the backlog: in Chat mode, the chat that builds may move threads to Build itself
+
+let takeOversOpen = false;
+const takeOverOf = (b) => b.takeOver || { on: false, next: null, waiting: null };
+
+// In the header, Chat mode only: a switch that says whether the chat takes over, and opens its menu.
+function drawTakeOver(b) {
+  const chip = document.getElementById('takeover');
+  const chat = b.runner.builder === 'chat';
+  chip.hidden = !chat;
+  if (!chat) return closeTakeOvers();
+  const t = takeOverOf(b);
+  chip.className = 'takeover' + (t.on ? ' on' : '');
+  chip.replaceChildren(el('span', { class: 'knob', 'aria-hidden': 'true' }), el('span', { class: 'label' }, 'Take over'));
+  chip.title = t.on
+    ? 'The chat takes over the backlog: with Build empty and the usage under your target, it moves the top thread you filed to Build itself, and builds it.' + (t.waiting ? ' Not now: ' + t.waiting + '.' : '') + ' Click for its settings.'
+    : 'The chat builds only what you move to Build. Click to let it take over the backlog, up to your usage target.';
+  chip.setAttribute('aria-label', 'Take over the backlog: ' + (t.on ? 'on' : 'off'));
+  chip.setAttribute('aria-expanded', String(takeOversOpen));
+  chip.onclick = () => (takeOversOpen ? closeTakeOvers() : openTakeOvers());
+  if (takeOversOpen) fillTakeOvers(b);
+}
+
+// The menu under it: the switch, the usage it works up to, and which threads it takes. Each is an
+// entry of its own, so more settings for the agents can be added here later.
+function openTakeOvers() {
+  closeTargets();
+  const box = document.getElementById('takeovers');
+  takeOversOpen = true;
+  const shut = el('button', { class: 'shut', title: 'Close', 'aria-label': 'Close', onclick: closeTakeOvers }, '×');
+  const on = el('input', { type: 'checkbox' });
+  on.addEventListener('change', () => post('takeover', { on: on.checked }, on.checked
+    ? 'The chat takes over the backlog, up to your usage target.'
+    : 'The chat builds only what you move to Build.'));
+  const change = el('button', { class: 'link', onclick: (e) => { e.stopPropagation(); closeTakeOvers(); openTargets(); } }, 'Change');
+  box.replaceChildren(
+    el('div', { class: 'head' }, el('h3', {}, 'Take over the backlog'), shut),
+    el('div', { class: 'entry switch' },
+      el('label', { class: 'name' }, on, 'The chat takes over'),
+      el('p', {}, 'With Build empty, the chat that builds moves the top thread you filed to Build itself, and builds it. Each says so on its thread, and Undo takes it back.')),
+    el('div', { class: 'entry usage' },
+      el('div', { class: 'name' }, 'Works up to', change),
+      el('p', { class: 'goal' })),
+    el('div', { class: 'entry takes' },
+      el('div', { class: 'name' }, 'Takes'),
+      el('p', {}, 'Threads you filed, top of the backlog first, one at a time. Never an AI suggested one, one on hold, or one waiting on a question or a plan’s go-ahead.'),
+      el('p', { class: 'now' })));
+  box.hidden = false;
+  document.getElementById('takeover').setAttribute('aria-expanded', 'true');
+  if (current) fillTakeOvers(current);
+}
+function closeTakeOvers() {
+  if (!takeOversOpen) return;
+  takeOversOpen = false;
+  document.getElementById('takeovers').hidden = true;
+  document.getElementById('takeovers').replaceChildren();
+  document.getElementById('takeover').setAttribute('aria-expanded', 'false');
+}
+// What the menu shows, from the board: the switch left alone while it is being used.
+function fillTakeOvers(b) {
+  const box = document.getElementById('takeovers');
+  const t = takeOverOf(b);
+  const on = box.querySelector('.switch input');
+  if (on && document.activeElement !== on) on.checked = t.on;
+  box.classList.toggle('off', !t.on);
+  const u = b.usage;
+  const set = LIMITS.filter(([key]) => u.target[key] != null);
+  box.querySelector('.goal').textContent = set.length
+    ? set.map(([key, name]) => name + ' ' + (usedOf(u, key) == null ? 'target ' + u.target[key] + '%' : Math.round(usedOf(u, key)) + ' of ' + u.target[key] + '%')).join(', ') + '. It moves nothing more once that is reached.'
+    : 'No usage target is set, so it moves nothing. Set one to let it take over.';
+  const now = box.querySelector('.takes .now');
+  now.className = 'now' + (t.on && t.waiting ? ' not' : '');
+  now.textContent = !t.on ? '' : t.waiting ? 'Not now: ' + t.waiting + '.' : t.next ? 'Next: ' + t.next.title : '';
+}
+document.addEventListener('click', (e) => {
+  if (takeOversOpen && !e.composedPath().some((node) => ['takeovers', 'takeover', 'layer'].includes(node.id))) closeTakeOvers();
 });
 
 // The board lives in a background tab, where its title and icon are all that shows. Both say what
