@@ -27,6 +27,7 @@ import * as path from 'node:path';
 import { act } from './act.ts';
 import { fableCap } from './usage.ts';
 import { type Pick as Picked, type Routing, commandFor, pickFor, stepNote, takesPick } from './agent.ts';
+import { agentOfCommand, rosterOf, routingFor } from './roster.ts';
 import { type Builder, type Ctx, builderOf, notify, parallelOf, quietLimits, saveBuilder, userConfig } from './context.ts';
 import { dirtyPaths, discardPaths, repoRoot } from './git.ts';
 import { DEFAULT_AGENT, PREAMBLE } from './loop.ts';
@@ -264,6 +265,8 @@ type HandOut = 'started' | 'none' | 'skipped';
 /** How a card learns what its model will be: the user's table by size. */
 export interface Picking {
   models: Routing;
+  /** The table for a project, at its agent's lean: what a card in it gets by its size. */
+  of?: (root: string) => Routing;
 }
 
 /**
@@ -444,9 +447,8 @@ export class Runner {
         const folder = runFolder(task);
         // Two agents never share the project's own folder, and one whose worktree was cleared away has nowhere to carry on.
         if (!session || !fs.existsSync(folder) || [...this.runs.values()].some((run) => run.folder === folder)) return false;
-        const { models } = userConfig(this.ctx);
         const notes = task.from.map((n) => ws.find(n)).filter((n): n is Item => n?.kind === 'note');
-        const picked = this.pickUp(task, { session, how: 'cut off' }, notes, models);
+        const picked = this.pickUp(task, { session, how: 'cut off' }, notes);
         if (!picked) return false;
         again = picked;
         handed = {
@@ -458,7 +460,7 @@ export class Runner {
           told: notes.map((n) => n.id),
           spoke: picked.unheard ? Date.now() : undefined,
         };
-        fresh.command = this.afresh(this.command(pickFor(task, models, asItRan(task), fableCap(this.ctx))));
+        fresh.command = this.afresh(this.command(pickFor(task, this.leaned(task), asItRan(task), fableCap(this.ctx))));
         task.by = this.name();
         task.started = timestamp(ws.now());
         addLog(task, 'page', 'its page had stopped with nobody working it; carried on where it was', ws.now());
@@ -481,8 +483,8 @@ export class Runner {
    * which is only what has changed since it was last given the thread. `unheard` is how many of
    * the human's notes that is. Nothing where the agent command cannot pick a session up.
    */
-  private pickUp(task: Item, left: { session: string; how: Left }, notes: Item[], models: Routing): (Start & { unheard: number }) | undefined {
-    const command = inSession(this.command(pickFor(task, models, asItRan(task), fableCap(this.ctx))), left.session, true);
+  private pickUp(task: Item, left: { session: string; how: Left }, notes: Item[]): (Start & { unheard: number }) | undefined {
+    const command = inSession(this.command(pickFor(task, this.leaned(task), asItRan(task), fableCap(this.ctx))), left.session, true);
     if (!command) return undefined;
     const given = recall(task);
     const told = new Set(given?.session === left.session ? given.told : []);
@@ -524,7 +526,7 @@ export class Runner {
       try {
         run = again.get(id, 'task');
         folder = run.spool.root;
-        const command = this.afresh(this.command(pickFor(run, userConfig(this.ctx).models)));
+        const command = this.afresh(this.command(pickFor(run, this.leaned(run))));
         addLog(run, 'page', `the pass is handed to \`${command}\``, again.now());
         again.save(run, { actor: 'page', command: 'page' });
         prompt = `${PASS}\n${prime(again, 'manager')}\n\nYOUR PASS\n\n${worksheetText(again, sheet, paint(false))}\n`;
@@ -933,7 +935,6 @@ export class Runner {
     let handed: Handed;
     const fresh: Start = { prompt: '', command: this.agent };
     let again: Start | undefined;
-    const { models } = userConfig(this.ctx);
     try {
       const ws = Workspace.open(this.ctx.cwd, this.ctx.now, true);
       try {
@@ -999,7 +1000,7 @@ export class Runner {
         };
         // Left unfinished by a run in a session of Claude's, it is carried on there, as it ran: nobody chooses its model a second time.
         const left = leftOff(task);
-        const picked = left && this.pickUp(task, left, notes, models);
+        const picked = left && this.pickUp(task, left, notes);
         if (picked) {
           again = picked;
           // Words of theirs it is picked up with are words to it: it is kept for the next as after any other.
@@ -1008,7 +1009,7 @@ export class Runner {
           addLog(task, 'page', `session ${left.session} cannot be picked up by \`${this.agent}\`; starting afresh`, ws.now());
         }
         // Afresh, a thread whose last run did not work goes one model up, and its log says so.
-        const pick = pickFor(task, models, again ? asItRan(task) : undefined, fableCap(this.ctx));
+        const pick = pickFor(task, this.leaned(task), again ? asItRan(task) : undefined, fableCap(this.ctx));
         const stepped = takesPick(this.agent) ? stepNote(pick) : undefined;
         task.status = 'active';
         task.by = this.name();
@@ -1042,7 +1043,17 @@ export class Runner {
 
   /** The user's table of which model and effort each size gets: read fresh so a change shows at once. */
   routing(): Picking {
-    return { models: userConfig(this.ctx).models };
+    return { models: userConfig(this.ctx).models, of: (root) => routingFor(this.ctx, root, this.brandIn(root)) };
+  }
+
+  /** Whose models a thread here is built on: the agent command's brand headless, the first on the roster in Chat mode. */
+  private brandIn(root: string): string {
+    return builderOf(this.ctx, root) === 'chat' ? (rosterOf(this.ctx, root)[0]?.name ?? 'Claude') : agentOfCommand(this.agent);
+  }
+
+  /** The size table a thread is picked by: its brand's, at that agent's lean on the roster. */
+  private leaned(task: Item): Routing {
+    return routingFor(this.ctx, task.spool.root, agentOfCommand(this.agent));
   }
 
   /** What the agent is called on the thread: the program it is, so "claude" shows as Claude. */

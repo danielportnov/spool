@@ -14,7 +14,7 @@
  */
 
 import { type Ctx, parallelOf, saveUserConfig, userConfig } from './context.ts';
-import { signer } from './agent.ts';
+import { type Lean, type Pick, type Routing, LEAN_DEFAULT, leanOf, leaning, signer, suggestion } from './agent.ts';
 import { type Item, SIZES, type Size, type Spool, SpoolError, oneLine } from './model.ts';
 import { taskState, tasks } from './schedule.ts';
 import { sharedFolderWhy } from './slots.ts';
@@ -34,6 +34,8 @@ export interface RosterEntry {
   minSize?: Size;
   /** The largest size it takes. Not set: extra large. */
   maxSize?: Size;
+  /** Its slider from usage to development: which model, and how hard, each size gets. Not set: balanced. */
+  lean?: Lean;
 }
 
 /** The roster a project has before the human says anything: the two agents that build here. */
@@ -140,7 +142,7 @@ export function saveAgent(
   ctx: Ctx,
   root: string,
   name: string,
-  change: { atOnce?: number; model?: string; minSize?: Size | null; maxSize?: Size | null },
+  change: { atOnce?: number; model?: string; minSize?: Size | null; maxSize?: Size | null; lean?: Lean },
 ): RosterEntry {
   const roster = rosterOf(ctx, root);
   let entry = rosterAgent(roster, name);
@@ -155,10 +157,35 @@ export function saveAgent(
     if (v === null) delete entry[k];
     else if (v !== undefined) entry[k] = v;
   }
+  if (change.lean !== undefined) entry.lean = change.lean;
   saveUserConfig(ctx, (config) => {
     config.roster = { ...(config.roster ?? {}), [root]: roster };
   });
   return entry;
+}
+
+/** An agent's lean, as kept: anything but a known word reads as balanced. */
+export function leanAt(entry: RosterEntry | undefined): Lean {
+  try {
+    return leanOf(entry?.lean) ?? LEAN_DEFAULT;
+  } catch {
+    return LEAN_DEFAULT;
+  }
+}
+
+/**
+ * The size table a thread is picked by when `agent` builds it here: that agent's brand at its
+ * lean, under any size the user set by hand. `agent` is a signer ("Claude Opus 5.5") or a roster name.
+ */
+export function routingFor(ctx: Ctx, root: string, agent: string): Routing {
+  const entry = rosterAgent(rosterOf(ctx, root), agent);
+  return leaning(userConfig(ctx).models, entry?.name ?? signer(agent).agent, leanAt(entry));
+}
+
+/** The agent a headless command is: `codex` is Codex, anything else Claude. */
+export function agentOfCommand(command: string): string {
+  const program = command.trim().split(/\s+/)[0]?.split('/').at(-1) ?? '';
+  return program.toLowerCase() === 'codex' ? 'Codex' : 'Claude';
 }
 
 /**
@@ -185,6 +212,9 @@ export interface AgentView {
   /** The sizes it takes, smallest and largest, and the same in words. */
   sizes: [Size, Size];
   sizesText: string;
+  /** Where its slider sits, usage to development, and what each size is built on there. */
+  lean: Lean;
+  table: { size: string; model: string; effort: string }[];
   /** Whether a `spool watch` signed as this agent is up for the project. */
   watching: boolean;
   building: { id: string; title: string }[];
@@ -199,17 +229,32 @@ export function rosterView(ctx: Ctx, ws: Workspace, spool: Spool): AgentView[] {
     atOnce: countOf(ctx, spool.root, e, shared),
     sizes: sizesOf(e),
     sizesText: sizesText(e),
+    lean: leanAt(e),
+    table: tableOf(routingFor(ctx, spool.root, e.name)),
     watching: up.includes(e.name.toLowerCase()),
     building: heldBy(ws, spool, e).map((t) => ({ id: t.id, title: oneLine(t.title, 90) })),
   }));
 }
 
-/** The roster in one line: "Claude 3 at once, watching, building t-4kq7 · Codex 2 at once, up to M, not watching". */
+/** What each size is built on by a table, smallest first. */
+function tableOf(routing: Routing): AgentView['table'] {
+  return SIZES.map((size) => {
+    const pick: Pick = suggestion({ size } as never, routing);
+    return { size, model: pick.model ?? '', effort: pick.effort ?? '' };
+  });
+}
+
+/** What each size is built on, in a few words: "xs haiku, s haiku, m sonnet, l opus, xl opus·high". */
+export function tableLine(a: AgentView): string {
+  return a.table.map((s) => `${s.size} ${s.model}${s.effort && s.effort !== 'medium' ? `·${s.effort}` : ''}`).join(', ');
+}
+
+/** The roster in one line: "Claude 3 at once, watching, building t-4kq7 · Codex 2 at once, up to M, leaning usage, not watching". */
 export function rosterLine(agents: AgentView[]): string {
   return agents
     .map((a) => {
       const building = a.building.length ? `, building ${a.building.map((b) => b.id).join(', ')}` : '';
-      return `${a.name} ${a.atOnce} at once${a.model ? ` on ${a.model}` : ''}, ${a.sizesText === 'all sizes' ? '' : `${a.sizesText}, `}${a.watching ? 'watching' : 'not watching'}${building}`;
+      return `${a.name} ${a.atOnce} at once${a.model ? ` on ${a.model}` : ''}, ${a.sizesText === 'all sizes' ? '' : `${a.sizesText}, `}${a.lean !== LEAN_DEFAULT ? `leaning ${a.lean}, ` : ''}${a.watching ? 'watching' : 'not watching'}${building}`;
     })
     .join(' · ');
 }

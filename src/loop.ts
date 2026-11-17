@@ -16,6 +16,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fableCap } from './usage.ts';
 import { commandFor, pickFor, stepNote, takesPick } from './agent.ts';
+import { agentOfCommand, routingFor } from './roster.ts';
 import type { Bare, Result } from './commands.ts';
 import { notify, userConfig } from './context.ts';
 import { type Item, SpoolError, addLog, firstLine, timestamp } from './model.ts';
@@ -52,10 +53,9 @@ export function runLoop({ ctx, opts, p }: Bare): Result {
   const max = opts.once ? 1 : opts.max !== undefined ? count(opts.max, '--max') : Infinity;
   const watch = opts.watch !== undefined ? count(opts.watch, '--watch') : 0;
   const project = typeof opts.project === 'string' ? opts.project : undefined;
-  const { models: routing } = userConfig(ctx);
   /** The command for this thread: the user's, with the model and effort it gets put in, and the line that says it stepped up, if it did. */
   const commandOf = (task: Item): { command: string; stepped?: string } => {
-    const pick = pickFor(task, routing, undefined, fableCap(ctx));
+    const pick = pickFor(task, routingFor(ctx, task.spool.root, agentOfCommand(agent)), undefined, fableCap(ctx));
     const stepped = takesPick(agent) ? stepNote(pick) : undefined;
     return { command: commandFor(agent, pick), ...(stepped ? { stepped } : {}) };
   };

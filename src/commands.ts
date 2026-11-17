@@ -13,7 +13,7 @@ import { ATTACH } from './attach.ts';
 import { HANDOFF, handedToOther, handoffOf } from './handoff.ts';
 import { ADOPT, strayFixes, strayLines, straysOf } from './strays.ts';
 import { builderCommand } from './builder.ts';
-import { refuseOutsideSizes, refuseOverCount, withinSizes } from './roster.ts';
+import { refuseOutsideSizes, refuseOverCount, routingFor, withinSizes } from './roster.ts';
 import { type Picked, builderLine, effortOf, modelOf, pickFor, pickLabel, ranOn } from './agent.ts';
 import { morning, morningText } from './brief.ts';
 import { DISABLE, ENABLE } from './off.ts';
@@ -630,7 +630,7 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
   // Before anything is written: where there can be no worktree, the thread is not claimed either.
   const opened = worktree || task.worktree ? openWorktree(task) : undefined;
   // What the subagent that builds it is started on, read from the log as it stands, before this claim is on it.
-  const picked = pickFor(task, userConfig(call.ctx).models, undefined, fableCap(call.ctx));
+  const picked = pickFor(task, routingFor(call.ctx, task.spool.root, call.actor), undefined, fableCap(call.ctx));
   // Handed off to a model, it is built on that one: a hand-off is not a failed run, so it is no step up.
   const handed = task.status === 'open' && !task.model ? handoffOf(task)?.model : undefined;
   const pick = handed ? { ...picked, model: handed, stepped: undefined, capped: undefined, why: `handed off to it by ${handoffOf(task)!.by}` } : picked;
@@ -1294,15 +1294,15 @@ export const COMMANDS: Command[] = [
   {
     name: 'builder',
     group: 'setup',
-    usage: 'builder [headless | chat] [--at-once <n>] [--agent <name> [--model <model>] [--sizes <a-b> | --max-size <s>]] [-P <project>]',
-    summary: 'Say who builds here: the page, starting agents (headless), or a Claude Code chat running the loop; --at-once sets how many threads at the same time, for every agent or, with --agent, for one (Claude, Codex), and with --sizes xs-m (or --max-size m, or all) the sizes it may take, which adds it where it is not listed. With nothing after it, says what is set, and which agents build',
+    usage: 'builder [headless | chat] [--at-once <n>] [--agent <name> [--model <model>] [--sizes <a-b> | --max-size <s>] [--lean usage|balanced|development]] [-P <project>]',
+    summary: 'Say who builds here: the page, starting agents (headless), or a Claude Code chat running the loop; --at-once sets how many threads at the same time, for every agent or, with --agent, for one (Claude, Codex), and with --sizes xs-m (or --max-size m, or all) the sizes it may take, which adds it where it is not listed; --lean slides that agent from saving usage (small threads on the smallest model) to pushing development (bigger models, more effort). With nothing after it, says what is set, and which agents build',
     human: true,
-    options: { 'at-once': { type: 'string' }, agent: { type: 'string' }, model: { type: 'string' }, sizes: { type: 'string' }, 'max-size': { type: 'string' }, ...PROJECT },
+    options: { 'at-once': { type: 'string' }, agent: { type: 'string' }, model: { type: 'string' }, sizes: { type: 'string' }, 'max-size': { type: 'string' }, lean: { type: 'string' }, ...PROJECT },
     run(call) {
       const { ws, ctx, args, opts } = call;
       if (args.length > 1) throw new SpoolError('too many words', 'spool builder [headless | chat] [--at-once <n>] [--agent <name>]');
       const spool = str(opts.project) ? ws.project(str(opts.project)) : ws.home;
-      const ask = { word: args[0], atOnce: str(opts['at-once']), agent: str(opts.agent), model: str(opts.model), sizes: str(opts.sizes), maxSize: str(opts['max-size']) };
+      const ask = { word: args[0], atOnce: str(opts['at-once']), agent: str(opts.agent), model: str(opts.model), sizes: str(opts.sizes), maxSize: str(opts['max-size']), lean: str(opts.lean) };
       return builderCommand(ctx, ws, spool, ask, call.actor, () => byTheHuman(call, [spool], 'builder'));
     },
   },
@@ -1574,7 +1574,7 @@ export const COMMANDS: Command[] = [
       }
       if (!task) return { text: nothingReady(ws, project), data: { task: null, ready: 0 } };
       const claimed = call.opts.claim ? claim(call, task, true, !!call.opts.worktree) : undefined;
-      const pick = claimed?.pick ?? pickFor(task, userConfig(call.ctx).models, undefined, fableCap(call.ctx));
+      const pick = claimed?.pick ?? pickFor(task, routingFor(call.ctx, task.spool.root, call.actor), undefined, fableCap(call.ctx));
       const out = room.passed ? [room.passed, '', brief(ws, task, p)] : [brief(ws, task, p)];
       const model = modelNote(pick, p, claimed?.ran);
       if (model) out.push('', model);

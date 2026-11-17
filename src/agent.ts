@@ -51,6 +51,83 @@ export const SUGGESTED: Record<Size, Required<Pick>> = {
 /** The models, smallest first: a thread whose run did not work goes one up. */
 export const LADDER = ['haiku', 'sonnet', 'opus', 'fable'] as const;
 
+// ------------------------------------------------------------ the lean: usage to development
+
+/**
+ * How hard a brand leans on its big models, set per agent on the roster: `usage` spares the plan,
+ * so small work goes to the smallest model and every size to the cheapest that can do it;
+ * `development` gives each size a bigger model and more effort; `balanced` is between, and is
+ * what a brand gets before the human says. The lean moves the size table; a thread's own Model
+ * and Effort still win, and the step up and Fable's cap still apply on top.
+ */
+export const LEANS = ['usage', 'balanced', 'development'] as const;
+export type Lean = (typeof LEANS)[number];
+export const LEAN_DEFAULT: Lean = 'balanced';
+
+export function leanOf(value: unknown): Lean | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  const v = value.trim().toLowerCase();
+  const at = LEANS.findIndex((l) => l === v || l.startsWith(v));
+  if (at < 0) throw new SpoolError(`"${value}" is not a lean`, `Say one of ${LEANS.join(', ')}: spool builder --agent Claude --lean usage`);
+  return LEANS[at]!;
+}
+
+/** A brand's models smallest first, by the word that names each and the id it is run on, and its size table at each lean. */
+interface Brand {
+  ladder: readonly { word: string; id: string }[];
+  tables: Record<Lean, Record<Size, Required<Pick>>>;
+}
+
+const t = (model: string, effort: Effort): Required<Pick> => ({ model, effort });
+
+/**
+ * Each brand's table at each lean. Claude's `balanced` is the table Spool has always had
+ * (`SUGGESTED`). Codex's ladder is GPT-6 Luna, Terra, Sol, by the ids Codex has logged; a fuller
+ * per-brand model setting is its own thread.
+ */
+export const BRANDS: Record<string, Brand> = {
+  claude: {
+    ladder: LADDER.map((m) => ({ word: m, id: m })),
+    tables: {
+      usage: { xs: t('haiku', 'medium'), s: t('haiku', 'medium'), m: t('sonnet', 'medium'), l: t('opus', 'medium'), xl: t('opus', 'high') },
+      balanced: SUGGESTED,
+      development: { xs: t('sonnet', 'medium'), s: t('opus', 'medium'), m: t('opus', 'high'), l: t('opus', 'xhigh'), xl: t('fable', 'high') },
+    },
+  },
+  codex: {
+    ladder: [
+      { word: 'luna', id: 'gpt-6-luna' },
+      { word: 'terra', id: 'gpt-6.1-terra' },
+      { word: 'sol', id: 'gpt-6.1-sol' },
+    ],
+    tables: {
+      usage: { xs: t('gpt-6-luna', 'medium'), s: t('gpt-6-luna', 'medium'), m: t('gpt-6.1-terra', 'medium'), l: t('gpt-6.1-sol', 'medium'), xl: t('gpt-6.1-sol', 'high') },
+      balanced: { xs: t('gpt-6-luna', 'medium'), s: t('gpt-6.1-terra', 'medium'), m: t('gpt-6.1-sol', 'medium'), l: t('gpt-6.1-sol', 'high'), xl: t('gpt-6.1-sol', 'xhigh') },
+      development: { xs: t('gpt-6.1-terra', 'medium'), s: t('gpt-6.1-sol', 'medium'), m: t('gpt-6.1-sol', 'high'), l: t('gpt-6.1-sol', 'xhigh'), xl: t('gpt-6.1-sol', 'xhigh') },
+    },
+  },
+};
+
+/** The brand an agent is, by its name: Codex is Codex, and anything else is built on Claude's models. */
+export const brandOf = (agent: string | undefined): string => (agent && BRANDS[agent.trim().toLowerCase()] ? agent.trim().toLowerCase() : 'claude');
+
+/** What each size gets for a brand at a lean. */
+export function leanTable(agent: string | undefined, lean: Lean | undefined): Record<Size, Required<Pick>> {
+  return BRANDS[brandOf(agent)]!.tables[lean ?? LEAN_DEFAULT];
+}
+
+/**
+ * The table a thread is picked by: the brand's at its lean, with any size the user set by hand in
+ * their own table (`models` in their config) kept as they set it. `false` stays no suggestion at all.
+ */
+export function leaning(routing: Routing, agent: string | undefined, lean: Lean | undefined): Routing {
+  if (routing === false) return false;
+  const table = leanTable(agent, lean);
+  const out: Partial<Record<Size, { model?: string; effort?: string }>> = {};
+  for (const size of SIZES) out[size] = { ...table[size], ...Object.fromEntries(Object.entries(routing?.[size] ?? {}).filter(([, v]) => v)) };
+  return out;
+}
+
 /** The least effort a thread that steps up to a model is given there: Fable is at its best from high. */
 const LEAST_EFFORT: Partial<Record<(typeof LADDER)[number], Effort>> = { fable: 'high' };
 
@@ -194,8 +271,15 @@ function setback(after: string[]): string | undefined {
   return why;
 }
 
-/** The rung of the ladder a model is on, by its alias or a full id that names it, or -1. */
-const rung = (model: string): number => LADDER.findIndex((m) => model.toLowerCase().includes(m));
+/** The ladder a model is on, by its alias or a full id that names it, and its rung there; rung -1 where it is on none. */
+function rung(model: string): { ladder: Brand['ladder']; on: number } {
+  const name = model.toLowerCase();
+  for (const brand of Object.values(BRANDS)) {
+    const on = brand.ladder.findIndex((m) => name.includes(m.word));
+    if (on >= 0) return { ladder: brand.ladder, on };
+  }
+  return { ladder: [], on: -1 };
+}
 
 /** The highest of some efforts. */
 const highest = (...efforts: (Effort | undefined)[]): Effort =>
@@ -221,11 +305,11 @@ export function stepUp(task: Item, routing: Routing): Up | undefined {
   const ran = givenBy(lines[at]!)!;
   const size = suggestion(task, routing);
   const from = ran.model ?? size.model ?? '';
-  const on = rung(from);
+  const { ladder, on } = rung(from);
   if (on < 0) return undefined;
-  const top = on === LADDER.length - 1;
-  const model = LADDER[top ? on : on + 1]!;
-  return { model, effort: highest(ran.effort, size.effort, LEAST_EFFORT[model]), from, reason, top };
+  const top = on === ladder.length - 1;
+  const model = ladder[top ? on : on + 1]!.id;
+  return { model, effort: highest(ran.effort, size.effort, LEAST_EFFORT[model as (typeof LADDER)[number]]), from, reason, top };
 }
 
 const stepWhy = (up: Step): string => `${up.top ? 'kept on the biggest model' : `stepped up from ${up.from}`}: ${up.reason}`;

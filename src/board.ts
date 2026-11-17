@@ -495,7 +495,7 @@ function waitingOf(ws: Workspace, task: Item, steps: Thread['steps'], asked: Ite
 
 function card(ws: Workspace, task: Item, n: number | null, note: string, column: Column, routing?: Picking): Card {
   // What it gets left to itself: the human's pick is set aside, so the boxes can say what leaving them gives.
-  const suggest = pickFor({ ...task, model: undefined, effort: undefined }, routing?.models);
+  const suggest = pickFor({ ...task, model: undefined, effort: undefined }, routing?.of ? routing.of(task.spool.root) : routing?.models);
   const { main, log } = splitBody(task.body);
   const asked = blockers(ws, task).find((b) => b.kind === 'decision' && b.status === 'open');
   const thread = threadOf(ws, task, main, log);
