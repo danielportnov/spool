@@ -50,6 +50,9 @@ export const CSS = String.raw`  :root {
   .themer:hover { color: var(--ink); }
   .themer svg { width: 16px; height: 16px; }
   .builder button.on { position: relative; color: var(--ink); background: var(--bg); border-color: var(--soft); font-weight: 600; }
+  /* Headless is off for now: greyed, and a click does nothing. It still shows as the pick when the project is set to it. */
+  .builder button.off { color: var(--line); cursor: not-allowed; }
+  .builder button.off.on { color: var(--soft); }
   /* The usage target, in Chat mode: a small meter of the plan's usage, with a tick where the chat stops. */
   .target { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--soft); margin-left: -8px; }
   .target.set { color: var(--ink); }

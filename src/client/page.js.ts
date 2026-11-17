@@ -1571,12 +1571,17 @@ function draw(b) {
   builder.hidden = false;
   for (const pick of builder.children) {
     const mine = pick.dataset.builder === b.runner.builder;
-    pick.className = mine ? 'on' : '';
+    // Headless is greyed out for now: the board cannot switch to it, but it still shows as the pick when the project is set to it.
+    const off = pick.dataset.builder === 'headless';
+    pick.className = (mine ? 'on' : '') + (off ? ' off' : '');
     pick.setAttribute('aria-pressed', String(mine));
-    pick.title = pick.dataset.builder === 'chat'
-      ? 'A Claude Code chat builds what is in Build: one running /spool-loop in this project. This page starts no agents.'
-      : 'This page builds what is in Build itself, with no chat open. It runs: ' + b.runner.agent;
-    pick.onclick = () => { if (!mine) post('builder', { builder: pick.dataset.builder }, ''); };
+    pick.setAttribute('aria-disabled', String(off));
+    pick.title = off
+      ? 'Off for now. To use it: spool builder headless'
+      : pick.dataset.builder === 'chat'
+        ? 'A Claude Code chat builds what is in Build: one running /spool-loop in this project. This page starts no agents.'
+        : 'This page builds what is in Build itself, with no chat open. It runs: ' + b.runner.agent;
+    pick.onclick = () => { if (!mine && !off) post('builder', { builder: pick.dataset.builder }, ''); };
   }
   // One button says how the agents are doing. Headless, they are the page's own, and it is their switch.
   // With a chat building, the page cannot switch a chat on: it says whether one is building or listening.
@@ -2213,7 +2218,7 @@ function actionsOf(b) {
     { name: 'Go to the Board', hint: 'g b', run: () => goTo('board') },
     { name: 'Go to the Backlog', hint: 'g l', run: () => goTo('backlog') },
     { name: 'Go to the Roadmap', hint: 'g r', run: () => goTo('roadmap') },
-    { name: 'Switch who builds to ' + (chat ? 'Headless' : 'Chat'), run: () => post('builder', { builder: chat ? 'headless' : 'chat' }, '') },
+    !chat && { name: 'Switch who builds to Chat', run: () => post('builder', { builder: 'chat' }, '') },
     !chat && { name: b.runner.on ? 'Switch agents off' : 'Switch agents on', run: () => post('runner', { on: !b.runner.on }, '') },
     chat && { name: 'Set the usage target', run: () => openTargets() },
     { name: 'Choose what notifies you', run: () => openNotices() },

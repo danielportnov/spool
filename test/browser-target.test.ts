@@ -101,8 +101,9 @@ test('in Chat mode the header holds the usage target: a slider and a number, aga
     await page.locator('#board').click({ position: { x: 5, y: 5 } });
     await box.waitFor({ state: 'hidden' });
 
-    // Back to Headless: the target goes from the header.
-    await page.locator('#builder button', { hasText: 'Headless' }).click();
+    // Headless is off on the board, so the command switches back: the target goes from the header.
+    assert.equal(await page.locator('#builder button', { hasText: 'Headless' }).getAttribute('aria-disabled'), 'true');
+    s.sp('builder', 'headless');
     await chip.waitFor({ state: 'hidden' });
     assert.deepEqual(problems, []);
   } finally {

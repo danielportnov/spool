@@ -97,8 +97,16 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     assert.equal(await agents.innerText(), 'Agents: off');
     assert.match((await agents.getAttribute('title'))!, /No Claude Code chat is watching this spool/);
     await shot(page, '1b-chat-builds');
+    // Headless is off for now: greyed, it does nothing when clicked, and the chat stays the builder.
+    assert.equal(await picks.nth(0).getAttribute('aria-disabled'), 'true');
+    assert.match((await picks.nth(0).getAttribute('title'))!, /Off for now\. To use it: spool builder headless/);
     await picks.nth(0).click();
+    assert.equal(await picks.nth(1).getAttribute('aria-pressed'), 'true');
+    assert.equal(await picks.nth(0).getAttribute('aria-pressed'), 'false');
+    // The command still switches it, and the board follows.
+    s.sp('builder', 'headless');
     await page.locator('#builder button.on', { hasText: 'Headless' }).waitFor();
+    assert.equal(await picks.nth(0).getAttribute('aria-disabled'), 'true');
     assert.match((await agents.getAttribute('title'))!, /Click to have this page build what is in Build/);
 
     // ▶ Build moves a thread to Build.
