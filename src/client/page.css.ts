@@ -307,9 +307,9 @@ export const CSS = String.raw`  :root {
   #settings .seg button.on { background: var(--chip); color: var(--ink); font-weight: 600; }
   #settings .seg button[aria-disabled=true] { opacity: .45; cursor: not-allowed; }
   #settings .agents { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-  #settings .lean-of { display: grid; grid-template-columns: auto auto auto auto; align-items: center; column-gap: 6px; justify-items: end; }
-  #settings .lean-of .ends { font-size: 0.8em; color: var(--soft); }
-  #settings .lean-of .gets { grid-column: 1 / -1; font-size: 0.8em; color: var(--soft); font-variant-numeric: tabular-nums; }
+  #settings .lean-of { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  #settings .lean-of .ends { font-size: 12px; color: var(--soft); }
+  #settings .lean-of .gets { max-width: 300px; text-align: right; font-size: 12px; color: var(--soft); }
   #settings .lean { width: 90px; accent-color: var(--soft); cursor: pointer; }
   #settings .lean.lean-usage { accent-color: var(--go); }
   #settings .lean.lean-development { accent-color: var(--accent); }

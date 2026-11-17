@@ -2015,9 +2015,9 @@ function settingsSections() {
         const slider = el('input', { type: 'range', class: 'lean lean-' + a.lean, min: 0, max: 2, step: 1, 'aria-label': a.name + ', from usage to development', 'aria-valuetext': a.lean,
           onchange: () => { const to = LEANS[Number(slider.value)]; slider.blur(); if (to !== a.lean) sendSetting('roster', { agent: a.name, lean: to }, ''); } });
         slider.value = String(Math.max(0, LEANS.indexOf(a.lean)));
-        return el('span', { class: 'count lean-of', title: a.name + ' leans ' + a.lean + '. Each size gets: ' + gets + '.' },
-          el('span', { class: 'name' }, a.name),
-          el('span', { class: 'ends' }, 'Usage'), slider, el('span', { class: 'ends' }, 'Development'),
+        return el('span', { class: 'lean-of', title: a.name + ' leans ' + a.lean + '. Each size gets: ' + gets + '.' },
+          el('span', { class: 'count' }, el('span', { class: 'name' }, a.name),
+            el('span', { class: 'ends' }, 'Usage'), slider, el('span', { class: 'ends' }, 'Development')),
           el('span', { class: 'gets' }, gets));
       }));
     });
