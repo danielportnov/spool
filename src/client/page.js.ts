@@ -2009,7 +2009,11 @@ document.addEventListener('click', (e) => {
 
 // ---- Settings: every choice about how this spool runs, in one place, each with what it does and its command
 
-const GEAR = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M6.7 1.5h2.6l.4 2.1 1.3.6 1.8-1.2 1.8 1.8-1.2 1.8.6 1.3 2.1.4v2.6l-2.1.4-.6 1.3 1.2 1.8-1.8 1.8-1.8-1.2-1.3.6-.4 2.1H6.7l-.4-2.1-1.3-.6-1.8 1.2-1.8-1.8 1.2-1.8-.6-1.3-2.1-.4V6.7l2.1-.4.6-1.3-1.2-1.8 1.8-1.8 1.8 1.2 1.3-.6z"/><circle cx="8" cy="8" r="2.2"/></svg>';
+// The Settings gear is Lucide's "settings" icon (lucide-static v0.460.0), path unchanged.
+// Lucide is ISC licensed: Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part
+// of Feather (MIT); all other copyright (c) for Lucide is held by Lucide Contributors 2022. https://lucide.dev/license
+// Its 24-unit grid is drawn at the bell's 16px, so its stroke is 2.25 to come out at the bell's 1.5.
+const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>';
 let settingsOpen = false;
 // Each row's own fill, run on every board drawn while the panel is open.
 let settingsFills = [];
