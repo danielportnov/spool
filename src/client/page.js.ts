@@ -1322,7 +1322,7 @@ function threadNode(c, b) {
         if (p.kind === 'event') {
           const s = speaker(p.who);
           const who = s.model ? s.name + ' ' + s.model : s.name;
-          return el('div', { class: 'event' }, el('div', { class: 'dot' }), el('div', {}, who + ' ', rich(p.text), p.at && [el('span', { class: 'sep' }, '·'), stamp(p.at, false, p.exact)]));
+          return el('div', { class: 'event' }, el('div', { class: 'dot' }), el('div', {}, who + ' ', rich(p.plain || p.text), p.at && [el('span', { class: 'sep' }, '·'), stamp(p.at, false, p.exact)]));
         }
         if (p.kind === 'decided') return decidedNode(p.who, p.at, p.ref, p.text, b, t, p.exact);
         const asking = p.kind === 'asked' && c.question && c.question.title === p.text;
@@ -1330,7 +1330,7 @@ function threadNode(c, b) {
           el('div', {}, byline(p.who, p.at, p.exact),
             p.kind === 'shipped' && el('span', { class: 'badge' }, '✓ Shipped'),
             p.kind === 'asked' && el('span', { class: 'badge ask' }, '❓ Needs a call from you'),
-            (p.text || !p.pictures) && el('pre', {}, rich(p.text)),
+            (p.text || !p.pictures) && el('pre', {}, rich(p.plain || p.text)),
             picturesNode(c, p),
             p === shipped && proofNode(c),
             p === shipped && c.steps.length > 0 && [el('div', { class: 'note' }, 'To check'), stepsNode(c.steps)],

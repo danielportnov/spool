@@ -194,6 +194,8 @@ interface Post {
    */
   kind: 'said' | 'post' | 'shipped' | 'asked' | 'decided' | 'event' | 'picture';
   text: string;
+  /** Spool's own line in plain words, when it differs from the stored text; the page shows this. */
+  plain?: string;
   /** The pictures shown under the words, by name. */
   pictures?: string[];
   /** The decision a post is about: the question asked, or the call made. */
@@ -229,7 +231,7 @@ function feedOf(ws: Workspace, task: Item, said: Thread['said'], steps: Thread['
     const decided = /^assumed (d-[a-z0-9]+): (.*)$/.exec(s.what);
     // A call is stamped with when it was made, not when it was written on the thread.
     if (decided) return { at: feedTime(ws.find(decided[1]!)?.created) || s.at, who: s.who, kind: 'decided', text: decided[2]!, ref: decided[1]! };
-    return { at: s.at, who: s.who, kind: BOOKKEEPING.test(s.what) || s.who === 'human' ? 'event' : 'post', text: plain(s.what) };
+    return { at: s.at, who: s.who, kind: BOOKKEEPING.test(s.what) || s.who === 'human' ? 'event' : 'post', text: s.what, ...(plain(s.what) !== s.what ? { plain: plain(s.what) } : {}) };
   });
   // Oldest first by the real time of each post; ties keep the order they were written in, words first.
   const when = (p: Post): number => Date.parse(p.at.replace(' ', 'T')) || 0;
