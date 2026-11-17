@@ -282,6 +282,13 @@ Before it claims each thread it reads your plan's weekly and 5-hour usage with i
 reports it with `spool usage`, which says keep building or stop. Stopped, it claims nothing new and
 lets what is being built land. With no target it builds what is in Build, whatever the usage.
 
+**An agent out of usage hands its thread off.** It runs `spool handoff <id> -m "<where it
+stopped>"`, which commits the work so far in the thread's worktree, logs the note and puts the thread
+back in Build, its worktree kept. `--to Codex` keeps it for that agent; `--to sonnet` has the next
+claim built on that model. The next claim goes back into the same worktree, its brief leads with the
+note, and its log says who it took over from. A hand-off is not a failed run, so it is no step up.
+Where nobody has usage left, it waits in Build, and the board's list says it was handed off.
+
 **It can take over the backlog,** where you switch that on (`spool takeover on`, or Take over in
 the header). With Build empty and the usage under the target, it runs `spool build --takeover`,
 which moves the top thread you filed to Build, signed by the chat and saying so on the thread, and

@@ -10,10 +10,10 @@ import { spool } from './helpers.ts';
  * "Working a thread" as `spool prime worker` printed it while it was a section of the loop skill
  * (commit 131b10a): the sha256 of that text. The rules moved to rules/worker.md and did not change,
  * until the rules on before and after pictures, on how to write on a thread, on adopting a commit
- * that landed on no thread, on signing, on the trailers stamped at landing, and on questions that are truly the human's while they are AFK, were added on purpose.
+ * that landed on no thread, on signing, on the trailers stamped at landing, on questions that are truly the human's while they are AFK, and on handing a thread off when out of usage, were added on purpose.
  * Changed them on purpose since? Put the new hash here.
  */
-const WORKING_A_THREAD = '0c554597c62848aa8b30679738f14ee30f87d659449af8a84fbeb02dc79849f0';
+const WORKING_A_THREAD = 'e323dec34ff1125b27fc03d0d599b09c94c1fa433764ca8940dd1bc04960e569';
 
 const sha = (text: string): string => createHash('sha256').update(text).digest('hex');
 

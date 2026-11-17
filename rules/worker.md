@@ -160,6 +160,9 @@ recommendation, the reason.
 - A commit of yours landed with no `Spool:` trailer? `spool adopt <sha> --for <id>` puts it on the
   thread, so it is undone with it. `spool status` names what landed on no thread.
 - Found something out of scope? `spool task "<title>" --size <size>`. Queue it, don't wander.
+- Out of usage mid-thread (your plan's limit, or the human's target)? `spool handoff <id> -m "<where it
+  stopped>"`, with `--to <agent>` or `--to <model>` where one has usage left, and stop. It commits the
+  work so far, puts the thread back in Build, and the next one carries on from your note.
 - Cannot finish? Then you need something. Say what with `spool ask … --for <id>`,
   so the thread waits on the answer instead of on you.
 - A thread on hold is the human saying not yet. It is never handed out; never release it yourself.

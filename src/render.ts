@@ -16,6 +16,7 @@ import { type Picture, picturesOf } from './pictures.ts';
 import { type Candidate, SUGGEST, addLine, offerLine } from './suggest.ts';
 import type { Workspace } from './store.ts';
 import { workDir } from './worktree.ts';
+import { handoffBrief, handoffOf } from './handoff.ts';
 
 // Where the page and the commands have always found it.
 export { sprintAbout };
@@ -113,6 +114,8 @@ export function itemLine(ws: Workspace, item: Item, p: Paint, showProject = true
     if (state === 'archived') notes.push(age(item.archived!, ws.now()) === 'now' ? 'archived just now' : `archived ${age(item.archived!, ws.now())} ago`);
     if (state === 'active') notes.push(`${item.by ?? 'someone'}, ${age(item.updated, ws.now())}`);
     if (state === 'stale') notes.push(`${item.by ?? 'someone'} went quiet ${age(item.updated, ws.now())} ago`);
+    const handed = item.status === 'open' ? handoffOf(item) : null;
+    if (handed) notes.push(`handed off${handed.to ? ` to ${handed.to}` : ''} by ${handed.by}`);
     if (state === 'done' || state === 'dropped') notes.push(awaitsGoAhead(ws, item) ? 'awaiting go-ahead' : state);
     const made = progress(ws, item);
     if (made) notes.push(made.text);
@@ -149,6 +152,8 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
   }
   if (task.status === 'proposed') out.push(p.yellow('PROPOSED — not in build. Do not start it; only the human moves it to build.'));
   if (task.hold) out.push(p.yellow(`ON HOLD — ${task.hold}. Do not start it; only the human releases it.`));
+  // Handed off by an agent that ran out of usage: the one carrying it on reads where it stopped first.
+  out.push(...handoffBrief(task).map((line) => p.yellow(line)));
   if (main) out.push('', main);
 
   // What finishing means depends on the type of work, so the brief says it outright.

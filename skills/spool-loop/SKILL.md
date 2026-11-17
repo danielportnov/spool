@@ -75,7 +75,7 @@ says). Before you claim each thread, read the plan's usage with your harness's
 tool (`get_usage` in the Claude app) and report it: `spool usage --weekly <n>
 --five-hour <n> --fable <n>` (Fable's own weekly figure, where your tool shows one). It says keep building, or stop: then claim nothing new, let
 what is building land, and notify them once (`budget`). No usage tool? Say so once, and
-build as if no target were set.
+build as if no target were set. A subagent out of usage mid-thread runs `spool handoff <id> -m "<where it stopped>"` (`--to Codex` or `--to sonnet`); take a handed-off thread like any in Build.
 
 ## Watch the spool
 

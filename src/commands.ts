@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import type { ParseArgsConfig } from 'node:util';
 import { agentsCommand } from './agents-switch.ts';
 import { ATTACH } from './attach.ts';
+import { HANDOFF, handedToOther, handoffOf } from './handoff.ts';
 import { ADOPT, strayFixes, strayLines, straysOf } from './strays.ts';
 import { builderCommand } from './builder.ts';
 import { refuseOutsideSizes, refuseOverCount, withinSizes } from './roster.ts';
@@ -620,10 +621,16 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
     refuseOutsideSizes(call.ctx, task, actor);
     refuseOverCount(call.ctx, ws, task, actor);
   }
+  // Handed off to another agent: it is kept for that one.
+  const keptFor = handedToOther(task, actor);
+  if (keptFor && !force) throw new SpoolError(`${task.id} was handed off to ${keptFor}`, `It waits for ${keptFor}. Take it anyway with --force, or: spool next`);
   // Before anything is written: where there can be no worktree, the thread is not claimed either.
   const opened = worktree || task.worktree ? openWorktree(task) : undefined;
   // What the subagent that builds it is started on, read from the log as it stands, before this claim is on it.
-  const pick = pickFor(task, userConfig(call.ctx).models, undefined, fableCap(call.ctx));
+  const picked = pickFor(task, userConfig(call.ctx).models, undefined, fableCap(call.ctx));
+  // Handed off to a model, it is built on that one: a hand-off is not a failed run, so it is no step up.
+  const handed = task.status === 'open' && !task.model ? handoffOf(task)?.model : undefined;
+  const pick = handed ? { ...picked, model: handed, stepped: undefined, capped: undefined, why: `handed off to it by ${handoffOf(task)!.by}` } : picked;
   // The model that builds it, where the claim says (--model). Not read from the claimer's name: a
   // chat that claims for a subagent is not the model the subagent runs on.
   const ran = modelOf(call.opts.model);
@@ -633,7 +640,8 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
   task.started = timestamp(ws.now());
   // Taken, it has left Build, and its place in line with it.
   task.place = undefined;
-  const how = state === 'stale' ? 'picked up after the last claim went quiet' : 'started';
+  const from = state === 'ready' ? handoffOf(task) : null;
+  const how = state === 'stale' ? 'picked up after the last claim went quiet' : from ? `started, taking over from ${from.by}, who handed it off` : 'started';
   addLog(task, actor, opened ? `${how}, in its own worktree on ${opened.branch}` : how, ws.now());
   // Where Fable's own limit kept it off Fable, the thread says so, as a step up does.
   if (pick.capped && !ran) addLog(task, actor, pick.capped, ws.now());
@@ -1520,7 +1528,9 @@ export const COMMANDS: Command[] = [
       const project = str(call.opts.project);
       const all = ready(ws, project);
       // In Chat mode an agent is handed only what is in its sizes; the rest waits for one that takes it.
-      const list = all.length && builderOf(call.ctx, all[0]!.spool.root) === 'chat' ? withinSizes(call.ctx, all[0]!.spool.root, call.actor, all) : all;
+      const sized = all.length && builderOf(call.ctx, all[0]!.spool.root) === 'chat' ? withinSizes(call.ctx, all[0]!.spool.root, call.actor, all) : all;
+      // A thread handed off to another agent waits for that agent.
+      const list = sized.filter((t) => !handedToOther(t, call.actor));
       const task = list[0];
       if (!task && all.length) {
         return { text: `Nothing ready is in the sizes you take: ${all.length} wait${all.length === 1 ? 's' : ''} for an agent that takes them (${[...new Set(all.map((t) => (t.size ?? 'm').toUpperCase()))].join(', ')}).`, data: { task: null, ready: 0, outsideSizes: all.length } };
@@ -1582,6 +1592,7 @@ export const COMMANDS: Command[] = [
   },
   ATTACH,
   ADOPT,
+  HANDOFF,
   {
     name: 'ask',
     group: 'agents',
