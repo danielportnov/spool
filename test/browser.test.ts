@@ -156,6 +156,11 @@ test('the page, clicked, dragged and typed on in a real browser', async (t) => {
     await ticket.waitFor();
     await ticket.locator('.field', { hasText: 'Priority' }).locator('select').selectOption('0');
     await until('the priority is saved', () => s.json('show', jump).item.priority === 0);
+    // Its type is picked here too: research finds out and reports, and builds nothing.
+    await ticket.locator('.field', { hasText: 'Type' }).locator('select').selectOption('research');
+    await until('it is research', () => /^type: research$/m.test(s.item(jump)));
+    await ticket.locator('.field', { hasText: 'Type' }).locator('select').selectOption('change');
+    await until('it is a change again', () => !/^type:/m.test(s.item(jump)));
     await ticket.getByPlaceholder('Add a tag').fill('Feel');
     await ticket.getByPlaceholder('Add a tag').press('Enter');
     await ticket.locator('.side .chip', { hasText: '#feel' }).waitFor();

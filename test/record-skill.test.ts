@@ -19,7 +19,8 @@ test('/spool-record files ideas and nothing else: answers and steering are /spoo
   // One table says how each kind of thing is filed.
   const filed = record.split('\n').filter((l) => l.startsWith('   | ') && !l.includes('| --- |') && !l.includes('| It is |')).map((l) => l.trim().slice(2, -2).split(' | '));
   assert.deepEqual(filed.map(([what]) => what!.replace(/:.*$/, '')), [
-    'a change', 'a look and a report', 'something big or open, or too big to see its parts', 'a change that waits on another', '"not yet", "just an idea", "after the launch"',
+    'a change', 'a look and a report', 'something to find out, not build',
+    'something big or open, or too big to see its parts', 'a change that waits on another', '"not yet", "just an idea", "after the launch"',
     'what a stretch of work should achieve', 'more on an existing thread', 'a thread Spool says looks like one already there', 'nothing to do',
   ]);
   const run = (what: string): string => filed.find(([it]) => it!.startsWith(what))![1]!;
