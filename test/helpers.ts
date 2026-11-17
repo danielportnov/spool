@@ -284,6 +284,7 @@ function launchPage(options: PageOptions, args: string[]): Promise<Page> {
       ...process.env,
       HOME: `${s.root}/.home`,
       XDG_CONFIG_HOME: undefined,
+      CODEX_HOME: undefined,
       SPOOL_ACTOR: undefined,
       SPOOL_AGENT: undefined,
       SPOOL_PAGE_RESUME: undefined,

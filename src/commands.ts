@@ -1631,14 +1631,14 @@ export const COMMANDS: Command[] = [
   {
     name: 'usage',
     group: 'agents',
-    usage: 'usage [--weekly <percent>] [--five-hour <percent>] [--fable <percent>] | --cannot-read',
-    summary: "Building in Chat mode: report your plan's usage you just read, signed with your name, before you claim a thread, and hear whether your usage target lets you take it. --cannot-read says you have no way to read it, and the board shows that. With nothing after it, says your last reading",
+    usage: 'usage [--weekly <percent>] [--five-hour <percent>] [--fable <percent>] | --from-codex | --cannot-read',
+    summary: "Building in Chat mode: report your plan's usage you just read, signed with your name, before you claim a thread, and hear whether your usage target lets you take it. --from-codex reads Codex's from its own session log, as Codex's. --cannot-read says you have no way to read it, and the board shows that. With nothing after it, says your last reading",
     write: true,
-    options: { weekly: { type: 'string' }, 'five-hour': { type: 'string' }, fable: { type: 'string' }, 'cannot-read': { type: 'boolean' } },
+    options: { weekly: { type: 'string' }, 'five-hour': { type: 'string' }, fable: { type: 'string' }, 'cannot-read': { type: 'boolean' }, 'from-codex': { type: 'boolean' } },
     run(call) {
       const { ctx, args, opts } = call;
       if (args.length) throw new SpoolError('a figure is given with its flag', 'spool usage --weekly 62 --five-hour 18');
-      return usageCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']), fable: str(opts.fable) }, call.actor, opts['cannot-read'] === true);
+      return usageCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']), fable: str(opts.fable) }, call.actor, opts['cannot-read'] === true, opts['from-codex'] === true);
     },
   },
   {

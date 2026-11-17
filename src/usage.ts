@@ -18,11 +18,16 @@
  * agent has no target of its own for takes the one set for all. An agent that cannot read its
  * plan says so (`spool usage --cannot-read`), and the board says it too. `usageOf(ctx, agent)` is
  * the one way to ask where an agent stands. Fable's own limit is Claude's alone.
+ *
+ * Codex is the one plan Spool reads for itself: Codex writes its ChatGPT plan's limits into its own
+ * session logs, on this machine, and Spool takes the figures from there (codex.ts) whenever they are
+ * newer than what Codex last reported. `spool usage --from-codex` reports them as Codex's reading.
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { NOT_AGENTS, signer } from './agent.ts';
+import { codexLimits, codexSessionsDir } from './codex.ts';
 import { type Ctx, configDir, saveUserConfig, userConfig } from './context.ts';
 import { type Item, SIZES, type Size, SpoolError } from './model.ts';
 import { age } from './render.ts';
@@ -46,6 +51,10 @@ const FABLE_FRESH_MS = 24 * 3600 * 1000;
 export const FRESH_MS = 30 * 60_000;
 /** Whose a reading or a target is where nobody named an agent: the chat that built before there were several. */
 export const DEFAULT_AGENT = 'Claude';
+/** The agent whose plan Spool can read for itself, from its own session logs (codex.ts). */
+export const CODEX_AGENT = 'Codex';
+/** Who a reading taken from Codex's session log is signed by. */
+const CODEX_LOG = 'Codex, from its session log';
 
 /** A percent for each limit that has one. */
 export type Figures = Partial<Record<Limit, number>>;
@@ -168,13 +177,20 @@ function readingsFile(ctx: Ctx): { last: RawReading | null; agents: Record<strin
 export function readingOf(ctx: Ctx, agent: string = DEFAULT_AGENT): Reading | null {
   const { agents } = readingsFile(ctx);
   const key = keyIn(agents, agent);
-  return key ? cleanReading(agents[key]) : null;
+  const reported = key ? cleanReading(agents[key]) : null;
+  if (!sameAgent(agent, CODEX_AGENT)) return reported;
+  // Codex's plan, as its own session log has it, where that is newer than what it last reported.
+  const log = codexLimits(ctx);
+  if (!log || (reported && Date.parse(reported.at) >= Date.parse(log.at))) return reported;
+  return { used: log.used, at: log.at, by: CODEX_LOG };
 }
 
-/** Every agent that has reported, by name. */
+/** Every agent that has reported, by name, and Codex where its session log has its plan's usage. */
 export function readingAgents(ctx: Ctx): string[] {
   const { agents } = readingsFile(ctx);
-  return Object.keys(agents).filter((k) => cleanReading(agents[k]));
+  const out = Object.keys(agents).filter((k) => cleanReading(agents[k]));
+  if (!out.some((a) => sameAgent(a, CODEX_AGENT)) && codexLimits(ctx)) out.push(CODEX_AGENT);
+  return out;
 }
 
 /** Fable's percent when it is at or over its target (95% where it has none) in a reading read within a day. */
@@ -510,6 +526,7 @@ export function usageCommand(
   typed: Partial<Record<Limit, string>>,
   by: string,
   cannotRead = false,
+  fromCodex = false,
 ): { text: string; data: Usage & { keepBuilding: boolean } } {
   const used: Figures = {};
   for (const limit of LIMITS) {
@@ -517,13 +534,28 @@ export function usageCommand(
     if (t !== undefined) used[limit] = percentOf(t, limit, 'used');
   }
   if (cannotRead && Object.keys(used).length) throw new SpoolError('--cannot-read says there are no figures: give one or the other', 'spool usage --cannot-read, or spool usage --weekly 62');
-  const agent = agentOf(by);
+  if (fromCodex && (cannotRead || Object.keys(used).length)) throw new SpoolError('--from-codex reads the figures itself: give no others', 'spool usage --from-codex --as Codex');
+  // Read from Codex's session log, the reading is Codex's whoever runs it, and as old as the log line.
+  let at = ctx.now().toISOString();
+  if (fromCodex) {
+    const log = codexLimits(ctx);
+    if (!log) {
+      throw new SpoolError(
+        `Codex's usage cannot be read here: no Codex session under ${codexSessionsDir(ctx) || '~/.codex/sessions'} has its plan's limits`,
+        'Codex signed in with an API key has none. Read them in Codex (/status) and give them: spool usage --weekly <n> --five-hour <n> --as Codex, or spool usage --cannot-read --as Codex',
+      );
+    }
+    Object.assign(used, log.used);
+    at = log.at;
+    if (agentOf(by).toLowerCase() !== CODEX_AGENT.toLowerCase()) by = CODEX_LOG;
+  }
+  const agent = fromCodex ? CODEX_AGENT : agentOf(by);
   const reported = Object.keys(used).length > 0 || cannotRead;
   if (reported) {
     const file = readingFile(ctx);
     if (!file) throw new SpoolError('no home directory to keep the usage in');
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    const reading: Reading = cannotRead ? { used: {}, at: ctx.now().toISOString(), by, cannotRead: true } : { used, at: ctx.now().toISOString(), by };
+    const reading: Reading = cannotRead ? { used: {}, at, by, cannotRead: true } : { used, at, by };
     // Each agent's under its own name; the last of all stays at the top, as it always was.
     const { agents } = readingsFile(ctx);
     const key = keyIn(agents, agent) ?? agent;
@@ -537,10 +569,14 @@ export function usageCommand(
     return { text: `Noted: ${agent} cannot read its usage. The board says so, and it is held to no target: build as if none were set.`, data };
   }
   const { target, read, reached } = usage;
+  // A log line older than the half hour a claim trusts: said, so nobody takes it for the usage now.
+  const stale = fromCodex && ctx.now().getTime() - Date.parse(at) > FRESH_MS ? `\n  Codex's session log was last written ${age(at, ctx.now())} ago, so this is not taken as its usage now: report it again once Codex has taken a turn.` : '';
+  const when = age(at, ctx.now());
+  const lead = fromCodex ? `Read from Codex's session log, written ${when === 'now' ? 'just now' : `${when} ago`}: ${figuresText(used)}.${stale}\n` : '';
   // Past the time to work it is a stop, whatever the usage: a soft one, so what is building lands.
   if (headroom?.over && !reached.length) {
     return {
-      text: [
+      text: lead + [
         `Stop: the ${headroom.why}.`,
         '  Claim no new thread. Finish and land what is being built, or hand it off; a minute or two past is fine. Tell them once.',
       ].join('\n'),
@@ -551,14 +587,14 @@ export function usageCommand(
   // Near the end, what is worth starting shrinks, and what is in flight is wrapped up.
   const near = headroom && !reached.length ? `\n  ${WRAP_UP(headroom)}` : '';
   const withFable = (text: string) => (fable ? `${text}${near}\n  ${fable}` : `${text}${near}`);
-  if (!STOPS.some((l) => target[l] !== undefined)) return { text: withFable('No usage target is set: build what is in Build, whatever the usage.'), data };
+  if (!STOPS.some((l) => target[l] !== undefined)) return { text: lead + withFable('No usage target is set: build what is in Build, whatever the usage.'), data };
   // A limit with a target that this reading did not give is not checked, and the chat is told so.
   const unread = STOPS.filter((l) => target[l] !== undefined && read?.used[l] === undefined);
   const missing = unread.length ? `\n  The ${unread.map((l) => NAMES[l]).join(' and ')} figure was not given, so its target was not checked.` : '';
   const against = STOPS.filter((l) => target[l] !== undefined && read?.used[l] !== undefined).map((l) => `${NAMES[l]} ${read!.used[l]}% of ${target[l]}%`);
-  if (!reached.length) return { text: withFable(`Keep building: ${against.join(', ') || 'nothing to check'}.${missing}`), data };
+  if (!reached.length) return { text: lead + withFable(`Keep building: ${against.join(', ') || 'nothing to check'}.${missing}`), data };
   return {
-    text: [
+    text: lead + [
       `Stop: ${Object.keys(usage.own).length || agent !== DEFAULT_AGENT ? `${agent}'s` : 'the'} usage target is reached, ${against.join(', ')}.`,
       '  Claim no new thread, and let what is being built land. Tell them once.',
       '  Read the usage again when a thread lands or Build changes, and carry on once it is under the target or they raise it.',
