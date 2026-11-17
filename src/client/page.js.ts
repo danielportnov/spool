@@ -929,8 +929,10 @@ const stamp = (at, alone) => (isNaN(timeOf(at)) ? null
 // What agents write, shown as what it is: a small, safe part of Markdown. Code in backticks, fenced
 // blocks of code, bold, lists, and links to the web. Everything is built as nodes from the text;
 // nothing an agent wrote is ever read as HTML, and whatever is not recognised stays as it was written.
-// Words in backticks are code: shown as code, and a long path by its last part, whole on hover.
-const codeNode = (part) => el('code', { title: part }, part.length > 40 ? part.replace(/\S*\/(\S+)/g, '$1') : part);
+// Words in backticks are code: shown as code, whole on hover. A path from the root of the machine
+// (an agent's command, a file outside the project) is shown by its last part, however short; in a
+// long piece of code, every path is.
+const codeNode = (part) => el('code', { title: part }, part.length > 40 ? part.replace(/\S*\/(\S+)/g, '$1') : part.replace(/(^|\s)~?\/\S*\/(\S+)/g, '$1$2'));
 // A link goes only to the web, in a tab of its own; any other kind stays the words it was.
 const webLink = (href, words) => (/^https?:\/\/\S+$/i.test(href) ? el('a', { class: 'out', href, target: '_blank', rel: 'noopener noreferrer' }, words) : null);
 const INLINE = /\x60([^\x60\n]+)\x60|\*\*([^*\n]+?)\*\*|\[([^\]\n]+)\]\(([^()\s]+)\)|(https?:\/\/[^\s<>()\[\]\x60]*[^\s<>()\[\]\x60.,;:!?'"])/g;
