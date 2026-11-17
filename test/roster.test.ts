@@ -27,7 +27,7 @@ test('Claude and Codex are on the roster to start with, each at the shared numbe
       s.json('builder').agents.map((a: any) => [a.name, a.atOnce, a.watching]),
       [['Claude', 3, false], ['Codex', 3, false]],
     );
-    assert.match(s.sp('builder', '--agent', 'Claude', '--at-once', '3'), /\nAgents: Claude 3 at once, not watching · Codex 3 at once, not watching\. Set one: spool builder --agent <name> --at-once <n> \[--sizes xs-m\]$/);
+    assert.match(s.sp('builder', '--agent', 'Claude', '--at-once', '3'), /\nAgents: Claude 3 at once, not watching · Codex 3 at once, not watching\. Set one: spool builder --agent <name> --at-once <n> \[--sizes xs-m\] \[--lean usage\|balanced\|development\]\n {2}Claude, leaning balanced: xs haiku, s sonnet, m opus, l opus·high, xl opus·xhigh\n {2}Codex, leaning balanced: xs gpt-6-luna, s gpt-6\.1-terra, m gpt-6\.1-sol, l gpt-6\.1-sol·high, xl gpt-6\.1-sol·xhigh$/);
     assert.match(s.sp('builder', '--agent', 'codex', '--at-once', '2'), /Codex 2 at once/);
     // One entry adds an agent, with the model it builds on.
     assert.match(s.sp('builder', '--agent', 'Gemini', '--at-once', '1', '--model', 'gemini-3'), /Gemini 1 at once on gemini-3, not watching/);
