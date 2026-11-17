@@ -282,6 +282,13 @@ Before it claims each thread it reads your plan's weekly and 5-hour usage with i
 reports it with `spool usage`, which says keep building or stop. Stopped, it claims nothing new and
 lets what is being built land. With no target it builds what is in Build, whatever the usage.
 
+**Near the end it takes only what fits.** As the usage nears the target (or the plan's own limit,
+where none is set), the largest thread worth starting shrinks: by default up to M from 80% of the
+budget, S from 90%, XS from 97%. `spool next --claim`, `spool start` and `spool build --takeover`
+pass larger threads by, with a line saying which and why, and `spool usage` tells the chat to
+finish and land what it is building, or hand it off, rather than start what it cannot
+finish. `spool target --headroom 80:m,90:s,97:xs` changes the steps; `default` brings them back.
+
 **An agent out of usage hands its thread off.** It runs `spool handoff <id> -m "<where it
 stopped>"`, which commits the work so far in the thread's worktree, logs the note and puts the thread
 back in Build, its worktree kept. `--to Codex` keeps it for that agent; `--to sonnet` has the next

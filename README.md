@@ -315,6 +315,9 @@ number. Before each thread the chat reads the plan's usage with its own tool (`g
 Claude app) and reports it with `spool usage`; once a target is reached it takes no new thread, and
 the header shows the usage against the target. `spool target --weekly 80` sets it from a chat or a
 terminal. Spool never reads your usage or your account itself: it keeps what the chat reports.
+As the end nears, the chat starts only threads small enough to finish (nothing past S from 90% of
+the target, by default; `spool target --headroom` changes it), says which it passed by, and wraps
+up what it is building.
 An agent that runs out mid-thread hands it off (`spool handoff`): its work is committed, and the
 thread goes back to Build for another agent or a smaller model to carry on from its note.
 
