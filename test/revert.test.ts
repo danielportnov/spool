@@ -239,3 +239,235 @@ test('reverting again puts the work back: one step, kept on the thread and in th
   assert.equal(s.read('physics.txt'), 'gravity = 9.8\njump = 5\n');
   s.cleanup();
 });
+
+test('cross-thread revert names only blockers, keeps other work and restores the shared undo together', () => {
+  const s = repo();
+  const original = s.id('task', 'Raise gravity');
+  const later = s.id('task', 'Retune gravity');
+  const newest = s.id('task', 'Retune gravity again');
+  const unrelated = s.id('task', 'Add a description');
+  const write = (gravity: string, description = '') => s.write('physics.txt', `gravity = ${gravity}\njump = 5\n\n\n\n\n\n${description}`);
+
+  write('9.8');
+  s.commitAll('Space the configuration out');
+  write('12');
+  const a = s.commitAll(`Raise gravity\n\nSpool: ${original}`);
+  s.sp('done', original, '-m', 'gravity is 12');
+
+  write('14');
+  const b = s.commitAll('Retune gravity'); // Older work may be linked only on the item.
+  s.write('tuning-notes.txt', 'notes for gravity 14\n');
+  const notes = s.commitAll(`Explain the tune\n\nSpool: ${later}`);
+  s.sp('done', later, '-m', 'gravity is 14', '--commit', b);
+
+  write('14', '# The current tune\n');
+  s.commitAll(`Describe the values\n\nSpool: ${unrelated}`);
+  s.sp('done', unrelated, '-m', 'describe how the values are used');
+  write('16', '# The current tune\n');
+  const c = s.commitAll(`Tune again\n\nSpool: ${newest}`);
+  s.sp('done', newest, '-m', 'gravity is 16');
+
+  s.write('scratch.txt', 'work in progress\n');
+  s.git('add', 'scratch.txt');
+  const before = s.git('rev-parse', 'HEAD');
+  const error = s.fails('revert', original);
+  assert.match(error, new RegExp(`${later} Retune gravity\\b`));
+  assert.match(error, new RegExp(`${newest} Retune gravity again`));
+  assert.match(error, /--with-later/);
+  assert.doesNotMatch(error, new RegExp(unrelated));
+  assert.equal(s.git('rev-parse', 'HEAD'), before);
+  assert.equal(s.read('physics.txt'), 'gravity = 16\njump = 5\n\n\n\n\n\n# The current tune\n');
+  assert.equal(s.json('show', original).item.status, 'done');
+
+  const undone = s.json('revert', original, '--with-later', '-m', 'use the original tune', '--now');
+  assert.deepEqual(undone.reverted, [a]);
+  assert.deepEqual(undone.later, [{ id: newest, reverted: [c] }, { id: later, reverted: [notes, b] }]);
+  const shared = s.git('rev-parse', 'HEAD');
+  assert.equal(s.git('rev-parse', 'HEAD^'), before);
+  assert.equal(s.read('physics.txt'), 'gravity = 9.8\njump = 5\n\n\n\n\n\n# The current tune\n');
+  assert.equal(s.exists('tuning-notes.txt'), false);
+  assert.equal(s.git('diff', '--cached', '--name-only', '--', 'scratch.txt'), 'scratch.txt');
+  assert.equal(s.json('show', unrelated).item.status, 'done');
+  assert.equal(s.json('show', original).item.status, 'open');
+  const body = s.git('show', '-s', '--format=%B', shared);
+  const shas = [...body.matchAll(/^This reverts commit ([0-9a-f]+)\.$/gm)].map((m) => m[1]);
+  assert.deepEqual(shas, [c, notes, b, a]);
+  for (const id of [later, newest]) {
+    const thread = s.json('show', id).item;
+    assert.equal(thread.status, 'proposed');
+    assert.equal(thread.revert, shared);
+    assert.ok(body.includes(`Spool-Revert: ${id}`));
+    assert.match(s.item(id), new RegExp(`with ${original}.*use the original tune`));
+  }
+
+  assert.match(s.sp('revert', newest, '-m', 'put the tune back'), new RegExp(`also put back ${original}`));
+  assert.equal(s.read('physics.txt'), 'gravity = 16\njump = 5\n\n\n\n\n\n# The current tune\n');
+  assert.ok(s.exists('tuning-notes.txt'));
+  for (const [id, commits] of [[original, [a]], [later, [notes, b]], [newest, [c]]] as const) {
+    const thread = s.json('show', id).item;
+    assert.equal(thread.status, 'done');
+    assert.deepEqual(thread.commits, commits);
+  }
+  assert.equal(s.git('diff', '--cached', '--name-only', '--', 'scratch.txt'), 'scratch.txt');
+  assert.equal(s.json('revert', original, '--with-later').later.length, 2, 'restored threads can be undone again');
+  s.cleanup();
+});
+
+test('cross-thread revert refuses later edits with unknown ownership', () => {
+  const s = repo();
+  const original = s.id('task', 'Raise gravity');
+  const later = s.id('task', 'Retune gravity');
+  s.write('physics.txt', 'gravity = 12\njump = 5\n');
+  s.commitAll(`Raise gravity\n\nSpool: ${original}`);
+  s.sp('done', original, '-m', 'gravity is 12');
+  s.write('physics.txt', 'gravity = 14\njump = 5\n');
+  s.commitAll(`Retune gravity\n\nSpool: ${later}`);
+  s.sp('done', later, '-m', 'gravity is 14');
+  s.write('physics.txt', 'gravity = 16\njump = 5\n');
+  const unregistered = s.commitAll('Manually change the tune');
+
+  const error = s.fails('revert', original, '--with-later');
+  assert.match(error, new RegExp(`${unregistered.slice(0, 7)}: no Spool thread on record`));
+  assert.equal(s.git('rev-parse', 'HEAD'), unregistered);
+  assert.equal(s.read('physics.txt'), 'gravity = 16\njump = 5\n');
+  assert.equal(s.git('status', '--porcelain', '--', 'physics.txt'), '');
+  assert.equal(s.json('show', original).item.status, 'done');
+  assert.equal(s.json('show', later).item.status, 'done');
+  s.cleanup();
+});
+
+test('cross-thread revert protects dirty files of later threads and restoration protects new attempts', () => {
+  const s = repo();
+  const original = s.id('task', 'Raise gravity');
+  const later = s.id('task', 'Retune gravity');
+  s.write('physics.txt', 'gravity = 12\njump = 5\n');
+  s.commitAll(`Raise gravity\n\nSpool: ${original}`);
+  s.sp('done', original, '-m', 'gravity is 12');
+  s.write('physics.txt', 'gravity = 14\njump = 5\n');
+  s.write('notes.txt', 'new tune\n');
+  const before = s.commitAll(`Retune gravity\n\nSpool: ${later}`);
+  s.sp('done', later, '-m', 'gravity is 14');
+
+  s.write('notes.txt', 'human follow-up\n');
+  assert.match(s.fails('revert', original, '--with-later'), /uncommitted changes in the way[\s\S]*notes\.txt/);
+  assert.equal(s.read('notes.txt'), 'human follow-up\n');
+  assert.equal(s.git('rev-parse', 'HEAD'), before);
+  assert.equal(s.json('show', later).item.status, 'done');
+  s.git('restore', 'notes.txt');
+  s.sp('revert', original, '--with-later');
+  const shared = s.git('rev-parse', 'HEAD');
+  s.sp('build', later);
+  s.sp('start', later);
+  assert.match(s.fails('revert', original), new RegExp(`${later} has changed since the shared undo`));
+  assert.equal(s.git('rev-parse', 'HEAD'), shared);
+  assert.equal(s.read('physics.txt'), 'gravity = 9.8\njump = 5\n');
+  assert.equal(s.json('show', later).item.status, 'active');
+  s.cleanup();
+});
+
+test('cross-thread revert identifies a later deletion of a file', () => {
+  const s = repo();
+  const original = s.id('task', 'Raise gravity');
+  const later = s.id('task', 'Delete the config');
+  s.write('physics.txt', 'gravity = 12\njump = 5\n');
+  s.commitAll(`Raise gravity\n\nSpool: ${original}`);
+  s.sp('done', original, '-m', 'gravity is 12');
+  s.git('rm', 'physics.txt');
+  s.commitAll(`Delete the config\n\nSpool: ${later}`);
+  s.sp('done', later, '-m', 'the config is gone');
+
+  assert.match(s.fails('revert', original), new RegExp(`physics\\.txt[\\s\\S]*${later} Delete the config`));
+  s.sp('revert', original, '--with-later');
+  assert.equal(s.read('physics.txt'), 'gravity = 9.8\njump = 5\n');
+  s.cleanup();
+});
+
+test('cross-thread revert keeps a later edit on the adjacent line', () => {
+  const s = repo();
+  const original = s.id('task', 'Raise gravity');
+  const later = s.id('task', 'Retune gravity');
+  const neighbor = s.id('task', 'Raise jump');
+  s.write('physics.txt', 'gravity = 12\njump = 5\n');
+  s.commitAll(`Raise gravity\n\nSpool: ${original}`);
+  s.sp('done', original, '-m', 'gravity is 12');
+  s.write('physics.txt', 'gravity = 14\njump = 5\n');
+  s.commitAll(`Retune gravity\n\nSpool: ${later}`);
+  s.sp('done', later, '-m', 'gravity is 14');
+  s.write('physics.txt', 'gravity = 14\njump = 6\n');
+  s.commitAll(`Raise jump\n\nSpool: ${neighbor}`);
+  s.sp('done', neighbor, '-m', 'jump is 6');
+
+  const error = s.fails('revert', original);
+  assert.match(error, new RegExp(later));
+  assert.doesNotMatch(error, new RegExp(neighbor));
+  s.sp('revert', original, '--with-later');
+  assert.equal(s.read('physics.txt'), 'gravity = 9.8\njump = 6\n');
+  assert.equal(s.json('show', neighbor).item.status, 'done');
+  s.cleanup();
+});
+
+test('revert waits for the current landing before editing the checkout or queue', async () => {
+  const { landingLock } = await import('../src/worktree.ts');
+  const s = repo();
+  const original = s.id('task', 'Raise gravity');
+  s.write('physics.txt', 'gravity = 12\njump = 5\n');
+  const head = s.commitAll(`Raise gravity\n\nSpool: ${original}`);
+  s.sp('done', original, '-m', 'gravity is 12');
+
+  const release = landingLock(s.root, 'another-thread');
+  try {
+    assert.match(s.fails('revert', original, '--with-later'), /another-thread is still landing[\s\S]*Run your undo again/);
+    assert.equal(s.git('rev-parse', 'HEAD'), head);
+    assert.equal(s.json('show', original).item.status, 'done');
+  } finally {
+    release();
+  }
+  s.sp('revert', original);
+  assert.equal(s.read('physics.txt'), 'gravity = 9.8\njump = 5\n');
+  s.cleanup();
+});
+
+test('cross-thread revert follows conflicts on other files of the later thread', () => {
+  const s = repo();
+  const original = s.id('task', 'Raise gravity');
+  const later = s.id('task', 'Retune gravity and label it');
+  const following = s.id('task', 'Update the label');
+  s.write('tune.txt', 'default\n');
+  s.commitAll('Add a tune label');
+  s.write('physics.txt', 'gravity = 12\njump = 5\n');
+  s.commitAll(`Raise gravity\n\nSpool: ${original}`);
+  s.sp('done', original, '-m', 'gravity is 12');
+  s.write('physics.txt', 'gravity = 14\njump = 5\n');
+  s.write('tune.txt', 'high\n');
+  const b = s.commitAll(`Retune gravity\n\nSpool: ${later}`);
+  s.sp('done', later, '-m', 'gravity is 14');
+  s.write('tune.txt', 'high, exact\n');
+  const c = s.commitAll(`Add a note to the label\n\nSpool: ${following}`);
+  s.sp('done', following, '-m', 'labeled it');
+
+  const undone = s.json('revert', original, '--with-later');
+  assert.deepEqual(undone.later, [{ id: following, reverted: [c] }, { id: later, reverted: [b] }]);
+  assert.equal(s.read('physics.txt'), 'gravity = 9.8\njump = 5\n');
+  assert.equal(s.read('tune.txt'), 'default\n');
+  s.cleanup();
+});
+
+test('cross-thread revert refuses to guess a neighboring edit with repeated preimage text', () => {
+  const s = repo();
+  const original = s.id('task', 'Raise gravity');
+  const neighbor = s.id('task', 'Raise the first jump');
+  s.write('physics.txt', 'gravity = 9.8\njump = 5\n# bonus level\njump = 5\n');
+  s.commitAll('Describe both levels');
+  s.write('physics.txt', 'gravity = 12\njump = 5\n# bonus level\njump = 5\n');
+  s.commitAll(`Raise gravity\n\nSpool: ${original}`);
+  s.sp('done', original, '-m', 'gravity is 12');
+  s.write('physics.txt', 'gravity = 12\njump = 6\n# bonus level\njump = 5\n');
+  const before = s.commitAll(`Raise the first jump\n\nSpool: ${neighbor}`);
+  s.sp('done', neighbor, '-m', 'first jump is 6');
+
+  assert.match(s.fails('revert', original, '--with-later'), /repeated text/);
+  assert.equal(s.read('physics.txt'), 'gravity = 12\njump = 6\n# bonus level\njump = 5\n');
+  assert.equal(s.git('rev-parse', 'HEAD'), before);
+  assert.equal(s.json('show', neighbor).item.status, 'done');
+  s.cleanup();
+});

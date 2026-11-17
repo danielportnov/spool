@@ -218,9 +218,10 @@ those comments are the detail.
    to it. A thread built in the checkout itself is never rewritten. Then `done` collects the commits with
    `trailerCommits`, skipping any `isReverted`, marks the task `done` with its summary, ends its
    sprint if it was the last (`settleSprint`), and says what is now ready.
-7. **`spool revert t-… -m "why"`.** `undoWork` gathers the task's commits and calls
-   `revertCommits`, which applies the reverse of each, newest first, leaving `.spool/` out. If any
-   will not come off cleanly, every file is put back and nothing is committed. Otherwise there is
-   one new commit with a `Spool-Revert:` trailer. Calls an agent made for that task alone are
-   dropped with it. The task is reopened, raised to High unless it was Urgent, with the human's
-   reason in its body.
+7. **`spool revert t-… -m "why"`.** Spool tests the reverse of each commit in a private Git
+   index, newest first, excluding the queue. If later commits prevent the undo, Spool lists the
+   threads it can identify. With `--with-later`, Spool can include those finished threads when
+   it can verify their ownership and apply the combined undo cleanly. One commit carries a
+   `Spool-Revert:` trailer for each affected thread, and each thread records which of its commits
+   were undone. The later threads go back to proposed. Reverting the shared undo puts the whole
+   group back together when each thread is still eligible.

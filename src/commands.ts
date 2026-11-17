@@ -20,7 +20,7 @@ import { spawnSync } from 'node:child_process';
 import { type Ctx, builderOf, cavemanOf, notify, saveUserConfig, userConfig } from './context.ts';
 import { doctor } from './doctor.ts';
 import { GOALS_STARTER, goalsFile, goalsOf, goalsText } from './goals.ts';
-import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
+import { isReverted, repoRoot, resolveCommit, trailerCommits } from './git.ts';
 import { demo } from './demo.ts';
 import { buildUnderLeave, dropUnderLeave, leaveCommand, signer } from './leave.ts';
 import { buildUnderTakeOver, takeoverCommand } from './takeover.ts';
@@ -63,6 +63,7 @@ import { DEFAULT_POLICY, type Role, about, prime, upsertBlock } from './prime.ts
 import { journaled, undoRun } from './journal.ts';
 import { HISTORY, UNDO } from './history.ts';
 import { writeQueue } from './queue-journal.ts';
+import { restoreWork, undoWork, withUndoLock } from './undo-work.ts';
 import {
   type Paint,
   brief,
@@ -387,82 +388,32 @@ function settleSprint(ws: Workspace, task: Item, actor: string): Item | undefine
   return sprint;
 }
 
-/**
- * Take back what a thread did: its commits undone in one new commit, and the calls an
- * agent made for it alone dropped with them. Shared by revert, and by moving a thread
- * back to the backlog with --undo. Throws, changing nothing, if the commits will not come off.
- */
-function undoWork(ws: Workspace, t: Item, actor: string, why: string): { reverted: string[]; skipped: { sha: string; why: string }[]; voided: Item[]; commit?: string } {
-  const root = repoRoot(t.spool.root);
-  let reverted: string[] = [];
-  let commit: string | undefined;
-  let skipped: { sha: string; why: string }[] = [];
-  if (root) {
-    const shas = uniq([...t.commits, ...trailerCommits(root, t.id)]);
-    if (shas.length) {
-      const result = revertCommits(root, shas, t.spool.dir, (undone) =>
-        [
-          `Revert "${t.title}"`,
-          ...(why ? [why] : []),
-          undone.map((sha) => `This reverts commit ${sha}.`).join('\n'),
-          `Spool-Revert: ${t.id}`,
-        ].join('\n\n'),
-      );
-      if (!result.ok) throw new SpoolError(`could not revert ${t.id}: ${result.error}`);
-      ({ reverted, skipped, commit } = result);
-    }
-  }
-
-  // Calls an agent made for this task alone, never confirmed by the human, go with the work
-  // they produced — otherwise the next attempt would be briefed to repeat the mistake.
-  const voided = t.needs
-    .map((id) => ws.find(id))
-    .filter((d): d is Item => !!d && d.kind === 'decision' && d.status === 'assumed' && dependents(ws, d).every((x) => x === t));
-  for (const d of voided) {
-    d.status = 'dropped';
-    addLog(d, actor, `dropped: ${t.id}, the work built on it, was reverted`, ws.now());
-    ws.save(d);
-  }
-  t.needs = t.needs.filter((id) => !voided.some((d) => d.id === id));
-  // The work is kept on the thread, with the commit that took it back, so the undo can be undone.
-  t.reverted = reverted;
-  t.revert = commit;
-  t.commits = [];
-  return { reverted, skipped, voided, commit };
-}
-
-/**
- * Undo an undo: the work a revert took back is applied again by reverting the revert commit,
- * and the thread is done again with the commits it had. The reason it was undone is no longer a lesson.
- */
+/** Put the work from one undo back and finish every thread that the undo took with it. */
 function putBack(call: Call, t: Item, why: string): Result {
   const { ws, p, actor } = call;
-  const root = repoRoot(t.spool.root);
-  if (!root) throw new SpoolError(`${t.id} cannot be put back: this is not a git repository`);
-  const result = revertCommits(root, [t.revert!], t.spool.dir, (undone) =>
-    [
-      `Put back "${t.title}"`,
-      ...(why ? [why] : []),
-      undone.map((sha) => `This reverts commit ${sha}.`).join('\n'),
-      `Spool-Restore: ${t.id}`,
-    ].join('\n\n'),
-  );
-  if (!result.ok) throw new SpoolError(`could not put ${t.id} back: ${result.error}`);
-  const gone = removeWorktree(t);
+  const { result, members } = restoreWork(ws, t, why);
   const kept = t.reverted.length;
-  t.commits = t.reverted;
-  t.reverted = [];
-  t.revert = undefined;
-  t.status = 'done';
-  t.summary = `Put back after it was undone${why ? `: ${why}` : ''}.`;
-  t.reviewed = undefined;
-  addLog(t, actor, `put the work back, ${kept} commit(s) in ${result.commit ? result.commit.slice(0, 7) : 'no new commit'}${why ? `: ${why}` : ''}`, ws.now());
-  ws.save(t);
-  const lesson = lessons(ws).findIndex((l) => l.thread === t.id && l.spool === t.spool);
-  if (lesson >= 0) dropLesson(ws, lesson + 1);
   const out = [`${p.bold(t.id)} put back — its ${kept} commit(s) applied again in one new commit.`];
-  if (gone) out.push(p.dim(`  ${gone}`));
-  if (lesson >= 0) out.push(p.dim('  forgot the lesson its undo had left'));
+  for (const member of members) {
+    const gone = removeWorktree(member);
+    const count = member.reverted.length;
+    member.commits = member.reverted;
+    member.reverted = [];
+    member.revert = undefined;
+    member.status = 'done';
+    member.summary = `Put back after it was undone${why ? `: ${why}` : ''}.`;
+    member.reviewed = undefined;
+    addLog(member, actor, `put the work back, ${count} commit(s) in ${result.commit ? result.commit.slice(0, 7) : 'no new commit'}${why ? `: ${why}` : ''}`, ws.now());
+    ws.save(member);
+    if (member !== t) out.push(`  also put back ${member.id} ${oneLine(member.title, 100)}`);
+    if (gone) out.push(p.dim(`  ${gone}`));
+  }
+  const first = members[0]!;
+  const lesson = lessons(ws).findIndex((l) => l.thread === first.id && l.spool === first.spool);
+  if (lesson >= 0) {
+    dropLesson(ws, lesson + 1);
+    out.push(p.dim('  forgot the lesson its undo had left'));
+  }
   return { text: out.join('\n'), data: { task: itemJson(ws, t), restored: t.commits, commit: result.commit } };
 }
 
@@ -856,11 +807,11 @@ export const COMMANDS: Command[] = [
   {
     name: 'revert',
     group: 'you',
-    usage: 'revert <t-id> [-m <why>] [--now | --drop]',
-    summary: "Undo a task's commits (or send back a plan or audit) and put it back in the backlog with your reason, for you to move to Build when ready (--now: straight back to Build); given a run's thread, put back every item the run changed",
+    usage: 'revert <t-id> [-m <why>] [--now | --drop] [--with-later]',
+    summary: "Undo a task's commits (or send back a plan or audit) and put it back in the backlog with your reason, for you to move to Build when ready (--now: straight back to Build, --with-later: also undo later threads in the way); given a run's thread, put back every item the run changed",
     human: true,
     write: true,
-    options: { ...MESSAGE, drop: { type: 'boolean' }, now: { type: 'boolean' } },
+    options: { ...MESSAGE, drop: { type: 'boolean' }, now: { type: 'boolean' }, 'with-later': { type: 'boolean' } },
     run(call) {
       const { ws, p, actor } = call;
       const t = first(call, 'which task', 'task');
@@ -871,61 +822,68 @@ export const COMMANDS: Command[] = [
         const kept = learn(ws, t, actor, why);
         return { text: [...undone.lines, ...(kept.line ? [kept.line] : [])].join('\n'), data: { ...undone.data, lesson: kept.lesson?.words } };
       }
-      // Reverting a thread already reverted, and not built again since, puts its work back.
-      if (t.status !== 'done' && t.revert && !t.commits.length && (t.status === 'proposed' || t.status === 'open')) {
-        return putBack(call, t, why);
-      }
-      if (t.status !== 'done') {
-        throw new SpoolError(`${t.id} isn't finished, so there is nothing to revert`, `To abandon it: spool drop ${t.id}`);
-      }
-      const root = repoRoot(t.spool.root);
-      const { reverted, skipped, voided } = undoWork(ws, t, actor, why);
-      // A worktree it still has holds nothing that landed, so it goes too.
-      const gone = removeWorktree(t);
+      return withUndoLock(t, () => {
+        // Reverting a thread already reverted, and not built again since, puts its work back.
+        if (t.status !== 'done' && t.revert && !t.commits.length && (t.status === 'proposed' || t.status === 'open')) {
+          return putBack(call, t, why);
+        }
+        if (t.status !== 'done') {
+          throw new SpoolError(`${t.id} isn't finished, so there is nothing to revert`, `To abandon it: spool drop ${t.id}`);
+        }
+        const root = repoRoot(t.spool.root);
+        const { reverted, skipped, voided, later } = undoWork(ws, t, actor, why, !!call.opts['with-later']);
+        // A worktree it still has holds nothing that landed, so it goes too.
+        const gone = removeWorktree(t);
 
-      // A plan or an audit that is sent back takes its unstarted parts and findings with it.
-      const orphans = t.type ? children(ws, t).filter((k) => k.status === 'open') : [];
-      for (const k of orphans) {
-        k.status = 'dropped';
-        addLog(k, actor, `dropped: ${t.id}, the ${t.type} it came from, was sent back`, ws.now());
-        ws.save(k);
-      }
+        // A plan or an audit that is sent back takes its unstarted parts and findings with it.
+        const orphans = t.type ? children(ws, t).filter((k) => k.status === 'open') : [];
+        for (const k of orphans) {
+          k.status = 'dropped';
+          addLog(k, actor, `dropped: ${t.id}, the ${t.type} it came from, was sent back`, ws.now());
+          ws.save(k);
+        }
 
-      // Undoing is saying no: nothing builds it again until they say so (--now is that, said at once).
-      t.status = call.opts.drop ? 'dropped' : call.opts.now ? 'open' : 'proposed';
-      t.by = undefined;
-      t.summary = undefined;
-      t.reviewed = undefined;
-      t.commits = [];
-      if (!call.opts.drop) t.priority = Math.min(t.priority ?? 2, 1);
-      if (why) appendMain(t, `> ${why}\n> — on reverting the first attempt, ${timestamp(ws.now()).slice(0, 10)}`);
-      addLog(t, actor, `reverted ${reverted.length} commit(s)${why ? `: ${why}` : ''}${gone ? `; ${gone}` : ''}`, ws.now());
-      ws.save(t);
+        // Undoing is saying no: nothing builds it again until they say so (--now is that, said at once).
+        t.status = call.opts.drop ? 'dropped' : call.opts.now ? 'open' : 'proposed';
+        t.by = undefined;
+        t.summary = undefined;
+        t.reviewed = undefined;
+        t.commits = [];
+        if (!call.opts.drop) t.priority = Math.min(t.priority ?? 2, 1);
+        if (why) appendMain(t, `> ${why}\n> — on reverting the first attempt, ${timestamp(ws.now()).slice(0, 10)}`);
+        addLog(t, actor, `reverted ${reverted.length} commit(s)${later.length ? ` with ${later.map(({ task }) => task.id).join(', ')}` : ''}${why ? `: ${why}` : ''}${gone ? `; ${gone}` : ''}`, ws.now());
+        ws.save(t);
 
-      const out: string[] = [];
-      if (reverted.length) {
-        out.push(`${p.bold(t.id)} reverted — ${reverted.length} commit(s) undone in one new commit.`);
-      } else {
-        out.push(`${p.bold(t.id)} ${call.opts.drop ? 'dropped' : call.opts.now ? 'reopened' : 'back in the backlog'}. ${root ? 'No commits were tied to it' : 'This is not a git repository'}, so no code was changed.`);
-      }
-      for (const s of skipped) out.push(p.dim(`  left ${s.sha.slice(0, 7)} alone: ${s.why}`));
-      if (gone) out.push(p.dim(`  ${gone}`));
-      for (const d of voided) out.push(p.dim(`  dropped the assumption behind it: ${d.id} ${oneLine(d.choice ?? d.title, 60)}`));
-      if (orphans.length) out.push(p.dim(`  dropped ${orphans.length} unstarted ${t.type === 'plan' ? 'part(s)' : 'finding(s)'} that came from it`));
-      if (!call.opts.drop) {
-        out.push(
-          call.opts.now
-            ? `It is back in Build at p${t.priority}${why ? ' with your reason attached' : ''}.`
-            : `It waits in the backlog at p${t.priority}${why ? ' with your reason attached' : ''}. Nothing builds it until you move it to Build: spool build ${t.id}`,
-        );
-      }
-      // The human's reason outlives the thread: every agent here reads it from now on. An agent's own revert keeps none.
-      const { lesson, line } = learn(ws, t, actor, why);
-      if (line) out.push(line);
-      return {
-        text: out.join('\n'),
-        data: { task: itemJson(ws, t), reverted, skipped, voided: voided.map((d) => d.id), orphans: orphans.map((k) => k.id), lesson: lesson?.words },
-      };
+        const out: string[] = [];
+        if (reverted.length) {
+          out.push(`${p.bold(t.id)} reverted — ${reverted.length} commit(s) undone in one new commit.`);
+        } else {
+          out.push(`${p.bold(t.id)} ${call.opts.drop ? 'dropped' : call.opts.now ? 'reopened' : 'back in the backlog'}. ${root ? 'No commits were tied to it' : 'This is not a git repository'}, so no code was changed.`);
+        }
+        for (const row of later) out.push(`  also reverted ${row.task.id} ${oneLine(row.task.title, 100)} (${row.reverted.length} commit(s))`);
+        for (const s of skipped) out.push(p.dim(`  left ${s.sha.slice(0, 7)} alone: ${s.why}`));
+        if (gone) out.push(p.dim(`  ${gone}`));
+        for (const d of voided) out.push(p.dim(`  dropped the assumption behind it: ${d.id} ${oneLine(d.choice ?? d.title, 60)}`));
+        if (orphans.length) out.push(p.dim(`  dropped ${orphans.length} unstarted ${t.type === 'plan' ? 'part(s)' : 'finding(s)'} that came from it`));
+        if (!call.opts.drop) {
+          out.push(
+            call.opts.now
+              ? `It is back in Build at p${t.priority}${why ? ' with your reason attached' : ''}.`
+              : `It waits in the backlog at p${t.priority}${why ? ' with your reason attached' : ''}. Nothing builds it until you move it to Build: spool build ${t.id}`,
+          );
+        }
+        // The human's reason outlives the thread: every agent here reads it from now on. An agent's own revert keeps none.
+        const { lesson, line } = learn(ws, t, actor, why);
+        if (line) out.push(line);
+        return {
+          text: out.join('\n'),
+          data: {
+            task: itemJson(ws, t), reverted, skipped, voided: voided.map((d) => d.id),
+            orphans: orphans.map((k) => k.id), lesson: lesson?.words,
+            ...(later.length ? { later: later.map(({ task, reverted }) => ({ id: task.id, reverted })) } : {}),
+          },
+        };
+      });
     },
   },
 
@@ -1364,7 +1322,7 @@ export const COMMANDS: Command[] = [
       const removed: string[] = [];
       for (const t of tasks) {
         // The commits come off first: if they will not, the thread is left where it was.
-        const reverted = opts.undo ? undoWork(ws, t, actor, 'moved back to the backlog').reverted : [];
+        const reverted = opts.undo ? withUndoLock(t, () => undoWork(ws, t, actor, 'moved back to the backlog').reverted) : [];
         if (opts.undo) undone[t.id] = reverted;
         // Work in a worktree of its own never landed: taken off its builder, it goes with the worktree.
         const gone = abort ? removeWorktree(t) : '';
