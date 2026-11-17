@@ -40,7 +40,7 @@ assume" covers it.
 
 ## What you only propose
 
-In the report, each with the line the human answers (yes / no). A drop, archive or build can also go on its thread for a yes or no there: `spool manage --propose <drop|archive|build> <id> -m "<reason>"`.
+In the report, each with the line the human answers (yes / no). A drop, archive or build can also go on its thread for a yes or no there: `spool manage --propose <drop|archive|build> <id> -m "<reason>"`. New goals, a sprint and an order are an overview's (below).
 
 - Dropping a thread the human filed, even one that looks shipped.
 - Archiving a thread that has gone cold.
@@ -133,6 +133,28 @@ at most and only when something changed, `spool watch` prints `tidy:` and
 `spool manage --start --takeover` opens the pass. It is a pass like any
 other, by these rules, with one more: every drop and every archive goes on
 its thread as a proposal, as for Clean Up. The headline is what the brief shows.
+
+## An overview
+
+An overview is a second kind of pass: a look at the whole project, not at
+threads one by one. `spool manage --start --overview` opens it and prints its
+worksheet: the goals, what shipped lately, the sprints with their threads and
+Build's order, the backlog by size and tag, and what was undone. Read the code
+and the README too. It changes nothing itself; everything goes on its thread
+for the human's yes or no, and a yes runs it as them:
+
+- The direction, once at most: `spool manage --propose goals --edit - -m "<why>"`,
+  the whole goals page on stdin. A yes keeps it.
+- Up to three sprints, from threads in no sprint and none hands off:
+  `spool manage --propose sprint "<name>" --goal … --why … --done-when … --add <t-id…> -m "<why>"`.
+  A yes makes it, planned. Playing it stays the human's.
+- For each running sprint with two or more threads in Build, the order to build
+  them in: `spool manage --propose order <sprint> <t-id…> -m "<why>"`, first built
+  first. A yes puts them in that order in Build. This is the one way you say
+  anything about Build's order.
+
+Each proposal names what it builds on: a goal, a thread, what shipped. End it
+like a pass, with the headline in numbers ("Proposed new goals, 2 sprints, 1 order").
 
 ## Guard rails
 

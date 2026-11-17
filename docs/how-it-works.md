@@ -575,6 +575,17 @@ for a thumb; a Yes runs that verb as you, with the run's reason, and a No leaves
 it, "The manager proposes 12 changes", which opens the run's thread; the proposals are not listed
 in the brief, and a question stays on its own thread.
 
+**An overview, for the direction.** `spool manage --start --overview` opens a different pass: a
+look at the whole project. Its worksheet gathers the goals, the changelog's newest versions and
+what finished lately, the sprints with their threads and Build's order, the backlog by size and
+tag, and what was undone. The agent reads the code beside it and proposes, on the run's thread:
+new goals (`--propose goals --edit -`, the page on stdin), up to three sprints drafted from loose
+threads (`--propose sprint "<name>" --goal … --add <t-id…>`), and for each running sprint the
+order to build it in (`--propose order <sprint> <t-id…>`). Each shows on the ticket with what it
+would do (the goals page, the sprint's threads, the order) and a Yes and a No. A Yes keeps the
+goals, makes the sprint planned (playing it is still yours), or puts the sprint's threads in that
+order in Build; a No leaves things as they are.
+
 **Clean Up, on the board.** The backlog has a 🧹 Clean Up button, on the board's Backlog column
 and in the Backlog view. Pressed, it asks for a pass, with your words for it if you write any (they
 are given as a leave for tonight that allows tidying only). Headless, the page starts an agent on
