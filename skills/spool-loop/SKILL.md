@@ -75,7 +75,7 @@ says). Before you claim each thread, read the plan's usage with your harness's
 tool (`get_usage` in the Claude app) and report it: `spool usage --weekly <n>
 --five-hour <n> --fable <n> --as "<your model>"` (Fable's own weekly figure, where your tool shows one). It says keep building, or stop: then claim nothing new, let
 what is building land, and notify them once (`budget`). Near the end it says so: say a line on any thread passed by, and tell
-building subagents to finish and land, or hand off. Each agent reads its own plan, signed with its name, and is held to its own target. No usage tool? `spool usage --cannot-read --as "<your model>"`, so the board says so, and build as if no target were set. A subagent out of usage mid-thread runs `spool handoff <id> -m "<where it stopped>"` (`--to Codex` or `--to sonnet`); take a handed-off thread like any in Build. A time to work (`spool until` says) is a budget too: past it, claim nothing new and land what is building.
+building subagents to finish and land, or hand off. Each agent reads its own plan, signed with its name, and is held to its own target. In Codex, report it with `spool usage --from-codex --as "<your model>"`: Spool reads your ChatGPT plan's 5-hour and weekly figures from Codex's own logs. No usage tool? `spool usage --cannot-read --as "<your model>"`, so the board says so, and build as if no target were set. A subagent out of usage mid-thread runs `spool handoff <id> -m "<where it stopped>"` (`--to Codex` or `--to sonnet`); take a handed-off thread like any in Build. A time to work (`spool until` says) is a budget too: past it, claim nothing new and land what is building.
 
 ## Watch the spool
 

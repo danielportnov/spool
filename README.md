@@ -325,7 +325,11 @@ use, as a percent of the weekly limit, the 5-hour limit, or both. Set it with th
 number. Before each thread the chat reads the plan's usage with its own tool (`get_usage` in the
 Claude app) and reports it with `spool usage`; once a target is reached it takes no new thread, and
 the header shows the usage against the target. `spool target --weekly 80` sets it from a chat or a
-terminal. Spool never reads your usage or your account itself: it keeps what the chat reports.
+terminal. Spool never reads your account or calls a service for it: it keeps what the chat reports.
+Codex is the one it reads for itself: Codex writes its ChatGPT plan's limits (a 5-hour and a weekly
+window, apart from Claude's) into its own session logs on this machine, and Spool takes only those
+figures from the newest, so Codex is held to its own plan without reporting anything (`spool usage
+--from-codex` reports them as Codex's, and says whether to keep building).
 With several agents on the spool, each reads its own plan and is held to its own target: `spool
 target --agent Codex --weekly 50` holds Codex to half its plan while Claude goes on to 80%, and the
 header shows a meter for each, or says where an agent cannot read its usage. Settings sets each one.
