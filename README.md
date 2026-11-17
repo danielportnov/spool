@@ -371,6 +371,13 @@ Chat mode the chat that builds sends each one you picked as a single-line Claude
 nothing for the rest; headless, the page runs your notifier for them. Tell a chat "notify me when a
 thread starts" and it runs `spool notify on started`.
 
+A **mode** moves several of these switches at once. `spool mode hands-on` is for when you are at
+the keyboard: AFK off, take-over off, the usual notifications. It says what it changed, and
+`spool mode off` puts back what was there before. `spool mode` alone says which mode is on: Hands-on
+with nothing picked, "Hands-on, changed" once you move one of its switches by hand, or "your own
+settings". A mode is only settings, and where the gate is locked, one that switches AFK or take-over
+on is yours to pick.
+
 **Settings**, the gear in the header (or ⌘K, "Open settings"), gathers every choice about how
 the spool runs in one panel: who builds and whether Headless is offered, threads at once for each
 agent, taking over the backlog, rebuilding after each landing, the quiet-agent minutes, the usage
