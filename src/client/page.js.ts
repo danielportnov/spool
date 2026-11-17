@@ -1665,7 +1665,13 @@ function drawTarget(b) {
     chip.onclick = () => (targetsOpen ? closeTargets() : openTargets());
     chip.replaceChildren(...parts.map((p) => p.part));
     chip.title = parts.map((p) => p.said).join(' ') + ' Each agent reads its own plan before each thread. Click to change the target; each agent’s own is in Settings.';
-    chip.setAttribute('aria-label', 'Usage: ' + parts.map((p) => p.said).join(' '));
+    // The time to work is everyone's: once, after the meters.
+    const t = b.time;
+    if (t) {
+      chip.append(el('span', { class: 'num time' + (t.passed ? ' up' : t.upTo ? ' near' : '') }, t.passed ? 'Time up' : timeLeft(t.leftMinutes) + ' left'));
+      chip.title += ' Time to work: until ' + clockOf(t.end) + (t.passed ? ', which has passed.' : ', ' + timeLeft(t.leftMinutes) + ' left.');
+    }
+    chip.setAttribute('aria-label', 'Usage: ' + parts.map((p) => p.said).join(' ') + (t ? (t.passed ? ' Time to work is up.' : ' ' + timeLeft(t.leftMinutes) + ' left to work.') : ''));
     chip.setAttribute('aria-expanded', String(targetsOpen));
     if (targetsOpen) fillTargets(u);
     return;

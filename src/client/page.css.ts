@@ -77,10 +77,10 @@ export const CSS = String.raw`  :root {
   .target .num.time { font-weight: 500; color: var(--soft); }
   .target .num.time.near, .target .num.time.up { font-weight: 600; color: var(--warn); }
   .target.reached { color: var(--warn); border-color: var(--warn); }
-  .target .agent { display: inline-flex; align-items: center; gap: 6px; }
-  .target .agent + .agent { padding-left: 8px; border-left: 1px solid var(--line); }
+  .target .agent { display: inline-flex; align-items: center; gap: 5px; }
+  .target .agent + .agent { padding-left: 6px; border-left: 1px solid var(--line); }
   .target .agent .who { font-weight: 500; }
-  .target .agent .meter { width: 40px; }
+  .target .agent .meter { width: 30px; }
   .target .num.none { font-weight: 500; color: var(--soft); }
   .target .agent.reached { color: var(--warn); }
   .target .agent.reached .meter .used { background: var(--warn); }
