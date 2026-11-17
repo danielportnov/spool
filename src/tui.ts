@@ -514,11 +514,10 @@ const KEYS: [string, string][] = [
   ['b', 'build a backlog thread, or carry on with a stopped one'],
   ['p', 'play a sprint: on it, or a thread of it, in the backlog'],
   ['s', 'stop the agent on a thread being built; it waits in Build'],
-  ['r', 'reply to the agent on a thread being built: type, enter sends, esc drops it'],
-  ['esc', 'on a thread being built: tell its agent to stop what it is doing and wait for you'],
-  ['y, a, n', 'answer an agent that asks to run a tool: yes once, yes for the rest of the run, no'],
-  ['o', 'open the thread’s session in Claude Code; quit it and you are back here'],
-  ['a', 'approve a finished thread, or give a plan the go-ahead (or, on an agent’s question, allow for the run)'],
+  ['a', 'approve a finished thread, or give a plan the go-ahead'],
+  ['r, esc', 'write to a running agent; esc tells it to stop and listen'],
+  ['y, a, n', 'an agent asks to run a tool: yes once, for the run, or no'],
+  ['o', 'open the thread in Claude Code; quit it to come back here'],
   ['1 to 9', 'answer a question with that option'],
   ['g', 'switch the page’s agents on or off'],
   ['/', 'add a thread: type one line, enter files it in the backlog'],
@@ -527,9 +526,8 @@ const KEYS: [string, string][] = [
 ];
 
 function keysBody(inner: number): Bit[] {
-  const out: Bit[] = [{ text: 'Keys', tone: 'bold' }, BLANK];
+  const out: Bit[] = [{ text: 'Keys', tone: 'bold' }];
   for (const [name, what] of KEYS) wrap(what, inner - 18).forEach((line, i) => out.push({ text: `  ${(i ? '' : name).padEnd(16)}${line}` }));
-  out.push(BLANK, { text: 'Every key is something the page does too. Any key goes back.', tone: 'dim' });
   return out;
 }
 

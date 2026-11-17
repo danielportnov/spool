@@ -56,7 +56,7 @@ const QUEUE_80 = `
  BACKLOG  5                         │
 ────────────────────────────────────┴───────────────────────────────────────────
 
- s stop its agent · tab its session · pgup/pgdn scroll it
+ r reply · esc interrupt · s stop · o open in Claude Code · tab its session
  up/down move · g agents · / add · ? keys · q leave, agents carry on`;
 
 const QUEUE_120 = `
@@ -98,7 +98,7 @@ const QUEUE_120 = `
                                                 │
 ────────────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────
 
- s stop its agent · tab its session · pgup/pgdn scroll it
+ r reply · esc interrupt · s stop · o open in Claude Code · tab its session
  up/down move · g agents on/off · / add a thread · ? all keys · q leave, agents carry on`;
 
 test('the queue at 80 by 24: every section, and beside it the session of the agent the cursor is on', () => {

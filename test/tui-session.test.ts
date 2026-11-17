@@ -139,7 +139,7 @@ test('tab moves between the queue and the session, and the arrows go with it', (
   assert.deepEqual(key(state, 's', board).action, { do: 'post', action: 'stop', body: { id: 't-4kq7' }, done: 'Stopped. It waits in Build until you carry on.' });
   state = press(board, state, 'tab');
   assert.equal(state.focus, 'queue');
-  assert.equal(frame(board, state, 80, 24)[22]!.trimEnd(), ' s stop its agent · tab its session · pgup/pgdn scroll it');
+  assert.equal(frame(board, state, 80, 24)[22]!.trimEnd(), ' r reply · esc interrupt · s stop · o open in Claude Code · tab its session');
   assert.equal(press(board, state, 'down').at, 'building:t-b81c');
   // Esc goes back to the queue too, and Enter goes in as Tab does.
   assert.equal(press(board, state, 'enter').focus, 'side');

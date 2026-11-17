@@ -78,7 +78,7 @@ test('o asks to open the thread’s session, for a thread that has been started;
   assert.match(key(on(board, { at: 'needs:d-9d2a' }), 'o', board).state.said, /^o opens a thread/);
   assert.match(text(frame(board, on(board), 100, 30)), /r reply · esc interrupt · s stop · o open in Claude Code/);
   const help = text(frame(board, key(on(board), '?', board).state, 100, 40));
-  for (const what of ['reply to the agent', 'tell its agent to stop', 'yes once, yes for the rest of the run', 'open the thread’s session in Claude Code']) assert.ok(help.includes(what), what);
+  for (const what of ['write to a running agent', 'esc tells it to stop and listen', 'yes once, for the run, or no', 'open the thread in Claude Code']) assert.ok(help.includes(what), what);
 });
 
 // ------------------------------------------------------------------ for real
