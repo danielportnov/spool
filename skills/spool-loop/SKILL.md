@@ -15,9 +15,9 @@ that nothing builds here until they start it again.
 
 ## Start
 
-1. `spool builder chat`. Typing `/spool-loop` is their word for it. The board
-   then starts no agents, so no two builders take one thread, and the reply
-   says how many threads to build at once. Refused, because the gate is
+1. `spool builder chat --as "<your model>"`. Typing `/spool-loop` is their
+   word for it. The board then starts no agents, and the reply says how many
+   threads you build at once: your own count. Refused, because the gate is
    locked? Ask them to pick **Chat** on the board, and wait.
 2. `spool prime worker --context`: the goals, the policy, what was undone
    and why, what is ready. No `.spool/` here? Use the `spool-init` skill.
@@ -37,7 +37,7 @@ they switched **taking over** on: then "When Build is empty" says how.
 **Several at once, with subagents.** If your harness can start subagents and
 the project is a git repository, build several threads side by side, each by
 a fresh subagent in a git worktree of its own. How many: what `spool builder`
-says, three unless they set it.
+says is yours; a claim past it is refused.
 
 - Claim each with `spool next --claim --worktree --as "<your model>"`, or
   `spool start <t-id> --worktree --as "<your model>"`. It prints the brief,
@@ -90,8 +90,8 @@ do, and nothing otherwise:
 | `ask: d-3kq2 for t-4kq7 Tighter jump — "Outline, or teal?"`, and its options | An agent needs their call. Ask them in the chat, below |
 | `takeover: skyhop`, and how | They switched taking over on. Build empty? Take the next, below |
 
-- **In Claude Code:** start the `Monitor` tool with the command `spool watch`
-  and the longest timeout it allows. Then end your turn: each line wakes you.
+- **In Claude Code:** start the `Monitor` tool with the command `spool watch
+  --as "<your model>"` (the board shows who watches) and the longest timeout it allows. Then end your turn: each line wakes you.
 - **The watch runs out** after a while, and the harness tells you. Look once
   (`spool next`), then start it again, until they say stop.
 - **One watch, never two.** Keep it up while Build is empty and while

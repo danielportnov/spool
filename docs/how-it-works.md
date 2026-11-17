@@ -826,6 +826,20 @@ built at the same time, kept as `parallel`). It writes what the page reads, so t
 follows within a second. With nothing after it, `spool builder` says what is set. Setting it is the
 human's, refused to an agent where the gate is locked, as `spool build` is.
 
+**Several agents at once: the roster.** In Chat mode more than one agent can build the project side
+by side, a Claude Code chat and a Codex chat each running the loop. Each is one entry on the
+project's roster, by the name it signs with: `--as "Claude Opus 5.5"` is Claude, `--as "Codex GPT-6"`
+is Codex. With nothing set the roster is Claude and Codex, each at the shared `--at-once` number.
+`spool builder --agent Codex --at-once 2` gives one agent its own count (and `--model`, the model it
+builds on); naming an agent not on the roster adds it. A claim (`spool start`, `spool next
+--claim`) past that agent's count is refused, "Codex is at its 2 threads", so one agent never takes
+the room given to another; a thread another agent holds is refused as it always was. In the header,
+next to Headless and Chat, each agent shows what it is building of its count (`1/3`) with − and + to
+change the count, greyed while no watch of its own is up: the loop starts `spool watch --as "<its
+name>"`, and the watch's file says who it is. `spool builder` and `spool status` list each agent the
+same way. It is kept under `roster` in `~/.config/spool/config.json`, by the project's folder, and is
+where each agent's other settings will go.
+
 **In the background.** `spool page -d` starts the page as a process of its own and returns once it
 is listening, with its address. It opens no browser and outlives the terminal or chat that started
 it; what it prints goes to a log beside its record. Every page, detached or not, leaves a small
@@ -980,13 +994,13 @@ When a new thread's words are close to an open thread, one finished in the last 
 | `spool demo [folder] [--open]` | A throwaway sample project with threads in its spool, to try the page and the loop on |
 | `spool install [--for claude\|codex\|cursor\|gemini\|all] [--here \| --dir path]` | Put the skills where your agent finds them: Claude Code unless `--for` names another; it also names the other agents it finds here |
 | `spool checks [command \| --none]` | Name the command that must pass before a change is done here |
-| `spool builder [headless \| chat] [--at-once n]` | Say who builds here, and how many threads at once; with nothing after it, says what is set. The human's, like `spool build` |
+| `spool builder [headless \| chat] [--at-once n] [--agent <name> [--model m]]` | Say who builds here, and how many threads at once, for every agent or, with `--agent`, for one on the roster (adding it); with nothing after it, says what is set and lists the agents. The human's, like `spool build` |
 | `spool agents [on \| off]` | Switch the page's agents on or off, as its Agents button does; with nothing after it, says whether a page is up and its agents are on. On is the human's, like `spool build`, and refused while a chat builds; off is always allowed |
 | `spool doctor [--json]` | Check what a run needs and say what is missing, with the line that fixes it. It names work that landed on no thread, as `spool status` does. After an upgrade it also names a retired skill that is still installed, for any agent, and a Spool block in `AGENTS.md` that is not the one this version writes; changes nothing |
 | `spool page [--run] [--agent cmd] [--port n] [--no-open] [-P project]` | The board; `--run` has it build what is in Build too. In a folder of projects it shows them all, one click apart |
 | `spool page -d \| --status \| --stop` | The board in the background, with no browser opened; whether it is up, and where; end it |
 | `spool [--run \| --plain]` | With nothing after it, in a terminal: the queue, full-screen, over the page that is up, or one it starts in the background (`--run` with agents on). Piped, run by an agent, or with `--plain`: the status |
-| `spool watch` | Print a line when there is something for the loop to do |
+| `spool watch [--as <agent>]` | Print a line when there is something for the loop to do; `--as` says which agent watches, for the board |
 | `spool loop [--watch s] [--agent cmd]` | The runner with no chat |
 | `spool mcp [-C dir]` | The commands as MCP tools |
 

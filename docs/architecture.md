@@ -91,6 +91,9 @@ those comments are the detail.
 
 - `loop.ts` is `spool loop`: `runLoop` claims the next ready task, starts the agent command with
   `PREAMBLE`, the worker's rules and the brief on stdin, and looks again when it exits.
+- `roster.ts` is the roster: the agents that build a project in Chat mode, each with its own
+  thread count, kept by the project's folder in the user's config. `refuseOverCount` holds a claim
+  to it; `rosterView` is what `spool builder`, `spool status` and the header show.
 - `watch.ts` is `spool watch`. Once a second it reads the spool and prints a line for each change
   the loop should wake for (`changes`): work that can be built, a reply, a question an agent just
   asked (`ask:`, with its thread and options, which the chat puts to the human), an unfiled note.

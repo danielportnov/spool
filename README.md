@@ -305,6 +305,10 @@ the work and step in; the page then starts nothing, and the switch says whether 
 watching, or not there. The pick is kept for the project. Say "switch to chat mode" to a chat and it
 runs `spool builder chat`; "let the page build" is `spool builder headless`.
 
+In Chat mode Claude and Codex can build at once. The header shows each with what it is building of
+its thread count, and − and + to change it; one with no chat watching is greyed.
+`spool builder --agent Codex --at-once 2` sets it from a chat, and a claim past it is refused.
+
 In Chat mode the header also holds a **usage target**: how much of your Claude plan the chat may
 use, as a percent of the weekly limit, the 5-hour limit, or both. Set it with the slider or type the
 number. Before each thread the chat reads the plan's usage with its own tool (`get_usage` in the
