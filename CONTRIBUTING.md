@@ -50,8 +50,11 @@ The whole suite takes about half a minute.
 **What the tests need.** Git: many tests make real repositories. Chrome, for one test only:
 `test/browser.test.ts` drives the page in the Chrome on your machine through `playwright-core`,
 which brings no browser of its own. Where there is no Chrome it skips itself. Set
-`SPOOL_SHOTS=<folder>` and it leaves a picture of each view there. Each test runs with a home
-folder of its own, so your own settings stay out of it.
+`SPOOL_SHOTS=<folder>` and it leaves a picture of each view there. Set `SPOOL_WIDE_FONT=1` and
+the page is drawn in a font as wide as the one Linux, and so CI, draws it in: what wraps or is cut
+there shows on a Mac too. Each test runs with a home folder of its own, so your own settings stay
+out of it. A test that runs past five minutes fails, and the browser and page it left open are
+closed, so a stuck test fails the run instead of hanging it.
 
 ## The rules of the house
 

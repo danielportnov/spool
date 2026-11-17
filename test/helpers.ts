@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as net from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { Browser } from 'playwright-core';
 import { run, runLater } from '../src/cli.ts';
@@ -186,6 +187,21 @@ export async function watchUp(pid: number | undefined): Promise<void> {
 export const WAIT_MS = 30_000;
 
 /**
+ * Close what the tests in a file opened once they have all ended, however they ended. A test stuck
+ * on a wait that never returns is stopped by the run's time limit (in package.json), but a browser
+ * or a page it left running would keep its file from ever finishing, and CI would hang until the
+ * job was killed. Closing twice is harmless, so a test that closes its own loses nothing; and one
+ * browser or page shared by every test in a file stays open until the last.
+ */
+const leftOpen = new Set<() => Promise<unknown>>();
+after(async () => {
+  for (const close of leftOpen) await close().catch(() => {});
+});
+function closeWhenDone(close: () => Promise<unknown>): void {
+  leftOpen.add(close);
+}
+
+/**
  * Wait until `look` gives something truthy, and return it. A look that throws (a page that is
  * restarting and answers nobody, a file not written yet) is tried again.
  */
@@ -304,6 +320,7 @@ function launchPage(options: PageOptions, args: string[]): Promise<Page> {
       await gone(child);
     }
   };
+  closeWhenDone(stop);
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
@@ -337,20 +354,31 @@ function launchPage(options: PageOptions, args: string[]): Promise<Page> {
  * The Chrome on this machine, through playwright-core; it throws where there is none, and the test
  * skips. Every page and context it makes waits twice Playwright's default before it gives up: a
  * browser on a busy machine can take that long to draw what a test waits for.
+ *
+ * Set SPOOL_WIDE_FONT and every page is drawn in Verdana, about as wide as the DejaVu Sans that
+ * Linux, and so CI, draws it in: a Mac then shows what wraps or is cut on Linux.
  */
+const WIDE_FONT = `document.addEventListener('DOMContentLoaded', () => {
+  const style = document.createElement('style');
+  style.textContent = '* { font-family: Verdana, "DejaVu Sans", sans-serif !important; }';
+  document.head.append(style);
+});`;
 export async function openChrome(): Promise<Browser> {
   const { chromium } = await import('playwright-core');
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  closeWhenDone(() => browser.close());
   const newContext = browser.newContext.bind(browser);
   browser.newContext = async (...a) => {
     const context = await newContext(...a);
     context.setDefaultTimeout(2 * WAIT_MS);
+    if (process.env.SPOOL_WIDE_FONT) await context.addInitScript(WIDE_FONT);
     return context;
   };
   const newPage = browser.newPage.bind(browser);
   browser.newPage = async (...a) => {
     const page = await newPage(...a);
     page.setDefaultTimeout(2 * WAIT_MS);
+    if (process.env.SPOOL_WIDE_FONT) await page.addInitScript(WIDE_FONT);
     return page;
   };
   return browser;
