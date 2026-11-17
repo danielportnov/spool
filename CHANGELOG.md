@@ -2,6 +2,46 @@
 
 What shipped in each version of Spool, newest first.
 
+## 0.23.0 · 2026-11-17
+
+**Lineage: who did what, and how to take it back**
+- Every commit that lands names its thread, its agent and its model in git itself (`Spool:`,
+  `Spool-Agent:`, `Spool-Model:`), stamped by `spool done` as it lands.
+- Every line on a thread names who wrote it and on what model; a claim takes `--model` so the log
+  says what actually ran.
+- `spool why <commit | file:line | thread>` shows the whole chain, from your words to the commits,
+  and a thread's ticket shows it as Lineage.
+- Work that landed on no thread is listed in the status, the brief and doctor; `spool adopt` puts
+  a commit on its thread.
+- A journal of every edit to the spool, with the copy before it: `spool history` and `spool undo`.
+- Undo an undo: reverting a thread again puts its work back. A revert that collides with later
+  work names those threads, and `--with-later` takes them back with it.
+- Undoing a thread puts it in the backlog with your reason, not straight back into Build;
+  "Undo, to be done again now" is its own choice.
+
+**The board**
+- The box at the top is gone: Done cards worth a look carry a small ★ that says why.
+- A card shows how many posts are new on its thread since you last opened it.
+- Reply on a thread nobody is building and "Typing…" shows at once, then a small model answers.
+- Add pictures, PDFs and text files to a thread: paste, drop or the paperclip.
+- Codex's posts carry the ChatGPT mark and its full model name.
+- Headless is greyed out for now; `spool builder headless` still switches to it.
+- In Chat mode the board rebuilds Spool and reloads a few seconds after each thread lands.
+- A command inside a project finds the board started in a folder above it.
+
+**Agents at work**
+- A check that fails under the board's agents goes back to the same session once, with its output.
+- A board agent quiet for ten minutes is marked on its card and tells you.
+- Agents write on a thread like a short post: the point first, in plain words.
+- The manager's rules print with `spool prime manager`, its proposals have a yes and a no each on
+  the run's thread, and "tidy the backlog" runs the pass from the chat.
+- Codex built a Spool thread end to end.
+
+**CI and packaging**
+- The tests pass on Linux: a path shown by its name however short, a phone layout that gives way
+  for wider fonts, and test runs kept off the runner's own config.
+- Ready to publish to npm as `spool-ai` (`npm install -g spool-ai`); publishing builds and checks first.
+
 ## 0.22.0 · 2026-11-16
 
 - The chat takes over the backlog: in Chat mode a **Take over** switch in the board's header (or
