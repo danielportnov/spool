@@ -907,7 +907,8 @@ function sharing(feed) {
   const minute = (p) => { const t = timeOf(p.at); return isNaN(t) ? null : Math.floor(t / 60000); };
   return feed.map((p, i) => {
     const m = minute(p);
-    return m != null && (minute(feed[i - 1] || {}) === m || minute(feed[i + 1] || {}) === m) ? { ...p, exact: true } : p;
+    p.exact = m != null && (minute(feed[i - 1] || {}) === m || minute(feed[i + 1] || {}) === m);
+    return p;
   });
 }
 function byline(who, at, exact) {
