@@ -60,8 +60,9 @@ test('on a phone the name has its room and the search is a button; answers line 
     for (const scheme of ['light', 'dark'] as const) {
       const phone = await open({ viewport: { width: 390, height: 844 }, colorScheme: scheme });
       await shot(phone, `phone-top-${scheme}`);
+      // Measured on the name itself: the version beside it gives way first where the font is wide (Linux).
       const brand = phone.locator('.brand');
-      assert.ok(await brand.evaluate((n) => n.scrollWidth <= n.clientWidth), `${scheme}: the project's name is not cut`);
+      assert.ok(await brand.locator('.name').evaluate((n) => n.scrollWidth <= n.clientWidth), `${scheme}: the project's name is not cut`);
       assert.match(await brand.innerText(), /tip-splitter/);
       await answers(phone);
       await shut(phone);

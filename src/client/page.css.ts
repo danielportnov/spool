@@ -437,7 +437,10 @@ export const CSS = String.raw`  :root {
        agents and the theme. The search is a button there, and its box opens over that row. */
     .bar { flex-wrap: wrap; height: auto; gap: 0 8px; padding: 0 16px; }
     .bar::after { content: ''; order: 4; flex-basis: 100%; }
-    .brand { order: 1; flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 16px; }
+    /* Where the row is short (a narrow phone, a wide font), the version gives way first, whole: it
+       wraps to a second line that is never shown. Only then is the name cut, at its end. */
+    .brand { order: 1; flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; height: 1.5em; line-height: 1.5; overflow: hidden; font-size: 16px; }
+    .brand .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     .where { margin-left: 4px; }
     .tabs { order: 2; height: 44px; }
     .searchbtn { order: 5; display: inline-grid; place-items: center; width: 36px; padding: 0; margin: 0 0 8px; color: var(--soft); }

@@ -45,7 +45,7 @@ ${CSS + ROADMAP_CSS + REVIEW_CSS + PROJECTS_CSS + PICTURES_CSS}</style>
 </head>
 <body>
 <div class="bar">
-  <div class="brand">🧶 <span id="project">Spool</span><span class="where" id="where"></span></div>
+  <div class="brand"><span class="name">🧶 <span id="project">Spool</span></span><span class="where" id="where"></span></div>
   <div class="tabs">
     <button class="tab" data-view="board">Board</button>
     <button class="tab" data-view="backlog">Backlog</button>
