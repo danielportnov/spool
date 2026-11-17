@@ -20,6 +20,7 @@ import { readProposals, unanswered } from './proposals.ts';
 import { type Scope, children, dependents, review, sprintOf, taskState, tasks } from './schedule.ts';
 import { hearLine } from './stream.ts';
 import { MOVED } from './takeover.ts';
+import { type Strays, strayFixes, strayLines, straysOf } from './strays.ts';
 import type { Workspace } from './store.ts';
 
 /** Lines are kept under this, so a phone shows each on one or two rows and a chat never wraps a table. */
@@ -48,6 +49,8 @@ export interface Brief {
   /** The rest of what shipped, by sprint: threads in no sprint come first, under a null sprint. */
   alsoShipped: { sprint: { id: string; title: string } | null; threads: { id: string; title: string; summary: string | null; project: string }[] }[];
   calls: { id: string; question: string; chose: string; for: string[]; project: string }[];
+  /** Work that landed on no thread, by project: only those with some. */
+  noThread: (Strays & { project: string })[];
   approve: string | null;
   board: string;
 }
@@ -293,6 +296,11 @@ export function morning(ws: Workspace, opts: { since?: string; project?: Scope }
     shipped.length ? `${plural(shipped.length, 'thread')} shipped ${when}${span === 'now' ? '' : `, over ${span}`}` : `Nothing shipped ${when}`,
     needs ? `${needs} ${needs === 1 ? 'needs' : 'need'} you` : 'nothing needs you',
   ].join(' · ');
+  const projects = !opts.project ? ws.spools : [typeof opts.project === 'string' ? ws.project(opts.project) : opts.project];
+  const noThread = projects
+    .map((spool) => ({ spool, s: straysOf(ws, spool) }))
+    .filter((x): x is { spool: typeof x.spool; s: Strays } => !!x.s && (x.s.commits.length > 0 || x.s.untracked.length > 0))
+    .map(({ spool, s }) => ({ ...s, project: spool.name }));
   const clearable = queue.assumptions.length + queue.shipped.length + queue.skills.length;
   return {
     since: from ? { said, from: from.toISOString() } : null,
@@ -314,6 +322,7 @@ export function morning(ws: Workspace, opts: { since?: string; project?: Scope }
     })),
     alsoShipped,
     calls,
+    noThread,
     approve: clearable ? 'spool approve --all' : null,
     board: 'spool page',
   };
@@ -380,6 +389,14 @@ export function morningText(ws: Workspace, b: Brief, p: Paint): string {
   if (b.calls.length) {
     out.push('', `🧾 ${p.bold('CALLS AGENTS MADE')}  ${p.dim(`${b.calls.length} · approve, or say what you want instead`)}`);
     for (const c of b.calls) out.push(line('  ', `${oneLine(c.question, 54)} → ${c.chose}`, `${c.id}${where(c.project)}`));
+  }
+
+  if (b.noThread.length) {
+    out.push('', `🧶 ${p.bold('ON NO THREAD')}  ${p.dim('work that landed with nothing to undo or trace it by')}`);
+    for (const n of b.noThread) {
+      if (ws.spools.length > 1) out.push(`  ${n.project}`);
+      out.push(...strayLines(n, 70).map((l) => `  ${l}`), ...strayFixes(n).map((l) => p.dim(`  → ${l}`)));
+    }
   }
 
   out.push('', `${b.approve ? `All good? ${b.approve}   ·   ` : ''}The board: ${b.board}, usually at http://127.0.0.1:4747`);

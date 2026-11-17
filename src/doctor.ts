@@ -20,7 +20,8 @@ import { DEFAULT_AGENT } from './loop.ts';
 import { builderOf, userConfig } from './context.ts';
 import { git, repoRoot } from './git.ts';
 import { blockIn } from './prime.ts';
-import { SPOOL_DIR, findHome, isOff, readConfig, skillsDir } from './store.ts';
+import { SPOOL_DIR, Workspace, findHome, isOff, readConfig, skillsDir } from './store.ts';
+import { strayFixes, strayLines, straysOf } from './strays.ts';
 import { watched } from './watch.ts';
 
 export interface Finding {
@@ -120,6 +121,21 @@ export function diagnose({ ctx }: Bare): Finding[] {
     if (project?.gate === 'locked') add('gate', 'ok', 'the build gate is locked: only you move work to Build, on the page or in your own terminal');
     else if (project?.gate) add('gate', 'ok', 'the build gate is on: new work waits until you move it to Build');
     else if (project) add('gate', 'advice', 'the build gate is off: new threads go straight to Build, for any agent to take', ['spool init --gate']);
+
+    // Work that landed on no thread: nothing undoes it or says why it is there.
+    let ws: Workspace | undefined;
+    try {
+      ws = Workspace.open(root);
+    } catch {
+      ws = undefined;
+    }
+    const strays = ws ? straysOf(ws, ws.home) : null;
+    if (strays && (strays.commits.length || strays.untracked.length)) {
+      const [head, ...rest] = strayLines(strays);
+      add('strays', 'advice', [head, ...rest.map((l) => `  ${l}`)].join('\n'), strayFixes(strays));
+    } else if (strays) {
+      add('strays', 'ok', `every commit since the first on a thread is on one${strays.versions ? `, but for ${strays.versions === 1 ? 'a version commit' : `${strays.versions} version commits`}, which are on none by design` : ''}`);
+    }
 
     if (config.checks?.[root]) add('check', 'ok', `a check runs before a change is done: ${config.checks[root]}`);
     else add('check', 'advice', 'no check: a change is done when the agent says so', ['spool checks "npm test"']);
