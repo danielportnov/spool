@@ -15,7 +15,7 @@ test('the loop skill has one job: make this chat the builder', () => {
   assert.match(flat, /`\/spool-loop` makes this chat the one that builds\. \*\*They decide what is built, and you build it:\*\* what is in Build, top first, and nothing else\./);
 
   // It starts by telling the board a chat builds here, which is theirs to say: typing /spool-loop says it.
-  assert.match(flat, /1\. `spool builder chat`\. Typing `\/spool-loop` is their word for it\. The board then starts no agents, so no two builders take one thread, and the reply says how many threads to build at once\./);
+  assert.match(flat, /1\. `spool builder chat --as "<your model>"`\. Typing `\/spool-loop` is their word for it\. The board then starts no agents, and the reply says how many threads you build at once: your own count\./);
   assert.match(flat, /Refused, because the gate is locked\? Ask them to pick \*\*Chat\*\* on the board, and wait\./);
   assert.match(flat, /2\. `spool prime worker --context`: the goals, the policy, what was undone and why, what is ready\. No `\.spool\/` here\? Use the `spool-init` skill\./);
 
@@ -54,7 +54,7 @@ test('the loop watches the spool, and falls back to one scheduled job', () => {
   assert.match(loop, /^\| `reply: t-4kq7 Tighter jump`, and their words, or the path of a picture or a file they added \| They wrote on a thread\. Being built\? It steers that work: open what they added\. Otherwise leave it for whoever builds it \|$/m);
   assert.match(loop, /^\| `unfiled: n-9wxa "add a mute button"` \| A note nobody has filed\. File it, by the `spool-record` skill \|$/m);
   assert.match(loop, /^\| `ask: d-3kq2 for t-4kq7 Tighter jump — "Outline, or teal\?"`, and its options \| An agent needs their call\. Ask them in the chat, below \|$/m);
-  assert.match(flat, /start the `Monitor` tool with the command `spool watch` and the longest timeout it allows\. Then end your turn: each line wakes you\./);
+  assert.match(flat, /start the `Monitor` tool with the command `spool watch --as "<your model>"` \(the board shows who watches\) and the longest timeout it allows\. Then end your turn: each line wakes you\./);
   assert.match(flat, /\*\*The watch runs out\*\* after a while, and the harness tells you\. Look once \(`spool next`\), then start it again, until they say stop\./);
   // One watch. It stays up while subagents build, since the chat itself is then free to hear a thread moved to Build.
   assert.match(flat, /\*\*One watch, never two\.\*\* Keep it up while Build is empty and while subagents build\. Building a thread yourself, you need none: `spool next --claim` reads the order fresh after every thread\./);
@@ -134,18 +134,18 @@ test('spool builder chat tells the loop how many to build at once, and is not re
   try {
     s.sp('init', '--name', 'skyhop', '--lock');
     // Not a git repository: one thread at a time, and it says why.
-    assert.match(s.exec(['builder', 'chat'], { tty: true }).out, /^A chat builds skyhop: say \/spool-loop in a Claude Code chat there\. The page starts no agents\. The chat builds 1 thread at once: it is not a git repository, so its threads cannot have a worktree each\.$/);
+    assert.match(s.exec(['builder', 'chat'], { tty: true }).out, /^A chat builds skyhop: say \/spool-loop in a Claude Code chat there\. The page starts no agents\. The chat builds 1 thread at once: it is not a git repository, so its threads cannot have a worktree each\.$/m);
     s.gitInit();
     s.write('.gitignore', '.home/\n');
     s.commitAll('start');
     // The human picked Chat. An agent starting the loop says the same again: nothing changes, so the lock has nothing to refuse.
-    assert.match(s.sp('builder', 'chat'), /The page starts no agents\. The chat builds 3 threads at once, each in a worktree of its own\.$/);
+    assert.match(s.sp('builder', 'chat'), /The page starts no agents\. The chat builds 3 threads at once, each in a worktree of its own\.$/m);
     assert.match(s.sp('builder', '--at-once', '3'), /The chat builds 3 threads at once/);
     // A change is still theirs alone.
     assert.match(s.fails('builder', 'headless'), /human's alone.*locked/s);
     assert.match(s.fails('builder', 'chat', '--at-once', '2'), /human's alone/);
     assert.equal(s.json('builder').builder, 'chat');
-    assert.match(s.exec(['builder', '--at-once', '1'], { tty: true }).out, /The chat builds 1 thread at once\.$/);
+    assert.match(s.exec(['builder', '--at-once', '1'], { tty: true }).out, /The chat builds 1 thread at once\.$/m);
   } finally {
     s.cleanup();
   }

@@ -7,7 +7,7 @@ test('in a chat that can start subagents, the loop builds several threads at onc
   const loop = shipped('spool-loop').replace(/\s+/g, ' ');
   assert.match(
     loop,
-    /\*\*Several at once, with subagents\.\*\* If your harness can start subagents and the project is a git repository, build several threads side by side, each by a fresh subagent in a git worktree of its own\. How many: what `spool builder` says, three unless they set it\./,
+    /\*\*Several at once, with subagents\.\*\* If your harness can start subagents and the project is a git repository, build several threads side by side, each by a fresh subagent in a git worktree of its own\. How many: what `spool builder` says is yours; a claim past it is refused\./,
   );
   assert.match(loop, /`spool next --claim --worktree --as "<your model>"`, or `spool start <t-id> --worktree --as "<your model>"`\. It prints the brief, and the brief names the folder to work in\./);
   assert.match(

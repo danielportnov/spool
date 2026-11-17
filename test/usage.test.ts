@@ -101,7 +101,7 @@ test('spool builder chat tells the loop the target it works up to', () => {
   try {
     assert.doesNotMatch(s.sp('builder', 'chat'), /usage/);
     s.sp('target', '--weekly', '80');
-    assert.match(s.sp('builder'), /The chat builds 1 thread at once: it is not a git repository, so its threads cannot have a worktree each\. It works up to the usage target, weekly 80%: spool usage says when to stop\.$/);
+    assert.match(s.sp('builder'), /The chat builds 1 thread at once: it is not a git repository, so its threads cannot have a worktree each\. It works up to the usage target, weekly 80%: spool usage says when to stop\.$/m);
     // Headless, the page's own agents build, and the target is not theirs.
     assert.doesNotMatch(s.sp('builder', 'headless'), /usage/);
   } finally {

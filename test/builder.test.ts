@@ -24,7 +24,9 @@ test('spool builder reads, sets and reads back who builds and how many at once',
     assert.match(s.sp('builder', 'headless', '--at-once', '3'), /headless, 3 threads at once/);
     assert.equal(config(s).parallel, 3);
     assert.deepEqual(config(s).builder, {});
-    assert.deepEqual(s.json('builder'), { project: 'skyhop', builder: 'headless', atOnce: 3 });
+    const { agents, ...said } = s.json('builder');
+    assert.deepEqual(said, { project: 'skyhop', builder: 'headless', atOnce: 3 });
+    assert.deepEqual(agents.map((a: { name: string }) => a.name), ['Claude', 'Codex']);
   } finally {
     s.cleanup();
   }
