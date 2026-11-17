@@ -35,7 +35,7 @@ import { ideate } from './ideate.ts';
 import { manage } from './manage.ts';
 import { markLine } from './mark.ts';
 import { noticesCommand } from './notices.ts';
-import { fableCap, targetCommand, usageCommand } from './usage.ts';
+import { fableCap, headroomText, refuseOverHeadroom, targetCommand, usageCommand, withinHeadroom } from './usage.ts';
 import { servePage } from './page.ts';
 import { watch } from './watch.ts';
 import { serve } from './mcp.ts';
@@ -619,6 +619,8 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
   // And only the sizes it takes: a thread outside them is left for an agent that does.
   if (builderOf(call.ctx, task.spool.root) === 'chat') {
     refuseOutsideSizes(call.ctx, task, actor);
+    // Near the end of the budget, nothing is started that cannot be finished before it runs out.
+    if (!(state === 'active' && task.by === actor)) refuseOverHeadroom(call.ctx, task);
     refuseOverCount(call.ctx, ws, task, actor);
   }
   // Handed off to another agent: it is kept for that one.
@@ -1099,7 +1101,8 @@ export const COMMANDS: Command[] = [
         t.archived = undefined;
         ws.save(t);
       }
-      return { text: `In build:\n${tasks.map((t) => `  ${itemLine(ws, t, p)}`).join('\n')}`, data: { build: tasks.map((t) => itemJson(ws, t)) } };
+      const passed = taking?.passed ? `${taking.passed.trim()}\n` : '';
+      return { text: `${passed}In build:\n${tasks.map((t) => `  ${itemLine(ws, t, p)}`).join('\n')}`, data: { build: tasks.map((t) => itemJson(ws, t)), ...(passed ? { passed: taking!.passed.trim() } : {}) } };
     },
   },
   {
@@ -1363,14 +1366,14 @@ export const COMMANDS: Command[] = [
   {
     name: 'target',
     group: 'setup',
-    usage: 'target [--weekly <percent>|none] [--five-hour <percent>|none] [--fable <percent>|none]',
-    summary: 'Say how much of your Claude plan a chat in Chat mode may use: it works up to the target, then takes no new thread. none takes one off. With nothing after it, says what is set and the usage last read',
+    usage: 'target [--weekly <percent>|none] [--five-hour <percent>|none] [--fable <percent>|none] [--headroom <percent:size,...>|default]',
+    summary: 'Say how much of your Claude plan a chat in Chat mode may use: it works up to the target, then takes no new thread. none takes one off. --headroom says the largest size it starts as the end nears (80:m,90:s,97:xs). With nothing after it, says what is set and the usage last read',
     human: true,
-    options: { weekly: { type: 'string' }, 'five-hour': { type: 'string' }, fable: { type: 'string' } },
+    options: { weekly: { type: 'string' }, 'five-hour': { type: 'string' }, fable: { type: 'string' }, headroom: { type: 'string' } },
     run(call) {
       const { ws, ctx, args, opts } = call;
       if (args.length) throw new SpoolError('a target is given with its flag', 'spool target --weekly 80 --five-hour 90, or --weekly none to take it off');
-      return targetCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']), fable: str(opts.fable) }, () => byTheHuman(call, [ws.home], 'target'));
+      return targetCommand(ctx, { weekly: str(opts.weekly), fiveHour: str(opts['five-hour']), fable: str(opts.fable), headroom: str(opts.headroom) }, () => byTheHuman(call, [ws.home], 'target'));
     },
   },
   {
@@ -1528,23 +1531,32 @@ export const COMMANDS: Command[] = [
       const project = str(call.opts.project);
       const all = ready(ws, project);
       // In Chat mode an agent is handed only what is in its sizes; the rest waits for one that takes it.
-      const sized = all.length && builderOf(call.ctx, all[0]!.spool.root) === 'chat' ? withinSizes(call.ctx, all[0]!.spool.root, call.actor, all) : all;
+      const chat = all.length > 0 && builderOf(call.ctx, all[0]!.spool.root) === 'chat';
       // A thread handed off to another agent waits for that agent.
-      const list = sized.filter((t) => !handedToOther(t, call.actor));
+      const sized = (chat ? withinSizes(call.ctx, all[0]!.spool.root, call.actor, all) : all).filter((t) => !handedToOther(t, call.actor));
+      // And near the end of the budget, only what fits what is left; the first passed by is said.
+      const room = chat ? withinHeadroom(call.ctx, sized) : { fits: sized, passed: null, headroom: null };
+      const list = room.fits;
       const task = list[0];
+      if (!task && room.headroom && sized.length) {
+        return {
+          text: `Nothing ready fits what is left: ${headroomText(room.headroom)}. ${sized.length} wait${sized.length === 1 ? 's' : ''} for more room.\n  Finish and land what you are building, or leave a hand-off note (spool log) and stop.`,
+          data: { task: null, ready: 0, passed: sized.map((t) => t.id), headroom: room.headroom },
+        };
+      }
       if (!task && all.length) {
         return { text: `Nothing ready is in the sizes you take: ${all.length} wait${all.length === 1 ? 's' : ''} for an agent that takes them (${[...new Set(all.map((t) => (t.size ?? 'm').toUpperCase()))].join(', ')}).`, data: { task: null, ready: 0, outsideSizes: all.length } };
       }
       if (!task) return { text: nothingReady(ws, project), data: { task: null, ready: 0 } };
       const claimed = call.opts.claim ? claim(call, task, true, !!call.opts.worktree) : undefined;
       const pick = claimed?.pick ?? pickFor(task, userConfig(call.ctx).models, undefined, fableCap(call.ctx));
-      const out = [brief(ws, task, p)];
+      const out = room.passed ? [room.passed, '', brief(ws, task, p)] : [brief(ws, task, p)];
       const model = modelNote(pick, p, claimed?.ran);
       if (model) out.push('', model);
       if (claimed?.opened) out.push(worktreeNote(task, claimed.opened, p));
       if (!call.opts.claim) out.push(p.dim(`claim it        spool start ${task.id}`));
       if (list.length > 1) out.push(p.dim(`${list.length - 1} more ready behind it`));
-      return { text: out.join('\n'), data: { task: itemJson(ws, task, true), brief: brief(ws, task, p), model: modelJson(pick, claimed?.ran), ready: list.length } };
+      return { text: out.join('\n'), data: { task: itemJson(ws, task, true), brief: brief(ws, task, p), model: modelJson(pick, claimed?.ran), ready: list.length, ...(room.passed ? { passed: room.passed } : {}) } };
     },
   },
   {

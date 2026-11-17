@@ -104,6 +104,12 @@ export interface UserConfig {
    */
   usageTarget?: { weekly?: number; fiveHour?: number; fable?: number };
   /**
+   * The largest size a chat takes as its budget runs low, by how much of it is used:
+   * `{ "80": "m", "90": "s", "97": "xs" }` is up to M from 80%, S from 90%, XS from 97%. Not set:
+   * that default. Set with `spool target --headroom`. See usage.ts.
+   */
+  headroom?: Record<string, string>;
+  /**
    * For each project, by the path of its folder: `true` where the chat that builds it in Chat mode
    * takes over the backlog, moving threads to Build itself up to the usage target. See takeover.ts.
    */

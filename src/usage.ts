@@ -16,7 +16,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { type Ctx, configDir, saveUserConfig, userConfig } from './context.ts';
-import { SpoolError } from './model.ts';
+import { type Item, SIZES, type Size, SpoolError } from './model.ts';
 import { age } from './render.ts';
 
 /** The plan's limits a target can be set on. */
@@ -111,6 +111,105 @@ export function usageOf(ctx: Ctx): Usage {
   return { target, read, reached, fableCap: fableCapOf(target, read, ctx.now()) };
 }
 
+/**
+ * Headroom: as a budget runs low, the largest thread worth starting shrinks, so nothing is begun
+ * that cannot be finished before it runs out. A budget is anything with a fraction used: the plan's
+ * usage against the target (here), or a time budget. Each step says the largest size from that
+ * percent of the budget used. The human sets the steps; these are the default.
+ */
+export const HEADROOM_DEFAULT: Readonly<Record<number, Size>> = { 80: 'm', 90: 's', 97: 'xs' };
+/** A reading older than this says nothing about the headroom: the 5-hour limit has reset since. */
+const HEADROOM_FRESH_MS = 5 * 3600 * 1000;
+
+/** The steps on file, or the default where none are, each a whole percent from 1 to 100 and a size. */
+export function headroomSteps(ctx: Ctx): Array<[number, Size]> {
+  const kept = userConfig(ctx).headroom;
+  const steps = Object.entries(kept && typeof kept === 'object' ? kept : HEADROOM_DEFAULT)
+    .map(([at, size]) => [Number(at), size] as [number, Size])
+    .filter(([at, size]) => isTarget(at) && SIZES.includes(size));
+  return steps.sort((a, b) => a[0] - b[0]);
+}
+
+/** The largest size worth starting with this percent of a budget used, or null where any size fits. */
+export function sizeForBudget(usedPercent: number, steps: Array<[number, Size]>): Size | null {
+  let upTo: Size | null = null;
+  for (const [at, size] of steps) if (usedPercent >= at && (!upTo || SIZES.indexOf(size) < SIZES.indexOf(upTo))) upTo = size;
+  return upTo;
+}
+
+/** Where a budget is running low: the largest size worth starting, and why, in words. */
+export interface Headroom {
+  /** The percent of the budget used, the most of any limit read. */
+  used: number;
+  upTo: Size;
+  /** "weekly 92% of 100%". */
+  why: string;
+}
+
+/**
+ * The headroom the last reading leaves, or null where it leaves room for any size. Each of the
+ * plan's limits counts against its target, or against the whole limit where it has none: the plan
+ * runs out at 100% whatever the target. The limit nearest its end decides.
+ */
+export function headroomOf(ctx: Ctx): Headroom | null {
+  const { target, read } = usageOf(ctx);
+  if (!read || ctx.now().getTime() - Date.parse(read.at) > HEADROOM_FRESH_MS) return null;
+  let worst: { used: number; why: string } | null = null;
+  for (const l of STOPS) {
+    const used = read.used[l];
+    if (used === undefined) continue;
+    const of = target[l] ?? 100;
+    const share = Math.min(100, (used / of) * 100);
+    if (!worst || share > worst.used) worst = { used: share, why: `${NAMES[l]} ${used}% of ${of}%` };
+  }
+  if (!worst) return null;
+  const upTo = sizeForBudget(worst.used, headroomSteps(ctx));
+  return upTo ? { used: Math.round(worst.used), upTo, why: worst.why } : null;
+}
+
+/** "near the target, weekly 92% of 100%: only up to S now". */
+export function headroomText(h: Headroom): string {
+  return `near the end of the budget, ${h.why}: only up to ${h.upTo.toUpperCase()} now`;
+}
+
+/** Whether a thread fits the headroom. A thread with no size counts as medium. */
+export function fitsHeadroom(h: Headroom | null, size: Size | undefined): boolean {
+  return !h || SIZES.indexOf(size ?? 'm') <= SIZES.indexOf(h.upTo);
+}
+
+/**
+ * The threads a chat may start with the headroom left, and the line that says why the first one
+ * it would have taken is passed by, where one is.
+ */
+export function withinHeadroom<T extends Pick<Item, 'id' | 'size'>>(ctx: Ctx, list: T[]): { fits: T[]; passed: string | null; headroom: Headroom | null } {
+  const headroom = headroomOf(ctx);
+  const fits = list.filter((t) => fitsHeadroom(headroom, t.size));
+  const first = list[0];
+  const passed = headroom && first && !fits.includes(first) ? passedLine(first, headroom) : null;
+  return { fits, passed, headroom };
+}
+
+/** "Passed by t-ab12 (L): near the end of the budget, weekly 92% of 100%: only up to S now." */
+export function passedLine(task: Pick<Item, 'id' | 'size'>, h: Headroom): string {
+  return `Passed by ${task.id} (${(task.size ?? 'm').toUpperCase()}): ${headroomText(h)}.`;
+}
+
+/** Refuse to start a thread too large for the headroom left. One already being built goes on. */
+export function refuseOverHeadroom(ctx: Ctx, task: Item): void {
+  const h = headroomOf(ctx);
+  if (fitsHeadroom(h, task.size)) return;
+  throw new SpoolError(
+    `${task.id} is ${(task.size ?? 'm').toUpperCase()}, and the chat is ${headroomText(h!)}`,
+    'Take one that fits what is left: spool next. Wrap up what you are building. How near is near is the human\'s: spool target --headroom',
+  );
+}
+
+/** What the chat hears near the end of its budget: what it may still take, and to wrap up. */
+const WRAP_UP = (h: Headroom): string =>
+  `Near the end: ${h.why}, so take only up to ${h.upTo.toUpperCase()} now; claims pass larger threads by.` +
+  // Down to small work, what is in flight is wrapped up too.
+  (SIZES.indexOf(h.upTo) <= SIZES.indexOf('s') ? ' Finish and land what you are building, or leave a hand-off note (spool log) and stop.' : '');
+
 /** "weekly 80%, 5-hour 90%". */
 export function figuresText(figures: Figures): string {
   return LIMITS.filter((l) => figures[l] !== undefined)
@@ -175,13 +274,42 @@ function targetText(usage: Usage, now: Date): string {
  * `spool target`: set the target, take one off with `none`, or with nothing typed only say what is
  * set. `guard` is the lock: it throws where the gate leaves this to the human, asked only for a change.
  */
-export function targetCommand(ctx: Ctx, typed: Partial<Record<Limit, string>>, guard: () => void): { text: string; data: Usage } {
+/** Read `--headroom`: "80:m,90:s,97:xs", or default. Null is the default. */
+function parseHeadroom(typed: string): Record<string, Size> | null {
+  const t = typed.trim().toLowerCase();
+  if (t === 'default') return null;
+  const hint = 'Say from what percent of the budget used each size is the largest taken: spool target --headroom 80:m,90:s,97:xs, or default';
+  const out: Record<string, Size> = {};
+  for (const part of t.split(',')) {
+    const m = /^(\d+)%?:(xs|s|m|l|xl)$/.exec(part.trim());
+    if (!m || !isTarget(Number(m[1]))) throw new SpoolError(`"${part.trim()}" is not a headroom step`, hint);
+    out[String(Number(m[1]))] = m[2] as Size;
+  }
+  return out;
+}
+
+/** "up to M from 80% of the budget, S from 90%, XS from 97%". */
+function stepsText(steps: Array<[number, Size]>): string {
+  if (!steps.length) return 'any size, however near the end';
+  return steps.map(([at, size], i) => `${i ? '' : 'up to '}${size.toUpperCase()} from ${at}%${i ? '' : ' of the budget used'}`).join(', ');
+}
+
+export function targetCommand(ctx: Ctx, typed: Partial<Record<Limit, string>> & { headroom?: string }, guard: () => void): { text: string; data: Usage & { headroom: Array<[number, Size]> } } {
   const changes = new Map<Limit, number | null>();
   for (const limit of LIMITS) {
     const t = typed[limit];
     if (t !== undefined) changes.set(limit, t.trim().toLowerCase() === 'none' ? null : percentOf(t, limit, 'target'));
   }
   const before = targetOf(ctx);
+  const steps = typed.headroom !== undefined ? parseHeadroom(typed.headroom) : undefined;
+  const stepsChanged = steps !== undefined && JSON.stringify(steps ?? undefined) !== JSON.stringify(userConfig(ctx).headroom);
+  if (stepsChanged) {
+    guard();
+    saveUserConfig(ctx, (config) => {
+      if (steps) config.headroom = steps;
+      else delete config.headroom;
+    });
+  }
   if ([...changes].some(([limit, value]) => (value ?? undefined) !== before[limit])) {
     guard();
     saveUserConfig(ctx, (config) => {
@@ -196,7 +324,11 @@ export function targetCommand(ctx: Ctx, typed: Partial<Record<Limit, string>>, g
     });
   }
   const usage = usageOf(ctx);
-  return { text: targetText(usage, ctx.now()), data: usage };
+  const now = headroomSteps(ctx);
+  // The headroom is said where it was just set or is not the default; the default goes without saying.
+  const say = typed.headroom !== undefined || userConfig(ctx).headroom !== undefined;
+  const line = say ? `\n  Near the end of the budget a chat takes ${stepsText(now)}. Back to the default: spool target --headroom default` : '';
+  return { text: `${targetText(usage, ctx.now())}${line}`, data: { ...usage, headroom: now } };
 }
 
 /**
@@ -218,11 +350,14 @@ export function usageCommand(ctx: Ctx, typed: Partial<Record<Limit, string>>, by
     fs.writeFileSync(file, `${JSON.stringify(reading, null, 2)}\n`);
   }
   const usage = usageOf(ctx);
-  const data = { ...usage, keepBuilding: usage.reached.length === 0 };
+  const headroom = headroomOf(ctx);
+  const data = { ...usage, keepBuilding: usage.reached.length === 0, headroom };
   if (!reported) return { text: targetText(usage, ctx.now()), data };
   const { target, read, reached } = usage;
   const fable = fableText(usage);
-  const withFable = (text: string) => (fable ? `${text}\n  ${fable}` : text);
+  // Near the end, what is worth starting shrinks, and what is in flight is wrapped up.
+  const near = headroom && !reached.length ? `\n  ${WRAP_UP(headroom)}` : '';
+  const withFable = (text: string) => (fable ? `${text}${near}\n  ${fable}` : `${text}${near}`);
   if (!STOPS.some((l) => target[l] !== undefined)) return { text: withFable('No usage target is set: build what is in Build, whatever the usage.'), data };
   // A limit with a target that this reading did not give is not checked, and the chat is told so.
   const unread = STOPS.filter((l) => target[l] !== undefined && read?.used[l] === undefined);

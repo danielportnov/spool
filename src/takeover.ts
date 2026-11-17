@@ -23,7 +23,7 @@ import { type Item, type Spool, SpoolError, isRun, oneLine, splitBody } from './
 import { withinSizes } from './roster.ts';
 import { blockers, docket, ready } from './schedule.ts';
 import type { Workspace } from './store.ts';
-import { STOPS, figuresText, usageOf } from './usage.ts';
+import { STOPS, figuresText, headroomText, usageOf, withinHeadroom } from './usage.ts';
 
 /** A reading older than this is not taken as the usage now: the chat reads it again first. */
 export const FRESH_MS = 30 * 60_000;
@@ -148,7 +148,7 @@ export function takeoverCommand(call: Call, spool: Spool, byHuman: () => void): 
  * one it may take. Refused unless taking over is on, a chat builds, the usage is read and under the
  * target, and Build is empty. `line` is what the thread's log says of it.
  */
-export function buildUnderTakeOver(call: Call): { tasks: Item[]; line: string } {
+export function buildUnderTakeOver(call: Call): { tasks: Item[]; line: string; passed: string } {
   const { ctx, ws, args, opts } = call;
   if (opts.abort) throw new SpoolError('--takeover moves work to build; it stops nothing', 'spool build --takeover');
   if (opts.leave) throw new SpoolError('--takeover and --leave are two ways to move work to build: say one');
@@ -159,14 +159,20 @@ export function buildUnderTakeOver(call: Call): { tasks: Item[]; line: string } 
   if (why) throw new SpoolError(why.why, why.hint);
   const all = reasonable(ws, spool);
   // Only within the sizes of the agent that takes over: the rest is left for one that takes them.
-  const may = withinSizes(ctx, spool.root, call.actor, all);
-  if (named && all.includes(named) && !may.includes(named)) throw new SpoolError(`${named.id} is ${(named.size ?? 'm').toUpperCase()}, outside the sizes ${call.actor} takes`, 'Take the top one it may: spool build --takeover');
+  const sized = withinSizes(ctx, spool.root, call.actor, all);
+  // And near the end of the budget, only what fits what is left: nothing it cannot finish.
+  const room = withinHeadroom(ctx, sized);
+  const may = room.fits;
+  if (named && all.includes(named) && !sized.includes(named)) throw new SpoolError(`${named.id} is ${(named.size ?? 'm').toUpperCase()}, outside the sizes ${call.actor} takes`, 'Take the top one it may: spool build --takeover');
+  if (named && sized.includes(named) && !may.includes(named) && room.headroom) throw new SpoolError(`${named.id} is ${(named.size ?? 'm').toUpperCase()}, and the chat is ${headroomText(room.headroom)}`, 'Take one that fits what is left: spool build --takeover');
   if (named && !may.includes(named)) throw new SpoolError(notReasonable(ws, named), 'Take the top one it may: spool build --takeover');
   const task = named ?? may[0];
+  if (!task && room.headroom && sized.length) throw new SpoolError(`nothing in the backlog fits what is left: ${headroomText(room.headroom)}`, 'Move nothing more. Finish and land what you are building, or leave a hand-off note (spool log) and stop. Tell them once.');
   if (!task && all.length) throw new SpoolError(`nothing in the backlog is in the sizes ${call.actor} takes`, `${all.length} thread${all.length === 1 ? '' : 's'} wait for an agent that takes them. Tell them once, and watch.`);
   if (!task) {
     throw new SpoolError('nothing in the backlog the chat may take', 'Only threads a person filed, not on hold and waiting on nothing. Tell them once that Build is empty, and watch.');
   }
   const usage = underTarget(ctx);
-  return { tasks: [task], line: `${MOVED}: ${usage.ok ? usage.against : figuresText(usageOf(ctx).target)}` };
+  const passed = !named && room.passed ? room.passed : '';
+  return { tasks: [task], line: `${MOVED}: ${usage.ok ? usage.against : figuresText(usageOf(ctx).target)}`, passed };
 }
