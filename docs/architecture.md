@@ -111,7 +111,7 @@ those comments are the detail.
   `endLeftover` ends an agent whose page died under it.
 - `upkeep.ts` is `Upkeep`: it restarts the page when the code on disk changes, and, where the
   page runs from a checkout of Spool that is also the project it shows, runs `npm run build` there
-  once Build and Building are empty.
+  once Build and Building are empty (in Chat mode, a minute or less after each landing instead).
 - `client/` is the page the browser gets, as three strings: `page.html.ts` (the markup, and the
   `PAGE` the three are joined into), `page.css.ts` and `page.js.ts`. One self-contained page,
   with no build step.

@@ -172,3 +172,61 @@ test('Spool building Spool: once Build and Building are empty the page rebuilds 
     s.cleanup();
   }
 });
+
+test('Spool building Spool in Chat mode: a landing is rebuilt at once, with threads still in Build, and landings in a row make one build', async (t) => {
+  if (spawnSync('npm --version', { shell: true, stdio: 'ignore' }).status !== 0) {
+    t.skip('no npm on this machine to run a build with');
+    return;
+  }
+  const copy = copyOfSpool({ scripts: { build: 'node build.mjs' } });
+  fs.mkdirSync(path.join(copy.root, 'src'));
+  fs.writeFileSync(
+    path.join(copy.root, 'build.mjs'),
+    ["import * as fs from 'node:fs';", "fs.appendFileSync('builds.txt', 'built\\n');", "fs.appendFileSync('dist/watch.ts', '\\n// built again\\n');", ''].join('\n'),
+  );
+  const git = (...args: string[]): void => {
+    const ran = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: copy.root, stdio: 'ignore' });
+    assert.equal(ran.status, 0, `git ${args.join(' ')}`);
+  };
+  fs.writeFileSync(path.join(copy.root, '.gitignore'), 'builds.txt\ndist/\n.spool/\n');
+  git('init', '-q');
+  git('add', '-A');
+  git('commit', '-q', '-m', 'start');
+  const s = new Sandbox(copy.root);
+  s.sp('init', '--name', 'spool', '--gate');
+  s.sp('builder', 'chat');
+  // Two threads wait in Build, and stay there: a chat builds them, not the page.
+  const jump = s.id('task', 'Tighten the jump arc');
+  const coins = s.id('task', 'Make coins readable at sunset');
+  s.sp('build', jump);
+  s.sp('build', coins);
+  const builds = (): number => (s.exists('builds.txt') ? s.read('builds.txt').trim().split('\n').length : 0);
+
+  const page = await startPage({ sandbox: s, cli: copy.cli }, '--run');
+  try {
+    const first = await boardOf(page.url);
+    await pause(2500);
+    assert.deepEqual([builds(), (await boardOf(page.url)).build], [0, first.build], 'nothing has landed, so nothing is built');
+
+    // Two landings close together.
+    fs.writeFileSync(path.join(copy.root, 'one.txt'), '1');
+    git('add', 'one.txt');
+    git('commit', '-q', '-m', 'one');
+    fs.writeFileSync(path.join(copy.root, 'two.txt'), '2');
+    git('add', 'two.txt');
+    git('commit', '-q', '-m', 'two');
+    const next = await until('the page is on the rebuilt code', async () => {
+      const b = await boardOf(page.url);
+      return b.build !== first.build && b;
+    });
+    assert.equal(builds(), 1);
+    assert.equal(s.json('show', jump).item.status, 'open', 'and the threads in Build were not touched');
+    assert.equal(next.notice, '');
+    await pause(2500);
+    assert.equal(builds(), 1, 'one build for both landings');
+  } finally {
+    await page.stop();
+    s.cleanup();
+    fs.rmSync(copy.root, { recursive: true, force: true });
+  }
+});

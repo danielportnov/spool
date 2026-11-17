@@ -15,7 +15,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { columnOf } from './board.ts';
-import type { Ctx } from './context.ts';
+import { type Ctx, builderOf } from './context.ts';
 import type { Runner } from './engine.ts';
 import { oneLine } from './model.ts';
 import { taskState, tasks } from './schedule.ts';
@@ -66,7 +66,7 @@ export function buildId(): string {
  * last `npm run build`; and where that checkout is a project this page builds, agents are
  * changing those sources. Only then does the page rebuild, and this is the folder to do it in.
  */
-function ownCheckout(ctx: Ctx, project: string | undefined): string | undefined {
+function ownCheckout(ctx: Ctx, project: string | undefined): { root: string; spool: string } | undefined {
   const root = path.dirname(CODE_DIR);
   try {
     const scripts = (JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { scripts?: Record<string, unknown> }).scripts;
@@ -75,7 +75,8 @@ function ownCheckout(ctx: Ctx, project: string | undefined): string | undefined 
     const ws = Workspace.open(ctx.cwd, ctx.now);
     try {
       const built = project ? [ws.project(project)] : ws.spools;
-      return built.some((s) => fs.realpathSync(s.root) === real) ? root : undefined;
+      const mine = built.find((s) => fs.realpathSync(s.root) === real);
+      return mine ? { root, spool: mine.root } : undefined;
     } finally {
       ws.close();
     }
@@ -91,6 +92,16 @@ const DRAINING = 'A new build of Spool is on disk. Nothing new is started until 
 /** How long new work waits for a restart that is on its way. */
 const HOLD_MS = 30_000;
 const REBUILD_MINUTES = 10;
+/** In Chat mode, how long main must have stayed put after a landing before it is built, so landings in a row make one build. */
+const LANDING_MS = 3000;
+/** How often main's head is looked at. */
+const HEAD_EVERY_MS = 1500;
+
+/** The commit the checkout is on, or '' where there is no git to say. */
+function headOf(root: string): string {
+  const ran = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', timeout: 5000 });
+  return ran.status === 0 ? ran.stdout.trim() : '';
+}
 
 /**
  * The page keeping its own code current, so that what is marked done is what the page shows.
@@ -131,7 +142,9 @@ export class Upkeep {
   private ctx: Ctx;
   private project: string | undefined;
   private runner: Runner;
-  private own: string | undefined;
+  private own: { root: string; spool: string } | undefined;
+  /** Chat mode: the commit last built, the newer one waiting to settle and since when, and when head was last looked at. */
+  private head = { built: '', waiting: '', at: 0, looked: 0 };
   private restart: ((agentsOn: boolean) => void) | undefined;
 
   constructor(ctx: Ctx, project: string | undefined, runner: Runner, restart?: (agentsOn: boolean) => void) {
@@ -141,6 +154,7 @@ export class Upkeep {
     this.build = buildId();
     this.loaded = codeStamp();
     this.own = ownCheckout(ctx, project);
+    if (this.own) this.head.built = headOf(this.own.root);
     // With no name for what was loaded, there is nothing to hold the disk against.
     this.restart = this.build && this.loaded ? restart : undefined;
   }
@@ -162,6 +176,12 @@ export class Upkeep {
 
   private rebuildWhenIdle(): void {
     if (!this.own || this.building) return;
+    // A chat builds each thread from source in its own worktree and the page runs no agents, so a
+    // rebuild stops nothing: it comes as each thread lands. Headless waits, since a restart ends its agents.
+    if (builderOf(this.ctx, this.own.spool) === 'chat') {
+      this.rebuildOnLanding(this.own.root);
+      return;
+    }
     // A thread the runner took the moment it landed in Build may be finished before this look: it was work.
     if (this.counted !== this.runner.handedOut) {
       this.counted = this.runner.handedOut;
@@ -186,10 +206,33 @@ export class Upkeep {
     }
     if (!this.worked) return;
     this.worked = false;
-    this.rebuild(this.own);
+    this.rebuild(this.own.root, 'Build and Building are empty, so Spool is being rebuilt. This page reloads itself if anything changed.');
   }
 
-  private rebuild(root: string): void {
+  /** Chat mode: build when main has moved on from the commit last built and has stayed there for a moment. */
+  private rebuildOnLanding(root: string): void {
+    const now = Date.now();
+    if (now - this.head.looked < HEAD_EVERY_MS) return;
+    this.head.looked = now;
+    const head = headOf(root);
+    if (!head) return;
+    if (!this.head.built) this.head.built = head;
+    if (head === this.head.built) {
+      this.head.waiting = '';
+      return;
+    }
+    if (head !== this.head.waiting) {
+      this.head.waiting = head;
+      this.head.at = now;
+      return;
+    }
+    if (now - this.head.at < LANDING_MS) return;
+    this.head.built = head;
+    this.head.waiting = '';
+    this.rebuild(root, 'A thread has landed, so Spool is being rebuilt. This page reloads itself if anything changed.');
+  }
+
+  private rebuild(root: string, saying: string): void {
     const kept = path.join(os.tmpdir(), `spool-rebuild-${process.pid}.log`);
     let log: number | undefined;
     try {
@@ -198,7 +241,7 @@ export class Upkeep {
       log = undefined; // Nowhere to keep what it prints; it runs all the same.
     }
     this.building = true;
-    this.notice = 'Build and Building are empty, so Spool is being rebuilt. This page reloads itself if anything changed.';
+    this.notice = saying;
     const child = spawn('npm run build', {
       shell: true,
       cwd: root,
