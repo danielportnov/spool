@@ -32,7 +32,7 @@ test('no tracked file holds an absolute personal home path', () => {
         if (HOME_PATH.test(line)) hits.push(`${file}:${i + 1}`);
       });
   }
-  assert.deepEqual(hits, [], 'home paths in tracked files (use a placeholder like /home/you):');
+  assert.deepEqual(hits, [], 'home paths in tracked files (use a neutral placeholder):');
 });
 
 test('nothing of the private queue is tracked', () => {
