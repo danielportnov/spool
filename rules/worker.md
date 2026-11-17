@@ -85,6 +85,27 @@ wait for the go-ahead. Then hand in the plan:
     <the plan>
     EOF
 
+### How to write on a thread
+
+A person reads what you post at a glance: the done message, the steps, logs,
+calls you assume, questions, reports. Write each like a good short post.
+
+- **The point first.** What changed for them, or what you need, up front.
+- **Plain words.** Say what they will see or do, not how the code does it. No
+  file paths, function names or flags unless they are the point.
+- **Short.** Short sentences, a line or two a post. More goes in a report,
+  under short headings. One post a thing, not a diary of each step.
+
+Not this:
+
+    Implemented renderTip(state) in src/tip.ts over formatCurrency(); wired it
+    into src/cli.ts behind --tip and refactored splitShares() to ShareRow[].
+
+This:
+
+    The tip page is up: three boxes and one big answer.
+    Each share updates as you type.
+
 ### Size: how much would have to change
 
 `xs` a line or a value · `s` one function or screen · `m` several files ·

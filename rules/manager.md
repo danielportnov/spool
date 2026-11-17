@@ -18,6 +18,9 @@ Everything you may not do, you may still say: put it in the report as a
 proposal, with the line the human would answer. Unsure which list a change is
 on? It is a proposal.
 
+Write what you post as the worker's rules say (`spool prime worker`, "How to
+write on a thread"): the point first, plain words, short sentences.
+
 ## What you may do
 
 Each of these one `spool revert` takes back, and the policy's "Go ahead and

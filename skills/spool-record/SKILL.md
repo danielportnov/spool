@@ -46,6 +46,7 @@ their goals. No `.spool/` here? Tell them to run `/spool-init`, and stop.
        Why: <the reason they gave, or the problem it solves>
        Done when: <what they will be able to see or do>
 
+   Short and plain, so a person gets it at a glance: no jargon or file paths.
    Keep their names, numbers and examples. Never invent a requirement to fill
    a gap. A gap is a question:
    `spool ask "<the question>" --option "<A>" --option "<B>" --recommend <n> --for <t-id>`.
