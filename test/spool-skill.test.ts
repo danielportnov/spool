@@ -74,7 +74,7 @@ test('/spool is the one skill for the chat: status first, a short reply, and one
   assert.match(run('"make a sprint of these and play it"'), /^`spool play <sprint>`, once it is made: everything in it moves to Build at once/);
   assert.match(run('"archive that"'), /^`spool archive <t-id>`; it is kept, and `spool archive --undo <t-id>` brings it back/);
   assert.match(run('"do X first"'), /^`spool order <t-id> --first`, or `--before <t-id>`\. `spool loop --dry-run` lists Build in the exact order it will be built/);
-  assert.match(run('"undo that"'), /^`spool revert <t-id> -m "<their reason, in their words>"`: every agent reads the reason before it works/);
+  assert.match(run('"undo that"'), /^`spool revert <t-id> -m "<their reason, in their words>"`: it goes back to the backlog with the reason.*Every agent reads the reason before it works/);
 
   // Where things are heading is on the board: the Roadmap, and a reached sprint's review, not a walk through threads in the chat.
   assert.match(run('"how is the sprint going"'), /^The Roadmap on the board: its address, then `\?view=roadmap`\. A sprint that is reached has its review there, `\?review=<r-id>`: send them to it/);

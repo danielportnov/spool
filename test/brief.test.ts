@@ -84,6 +84,7 @@ test('a thread redone after a revert, or whose check failed first, is worth a lo
   const redo = s.id('task', 'Speed up the loading screen', '-s', 's');
   ship(s, redo, 'Loads in half the time');
   s.sp('revert', redo, '-m', 'it flickers now');
+  s.sp('build', redo);
   ship(s, redo, 'Loads in half the time, without the flicker');
   const tried = s.id('task', 'Save high scores', '-s', 's');
   ship(s, tried, 'High scores are kept between runs');
