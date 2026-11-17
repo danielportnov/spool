@@ -16,7 +16,7 @@ import { morning, morningText } from './brief.ts';
 import { DISABLE, ENABLE } from './off.ts';
 import { HARNESSES, describe, harness, installFor, installedAnywhere, others } from './harness.ts';
 import { spawnSync } from 'node:child_process';
-import { type Ctx, cavemanOf, notify, saveUserConfig, userConfig } from './context.ts';
+import { type Ctx, builderOf, cavemanOf, notify, saveUserConfig, userConfig } from './context.ts';
 import { doctor } from './doctor.ts';
 import { GOALS_STARTER, goalsFile, goalsOf, goalsText } from './goals.ts';
 import { isReverted, repoRoot, resolveCommit, revertCommits, trailerCommits } from './git.ts';
@@ -28,6 +28,7 @@ import { runLoop } from './loop.ts';
 import { ideate } from './ideate.ts';
 import { manage } from './manage.ts';
 import { markLine } from './mark.ts';
+import { noticesCommand } from './notices.ts';
 import { targetCommand, usageCommand } from './usage.ts';
 import { servePage } from './page.ts';
 import { watch } from './watch.ts';
@@ -1261,6 +1262,15 @@ export const COMMANDS: Command[] = [
     },
   },
   {
+    name: 'notify',
+    group: 'setup',
+    usage: 'notify [on | off | only <events>] [default] [check <event>]',
+    summary: 'Say what tells you: started, done, question, sprint, empty, stuck, budget. on and off change those named, only sets exactly them, default goes back. check <event> says whether to send one, for the chat that builds. With nothing after it, says what is set',
+    run(call) {
+      return noticesCommand(call.ctx, call.args);
+    },
+  },
+  {
     name: 'doctor',
     group: 'setup',
     usage: 'doctor',
@@ -1686,6 +1696,8 @@ export const COMMANDS: Command[] = [
         out.push(p.yellow(`  No commits found for it. Without the "Spool: ${t.id}" trailer or --commit, it cannot be reverted.`));
       }
       if (finished) {
+        // Headless, the user's notifier tells them, where they picked it. In Chat mode the chat that builds does.
+        if (builderOf(call.ctx, t.spool.root) !== 'chat') notify(call.ctx, 'sprint', `Sprint finished: ${finished.title}`, finished);
         out.push(
           p.green(`  Sprint finished: ${finished.title}. Everything in it is done.`),
           `  A sprint reached is a version: cut it now, the changelog led by its name and goal, then spool edit ${finished.id} --version <x.y.z>`,

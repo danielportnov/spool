@@ -915,6 +915,8 @@ export class Runner {
     // Which session it is, and what of the human's words it has now been given: kept for the run after this one.
     if (session.id) remember(task, { session: session.id, told: handed.told, pid: session.child.pid });
     this.keep(run);
+    // Not for one picked up again: it was started before. Quiet unless the human picked it.
+    if (!afresh) setImmediate(() => notify(this.ctx, 'started', `Started: ${task.title}`, task));
   }
 
   /** A thread the page handed out but could not start (its prompt could not be written, say): back in Build, and not tried every second. */
@@ -1008,6 +1010,9 @@ export class Runner {
       outcome = 'unknown: the spool could not be read';
     }
     if (run.undo) outcome = `back in the backlog; ${this.undoEdits(run)}`;
+    // Each tells the human where they picked it: a thread done, or an agent that left it unfinished.
+    if (outcome === 'done') setImmediate(() => notify(this.ctx, 'done', `Done: ${run.title}`));
+    else if (outcome.startsWith('unfinished')) setImmediate(() => notify(this.ctx, 'stuck', `Stuck: ${run.title}`));
     this.recent.unshift({ id: run.id, title: run.title, outcome });
     this.recent.splice(5);
     if (this.runs.get(run.id) === run) this.runs.delete(run.id);

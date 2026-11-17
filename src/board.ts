@@ -26,6 +26,7 @@ import { type Review, blockers, children, dependents, docket, review, sprintOf, 
 import { sprintDates } from './sprints.ts';
 import type { Workspace } from './store.ts';
 import type { Upkeep } from './upkeep.ts';
+import { DEFAULT_ON, type Notices } from './notices.ts';
 import type { Usage } from './usage.ts';
 import { watched } from './watch.ts';
 
@@ -287,6 +288,8 @@ export interface Board {
    * in the header in Chat mode, where the chat works up to it. Empty where the page did not say.
    */
   usage: Usage;
+  /** What tells the human (notices.ts): the page shows it in its own box, and changes it there. */
+  notices: Notices;
   /**
    * The sprints, oldest first: what is in each and how far along it is. `serves` is the goal it is
    * for, `vision` his words for it, `version` the one it became; `started` and `reached` are when
@@ -562,9 +565,10 @@ export function identicon(seed: string): string {
  * where the page knows it better than the runner does: a page showing several projects keeps
  * the human's pick for each one, by its folder. `atOnce` is how many of this project's threads the
  * runner builds at once (slots.ts `atOnceIn`), as the page works it out from the user's settings, and
- * `usage` the human's usage target and the last reading (usage.ts), read from them too.
+ * `usage` the human's usage target and the last reading (usage.ts), read from them too, and
+ * `notices` what tells the human (notices.ts).
  */
-export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?: Upkeep, builder?: Builder, atOnce?: number, usage?: Usage): Board {
+export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?: Upkeep, builder?: Builder, atOnce?: number, usage?: Usage, notices?: Notices): Board {
   const spool = project ? ws.project(project) : ws.home;
   const builds = builder ?? runner?.builder ?? 'headless';
   const d = docket(ws, spool);
@@ -614,6 +618,7 @@ export function board(ws: Workspace, project?: string, runner?: Runner, upkeep?:
       recent: (runner?.recent ?? []).filter((r) => ours.has(r.id)),
     },
     usage: usage ?? { target: {}, read: null, reached: [] },
+    notices: notices ?? { on: [...DEFAULT_ON], default: true, notifier: '' },
     sprints: ws.items
       .filter((i) => i.kind === 'sprint' && i.spool === spool && i.status !== 'dropped')
       .sort((a, b) => a.created.localeCompare(b.created))

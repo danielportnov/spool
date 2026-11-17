@@ -217,6 +217,13 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     if (typeof body.on !== 'boolean') return { ok: false, text: 'on, or off?' };
     return act(ctx, ['takeover', body.on ? 'on' : 'off']);
   }
+  if (action === 'notify') {
+    // What tells him, from its box on the page: one event switched on or off, or back to the defaults.
+    if (body.default === true) return act(ctx, ['notify', 'default']);
+    const event = text(body.event);
+    if (!/^[a-z]+$/.test(event) || typeof body.on !== 'boolean') return { ok: false, text: 'which notification, on or off?' };
+    return act(ctx, ['notify', body.on ? 'on' : 'off', event]);
+  }
   if (action === 'answer') {
     const choice = text(body.choice);
     if (!/^d-[a-z0-9]+$/.test(id) || !choice) return { ok: false, text: 'which question, and what is the answer?' };

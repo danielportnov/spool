@@ -16,6 +16,7 @@ import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { Item } from './model.ts';
+import { type NoticeEvent, notifies } from './notices.ts';
 
 export interface Ctx {
   cwd: string;
@@ -44,6 +45,11 @@ export interface Ctx {
 export interface UserConfig {
   /** Shell command run when something needs the human. See `notify`. */
   notify?: string;
+  /**
+   * The events that tell the human, for every project: `["started", "question"]`. Not set: the
+   * defaults. The rest are quiet, whoever builds. Set on the page, or with `spool notify`. See notices.ts.
+   */
+  notifyOn?: string[];
   /** Shell command `spool loop` starts for each task; the prompt arrives on stdin. */
   agent?: string;
   /**
@@ -148,13 +154,27 @@ export function userConfig(ctx: Ctx): UserConfig {
   }
 }
 
+/** What the notifier is told it is, and the event the human picks it by (notices.ts). */
+export type NotifierEvent = 'ask' | 'plan' | 'idle' | 'permission' | 'started' | 'done' | 'stuck' | 'sprint';
+const PICKED_BY: Record<NotifierEvent, NoticeEvent> = {
+  ask: 'question',
+  plan: 'question',
+  idle: 'empty',
+  permission: 'stuck',
+  started: 'started',
+  done: 'done',
+  stuck: 'stuck',
+  sprint: 'sprint',
+};
+
 /**
- * Tell the human something needs them. Runs the user's notifier with the
- * details in SPOOL_* variables; a missing or failing notifier is never an error.
+ * Tell the human something. Runs the user's notifier with the details in SPOOL_*
+ * variables, for the events they picked and no others; a missing or failing
+ * notifier is never an error.
  */
-export function notify(ctx: Ctx, event: 'ask' | 'plan' | 'idle' | 'permission', title: string, item?: Item): boolean {
+export function notify(ctx: Ctx, event: NotifierEvent, title: string, item?: Item): boolean {
   const command = ctx.env.SPOOL_NOTIFY ?? userConfig(ctx).notify;
-  if (!command) return false;
+  if (!command || !notifies(ctx, PICKED_BY[event])) return false;
   spawnSync(command, {
     shell: true,
     stdio: 'ignore',
