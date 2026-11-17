@@ -74,6 +74,7 @@ import { writeQueue } from './queue-journal.ts';
 import { restoreWork, undoWork, withUndoLock } from './undo-work.ts';
 import {
   type Paint,
+  age,
   brief,
   candidateJson,
   itemJson,
@@ -692,8 +693,18 @@ function claim(call: Call, task: Item, force: boolean, worktree = false): { open
       'Pick something else: spool next',
     );
   }
-  if (state === 'active' && task.by !== actor && !force) {
-    throw new SpoolError(`${task.id} is being worked by ${task.by ?? 'someone'}`, 'Take it anyway with --force, or: spool next');
+  // Read, checked and written under the project's lock (the command is a write): of two claims at
+  // once, the second reads the first's, so it is refused. Another builder's thread is refused, and
+  // so is one a chat under the same name has: the name does not say it is the same chat. Going back
+  // into its own stopped work is a thread no longer active (it waits in build, or its claim went quiet).
+  if (state === 'active' && !force) {
+    const ago = task.started ? age(task.started, ws.now()) : '';
+    const since = ago === 'now' ? ', claimed just now' : ago ? `, claimed ${ago} ago` : '';
+    const who = task.by ?? 'someone';
+    throw new SpoolError(
+      `${task.id} is being worked by ${who}${since}`,
+      task.by === actor ? 'That is your own name: another chat of yours may have it. Pick something else (spool next), or, if it is yours and stopped, take it back with --force.' : 'Take it anyway with --force, or: spool next',
+    );
   }
   // In Chat mode each agent builds up to its own count (roster.ts): past it, the claim is refused.
   // And only the sizes it takes: a thread outside them is left for an agent that does. And only
@@ -1691,7 +1702,7 @@ export const COMMANDS: Command[] = [
         return { text: `Nothing ready is in the sizes you take: ${all.length} wait${all.length === 1 ? 's' : ''} for an agent that takes them (${[...new Set(all.map((t) => (t.size ?? 'm').toUpperCase()))].join(', ')}).`, data: { task: null, ready: 0, outsideSizes: all.length } };
       }
       if (!task) return { text: nothingReady(ws, project), data: { task: null, ready: 0 } };
-      const claimed = call.opts.claim ? claim(call, task, true, !!call.opts.worktree) : undefined;
+      const claimed = call.opts.claim ? claim(call, task, false, !!call.opts.worktree) : undefined;
       const pick = claimed?.pick ?? pickFor(task, routingFor(call.ctx, task.spool.root, call.actor), undefined, fableCap(call.ctx));
       const out = room.passed ? [room.passed, '', brief(ws, task, p)] : [brief(ws, task, p)];
       const model = modelNote(pick, p, claimed?.ran);

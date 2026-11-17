@@ -55,8 +55,9 @@ test('Claude at 3 and Codex at 2 build at once, neither past its count, and neit
     // Codex cannot take one of Claude's: it is being worked.
     const claude = threads.filter((t) => !codex.includes(t)).slice(0, 3);
     assert.match(s.fails('start', claude[0]!, '--as', 'Codex'), /is being worked by Claude Opus 5.5/);
-    // Picking up its own again is no new claim.
-    s.sp('start', codex[0]!, '--as', 'Codex GPT-6');
+    // A thread it has is refused to its own name again (it may be another chat's), and taking its own back is no new claim.
+    assert.match(s.fails('start', codex[0]!, '--as', 'Codex GPT-6'), /is being worked by Codex GPT-6/);
+    s.sp('start', codex[0]!, '--as', 'Codex GPT-6', '--force');
     const agents = s.json('builder').agents;
     assert.deepEqual(agents.map((a: any) => [a.name, a.building.length]), [['Claude', 3], ['Codex', 2]]);
     assert.match(s.sp('status'), /\n {2}Agents: Claude 3 at once, not watching, building t-\S+, t-\S+, t-\S+ · Codex 2 at once, not watching, building t-\S+, t-\S+\n/);
@@ -65,7 +66,7 @@ test('Claude at 3 and Codex at 2 build at once, neither past its count, and neit
     assert.match(s.sp('next', '--claim', '--as', 'Codex GPT-6'), /^t-/);
     // Headless, the page's own agents are not held to the roster.
     s.sp('builder', 'headless');
-    assert.match(s.sp('start', threads.find((t) => !codex.includes(t) && !claude.includes(t))!, '--as', 'Codex'), /^t-/);
+    assert.match(s.sp('start', threads.find((t) => !codex.includes(t) && !claude.includes(t))!, '--as', 'Codex', '--force'), /^t-/);
   } finally {
     s.cleanup();
   }

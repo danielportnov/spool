@@ -40,7 +40,7 @@ test('three threads built at once, each in its own worktree, land as three clean
   const brief = s.sp('start', b, '--worktree');
   assert.ok(brief.includes(`demo · work in ${dir(b)}\nWORKTREE — this thread has a checkout of its own there, on the branch spool/${b}. Work and commit only in it`));
   assert.ok(brief.includes(`worktree        made at .spool/worktrees/${b}, on the branch spool/${b} · node_modules linked from the checkout, not copied`));
-  s.sp('start', a);
+  s.sp('start', a, '--force');
   const claimed = s.json('next', '--claim', '--worktree');
   assert.deepEqual([claimed.task.id, claimed.task.worktree], [c, `.spool/worktrees/${c}`]);
   assert.ok(claimed.brief.includes(`work in ${dir(c)}`));
@@ -167,7 +167,7 @@ test('a project that is a folder of its repository is worked in the same folder 
 
   const started = game.json('start', id, '--worktree').task;
   assert.deepEqual([started.worktree, started.workdir], [`.spool/worktrees/${id}/game`, path.join(top, 'game')]);
-  assert.match(game.sp('start', id), /worktree {8}its own from before, at \.spool\/worktrees\/t-\w+, on spool\/t-\w+$/);
+  assert.match(game.sp('start', id, '--force'), /worktree {8}its own from before, at \.spool\/worktrees\/t-\w+, on spool\/t-\w+$/);
 
   // The agent stands in the project's folder inside the worktree, and spool finds the project from there.
   const w = game.cd(`.spool/worktrees/${id}/game`);
@@ -367,7 +367,7 @@ test('without --worktree nothing changes, and where there can be no worktree it 
   const id = s.id('task', 'Tighten the jump');
   const started = s.json('start', id).task;
   assert.deepEqual([started.worktree, started.branch, 'workdir' in started], [undefined, undefined, false]);
-  const brief = s.sp('start', id);
+  const brief = s.sp('start', id, '--force');
   assert.ok(brief.includes(`demo · work in ${s.dir}\n`));
   assert.doesNotMatch(brief, /WORKTREE|worktree/);
   assert.equal(s.exists('.spool/worktrees'), false);
