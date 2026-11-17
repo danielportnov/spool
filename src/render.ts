@@ -17,6 +17,7 @@ import { type Candidate, SUGGEST, addLine, offerLine } from './suggest.ts';
 import type { Workspace } from './store.ts';
 import { workDir } from './worktree.ts';
 import { handoffBrief, handoffOf } from './handoff.ts';
+import { researchFor, researchLine } from './research.ts';
 
 // Where the page and the commands have always found it.
 export { sprintAbout };
@@ -173,6 +174,15 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
       `                   If the policy says the human should see this first, add --needs ${task.id} to every part.`,
       `  then the plan    spool done ${task.id} -m "<the approach, in a sentence>" --report - <<'EOF' … EOF`,
     );
+  } else if (type === 'research') {
+    out.push(
+      '',
+      'THIS IS RESEARCH — find out, and report. Build nothing here, and change no code.',
+      '  look it up      with whatever you can reach: web search and pages, docs, papers, the code itself',
+      '                  Say where each thing came from. Cannot reach the web? Say so in the report.',
+      `  then the report spool done ${task.id} -m "<what you found, in two or three lines>" --report - <<'EOF' … EOF`,
+      '                  It starts with a short summary; it is kept, and later work is pointed at it.',
+    );
   } else if (task.size === 'l' || task.size === 'xl') {
     out.push('', `THIS IS LARGE. If it will not fit in one sitting, do not start building: spool edit ${task.id} --type plan, and split it.`);
   }
@@ -209,6 +219,13 @@ export function brief(ws: Workspace, task: Item, p: Paint): string {
   if (after.length) {
     out.push('', 'COMES AFTER');
     for (const t of after) out.push(`  ${t.id}  ${t.title}  (${stateOf(ws, t)})${t.summary ? ` — ${firstLine(t.summary)}` : ''}`);
+  }
+
+  // What agents found out before, on the same subject: read it rather than looking again.
+  const research = researchFor(ws, task);
+  if (research.length) {
+    out.push('', 'RESEARCH ON THIS ALREADY — read it first: spool show <id> --report');
+    for (const r of research) out.push(`  ${researchLine(r)}`);
   }
 
   const skills = matchSkills(ws, task);
@@ -542,7 +559,7 @@ function tableText(ws: Workspace, d: Docket): string {
     out.push('| # | 🧵 Thread | Difficulty | Priority | Note |', '| --- | --- | --- | --- | --- |');
     for (const r of list) {
       const t = r.item;
-      const name = `${t.type === 'plan' ? 'Plan: ' : t.type === 'audit' ? 'Audit: ' : ''}${oneLine(t.title, 70)}`;
+      const name = `${t.type === 'plan' ? 'Plan: ' : t.type === 'audit' ? 'Audit: ' : t.type === 'research' ? 'Research: ' : ''}${oneLine(t.title, 70)}`;
       // Why it exists rides with its name, in one line, so the human can agree to it without opening it.
       const why = whyOf(t) ? ` — ${cell(oneLine(whyOf(t), 90))}` : '';
       const difficulty = t.size ? DIFFICULTY[t.size] : '—';
@@ -686,6 +703,8 @@ export function showText(ws: Workspace, item: Item, p: Paint): string {
   if (held.length) out.push('', p.dim(`needed by ${held.map((t) => t.id).join(', ')}`));
   const kids = item.kind === 'task' ? children(ws, item) : [];
   if (kids.length) out.push('', item.type === 'plan' ? 'PARTS' : 'CAME OUT OF IT', ...kids.map((k) => `  ${itemLine(ws, k, p, false)}`));
+  const research = item.kind === 'task' ? researchFor(ws, item) : [];
+  if (research.length) out.push('', 'RESEARCH ON THIS', ...research.map((r) => `  ${researchLine(r)}`));
   const inIt = item.kind === 'sprint' ? sprintTasks(ws, item) : [];
   if (inIt.length) out.push('', 'IN IT', ...inIt.map((t) => `  ${itemLine(ws, t, p, false)}`));
   return out.join('\n');

@@ -104,6 +104,7 @@ import {
 import { BUILT_IN, applicable, checkSkillName, fileFor, ledgerFor, skillPath, writeSkill } from './skills.ts';
 import { SPOOL_DIR, Workspace, findFolder, findHome, readConfig, skillsDir, withSpoolLock, worktreeOwner } from './store.ts';
 import { alikeIn, alikeLines, similarLines, similarTo } from './similar.ts';
+import { reportText } from './research.ts';
 import { addQuote, setLine, visionQuote } from './sprints.ts';
 import { SUGGEST, suggestSkills } from './suggest.ts';
 import { standingLines, standingOf } from './standing.ts';
@@ -473,11 +474,11 @@ function sizeOf(v: unknown): Size | undefined {
 function typeOf(v: unknown): WorkType | undefined {
   if (typeof v !== 'string') return undefined;
   const type = TYPES.find((t) => t === v.trim().toLowerCase());
-  if (!type) throw new SpoolError(`type "${v}" must be one of ${TYPES.join(', ')}`, 'change makes commits · audit makes a report and findings · plan makes a plan and its parts');
+  if (!type) throw new SpoolError(`type "${v}" must be one of ${TYPES.join(', ')}`, 'change makes commits · audit makes a report and findings · plan makes a plan and its parts · research makes a report that is kept');
   return type;
 }
 
-/** Queue a piece of work: a change, an audit or a plan. */
+/** Queue a piece of work: a change, an audit, a plan or research. */
 function fileWork(call: Call, preset?: WorkType): Result {
   const { ws, p } = call;
   const title = words(call, call.args, 'the title', 'spool task "Shorten the jump hang time"');
@@ -1786,7 +1787,7 @@ export const COMMANDS: Command[] = [
         if (raw(call.opts.steps).join() === '-') throw new SpoolError('only one of --report and --steps can be read from stdin', 'Give the steps after --steps: --steps "<step>" "<step>"');
       } else if (type !== 'change' && !fs.existsSync(reportPath)) {
         throw new SpoolError(
-          `${type === 'audit' ? 'an audit' : 'a plan'} is finished by its report`,
+          `${type === 'audit' ? 'an audit' : type === 'plan' ? 'a plan' : 'research'} is finished by its report`,
           `spool done ${t.id} -m "<the headline>" --report - <<'EOF' … EOF      (or --report <file>)`,
         );
       }
@@ -1861,6 +1862,7 @@ export const COMMANDS: Command[] = [
       }
       if (fs.existsSync(reportPath)) out.push(p.dim(`  ${type === 'plan' ? 'plan' : 'report'}  ${path.relative(t.spool.root, reportPath)}`));
       if (type === 'audit') out.push(p.dim(`  ${kids.length} finding(s) filed from it`));
+      if (type === 'research') out.push(p.dim('  kept with the project: later briefs and spool prime --context name it'));
       let told = false;
       if (type === 'plan') {
         if (!kids.length) out.push(p.yellow(`  No parts were filed from it. A plan is carried out by its parts: spool task "<part>" --from ${t.id}`));
@@ -1910,7 +1912,7 @@ export const COMMANDS: Command[] = [
     name: 'task',
     aliases: ['add'],
     group: 'agents',
-    usage: 'task <title…> [-s xs|s|m|l|xl] [-p 0-3] [-t change|audit|plan] [--hold <why>] [--suggested <why>] [--sprint <sprint>] [--from <id>…] [--needs <id>…] [-b <body>] [-P <project>]',
+    usage: 'task <title…> [-s xs|s|m|l|xl] [-p 0-3] [-t change|audit|plan|research] [--hold <why>] [--suggested <why>] [--sprint <sprint>] [--from <id>…] [--needs <id>…] [-b <body>] [-P <project>]',
     summary: 'Queue a change',
     write: true,
     options: { ...WORK, type: { type: 'string', short: 't' } },
@@ -1933,6 +1935,15 @@ export const COMMANDS: Command[] = [
     write: true,
     options: { ...WORK },
     run: (call) => fileWork(call, 'plan'),
+  },
+  {
+    name: 'research',
+    group: 'agents',
+    usage: 'research <the topic, or the question to find out…> [-s size] [-p 0-3] [--from <id>…] [-P <project>]',
+    summary: 'Queue something to find out: its output is a report, kept where later work finds it',
+    write: true,
+    options: { ...WORK },
+    run: (call) => fileWork(call, 'research'),
   },
   {
     name: 'file',
@@ -2323,12 +2334,13 @@ export const COMMANDS: Command[] = [
     name: 'list',
     aliases: ['ls'],
     group: 'see',
-    usage: 'list [-k <kind>] [-s <state>] [-t <type>] [--size <sizes>] [--search <words>] [-P <project>] [--all | --archived | --alike]',
+    usage: 'list [-k <kind>] [-s <state>] [-t <type>|--research] [--size <sizes>] [--search <words>] [-P <project>] [--all | --archived | --alike]',
     summary: 'Find items; closed ones too with --all or --search; only the archived threads with --archived; open threads that look alike with --alike',
     options: {
       kind: { type: 'string', short: 'k' },
       status: { type: 'string', short: 's' },
       type: { type: 'string', short: 't' },
+      research: { type: 'boolean' },
       size: { type: 'string' },
       search: { type: 'string' },
       all: { type: 'boolean', short: 'a' },
@@ -2349,7 +2361,7 @@ export const COMMANDS: Command[] = [
         if (!kind) throw new SpoolError(`no kind "${opts.kind}"`, `Kinds: ${KIND_NAMES.join(', ')}`);
         items = items.filter((i) => i.kind === kind);
       }
-      const type = typeOf(opts.type);
+      const type = opts.research ? 'research' : typeOf(opts.type);
       if (type) items = items.filter((i) => i.kind === 'task' && (i.type ?? 'change') === type);
       if (str(opts.size)) {
         const sizes = many(opts.size).map((v) => sizeOf(v));
@@ -2360,12 +2372,14 @@ export const COMMANDS: Command[] = [
       if (opts.archived) items = items.filter((i) => stateOf(ws, i) === 'archived');
       else if (status) items = items.filter((i) => stateOf(ws, i) === status || (i.status === status && stateOf(ws, i) !== 'archived'));
       else if (search) items = items.filter((i) => i.status !== 'dropped');
+      // Research is the project's memory: what was found out stays listed once it is done, archived or not.
+      else if (type === 'research') items = items.filter((i) => i.status !== 'dropped');
       // Archived threads are out of sight: they are listed when asked for, by --archived or --all.
       else if (!opts.all) items = items.filter((i) => !isClosed(i) && stateOf(ws, i) !== 'archived');
       if (search) {
         const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
         items = items.filter((i) => {
-          const hay = `${i.id} ${i.title} ${i.choice ?? ''} ${i.summary ?? ''} ${i.body}`.toLowerCase();
+          const hay = `${i.id} ${i.title} ${i.choice ?? ''} ${i.summary ?? ''} ${i.body} ${i.type === 'research' ? reportText(i) : ''}`.toLowerCase();
           return terms.every((t) => hay.includes(t));
         });
       }
@@ -2395,7 +2409,7 @@ export const COMMANDS: Command[] = [
         try {
           report = fs.readFileSync(reportFile(item), 'utf8').trim();
         } catch {
-          throw new SpoolError(`${item.id} has no report`, 'An audit or plan has one once it is done');
+          throw new SpoolError(`${item.id} has no report`, 'An audit, a plan or research has one once it is done');
         }
         return { text: report, data: { id: item.id, report } };
       }

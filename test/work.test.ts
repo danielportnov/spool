@@ -47,7 +47,7 @@ test('priority outranks size, and the share for large work is configurable', () 
 test('sizes are checked, shown and searchable; extra-large work becomes a plan', () => {
   const s = spool();
   assert.match(s.fails('task', 'Vague', '--size', 'enormous'), /size "enormous" must be one of xs, s, m, l, xl[\s\S]*xs a line or a value/);
-  assert.match(s.fails('task', 'Vague', '--type', 'epic'), /type "epic" must be one of change, audit, plan/);
+  assert.match(s.fails('task', 'Vague', '--type', 'epic'), /type "epic" must be one of change, audit, plan, research/);
 
   const small = s.id('task', 'Nudge the button', '-s', 's');
   const big = s.json('task', 'Add online multiplayer', '--size', 'xl');
@@ -109,6 +109,46 @@ test('an audit is finished by its report, and its findings are ordinary tasks', 
 
   s.sp('done', hint, '-m', 'Added a prompt');
   assert.match(s.sp('show', audit), /1\/2 findings done[\s\S]*CAME OUT OF IT/);
+  s.cleanup();
+});
+
+test('research builds nothing, hands in a report, and is kept where later work finds it', () => {
+  const s = spool();
+  const said = 'find out how other tools let players rebind keys';
+  const note = s.id('capture', said);
+  const research = s.id('research', 'How other games let players rebind keys', '--from', note, '-s', 's');
+  assert.match(s.item(research), /^type: research$/m);
+
+  const brief = s.sp('next', '--claim');
+  assert.match(brief, new RegExp(`^${research}  p2 S  research: How other games`));
+  assert.match(brief, /THIS IS RESEARCH — find out, and report\. Build nothing here[\s\S]*Say where each thing came from[\s\S]*--report -/);
+  assert.doesNotMatch(brief, /commit trailer/, 'research makes no commits');
+  assert.match(s.fails('done', research, '-m', 'Most let you rebind in a menu'), /research is finished by its report[\s\S]*--report -/);
+
+  const report = '## In short\n\nMost games rebind keys from a settings menu, one action at a time.\n\n## Sources\n\n- https://example.com/rebinding\n';
+  const done = s.exec(['done', research, '-m', 'Most games rebind keys from a settings menu, one action at a time', '--report', '-'], { stdin: report });
+  assert.equal(done.code, 0, done.err);
+  assert.match(done.out, new RegExp(`report  \\.spool/reports/${research}\\.md\\n\\s+kept with the project`));
+  assert.doesNotMatch(done.out, /No commits found/);
+  assert.equal(s.read(`.spool/reports/${research}.md`), report);
+
+  // It is the project's memory: every worker's context lists it, and a brief on the same subject names it.
+  assert.match(s.sp('prime', 'worker', '--context'), new RegExp(`RESEARCH ON RECORD  1[^\\n]*\\n  ${research}  How other games let players rebind keys — Most games rebind keys`));
+  const later = s.id('task', 'Let players rebind keys in the settings');
+  assert.match(s.sp('next'), new RegExp(`RESEARCH ON THIS ALREADY[^\\n]*\\n  ${research}  How other games`));
+  assert.match(s.sp('show', later), new RegExp(`RESEARCH ON THIS\\n  ${research}`));
+  s.sp('edit', later, '-p', '3');
+  s.id('task', 'Fix the jump height');
+  assert.doesNotMatch(s.sp('next'), /RESEARCH ON THIS/, 'not on a thread about something else');
+
+  // Finished, it is still listed when research is asked for, and its report is searched too.
+  assert.deepEqual(s.json('list', '--research').items.map((i: { id: string }) => i.id), [research]);
+  assert.deepEqual(s.json('list', '-t', 'research', '--search', 'example.com').items.map((i: { id: string }) => i.id), [research]);
+  assert.equal(s.sp('show', research, '--report'), report.trim());
+
+  // A thread already filed can be made research.
+  s.sp('edit', later, '--type', 'research');
+  assert.match(s.item(later), /^type: research$/m);
   s.cleanup();
 });
 

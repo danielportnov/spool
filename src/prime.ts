@@ -21,6 +21,7 @@ import * as path from 'node:path';
 import { managerRules, rules, workerRules } from './builtin.ts';
 import { goalsFile, goalsOf, goalsText } from './goals.ts';
 import { lessonsSection, withoutLessons } from './lessons.ts';
+import { researchSection } from './research.ts';
 import { sprintAbout } from './sprints.ts';
 import { type Spool, oneLine } from './model.ts';
 import { ready, review, tasks, taskState } from './schedule.ts';
@@ -226,6 +227,9 @@ export function prime(ws: Workspace, role: Role, contextOnly = false): string {
         .join('\n')}\n`,
     );
   }
+  // What was found out before is the project's memory: a worker reads it rather than looking again.
+  const research = role === 'worker' ? researchSection(ws) : '';
+  if (research) parts.push(research);
   const queue = review(ws);
   parts.push(`NOW  ${ready(ws).length} ready · ${queue.questions.length} waiting on the human · ${queue.inbox.length} unfiled`);
   return parts.join('\n');

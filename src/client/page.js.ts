@@ -22,6 +22,7 @@ const DOT = { proposed: '🟠', build: '🟢', building: '🔵', done: '✅' };
 const STATE = { proposed: 'Backlog', build: 'Build', building: 'Building', done: 'Done' };
 const SIZES = [['xs', 'Tiny'], ['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Huge']];
 const PRIORITIES = ['Urgent', 'High', 'Normal', 'Someday'];
+const TYPES = [['change', 'Change'], ['research', 'Research'], ['audit', 'Audit'], ['plan', 'Plan']];
 const MODELS = ${JSON.stringify(MODELS)};
 const EFFORTS = ${JSON.stringify(EFFORTS)};
 const ARROWS = ['↑↑', '↑', '=', '↓'];
@@ -1381,7 +1382,7 @@ function threadNode(c, b) {
         const asking = p.kind === 'asked' && c.question && c.question.title === p.text;
         return el('div', { class: 'post' }, avatar(p.who),
           el('div', {}, byline(p.who, p.at, p.exact),
-            p.kind === 'shipped' && el('span', { class: 'badge' }, '✓ Shipped'),
+            p.kind === 'shipped' && el('span', { class: 'badge' }, c.type === 'research' ? '✓ Found out' : '✓ Shipped'),
             p.kind === 'asked' && el('span', { class: 'badge ask' }, '❓ Needs a call from you'),
             (p.text || !p.pictures) && el('pre', {}, rich(p.plain || p.text)),
             picturesNode(c, p),
@@ -1402,7 +1403,8 @@ function threadNode(c, b) {
       typingNode(c, b),
       !t.feed.length && !c.question && !c.live && el('div', { class: 'empty' }, 'Nothing has been said here yet.')),
 
-    t.report && el('details', { class: 'desc', open: true, 'data-keep': 'report' }, el('summary', {}, c.type === 'plan' ? 'The plan' : 'The report'), el('pre', {}, rich(t.report))),
+    // Research is read as its summary, in the thread; the full report is kept, a click away.
+    t.report && el('details', { class: 'desc', open: c.type !== 'research', 'data-keep': 'report' }, el('summary', {}, c.type === 'plan' ? 'The plan' : c.type === 'research' ? 'The full report' : 'The report'), el('pre', {}, rich(t.report))),
 
     linked.length > 0 && [el('h3', {}, 'Linked'), linked.map((l) => el('div', { class: 'note' }, l))],
 
@@ -1478,7 +1480,10 @@ function threadNode(c, b) {
     field('Version', version, el('datalist', { id: 'known-versions' }, b.versions.map((x) => el('option', { value: x })))),
     field('Sprint', choose([['', 'None'], ...b.sprints.filter((x) => x.status !== 'done' || x.id === c.sprint).map((x) => [x.id, x.name])], c.sprint,
       (v) => post('assign', { id: c.id, sprint: v }, v ? 'In the sprint' : 'Back in the backlog'))),
-    c.type !== 'change' && field('Type', el('div', { class: 'val' }, c.type)),
+    // What finishing it makes: a change builds, research only finds out and reports. Set before it is built.
+    c.done || c.column === 'building'
+      ? c.type !== 'change' && field('Type', el('div', { class: 'val' }, TYPES.find(([v]) => v === c.type)?.[1] || c.type))
+      : field('Type', choose(TYPES, c.type, (v) => save({ type: v }, 'Type: ' + TYPES.find(([x]) => x === v)[1]))),
     (c.column === 'building' || c.done) && field('Built by', el('div', { class: 'val' }, whoIs(t.by))),
     c.done && field('Check', el('div', { class: 'val' }, t.checked ? '✓ Passed: ' + t.checked : 'None was run')),
     c.suggested && field('Came from', el('div', { class: 'val' }, '✨ AI suggested')),

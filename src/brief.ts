@@ -158,9 +158,9 @@ function weigh(ws: Workspace, t: Item): { score: number; reasons: string[]; file
     score += t.size === 'xl' ? 4 : 3;
     reasons.push(t.size === 'xl' ? 'huge' : 'large');
   }
-  if (t.type === 'plan' || t.type === 'audit') {
+  if (t.type === 'plan' || t.type === 'audit' || t.type === 'research') {
     score += 1;
-    reasons.push(`${t.type === 'plan' ? 'a plan' : 'an audit'}: read its report`);
+    reasons.push(`${t.type === 'plan' ? 'a plan' : t.type === 'audit' ? 'an audit' : 'research'}: read its report`);
   }
   const calls = t.needs.map((id) => ws.find(id)).filter((d) => d?.kind === 'decision' && d.status === 'assumed').length;
   if (calls) {

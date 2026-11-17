@@ -12,6 +12,7 @@
  *   change    commits                                   (the default)
  *   audit     a report, and its findings filed as tasks
  *   plan      a plan, and its parts filed as tasks
+ *   research  a report on what was found out, kept where later work finds it
  *
  * and a size, xs to xl, which says how much would have to change. Size is what
  * lets the queue favour quick wins without starving the large work.
@@ -51,7 +52,7 @@ export const KIND_NAMES = Object.keys(KINDS) as Kind[];
 export const SIZES = ['xs', 's', 'm', 'l', 'xl'] as const;
 export type Size = (typeof SIZES)[number];
 
-export const TYPES = ['change', 'audit', 'plan'] as const;
+export const TYPES = ['change', 'audit', 'plan', 'research'] as const;
 export type WorkType = (typeof TYPES)[number];
 
 /** One project's `.spool/` directory. */
@@ -382,7 +383,7 @@ export function isSettled(item: Item): boolean {
   return ['done', 'decided', 'assumed', 'dropped', 'filed'].includes(item.status);
 }
 
-/** Where the report of an audit or plan is kept: beside the items, named for its task. */
+/** Where the report of an audit, plan or research is kept: beside the items, named for its task. */
 export function reportFile(item: Item): string {
   return `${item.spool.dir}/reports/${item.id}.md`;
 }

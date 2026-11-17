@@ -139,6 +139,7 @@ export function change(ctx: Ctx, action: string, body: Body, project?: string): 
     if (typeof body.title === 'string' && body.title.trim()) argv.push(`--title=${body.title.trim()}`);
     if (typeof body.priority === 'number') argv.push(`--priority=${body.priority}`);
     if (typeof body.size === 'string' && body.size) argv.push(`--size=${body.size}`);
+    if (typeof body.type === 'string' && body.type) argv.push(`--type=${body.type}`);
     // An empty model or effort is the human handing the choice back to the thread's size.
     if (typeof body.model === 'string') argv.push(`--model=${body.model.trim() || 'none'}`);
     if (typeof body.effort === 'string') argv.push(`--effort=${body.effort.trim() || 'none'}`);

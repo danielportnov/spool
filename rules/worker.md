@@ -90,6 +90,25 @@ wait for the go-ahead. Then hand in the plan:
     <the plan>
     EOF
 
+**Research.** Find out, and report. Build nothing, and change no code. Look
+the topic up with whatever you can reach: web search and the pages it finds,
+docs, papers, other projects, the code itself. Say where each thing came from,
+with a link where there is one, and what you could not reach. Then hand in the
+report, a short summary first:
+
+    spool done <id> -m "<what you found, in two or three lines>" --report - <<'EOF'
+    <the summary, then the detail, then the sources>
+    EOF
+
+The `-m` is what the human reads; the report is a click away. It is kept with
+the project, and later work is pointed at it, so write it for the next agent
+too. Something to build came out of it? File it, `--from <id>`, as an audit's
+findings are.
+
+Research done before is the project's memory. `spool prime worker --context`
+lists it, a brief names what bears on its thread, and `spool list --research`
+finds the rest: read it before you look again.
+
 ### How to write on a thread
 
 A person reads what you post at a glance: the done message, the steps, logs,
@@ -205,7 +224,7 @@ Shipped work gets a version, so "it broke in 0.4" means something to
 everyone. **A sprint reached is a version:** when `spool done` says a sprint
 is finished, cut its version then, before the next thread. Work that shipped
 in no sprint is versioned as before. Once per run, after the last thread, for
-each project that shipped a change. Audits and plans alone change no version.
+each project that shipped a change. Audits, plans and research alone change no version.
 Handed one thread and nothing more? Then only a sprint reached is yours to cut.
 
 1. **Find the version** where the project already keeps it: `package.json`,

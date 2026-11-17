@@ -10,10 +10,10 @@ import { spool } from './helpers.ts';
  * "Working a thread" as `spool prime worker` printed it while it was a section of the loop skill
  * (commit 131b10a): the sha256 of that text. The rules moved to rules/worker.md and did not change,
  * until the rules on before and after pictures, on how to write on a thread, on adopting a commit
- * that landed on no thread, on signing, on the trailers stamped at landing, on questions that are truly the human's while they are AFK, on handing a thread off when out of usage, and on recording a call when it is made, were added on purpose.
+ * that landed on no thread, on signing, on the trailers stamped at landing, on questions that are truly the human's while they are AFK, on handing a thread off when out of usage, on recording a call when it is made, and on research, were added on purpose.
  * Changed them on purpose since? Put the new hash here.
  */
-const WORKING_A_THREAD = 'aec2d303339fed634b909276304b93e296845f05d1e90a5e142a122211992862';
+const WORKING_A_THREAD = 'f724d1dc9ff32700a26b53585e0a43d0b8e6676fc9cadd77e423232bcb035f3b';
 
 const sha = (text: string): string => createHash('sha256').update(text).digest('hex');
 
@@ -32,7 +32,7 @@ test("the worker's rules are one shipped file, and spool prime worker prints the
     assert.equal(s.sp('prime'), primed, 'worker is the role when none is named');
 
     // The rule for versions came with them, and says whose it is when an agent has one thread only.
-    assert.match(section('A version for what shipped'), /Audits and plans alone change no version\.\nHanded one thread and nothing more\? Then only a sprint reached is yours to cut\./);
+    assert.match(section('A version for what shipped'), /Audits, plans and research alone change no version\.\nHanded one thread and nothing more\? Then only a sprint reached is yours to cut\./);
 
     // With --context a worker gets none of it.
     assert.doesNotMatch(s.sp('prime', 'worker', '--context'), /Working a thread|A version for what shipped/);
