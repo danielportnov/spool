@@ -18,6 +18,7 @@
  * `spool` runs: it finds the page, or starts one in the background, and hands it the terminal.
  */
 
+import { spawnSync } from 'node:child_process';
 import * as path from 'node:path';
 import type { Board, Card } from './board.ts';
 import type { Brief } from './brief.ts';
@@ -28,7 +29,7 @@ import { firstLine } from './model.ts';
 import { MARK_LINE, inColor, markLine } from './mark.ts';
 import { type Paint, age, paint } from './render.ts';
 import { Workspace } from './store.ts';
-import { type Proc, type TermIn, type TermOut, cut, fit, openTerm, tail, width, wrap } from './term.ts';
+import { type Proc, type Term, type TermIn, type TermOut, cut, fit, openTerm, tail, width, wrap } from './term.ts';
 import { CODE_DIR, CODE_EXT } from './upkeep.ts';
 
 // ------------------------------------------------------------------ what the interface holds
@@ -53,6 +54,8 @@ export interface State {
   backlog: boolean;
   /** The thread being typed after `/`, or null when none is. */
   adding: string | null;
+  /** The reply being typed to the agent on the thread the cursor is on, or null when none is. */
+  reply: string | null;
   /** The first line shown of what is beside the queue, or of the brief, once he has scrolled; null where it starts. */
   scroll: number | null;
   /** What the last action came to, in the page's words, and whether it failed. */
@@ -77,11 +80,11 @@ export interface State {
 }
 
 export function start(page: State['page'], cols: number, rows: number, now: number): State {
-  return { view: 'queue', focus: 'queue', at: '', index: 0, backlog: false, adding: null, scroll: null, said: '', failed: false, page, now, cols, rows, sizes: {}, mark: '', run: null };
+  return { view: 'queue', focus: 'queue', at: '', index: 0, backlog: false, adding: null, reply: null, scroll: null, said: '', failed: false, page, now, cols, rows, sizes: {}, mark: '', run: null };
 }
 
 /** What a key asks for beyond a change of state: one of the page's own POSTs, or to leave. */
-export type Action = { do: 'post'; action: string; body: Record<string, unknown>; done: string } | { do: 'quit' };
+export type Action = { do: 'post'; action: string; body: Record<string, unknown>; done: string } | { do: 'quit' } | { do: 'open'; id: string };
 
 type Tone = keyof Paint;
 /** A run of text in one tone. A line is a few of these. `as` is the same text already painted another way, shown in its place where all of it fits. */
@@ -130,6 +133,11 @@ function halted(board: Board, c: Card): string {
   return c.waiting?.kind === 'stuck' ? 'unfinished' : '';
 }
 
+/** The tool call the agent building a thread waits on a yes for, if it waits on one. */
+function askingOf(board: Board, id: string): Board['runner']['running'][number]['asking'] {
+  return board.runner.running.find((r) => r.id === id)?.asking ?? null;
+}
+
 /** How long a thread has been built: by the page's own count where it runs the agent, else from when it was taken. */
 function builtFor(board: Board, c: Card, now: number): number {
   const run = board.runner.running.find((r) => r.id === c.id);
@@ -161,6 +169,11 @@ export function rowsOf(board: Board, state: Pick<State, 'backlog' | 'now' | 'siz
   }
   for (const plan of board.needs.plans) rows.push({ key: `needs:${plan.id}`, section: 'needs', kind: 'plan', id: plan.id, mark: '!', title: plan.title, tail: 'plan' });
   for (const c of board.columns.build) if (halted(board, c)) thread('needs', c, '!', halted(board, c));
+  // An agent waiting on a yes for a tool call needs him as much as a question does.
+  for (const c of board.columns.building) {
+    const ask = askingOf(board, c.id);
+    if (ask) rows.push({ key: `needs:${c.id}`, section: 'needs', kind: 'thread', id: c.id, mark: '!', title: `wants: ${ask.what}`, tail: 'y a n' });
+  }
 
   for (const c of board.columns.building) {
     const run = board.runner.running.find((r) => r.id === c.id);
@@ -322,10 +335,17 @@ function sessionSide(board: Board, state: State, c: Card, inner: number): Side {
   const lines = !run ? [] : state.run?.id === c.id && state.run.lines.length ? state.run.lines : run.lines;
   const body: Bit[] = [];
   for (const said of lines) wrap(said, inner - 2).forEach((line, n) => body.push({ text: `${n ? '  ' : ''}${line}`, tone: saidTone(said) }));
-  if (!body.length) {
+  if (!body.length && !askingOf(board, c.id)) {
     // Built by a chat, or by hand: its agent's lines are wherever that agent is.
     const none = run ? 'Nothing said yet.' : `${c.thread.by || 'An agent'} is building this outside the page, so its lines are not here.`;
     for (const line of wrap(c.live?.note ? `${none} Its last note: ${c.live.note}` : none, inner)) body.push({ text: line, tone: 'dim' });
+  }
+  const ask = askingOf(board, c.id);
+  if (ask) {
+    body.push(BLANK, { text: 'It wants to run', tone: 'yellow' });
+    for (const line of wrap(ask.full || ask.what, inner - 2)) body.push({ text: `  ${line}`, tone: 'bold' });
+    if (ask.why) for (const line of wrap(`For: ${ask.why}`, inner - 2)) body.push({ text: `  ${line}`, tone: 'dim' });
+    for (const line of wrap(`y allow once · a allow for the rest of this run${ask.rest ? ` (${ask.rest})` : ''} · n no`, inner - 2)) body.push({ text: `  ${line}`, tone: 'yellow' });
   }
   const started = [c.run?.model, c.run?.effort, took(builtFor(board, c, state.now))].filter(Boolean).join(' · ');
   return {
@@ -494,7 +514,11 @@ const KEYS: [string, string][] = [
   ['b', 'build a backlog thread, or carry on with a stopped one'],
   ['p', 'play a sprint: on it, or a thread of it, in the backlog'],
   ['s', 'stop the agent on a thread being built; it waits in Build'],
-  ['a', 'approve a finished thread, or give a plan the go-ahead'],
+  ['r', 'reply to the agent on a thread being built: type, enter sends, esc drops it'],
+  ['esc', 'on a thread being built: tell its agent to stop what it is doing and wait for you'],
+  ['y, a, n', 'answer an agent that asks to run a tool: yes once, yes for the rest of the run, no'],
+  ['o', 'open the thread’s session in Claude Code; quit it and you are back here'],
+  ['a', 'approve a finished thread, or give a plan the go-ahead (or, on an agent’s question, allow for the run)'],
   ['1 to 9', 'answer a question with that option'],
   ['g', 'switch the page’s agents on or off'],
   ['/', 'add a thread: type one line, enter files it in the backlog'],
@@ -668,7 +692,9 @@ function rowKeys(board: Board, state: State, row: Row): string {
   if (row.kind === 'plan') return `a give the go-ahead · ${read}`;
   const c = cardOf(board, row.id);
   const answer = c?.question?.options.length ? `1-${Math.min(9, c.question.options.length)} answer it · ` : '';
-  if (row.section === 'building') return 's stop its agent · tab its session · pgup/pgdn scroll it';
+  const wants = askingOf(board, row.id);
+  if (wants) return 'y allow once · a allow for this run · n no · r reply · esc interrupt · s stop · o open';
+  if (row.section === 'building') return 'r reply · esc interrupt · s stop · o open in Claude Code · tab its session';
   if (row.section === 'done') return `a approve it · ${read}`;
   if (row.section === 'backlog') {
     const sprint = sprintsWaiting(board).find((s) => s.sprint.id === c?.sprint)?.sprint.name;
@@ -753,10 +779,13 @@ export function frame(board: Board | null, state: State, cols: number, rows: num
   if (state.adding !== null) {
     const lead = ' add a thread > ';
     out.push(fit(`${lead}${tail(state.adding, cols - lead.length - 2)}_`, cols));
+  } else if (state.reply !== null) {
+    const lead = ` to ${row.id} > `;
+    out.push(fit(`${lead}${tail(state.reply, cols - lead.length - 2)}_`, cols));
   } else if (state.said) out.push(ink(p, fit(` ${state.said}`, cols), state.failed ? 'red' : undefined));
   else out.push(p.dim(fit(` ${standingNote(board, state)}`, cols)));
-  const typing = state.adding !== null;
-  out.push(p.dim(fit(` ${typing ? 'enter file it in the backlog · esc leave it' : rowKeys(board, state, row)}`, cols)));
+  const typing = state.adding !== null || state.reply !== null;
+  out.push(p.dim(fit(` ${state.reply !== null ? 'enter send it to the agent · esc drop it' : typing ? 'enter file it in the backlog · esc leave it' : rowKeys(board, state, row)}`, cols)));
   out.push(p.dim(fit(` ${typing ? '' : everyKeys(cols)}`, cols)));
   return out;
 }
@@ -770,17 +799,22 @@ function questionOf(board: Board, row: Row): { id: string; options: string[] } |
 }
 
 /** A key on the line being typed after `/`. */
-function typed(state: State, k: string): { state: State; action?: Action } {
-  const text = state.adding ?? '';
-  if (k === 'esc') return { state: { ...state, adding: null } };
+function typed(state: State, k: string, board: Board | null): { state: State; action?: Action } {
+  const field = state.adding !== null ? 'adding' : 'reply';
+  const text = state[field] ?? '';
+  if (k === 'esc') return { state: { ...state, [field]: null } };
   if (k === 'enter') {
     const words = text.trim();
-    const closed = { ...state, adding: null };
-    return words ? { state: closed, action: { do: 'post', action: 'add', body: { text: words, to: 'proposed' }, done: 'Added to the backlog' } } : { state: closed };
+    const closed = { ...state, [field]: null };
+    if (!words) return { state: closed };
+    if (field === 'adding') return { state: closed, action: { do: 'post', action: 'add', body: { text: words, to: 'proposed' }, done: 'Added to the backlog' } };
+    // The reply goes to the thread the cursor is on, as a note on it, which the page's agent hears within a second.
+    const id = board ? threadAt(board, state) : '';
+    return id ? { state: closed, action: { do: 'post', action: 'note', body: { id, text: words }, done: `Sent to ${id}'s agent` } } : { state: closed };
   }
-  if (k === 'backspace') return { state: { ...state, adding: [...text].slice(0, -1).join('') } };
+  if (k === 'backspace') return { state: { ...state, [field]: [...text].slice(0, -1).join('') } };
   const more = k.startsWith('paste:') ? k.slice(6).replace(/\s+/g, ' ') : [...k].length === 1 ? k : '';
-  return { state: more ? { ...state, adding: `${text}${more}`.slice(0, 400) } : state };
+  return { state: more ? { ...state, [field]: `${text}${more}`.slice(0, 400) } : state };
 }
 
 /** A key that scrolls a body of `lines` lines in `room` rows. Back where it starts, it is not scrolled at all. */
@@ -805,7 +839,7 @@ const MOVES = ['up', 'down', 'j', 'k'];
  */
 export function key(state: State, k: string, board: Board | null): { state: State; action?: Action } {
   if (k === 'ctrl-c') return { state, action: { do: 'quit' } };
-  if (state.adding !== null) return typed(state, k);
+  if (state.adding !== null || state.reply !== null) return typed(state, k, board);
   if (k === 'q') return { state, action: { do: 'quit' } };
   if (!board || state.cols < SMALLEST.cols || state.rows < SMALLEST.rows) return { state };
   // What the last action said stays until the next key.
@@ -832,6 +866,10 @@ export function key(state: State, k: string, board: Board | null): { state: Stat
     const to = clamp(at + (k === 'up' || k === 'k' ? -1 : 1), 0, rows.length - 1);
     return { state: { ...fresh, at: rows[to]!.key, index: to, scroll: to === at ? fresh.scroll : null } };
   }
+  const here = row.kind === 'thread' ? cardOf(board, row.id) : undefined;
+  const live = here?.column === 'building' ? board.runner.running.find((r) => r.id === here.id) : undefined;
+  // Esc on a thread whose agent can be spoken to asks it to stop what it is doing and wait; from beside the queue it only goes back.
+  if (k === 'esc' && fresh.focus === 'queue' && live?.listens) return post('interrupt', { id: live.id }, 'Told to stop what it is doing. It waits for your reply.');
   if (k === 'esc') return { state: { ...fresh, focus: 'queue' } };
   if (k === 'tab') return { state: { ...fresh, focus: fresh.focus === 'queue' ? 'side' : 'queue' } };
   if (k === 'enter') {
@@ -840,6 +878,19 @@ export function key(state: State, k: string, board: Board | null): { state: Stat
   }
   if (k === '/') return { state: { ...fresh, adding: '' } };
   if (k === 'g') return post('runner', { on: !board.runner.on }, '');
+  if (k === 'r') {
+    if (live) return { state: { ...fresh, reply: '', focus: 'queue' } };
+    return say('r writes to the agent on a thread being built. Move to one first.');
+  }
+  if (k === 'o') {
+    if (here && here.column !== 'proposed') return { state: fresh, action: { do: 'open', id: here.id } };
+    return say('o opens a thread’s session in Claude Code. Move to a thread that has been started first.');
+  }
+  const wants = row.kind === 'thread' ? askingOf(board, row.id) : null;
+  if (wants && (k === 'y' || k === 'a' || k === 'n')) {
+    const how = k === 'y' ? 'once' : k === 'a' ? 'run' : 'no';
+    return post('permit', { id: row.id, ask: wants.ask, answer: how }, how === 'no' ? 'Refused. The agent is told.' : how === 'run' ? 'Allowed for the rest of this run.' : 'Allowed once.');
+  }
 
   const c = row.kind === 'thread' ? cardOf(board, row.id) : undefined;
   if (k === 'b') {
@@ -891,6 +942,8 @@ export interface Watching {
   seen?: (lines: string[]) => void;
   /** How often the board is asked for, in ms. */
   every?: number;
+  /** Lend the terminal to a thread's Claude Code session, and return when it is handed back: `spool open`, by default. */
+  openIn?: (id: string) => void;
 }
 
 /**
@@ -1022,6 +1075,19 @@ export function watchQueue(w: Watching): Promise<{ url: string; building: number
       if (over) return;
       const { state: next, action } = key(state, k, board);
       state = next;
+      if (action?.do === 'open') {
+        // The terminal is the human's again while Claude Code has it, and this screen is drawn afresh after.
+        term.close();
+        try {
+          (w.openIn ?? openThread)(action.id);
+        } catch (error) {
+          state = { ...state, said: error instanceof Error ? error.message : String(error), failed: true };
+        }
+        term = take();
+        state = { ...state, said: state.failed ? state.said : `Back from ${action.id}.` };
+        await look();
+        return;
+      }
       if (action?.do === 'quit') {
         over = true;
         clearInterval(timer);
@@ -1037,15 +1103,21 @@ export function watchQueue(w: Watching): Promise<{ url: string; building: number
       await look();
     };
 
-    const term = openTerm(
-      w.io,
-      {
-        key: (k) => void (line = line.then(() => press(k))),
-        resize: draw,
-        crash: (error) => w.ctx.err(`spool: the interface stopped on an error, and the page is still up.\n${error instanceof Error ? (error.stack ?? error.message) : String(error)}`),
-      },
-      w.proc,
-    );
+    const openThread = (id: string): void => {
+      const cli = path.join(CODE_DIR, `cli${CODE_EXT}`);
+      spawnSync(process.execPath, [...process.execArgv, cli, '-C', w.root, 'open', id], { stdio: 'inherit' });
+    };
+    const take = (): Term =>
+      openTerm(
+        w.io,
+        {
+          key: (k) => void (line = line.then(() => press(k))),
+          resize: draw,
+          crash: (error) => w.ctx.err(`spool: the interface stopped on an error, and the page is still up.\n${error instanceof Error ? (error.stack ?? error.message) : String(error)}`),
+        },
+        w.proc,
+      );
+    let term = take();
     const timer = setInterval(() => void look(), w.every ?? 1000);
     draw();
     void look();
