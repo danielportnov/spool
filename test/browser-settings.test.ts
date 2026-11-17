@@ -53,6 +53,8 @@ test('the gear opens Settings, and each setting changed there is what its comman
     await until('quick replies are off', () => s.json('settings')['quick-reply'] === false);
     await panel.getByRole('button', { name: 'One thread fewer for Codex' }).click();
     await until('Codex builds 2 at once', () => s.json('builder').agents.find((a: { name: string }) => a.name === 'Codex').atOnce === 2);
+    await panel.getByLabel('Largest size Claude takes').selectOption('m');
+    await until('Claude takes up to M', () => s.json('builder').agents.find((a: { name: string }) => a.name === 'Claude').sizes[1] === 'm');
     await panel.getByLabel('Minutes before an agent is quiet').fill('15');
     await page.keyboard.press('Enter');
     await until('quiet after 15 minutes', () => s.json('settings')['quiet-minutes'] === 15);
